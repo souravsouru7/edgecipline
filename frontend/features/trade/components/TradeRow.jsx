@@ -24,7 +24,7 @@ export default function TradeRow({ trade, onDelete, idx, isDeleting }) {
       <td style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: bull ? "#0D9E6E" : "#D63B3B", boxShadow: bull ? "0 0 6px #0D9E6E" : "0 0 6px #D63B3B", flexShrink: 0 }} />
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#0F1923", fontWeight: 600 }}>{trade.pair}</span>
+          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: trade.pair ? "#0F1923" : "#94A3B8", fontWeight: 600 }}>{trade.pair || "—"}</span>
         </div>
       </td>
 

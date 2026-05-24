@@ -1,6 +1,4 @@
-   const DEFAULT_REMOTE_API_BASE_URL = "https://staging-api.stratedge.live";
-
-// const DEFAULT_REMOTE_API_BASE_URL ="http://localhost:5000";
+const DEFAULT_REMOTE_API_BASE_URL = "https://api.stratedge.live";
 const isCapacitorRuntime = () => {
   return typeof window !== "undefined" && !!window.Capacitor;
 };
@@ -11,6 +9,7 @@ const isLocalhostUrl = (value) => {
 
 function normalizeApiBaseUrl(value) {
   const raw = String(value || "").trim();
+  
 
   if (!raw) {
     return DEFAULT_REMOTE_API_BASE_URL;
@@ -20,8 +19,7 @@ function normalizeApiBaseUrl(value) {
   const hasScheme = raw.startsWith("http://") || raw.startsWith("https://");
   const isExplicitLocalhost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cleaned);
 
-  // If the env var is a bare host (no scheme), default to https for production safety.
-  // Mobile browsers will often block mixed content if the app is served over https.
+
   const normalized = hasScheme
     ? raw.replace(/\/+$/, "")
     : `${isExplicitLocalhost ? "http" : "https"}://${cleaned}`;

@@ -3,6 +3,7 @@ const ApiError = require("../utils/ApiError");
 const { buildCacheKey, getCache, rememberCache } = require("../utils/cache");
 const { clearUserCache } = require("../utils/cacheUtils");
 const tradeRepository = require("../repositories/trade.repository");
+const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -89,6 +90,12 @@ async function createTrade(userId, payload) {
   });
 
   await clearUserCache(userId);
+  await evaluateSmartNotifications({
+    userId,
+    trade,
+    marketType: "Forex",
+    collection: "forex",
+  });
   return trade;
 }
 
@@ -213,6 +220,12 @@ async function updateTrade(userId, tradeId, payload) {
   }
 
   await clearUserCache(userId);
+  await evaluateSmartNotifications({
+    userId,
+    trade,
+    marketType: "Forex",
+    collection: "forex",
+  });
   return trade;
 }
 

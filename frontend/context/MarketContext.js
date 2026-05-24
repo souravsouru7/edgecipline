@@ -96,18 +96,20 @@ export function MarketProvider({ children }) {
     }
 
     setCurrentMarket(market);
-    localStorage.setItem(STORAGE_KEY, market);
-
-    // Dispatch custom event for components that need to react
-    window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market } }));
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, market);
+      window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market } }));
+    }
   }, []);
 
   // Toggle between Forex and Indian Market
   const switchMarket = useCallback(() => {
     setCurrentMarket(prev => {
       const nextMarket = prev === MARKETS.FOREX ? MARKETS.INDIAN_MARKET : MARKETS.FOREX;
-      localStorage.setItem(STORAGE_KEY, nextMarket);
-      window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market: nextMarket } }));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, nextMarket);
+        window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market: nextMarket } }));
+      }
       return nextMarket;
     });
   }, []);

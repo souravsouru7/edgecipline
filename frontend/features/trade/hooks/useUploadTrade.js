@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { uploadTradeImage } from "@/services/uploadApi";
-import { createTrade, getTradeStatus, updateTrade } from "@/services/tradeApi";
+import { createTrade, getTradeStatus, updateTrade, deleteTrade } from "@/services/tradeApi";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
 
@@ -338,7 +338,6 @@ export function useUploadTrade() {
   const [setupRules, setSetupRules]           = useState(DEFAULT_SETUP_RULES);
   const [extractedText, setExtractedText]     = useState("");
   const [activeToastId, setActiveToastId]     = useState(null);
-  const saveAllInProgress                     = useRef(false);
 
   // 3. Authenticity check
   useEffect(() => {
@@ -384,7 +383,7 @@ export function useUploadTrade() {
 
   // ─ apply parsed data helper ─
   const applyProcessedTradeData = (payload) => {
-    const p = payload?.parsedData?.parsedTrade || payload?.parsedTrade || payload || {};
+    const p = payload?.parsedData?.parsedTrade || payload?.parsedTrade || {};
     const parsedTradesPayload = dedupeParsedTrades(
       payload?.parsedData?.parsedTrades || payload?.parsedTrades || []
     );
@@ -545,16 +544,14 @@ export function useUploadTrade() {
       const rules = idx !== null ? (t.setupRules || []) : setupRules;
       const tradeData = buildTradePayload(t, isInd, rules);
 
-      const isMultiTrade = trades.length > 0;
+      // >1 means genuinely multi-trade; ==1 means user deleted down to a single trade
+      // and the ghost should be updated in-place rather than a new doc created.
+      const isMultiTrade = trades.length > 1;
 
-      if (!isInd && !forceCreate && !isMultiTrade && idx === null && uploadedTradeId) {
-        // Forex single-trade uploads keep a Trade record that can be updated in-place.
-        // Indian uploads use a separate IndianTrade collection, so reviewed OCR data
-        // must be created through /api/indian/trades instead of updating the upload tracker.
+      if (!forceCreate && !isMultiTrade && idx === null && uploadedTradeId) {
         return updateTrade(uploadedTradeId, tradeData, marketType);
       }
 
-      // Multi-trade: backend already deleted the ghost — just create fresh trades
       return createTrade(tradeData, marketType);
     },
     onSuccess: (res, variables) => {
@@ -585,13 +582,8 @@ export function useUploadTrade() {
   });
 
   // 8. Actions
-  const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
   const handleUpload = () => {
     if (!file) return setError("Select file");
-    if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
-      return setError("Invalid file type. Only JPEG, PNG, and WEBP images are allowed.");
-    }
     if (isInd && broker === "AUTO") return setError("Select broker");
     uploadJobMutation.mutate(file);
   };
@@ -626,28 +618,13 @@ export function useUploadTrade() {
   const tradeCount = trades.length > 1 ? trades.length : trade ? 1 : 0;
 
   const canSaveTrade = (tradeToSave) => {
+    if (!tradeToSave?.pair || !String(tradeToSave.pair).trim()) {
+      addToast(`Please enter a ${isInd ? "Symbol" : "Pair"} before saving`, "info");
+      return false;
+    }
     if (!tradeToSave?.tradeDate) {
       addToast("Trade date is required before saving", "info");
       return false;
-    }
-    if (!isInd && !tradeToSave?.session) {
-      addToast("Session is required before saving", "info");
-      return false;
-    }
-    if (!tradeToSave?.entryBasis) {
-      addToast("Entry basis is required before saving", "info");
-      return false;
-    }
-    if (!isInd) {
-      const rr = tradeToSave?.riskRewardRatio;
-      if (!rr) {
-        addToast("Risk/Reward ratio is required before saving", "info");
-        return false;
-      }
-      if (rr === "custom" && !tradeToSave?.riskRewardCustom) {
-        addToast("Custom Risk/Reward value is required before saving", "info");
-        return false;
-      }
     }
     if (isInd && tradeToSave?.instrumentType === "EQUITY") {
       const sharesQty = parseOptionalNumber(tradeToSave?.sharesQty);
@@ -655,22 +632,6 @@ export function useUploadTrade() {
         addToast("Shares quantity is required for equity trades", "info");
         return false;
       }
-    }
-    if (!tradeToSave?.mood) {
-      addToast("Select your emotional state (mood) before saving", "info");
-      return false;
-    }
-    if (!tradeToSave?.confidence) {
-      addToast("Select your confidence level before saving", "info");
-      return false;
-    }
-    if (!Array.isArray(tradeToSave?.emotionalTags) || tradeToSave.emotionalTags.length === 0) {
-      addToast("Select at least one emotional tag before saving", "info");
-      return false;
-    }
-    if (!tradeToSave?.wouldRetake) {
-      addToast("Select whether you would retake this trade", "info");
-      return false;
     }
     return true;
   };
@@ -697,20 +658,23 @@ export function useUploadTrade() {
       saveTradeMutation.mutate({ idx });
     },
     saveAllTrades: async () => {
-      if (saveAllInProgress.current) return;
-      saveAllInProgress.current = true;
-      try {
-        for (let i = 0; i < trades.length; i++) {
-          if (!savedTrades[i] && canSaveTrade(trades[i])) {
-            try {
-              await saveTradeMutation.mutateAsync({ idx: i });
-            } catch (err) {
-              addToast(`Trade ${i + 1} failed to save: ${err?.message || "Unknown error"}`, "error");
-            }
+      // Delete the ghost trade first so it never appears in the journal,
+      // regardless of which individual trades the user chose to keep.
+      if (uploadedTradeId) {
+        try {
+          await deleteTrade(uploadedTradeId, marketType);
+        } catch (_) {
+          // Ghost may already be gone — not a blocking error
+        }
+      }
+      for (let i = 0; i < trades.length; i++) {
+        if (!savedTrades[i] && canSaveTrade(trades[i])) {
+          try {
+            await saveTradeMutation.mutateAsync({ idx: i });
+          } catch (err) {
+            addToast(`Trade ${i + 1} failed to save: ${err?.message || "Unknown error"}`, "error");
           }
         }
-      } finally {
-        saveAllInProgress.current = false;
       }
     },
     toggleSetupRule: id => setSetupRules(p => p.map(r => r.id === id ? { ...r, followed: !r.followed } : r)),

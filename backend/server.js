@@ -17,14 +17,19 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
-process.on("uncaughtException", (err) => {
-  // Use console here — logger may not be initialized yet at this point
-  console.error("[FATAL] Uncaught exception:", err);
+// Register global handlers before any module imports so that synchronous throws
+// and unhandled rejections from requires (config, DB, etc.) are captured rather
+// than silently crashing the process. Use console here because the logger module
+// hasn't been loaded yet at this point.
+process.on("uncaughtException", (error) => {
+  console.error("[FATAL] Uncaught Exception — process will exit", error.message, error.stack);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("[FATAL] Unhandled promise rejection:", reason);
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  console.error("[FATAL] Unhandled Rejection — process will exit", msg, stack);
   process.exit(1);
 });
 
@@ -45,11 +50,48 @@ const { errorHandler } = require("./middleware/errorHandler");
 const { logger, stream } = require("./utils/logger");
 const { timeoutMiddleware } = require("./middleware/timeout");
 
+// Upgrade global error handlers now that the structured logger is available.
+process.removeAllListeners("uncaughtException");
+process.removeAllListeners("unhandledRejection");
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception — process will exit", { error: error.message, stack: error.stack });
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled Rejection — process will exit", {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+  process.exit(1);
+});
+
 const { connectRedis } = require("./config/redis");
-const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
 const { startDataCleanupCron } = require("./jobs/dataCleanupCron");
+const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
+const { startMorningMentorCron } = require("./jobs/morningMentorCron");
 const { startOcrWorker } = require("./workers/ocrWorker");
 
+connectDB();
+connectRedis();
+
+// In local/dev environments, start the OCR worker in-process so uploads do not
+// remain stuck in "processing" when only the API server is running.
+if (appConfig.env !== "production" && process.env.ENABLE_EMBEDDED_OCR_WORKER !== "false") {
+  startOcrWorker({ initializeConnections: false, mode: "embedded" }).catch((error) => {
+    logger.error("Failed to start embedded OCR worker", {
+      error: error.message,
+      stack: error.stack,
+    });
+  });
+}
+
+// Weekly AI reports are generated on-demand only (user clicks Generate Report).
+// This cron only sends a lightweight reminder notification; it does not call AI.
+startWeeklyReportsCron();
+startMorningMentorCron();
+startDataCleanupCron();
 
 const app = express();
 
@@ -186,6 +228,7 @@ app.use("/api/checklists", require("./routes/checklistRoutes"));
 app.use("/api/analytics", require("./routes/analyticsRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/reports", require("./routes/weeklyReportRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 // Admin routes (completely separate workspace)
 app.use("/api/admin/auth", require("./admin/routes/adminAuthRoutes"));
@@ -202,6 +245,9 @@ app.use("/api/feedback", require("./routes/feedbackRoutes"));
 // Payment routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
 
+// Profile routes (FCM token registration)
+app.use("/api/profile", require("./routes/profileRoutes"));
+
 // Indian Market-specific routes (completely separate workspace)
 app.use("/api/indian/trades", require("./routes/indianMarketRoutes"));
 app.use("/api/indian/analytics", require("./routes/indianAnalyticsRoutes"));
@@ -209,6 +255,7 @@ app.use("/api/indian/analytics", require("./routes/indianAnalyticsRoutes"));
 app.get("/", (_req, res) => {
   res.send("Trading Journal API Running - Forex & Indian Markets");
 });
+
 
 // Fallback 404 for unknown routes
 app.use((_req, res) => {
@@ -225,57 +272,33 @@ app.use(errorHandler);
 
 const PORT = appConfig.port;
 
-async function startServer() {
-  // Wait for DB and Redis before opening the HTTP port.
-  // If either throws, the unhandledRejection handler above will log and exit.
-  await connectDB();
-  await connectRedis();
+const server = app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
+});
 
-  // In local/dev environments, start the OCR worker in-process so uploads do not
-  // remain stuck in "processing" when only the API server is running.
-  if (appConfig.env !== "production" && process.env.ENABLE_EMBEDDED_OCR_WORKER !== "false") {
-    await startOcrWorker({ initializeConnections: false, mode: "embedded" }).catch((error) => {
-      logger.error("Failed to start embedded OCR worker", {
-        error: error.message,
-        stack: error.stack,
-      });
-    });
-  }
-
-  // Start scheduled cron jobs
-  startWeeklyReportsCron();
-  startDataCleanupCron();
-
-  const server = app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-    console.log(`Server running on port ${PORT}`);
+// Graceful shutdown
+const shutdown = async (signal) => {
+  logger.info(`${signal} received — shutting down gracefully`);
+  server.close(async () => {
+    logger.info("HTTP server closed");
+    try {
+      const mongoose = require("mongoose");
+      await mongoose.connection.close();
+      const { client } = require("./config/redis");
+      await client.quit();
+    } catch (e) {
+      logger.error("Shutdown cleanup error", { error: e.message });
+    }
+    process.exit(0);
   });
 
-  // Graceful shutdown
-  const shutdown = async (signal) => {
-    logger.info(`${signal} received — shutting down gracefully`);
-    server.close(async () => {
-      logger.info("HTTP server closed");
-      try {
-        const mongoose = require("mongoose");
-        await mongoose.connection.close();
-        const { client } = require("./config/redis");
-        await client.quit();
-      } catch (e) {
-        logger.error("Shutdown cleanup error", { error: e.message });
-      }
-      process.exit(0);
-    });
+  // Force exit after 15s if graceful close hangs
+  setTimeout(() => {
+    logger.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 15_000);
+};
 
-    // Force exit after 15s if graceful close hangs
-    setTimeout(() => {
-      logger.error("Forced shutdown after timeout");
-      process.exit(1);
-    }, 15_000);
-  };
-
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
-}
-
-startServer();
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

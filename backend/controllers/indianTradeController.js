@@ -3,6 +3,7 @@ const IndianTrade = require("../models/IndianTrade");
 const { clearUserCache } = require("../utils/cacheUtils");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { evaluateSmartNotifications } = require("../services/smartNotificationEvaluator");
 
 function normalizeTradeDate(tradeDate) {
   const parsed = new Date(tradeDate);
@@ -129,6 +130,12 @@ exports.createTrade = asyncHandler(async (req, res) => {
   const trade = await IndianTrade.create(tradeData);
 
   await clearUserCache(req.user._id);
+  await evaluateSmartNotifications({
+    userId: req.user._id,
+    trade,
+    marketType: "Indian_Market",
+    collection: "indian",
+  });
 
   res.status(201).json(trade);
 });
@@ -222,6 +229,12 @@ exports.updateTrade = asyncHandler(async (req, res) => {
   }
 
   await clearUserCache(req.user._id);
+  await evaluateSmartNotifications({
+    userId: req.user._id,
+    trade,
+    marketType: "Indian_Market",
+    collection: "indian",
+  });
 
   res.json(trade);
 });

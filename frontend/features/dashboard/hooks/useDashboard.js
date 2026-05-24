@@ -20,7 +20,7 @@ export function useDashboard() {
   // 1. Dashboard stats
   const { data: stats = null, isLoading: loading, error } = useQuery({
     queryKey: ["dashboard", "summary"],
-    queryFn: getSummary,
+    queryFn: () => getSummary(),
     staleTime: 60 * 1000,
     enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
   });

@@ -42,9 +42,9 @@ export function useAnalytics() {
   // SEQUENTIAL: Core analytics first (immediate KPIs)
   const coreResults = useQueries({
     queries: [
-      { queryKey: ["analytics", "summary"],      queryFn: getSummary,           staleTime: 5 * 60 * 1000 },
-      { queryKey: ["analytics", "performance"],  queryFn: getPerformanceMetrics, staleTime: 5 * 60 * 1000 },
-      { queryKey: ["analytics", "distribution"], queryFn: getTradeDistribution,  staleTime: 5 * 60 * 1000 },
+      { queryKey: ["analytics", "summary"],      queryFn: () => getSummary(),           staleTime: 5 * 60 * 1000 },
+      { queryKey: ["analytics", "performance"],  queryFn: () => getPerformanceMetrics(), staleTime: 5 * 60 * 1000 },
+      { queryKey: ["analytics", "distribution"], queryFn: () => getTradeDistribution(),  staleTime: 5 * 60 * 1000 },
     ],
   });
 
@@ -61,10 +61,10 @@ export function useAnalytics() {
   // DEEP: Optional analytics (progressive loading, rate-limit safe)
   const deepResults = useQueries({
     queries: hasCoreData ? [  // Only if core succeeded
-      { queryKey: ["analytics", "riskReward"],   queryFn: getRiskRewardAnalysis, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "timeAnalysis"], queryFn: getTimeAnalysis,       staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "drawdown"],     queryFn: getDrawdownAnalysis,   staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "aiInsights"],   queryFn: getAIInsights,         staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "riskReward"],   queryFn: () => getRiskRewardAnalysis(), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "timeAnalysis"], queryFn: () => getTimeAnalysis(),       staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "drawdown"],     queryFn: () => getDrawdownAnalysis(),   staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "aiInsights"],   queryFn: () => getAIInsights(),         staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
       { queryKey: ["analytics", "psychology"],   queryFn: async () => {
           try { return await getPsychologyAnalytics(); } catch (e) { return null; }
         }, 

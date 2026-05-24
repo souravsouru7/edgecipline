@@ -310,9 +310,6 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
   const isIndian = marketType === "Indian_Market";
   const { weekStartUtc, weekEndUtc, weekStartLocal, weekEndLocal } = getRolling7dUtcRange();
 
-  // Use day-level precision for the upsert key so that multiple calls
-  // on the same calendar day always resolve to the same DB document
-  // instead of creating duplicate records (millisecond timestamps differ).
   const weekStartDay = new Date(weekStartUtc);
   weekStartDay.setUTCHours(0, 0, 0, 0);
   const weekEndDay = new Date(weekEndUtc);

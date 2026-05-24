@@ -286,6 +286,19 @@ export const markAllAdminNotificationsAsRead = async () => {
   return handleResponse(res);
 };
 
+export const sendAdminCustomNotification = async (payload) => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
+  const res = await fetch(`${BASE_URL}/admin/notifications/custom`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(payload)
+  });
+  return handleResponse(res);
+};
+
 
 
 

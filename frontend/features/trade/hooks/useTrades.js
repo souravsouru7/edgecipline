@@ -75,6 +75,7 @@ export function useTrades() {
 
   // Client-side filtering logic (preserved from original)
   const filtered = trades.filter((t) => {
+    if (!t.pair || !String(t.pair).trim()) return false;
     const matchFilter = filter === "ALL" || t.type?.toUpperCase() === filter;
     const q = search.toLowerCase();
     const dateText = new Date(t.tradeDate || t.createdAt).toLocaleDateString().toLowerCase();

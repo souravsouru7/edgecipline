@@ -72,8 +72,10 @@ function validateIndianTrade(parsedTrade = {}) {
   if (!hasUnderlying) failures.push("underlying is missing");
   if (!(strikePrice > 0) && !/\bFUT\b/i.test(pair)) failures.push("strike price is missing");
   if (!["CE", "PE", "FUT"].includes(optionType) && !/\b(CE|PE|FUT)\b/i.test(pair)) failures.push("option type is invalid");
-  if (!(quantity > 0)) failures.push("quantity must be greater than 0");
-  if (!(price > 0)) failures.push("entry or exit price must be greater than 0");
+  // quantity = 0 is valid for closed positions (P&L/portfolio screenshots show Qty 0 after exit)
+  // quantity = null means it was not extracted at all — flag it; 0 is intentional
+  if (quantity == null && parsedTrade.quantity !== 0) failures.push("quantity must be greater than 0");
+  // price is optional — P&L views often only show LTP or P&L, not entry/exit price
   if (pnl == null || !Number.isFinite(Number(pnl))) failures.push("pnl must be a valid number");
 
   return {
@@ -161,7 +163,7 @@ function calculateIndianConfidenceScore({ parsedTrade = {}, parsedTrades = [], o
 
 // Keywords that strongly indicate a trading screenshot.
 // Intentionally broad — covers Forex, Indian equities, options, and broker UIs.
-const FOREX_KEYWORDS = ["buy", "sell", "profit", "loss", "pnl", "p&l", "pip", "lot", "entry", "exit", "trade", "order", "position", "balance", "equity", "margin", "swap", "commission", "eurusd", "gbpusd", "usdjpy", "xauusd", "usdcad", "audusd", "usdchf", "gbpjpy", "gold", "forex", "spread", "drawdown"];
+const FOREX_KEYWORDS = ["buy", "sell", "profit", "loss", "pnl", "p&l", "pip", "lot", "entry", "exit", "trade", "order", "position", "balance", "equity", "margin", "swap", "commission", "eurusd", "gbpusd", "usdjpy", "xauusd", "usdcad", "audusd", "usdchf", "gbpjpy", "gold", "forex", "spread", "drawdown", "us30", "us100", "us500", "nas100", "spx500", "ger40", "uk100", "jp225", "aus200", "dow", "nasdaq", "indices", "index", "cfd"];
 const INDIAN_KEYWORDS = ["nifty", "banknifty", "finnifty", "sensex", "bankex", "ce", "pe", "fut", "nse", "bse", "qty", "ltp", "avg", "strike", "premium", "expiry", "zerodha", "upstox", "kite", "groww", "dhan", "fyers", "icici", "kotak", "intraday", "delivery", "options", "futures"];
 
 /**

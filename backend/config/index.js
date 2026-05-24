@@ -59,7 +59,7 @@ function normalizeMongoUri(value) {
 const appConfig = {
   env: process.env.NODE_ENV || "development",
   port: readNumber("PORT", 5000),
-  logLevel: process.env.LOG_LEVEL || "warn",
+  logLevel: process.env.LOG_LEVEL || "info",
   mongoUri: normalizeMongoUri(requireEnv("MONGO_URI")),
   mongoDnsServers: readList("MONGO_DNS_SERVERS"),
   jwt: {
@@ -98,6 +98,12 @@ const appConfig = {
   weeklyReports: {
     enabled: readBoolean("ENABLE_WEEKLY_REPORTS_CRON", true),
     schedule: process.env.WEEKLY_REPORTS_CRON || "0 9 * * *",
+  },
+  morningMentor: {
+    enabled: readBoolean("ENABLE_MORNING_MENTOR_CRON", true),
+    schedule: process.env.MORNING_MENTOR_CRON || "0 7 * * *",
+    timezone: process.env.MORNING_MENTOR_TIMEZONE || "Asia/Kolkata",
+    timezoneOffsetHours: readNumber("MORNING_MENTOR_TIMEZONE_OFFSET_HOURS", 5.5),
   },
   cors: {
     allowedOrigins: (process.env.ALLOWED_ORIGINS || "")

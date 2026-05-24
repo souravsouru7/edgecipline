@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -179,16 +180,17 @@ function PsychRow({ label, winRate, trades, avgProfit, color }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AnalyticsContent() {
-  const { 
-    loading, 
-    coreLoading, 
-    deepLoading, 
-    data, 
-    calendarMonth, 
-    prevMonth, 
-    nextMonth, 
+  const queryClient = useQueryClient();
+  const {
+    loading,
+    coreLoading,
+    deepLoading,
+    data,
+    calendarMonth,
+    prevMonth,
+    nextMonth,
     error,
-    retryAfterSeconds 
+    retryAfterSeconds
   } = useAnalytics();
   const { summary, riskReward, distribution, performance, timeAnalysis, quality, drawdown, aiInsights, psychology } = data || {};
 
@@ -210,15 +212,15 @@ function AnalyticsContent() {
         <p style={{ fontSize: 14, color: C.muted, marginBottom: 32 }}>
           Core charts loading above. Deep analytics (psychology, AI insights) will appear shortly.
         </p>
-        <button 
-          onClick={() => window.location.reload()} 
-          style={{ 
-            background: C.bull, 
-            color: "white", 
-            border: "none", 
-            padding: "12px 32px", 
-            borderRadius: 12, 
-            fontSize: 14, 
+        <button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["analytics"] })}
+          style={{
+            background: C.bull,
+            color: "white",
+            border: "none",
+            padding: "12px 32px",
+            borderRadius: 12,
+            fontSize: 14,
             fontWeight: 700,
             cursor: "pointer"
           }}

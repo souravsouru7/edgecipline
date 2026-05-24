@@ -25,6 +25,7 @@ const {
 } = require("./extractionQualityService");
 const { logger } = require("../utils/logger");
 const { appConfig } = require("../config");
+const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
 
 const PROCESSING_TIMEOUT_MS = appConfig.timeouts.processingTimeoutMs;
 const CONFIDENCE_ZONES = {
@@ -85,12 +86,11 @@ function normalizeTradeType(type) {
 }
 
 function withTimeout(promise, message, timeoutMs = PROCESSING_TIMEOUT_MS) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(message)), timeoutMs);
-    }),
-  ]);
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function isWeakOcrText(text) {
@@ -375,6 +375,7 @@ function mergeIndianAiTrades(parsedTrades = [], aiTrades = [], broker = "") {
       entryPrice: trade.entryPrice ?? null,
       pnl: trade.profit ?? null,
       broker: trade.broker || broker || "",
+      tradeType: trade.productType === "DELIVERY" ? "DELIVERY" : "INTRADAY",
     }));
   }
 
@@ -397,6 +398,7 @@ function mergeIndianAiTrades(parsedTrades = [], aiTrades = [], broker = "") {
       entryPrice: (aiTrade.entryPrice != null && aiTrade.entryPrice > 0) ? aiTrade.entryPrice : trade.entryPrice ?? null,
       pnl: aiTrade.profit ?? trade.pnl ?? null,
       broker: aiTrade.broker || trade.broker || broker || "",
+      tradeType: aiTrade.productType === "DELIVERY" ? "DELIVERY" : (trade.tradeType || "INTRADAY"),
     };
   });
 }
@@ -414,6 +416,7 @@ function buildIndianTradeFromParsedRow(row = {}, fallbackBroker = "") {
     entryPrice: row.entryPrice ?? null,
     profit: row.pnl ?? null,
     broker: row.broker || fallbackBroker || "",
+    tradeType: row.tradeType || "INTRADAY",
   };
 }
 
@@ -516,6 +519,7 @@ function buildTradeUpdate({
     exchange: parsedTrade?.exchange || trade.exchange || undefined,
     sharesQty: parsedTrade?.sharesQty ?? trade.sharesQty ?? undefined,
     sector: parsedTrade?.sector || trade.sector || undefined,
+    tradeType: parsedTrade?.tradeType || trade.tradeType || undefined,
     tradeSubType: trade.tradeSubType || undefined,
     extractedText: truncateField(extractedText, MAX_OCR_TEXT_LENGTH),
     rawOCRText: truncateField(extractedText, MAX_OCR_TEXT_LENGTH),
@@ -708,6 +712,9 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
           parsedTrades = mergeIndianAiTrades([], aiData?.trades || [], broker || aiData.broker || "");
         } else {
           parsedTrade = mergeGenericAiData({}, aiData);
+          parsedTrades = Array.isArray(aiData?.trades) && aiData.trades.length > 0
+            ? aiData.trades.map((t) => mergeGenericAiData({}, t))
+            : [];
         }
 
         logExtractedTrades({ tradeId, stage: "Gemini Vision extraction", parsedTrade, parsedTrades });
@@ -1003,7 +1010,15 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         validationFailures: finalValidation.failures,
       });
       update.tradeSubType = marketType === "Indian_Market" ? tradeSubType : trade.tradeSubType || "";
-      await Trade.findByIdAndUpdate(tradeId, update, { returnDocument: "after", runValidators: true });
+      const updatedTrade = await Trade.findByIdAndUpdate(tradeId, update, { returnDocument: "after", runValidators: true });
+      if (updatedTrade) {
+        await evaluateSmartNotifications({
+          userId: updatedTrade.user,
+          trade: updatedTrade,
+          marketType: updatedTrade.marketType || marketType,
+          collection: "forex",
+        });
+      }
     }
 
     await logExtraction({ trade, extractedText: cleanedText, parsedTrade, parsedTrades, aiUsed: !!aiData });

@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stratedge — Professional Deployment & Testing Guide</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #ffffff;
+    }
+
+    /* ── Cover Page ─────────────────────────────────── */
+    .cover {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px 40px;
+      page-break-after: always;
+    }
+    .cover .badge {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #a78bfa;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 6px 18px;
+      border-radius: 20px;
+      margin-bottom: 32px;
+    }
+    .cover h1 {
+      font-size: 42px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .cover h1 span { color: #a78bfa; }
+    .cover .subtitle {
+      font-size: 16px;
+      color: rgba(255,255,255,0.6);
+      max-width: 480px;
+      margin-bottom: 48px;
+    }
+    .cover .meta {
+      display: flex;
+      gap: 32px;
+      color: rgba(255,255,255,0.5);
+      font-size: 12px;
+    }
+    .cover .meta span { display: flex; align-items: center; gap: 6px; }
+    .cover .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa);
+      border-radius: 2px;
+      margin: 40px auto;
+    }
+
+    /* ── Page Layout ────────────────────────────────── */
+    .page {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 56px 48px;
+    }
+    .page-break { page-break-before: always; }
+
+    /* ── Section Headers ────────────────────────────── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #7c3aed;
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+      line-height: 1.25;
+    }
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 10px;
+      margin-top: 24px;
+    }
+    .section-intro {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 32px;
+      max-width: 620px;
+    }
+    hr.divider {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 40px 0;
+    }
+
+    /* ── Problem vs Solution ────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .compare-card.bad {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+    }
+    .compare-card.good {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+    }
+    .compare-card .card-title {
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .compare-card.bad .card-title { color: #dc2626; }
+    .compare-card.good .card-title { color: #16a34a; }
+    .compare-card .flow {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11.5px;
+      color: #374151;
+      line-height: 2;
+    }
+    .arrow { color: #9ca3af; }
+
+    /* ── Flow Diagram ───────────────────────────────── */
+    .flow-diagram {
+      margin: 28px 0;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 4px;
+    }
+    .flow-connector {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+    .flow-connector .line {
+      width: 32px;
+      display: flex;
+      justify-content: center;
+      color: #d1d5db;
+      font-size: 18px;
+    }
+    .flow-connector .connector-text {
+      font-size: 11px;
+      color: #9ca3af;
+      font-style: italic;
+    }
+    .step-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .step-icon.laptop { background: #ede9fe; }
+    .step-icon.github { background: #f3f4f6; }
+    .step-icon.staging { background: #fef3c7; }
+    .step-icon.production { background: #dcfce7; }
+    .step-icon.monitor { background: #dbeafe; }
+    .step-body { flex: 1; }
+    .step-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #111827;
+      margin-bottom: 3px;
+    }
+    .step-desc {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+    .step-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .tag.green { background: #dcfce7; color: #166534; }
+    .tag.red { background: #fee2e2; color: #991b1b; }
+    .tag.blue { background: #dbeafe; color: #1e40af; }
+    .tag.yellow { background: #fef9c3; color: #854d0e; }
+    .tag.purple { background: #ede9fe; color: #6d28d9; }
+
+    /* ── Three Layers ───────────────────────────────── */
+    .layers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .layer-card {
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #e5e7eb;
+    }
+    .layer-card .layer-num {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+    .layer-card .layer-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+    .layer-card .layer-desc {
+      font-size: 11.5px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .layer-card.l1 { border-top: 3px solid #7c3aed; }
+    .layer-card.l2 { border-top: 3px solid #f59e0b; }
+    .layer-card.l3 { border-top: 3px solid #10b981; }
+
+    /* ── Branch Strategy ────────────────────────────── */
+    .branch-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 12px;
+    }
+    .branch-table thead tr {
+      background: #f9fafb;
+    }
+    .branch-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #374151;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .branch-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: top;
+    }
+    .branch-table tr:last-child td { border-bottom: none; }
+    .branch-pill {
+      display: inline-block;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .branch-pill.main { background: #fee2e2; color: #991b1b; }
+    .branch-pill.staging { background: #fef9c3; color: #92400e; }
+    .branch-pill.feature { background: #ede9fe; color: #6d28d9; }
+
+    /* ── Environments ───────────────────────────────── */
+    .env-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin: 20px 0;
+    }
+    .env-card {
+      border-radius: 10px;
+      padding: 18px;
+      border: 1px solid #e5e7eb;
+    }
+    .env-card.local { background: #faf5ff; border-color: #ddd6fe; }
+    .env-card.staging { background: #fffbeb; border-color: #fde68a; }
+    .env-card.prod { background: #f0fdf4; border-color: #bbf7d0; }
+    .env-card .env-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .env-card.local .env-label { color: #7c3aed; }
+    .env-card.staging .env-label { color: #d97706; }
+    .env-card.prod .env-label { color: #16a34a; }
+    .env-card .env-url {
+      font-family: monospace;
+      font-size: 11px;
+      color: #374151;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    .env-card ul {
+      list-style: none;
+      font-size: 11.5px;
+      color: #6b7280;
+      line-height: 1.8;
+    }
+    .env-card ul li::before { content: "→ "; color: #9ca3af; }
+
+    /* ── Checklist ──────────────────────────────────── */
+    .checklist {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .checklist-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #374151;
+      margin-bottom: 14px;
+    }
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 12.5px;
+    }
+    .check-box {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #d1d5db;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .checklist-item .item-text { color: #374151; }
+    .checklist-item .item-note { color: #9ca3af; font-size: 11px; display: block; }
+
+    /* ── Code Block ─────────────────────────────────── */
+    pre {
+      background: #1e1e2e;
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11.5px;
+      line-height: 1.8;
+      color: #cdd6f4;
+      overflow: hidden;
+      margin: 14px 0;
+    }
+    pre .comment { color: #6c7086; }
+    pre .keyword { color: #cba6f7; }
+    pre .string { color: #a6e3a1; }
+    pre .key { color: #89b4fa; }
+    pre .value { color: #fab387; }
+
+    /* ── Action Plan ────────────────────────────────── */
+    .action-steps {
+      margin: 20px 0;
+    }
+    .action-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+    .action-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #7c3aed;
+      color: white;
+      font-weight: 800;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .action-body .action-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #111827;
+      margin-bottom: 3px;
+    }
+    .action-body .action-detail {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+    .action-body .action-time {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 1px 8px;
+      border-radius: 20px;
+      margin-top: 4px;
+    }
+
+    /* ── Summary Box ────────────────────────────────── */
+    .summary-box {
+      background: linear-gradient(135deg, #0f0c29, #302b63);
+      border-radius: 14px;
+      padding: 28px 32px;
+      color: white;
+      margin: 28px 0;
+    }
+    .summary-box h3 {
+      color: #a78bfa;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      margin-top: 0;
+    }
+    .summary-box p {
+      color: rgba(255,255,255,0.75);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .summary-box .highlight { color: #a78bfa; font-weight: 700; }
+
+    /* ── Footer ─────────────────────────────────────── */
+    .footer {
+      border-top: 1px solid #e5e7eb;
+      padding: 20px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .footer .brand { font-weight: 700; color: #7c3aed; }
+
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page-break { page-break-before: always; }
+      .cover { page-break-after: always; min-height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ COVER -->
+<div class="cover">
+  <div class="badge">Stratedge · Internal Engineering Guide</div>
+  <h1>Professional Deploy &<br><span>Testing Strategy</span></h1>
+  <div class="divider"></div>
+  <p class="subtitle">How to stop pushing broken code to production and ship with confidence — built for a solo founder/developer.</p>
+  <div class="meta">
+    <span>📅 May 2026</span>
+    <span>⚙️ Node.js · Next.js · EC2 · MongoDB</span>
+    <span>👤 Sourav</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 1: THE PROBLEM -->
+<div class="page">
+  <div class="section-label">Section 01</div>
+  <h2>The Problem Right Now</h2>
+  <p class="section-intro">You are currently one bad commit away from breaking Stratedge for every real user. Here's what your pipeline looks like today vs. what it should look like.</p>
+
+  <div class="compare-grid">
+    <div class="compare-card bad">
+      <div class="card-title">❌ What You Do Now</div>
+      <div class="flow">
+        Write code on laptop<br>
+        <span class="arrow">↓</span><br>
+        git push origin main<br>
+        <span class="arrow">↓</span><br>
+        GitHub Actions fires<br>
+        <span class="arrow">↓</span><br>
+        SSH → git reset --hard<br>
+        <span class="arrow">↓</span><br>
+        pm2 restart<br>
+        <span class="arrow">↓</span><br>
+        <strong>LIVE PRODUCTION 💥</strong>
+      </div>
+    </div>
+    <div class="compare-card good">
+      <div class="card-title">✅ What You Should Do</div>
+      <div class="flow">
+        Write code on feature branch<br>
+        <span class="arrow">↓</span><br>
+        PR → staging (tests run)<br>
+        <span class="arrow">↓</span><br>
+        Deploy to staging server<br>
+        <span class="arrow">↓</span><br>
+        You test manually (5 min)<br>
+        <span class="arrow">↓</span><br>
+        PR → main (tests run again)<br>
+        <span class="arrow">↓</span><br>
+        <strong>PRODUCTION ✅</strong>
+      </div>
+    </div>
+  </div>
+
+  <h3>What Can Go Wrong With Your Current Setup</h3>
+  <p style="font-size:12.5px; color:#6b7280; margin-bottom:14px;">These are real failure scenarios that happen to solo developers who push directly to prod:</p>
+
+  <table class="branch-table">
+    <thead><tr><th>Scenario</th><th>Impact</th><th>How Often</th></tr></thead>
+    <tbody>
+      <tr><td>You break the login API</td><td>No user can log in — silent outage</td><td>Very common</td></tr>
+      <tr><td>OCR/AI parsing logic breaks</td><td>Trade uploads silently fail or corrupt data</td><td>Common</td></tr>
+      <tr><td>npm install brings in a breaking dependency</td><td>Server won't start, pm2 crash loop</td><td>Occasional</td></tr>
+      <tr><td>Wrong .env variable in prod</td><td>MongoDB connection fails, full outage</td><td>Rare but fatal</td></tr>
+      <tr><td>You push half-finished feature</td><td>Real users see broken UI</td><td>Very common</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 2: THE FLOW -->
+<div class="page page-break">
+  <div class="section-label">Section 02</div>
+  <h2>The Complete Professional Flow</h2>
+  <p class="section-intro">Every code change goes through this exact sequence before reaching real users. Nothing skips a step.</p>
+
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="step-icon laptop">💻</div>
+      <div class="step-body">
+        <div class="step-title">Step 1 — Write Code on a Feature Branch</div>
+        <div class="step-desc">Never write code on <code>main</code> or <code>staging</code> directly. Create a new branch for every change, no matter how small.</div>
+        <div class="step-tags">
+          <span class="tag purple">git checkout -b feature/fix-upload-bug</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">push to GitHub</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon github">🐙</div>
+      <div class="step-body">
+        <div class="step-title">Step 2 — Open a Pull Request to Staging</div>
+        <div class="step-desc">GitHub Actions automatically runs your tests the moment you open a PR. If any test fails, the PR is blocked — you cannot merge broken code.</div>
+        <div class="step-tags">
+          <span class="tag green">tests pass → can merge</span>
+          <span class="tag red">tests fail → blocked</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">merged to staging branch</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon staging">🧪</div>
+      <div class="step-body">
+        <div class="step-title">Step 3 — Auto-Deploy to Staging Server</div>
+        <div class="step-desc">GitHub Actions SSH-deploys to your staging environment (same EC2, different port + database). This is a mirror of production with fake data.</div>
+        <div class="step-tags">
+          <span class="tag yellow">staging.yourdomain.com</span>
+          <span class="tag yellow">port 4000</span>
+          <span class="tag yellow">separate MongoDB cluster</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">you manually test</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon staging">✅</div>
+      <div class="step-body">
+        <div class="step-title">Step 4 — Manual QA on Staging (5 minutes)</div>
+        <div class="step-desc">You open staging in your browser and run through the critical flows: login, upload a trade, check analytics, check Indian market. This catches UI/UX bugs that automated tests miss.</div>
+        <div class="step-tags">
+          <span class="tag blue">login works</span>
+          <span class="tag blue">upload works</span>
+          <span class="tag blue">OCR correct</span>
+          <span class="tag blue">analytics show</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">looks good → PR to main</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon github">🐙</div>
+      <div class="step-body">
+        <div class="step-title">Step 5 — Open a Pull Request to Main</div>
+        <div class="step-desc">Tests run again. You review the final diff. Main branch is protected — no direct push allowed. Only reviewed, tested code gets in.</div>
+        <div class="step-tags">
+          <span class="tag green">final gate before production</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">merged</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon production">🚀</div>
+      <div class="step-body">
+        <div class="step-title">Step 6 — Auto-Deploy to Production</div>
+        <div class="step-desc">Your existing deploy.yml fires — SSH to EC2, git pull, npm install, pm2 restart. Real users get the new code.</div>
+        <div class="step-tags">
+          <span class="tag green">yourdomain.com</span>
+          <span class="tag green">port 5000</span>
+          <span class="tag green">real user data</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector"><div class="line">↓</div><div class="connector-text">always watching</div></div>
+
+    <div class="flow-step">
+      <div class="step-icon monitor">📡</div>
+      <div class="step-body">
+        <div class="step-title">Step 7 — Sentry Monitors Production</div>
+        <div class="step-desc">You already have @sentry/node installed. If anything breaks in production, Sentry emails you instantly with the exact error and stack trace. You didn't have to wait for a user complaint.</div>
+        <div class="step-tags">
+          <span class="tag blue">real-time error alerts</span>
+          <span class="tag blue">stack trace included</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 3: THREE ENVIRONMENTS -->
+<div class="page page-break">
+  <div class="section-label">Section 03</div>
+  <h2>Three Environments</h2>
+  <p class="section-intro">The key rule: each environment has its own database. Real user data never touches local or staging.</p>
+
+  <div class="env-grid">
+    <div class="env-card local">
+      <div class="env-label">Local · Dev</div>
+      <div class="env-url">localhost:3000 / :5000</div>
+      <ul>
+        <li>Your laptop only</li>
+        <li>Local MongoDB or Atlas dev cluster</li>
+        <li>Test with fake data freely</li>
+        <li>.env.local file</li>
+        <li>Hot reload with nodemon</li>
+      </ul>
+    </div>
+    <div class="env-card staging">
+      <div class="env-label">Staging · Test</div>
+      <div class="env-url">staging.yourdomain.com:4000</div>
+      <ul>
+        <li>Same EC2, different folder</li>
+        <li>Separate MongoDB Atlas cluster</li>
+        <li>Mirrors production exactly</li>
+        <li>.env.staging file</li>
+        <li>Only you access this</li>
+      </ul>
+    </div>
+    <div class="env-card prod">
+      <div class="env-label">Production · Live</div>
+      <div class="env-url">yourdomain.com:5000</div>
+      <ul>
+        <li>Real users, real data</li>
+        <li>Production MongoDB Atlas</li>
+        <li>Only gets tested code</li>
+        <li>.env.production file</li>
+        <li>PM2 manages 2 processes</li>
+      </ul>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section-label">Section 04</div>
+  <h2>Branch Strategy</h2>
+  <p class="section-intro">Three types of branches. Simple rule: work flows upward — feature → staging → main. Never backwards.</p>
+
+  <table class="branch-table">
+    <thead>
+      <tr>
+        <th>Branch</th>
+        <th>Deploys To</th>
+        <th>Who Can Push</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="branch-pill main">main</span></td>
+        <td>Production (EC2 port 5000)</td>
+        <td>Only via PR (protected)</td>
+        <td>Always stable. Real users hit this.</td>
+      </tr>
+      <tr>
+        <td><span class="branch-pill staging">staging</span></td>
+        <td>Staging server (EC2 port 4000)</td>
+        <td>Only via PR from feature branches</td>
+        <td>Pre-production testing mirror.</td>
+      </tr>
+      <tr>
+        <td><span class="branch-pill feature">feature/*</span></td>
+        <td>Nowhere (local only)</td>
+        <td>You, directly</td>
+        <td>Where you actually write code.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <pre><span class="comment"># Daily workflow</span>
+git checkout -b <span class="string">feature/add-pnl-chart</span>
+
+<span class="comment"># ... write code ...</span>
+
+git add backend/controllers/analyticsController.js
+git commit -m <span class="string">"add monthly PnL breakdown chart"</span>
+git push origin feature/add-pnl-chart
+
+<span class="comment"># Open PR on GitHub: feature/add-pnl-chart → staging</span>
+<span class="comment"># Tests run automatically. If pass → merge → staging deploys</span>
+<span class="comment"># Test manually on staging.yourdomain.com</span>
+<span class="comment"># Open PR: staging → main</span>
+<span class="comment"># Merge → production deploys automatically</span></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 4: TESTS -->
+<div class="page page-break">
+  <div class="section-label">Section 05</div>
+  <h2>What Tests to Write</h2>
+  <p class="section-intro">Don't write tests for everything — that's a waste of time. Write tests for the flows that break most often and hurt the most when they do.</p>
+
+  <div class="layers-grid">
+    <div class="layer-card l1">
+      <div class="layer-num">Layer 1</div>
+      <div class="layer-title">Automated Tests</div>
+      <div class="layer-desc">Jest + Supertest. Runs on every PR in GitHub Actions. Blocks bad code from merging. Catches broken APIs before deployment.</div>
+    </div>
+    <div class="layer-card l2">
+      <div class="layer-num">Layer 2</div>
+      <div class="layer-title">Manual Staging QA</div>
+      <div class="layer-desc">5-minute checklist you run on staging before merging to main. Catches UI/UX regressions that automated tests can't see.</div>
+    </div>
+    <div class="layer-card l3">
+      <div class="layer-num">Layer 3</div>
+      <div class="layer-title">Sentry Monitoring</div>
+      <div class="layer-desc">Already installed. Real-time error alerts for production. You get emailed instantly when something breaks with full stack trace.</div>
+    </div>
+  </div>
+
+  <h3>Automated Tests — Start With These 5 Files</h3>
+
+  <pre><span class="comment"># File structure</span>
+backend/
+  tests/
+    <span class="key">auth.test.js</span>          <span class="comment">← login, signup, JWT verify</span>
+    <span class="key">trade.test.js</span>         <span class="comment">← upload endpoint, status check</span>
+    <span class="key">indianTrade.test.js</span>   <span class="comment">← Indian market CRUD</span>
+    <span class="key">analytics.test.js</span>     <span class="comment">← PnL calculations</span>
+    <span class="key">upload.test.js</span>        <span class="comment">← file validation, Cloudinary mock</span></pre>
+
+  <pre><span class="comment">// Example: backend/tests/auth.test.js</span>
+<span class="keyword">const</span> request = require(<span class="string">'supertest'</span>);
+<span class="keyword">const</span> app = require(<span class="string">'../server'</span>);
+
+describe(<span class="string">'POST /api/auth/login'</span>, () => {
+  it(<span class="string">'returns JWT with valid credentials'</span>, async () => {
+    const res = await request(app)
+      .post(<span class="string">'/api/auth/login'</span>)
+      .send({ email: <span class="string">'test@test.com'</span>, password: <span class="string">'password123'</span> });
+
+    expect(res.status).toBe(<span class="value">200</span>);
+    expect(res.body).toHaveProperty(<span class="string">'token'</span>);
+  });
+
+  it(<span class="string">'returns 401 with wrong password'</span>, async () => {
+    const res = await request(app)
+      .post(<span class="string">'/api/auth/login'</span>)
+      .send({ email: <span class="string">'test@test.com'</span>, password: <span class="string">'wrong'</span> });
+
+    expect(res.status).toBe(<span class="value">401</span>);
+  });
+});</pre>
+
+  <h3>Staging Manual QA Checklist</h3>
+  <div class="checklist">
+    <div class="checklist-title">Run this on staging before every merge to main</div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">Login with test account works</span><span class="item-note">Try wrong password too — should show error</span></div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">Upload a Forex trade screenshot</span><span class="item-note">Wait for OCR to process — trade should appear in journal</span></div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">Upload an Indian market trade screenshot</span><span class="item-note">Check the IndianTrade model parses correctly</span></div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">Analytics / charts load without errors</span><span class="item-note">Open browser console — no red errors</span></div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">Market toggle (Forex ↔ Indian) works</span><span class="item-note">Both views should show correct data</span></div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-box"></div>
+      <div><span class="item-text">No console errors in browser DevTools</span><span class="item-note">F12 → Console tab — should be clean</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 5: GITHUB ACTIONS -->
+<div class="page page-break">
+  <div class="section-label">Section 06</div>
+  <h2>GitHub Actions — Two Workflows</h2>
+  <p class="section-intro">You already have deploy.yml for production. You need two more: a CI workflow that tests every PR, and a staging deploy workflow.</p>
+
+  <h3>File 1 — .github/workflows/ci.yml (NEW)</h3>
+  <p style="font-size:12px; color:#6b7280; margin-bottom:10px;">Runs tests on every PR to staging or main. Blocks merge if tests fail.</p>
+  <pre><span class="key">name</span>: <span class="string">CI — Test on PR</span>
+
+<span class="key">on</span>:
+  pull_request:
+    <span class="key">branches</span>: [main, staging]
+
+<span class="key">jobs</span>:
+  <span class="key">test</span>:
+    <span class="key">runs-on</span>: ubuntu-latest
+    <span class="key">steps</span>:
+      - <span class="key">uses</span>: actions/checkout@v4
+      - <span class="key">uses</span>: actions/setup-node@v4
+        <span class="key">with</span>: { node-version: <span class="string">'20'</span> }
+
+      - <span class="key">name</span>: Install dependencies
+        <span class="key">run</span>: npm ci
+        <span class="key">working-directory</span>: backend
+
+      - <span class="key">name</span>: Run tests
+        <span class="key">run</span>: npm test
+        <span class="key">working-directory</span>: backend
+        <span class="key">env</span>:
+          <span class="key">NODE_ENV</span>: test
+          <span class="key">MONGO_URI</span>: ${{ secrets.TEST_MONGO_URI }}
+          <span class="key">JWT_SECRET</span>: test-secret-for-ci</pre>
+
+  <h3>File 2 — .github/workflows/staging.yml (NEW)</h3>
+  <p style="font-size:12px; color:#6b7280; margin-bottom:10px;">Auto-deploys to staging when code merges into the staging branch.</p>
+  <pre><span class="key">name</span>: <span class="string">Deploy to Staging</span>
+
+<span class="key">on</span>:
+  push:
+    <span class="key">branches</span>: [staging]
+
+<span class="key">jobs</span>:
+  <span class="key">deploy-staging</span>:
+    <span class="key">runs-on</span>: ubuntu-latest
+    <span class="key">steps</span>:
+      - <span class="key">name</span>: Deploy to EC2 Staging
+        <span class="key">uses</span>: appleboy/ssh-action@v1.0.3
+        <span class="key">with</span>:
+          <span class="key">host</span>: ${{ secrets.EC2_HOST }}
+          <span class="key">username</span>: ${{ secrets.EC2_USER }}
+          <span class="key">key</span>: ${{ secrets.EC2_SSH_KEY }}
+          <span class="key">script</span>: |
+            cd ~/stratedge-staging
+            git fetch origin staging
+            git reset --hard origin/staging
+            cd backend
+            npm install
+            pm2 restart stratedge-api-staging
+            pm2 restart stratedge-ocr-worker-staging</pre>
+
+  <h3>File 3 — Existing deploy.yml (UPDATE — add test gate)</h3>
+  <pre><span class="key">name</span>: Deploy To Production
+
+<span class="key">on</span>:
+  push:
+    <span class="key">branches</span>: [main]
+
+<span class="key">jobs</span>:
+  <span class="key">test</span>:                          <span class="comment"># ← ADD THIS JOB FIRST</span>
+    <span class="key">runs-on</span>: ubuntu-latest
+    <span class="key">steps</span>:
+      - <span class="key">uses</span>: actions/checkout@v4
+      - <span class="key">run</span>: npm ci &amp;&amp; npm test
+        <span class="key">working-directory</span>: backend
+
+  <span class="key">deploy</span>:
+    <span class="key">needs</span>: test                   <span class="comment"># ← ONLY deploys if tests pass</span>
+    <span class="key">runs-on</span>: ubuntu-latest
+    <span class="key">steps</span>:
+      <span class="comment"># ... your existing SSH deploy steps ...</span></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 6: EC2 STAGING SETUP -->
+<div class="page page-break">
+  <div class="section-label">Section 07</div>
+  <h2>Setting Up Staging on Your EC2</h2>
+  <p class="section-intro">Your EC2 already runs production on port 5000. Staging runs alongside it on port 4000 — same server, separate process, separate database.</p>
+
+  <h3>On Your EC2 Server — One-Time Setup</h3>
+  <pre><span class="comment"># SSH into your EC2</span>
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+<span class="comment"># Clone the repo into a separate staging folder</span>
+git clone https://github.com/yourusername/stratedge.git ~/stratedge-staging
+cd ~/stratedge-staging
+git checkout staging
+
+<span class="comment"># Create the staging .env file</span>
+cp backend/.env backend/.env.staging.backup
+nano backend/.env
+<span class="comment"># Set: PORT=4000, NODE_ENV=staging, MONGO_URI=&lt;staging atlas uri&gt;</span>
+
+<span class="comment"># Install dependencies</span>
+cd backend && npm install
+
+<span class="comment"># Start staging with PM2</span>
+pm2 start ecosystem.staging.config.js
+pm2 save</pre>
+
+  <h3>ecosystem.staging.config.js — Add to Backend</h3>
+  <pre>module.exports = {
+  apps: [
+    {
+      <span class="key">name</span>: <span class="string">"stratedge-api-staging"</span>,
+      <span class="key">script</span>: <span class="string">"./server.js"</span>,
+      <span class="key">env</span>: {
+        <span class="key">NODE_ENV</span>: <span class="string">"staging"</span>,
+        <span class="key">PORT</span>: <span class="value">4000</span>
+      }
+    },
+    {
+      <span class="key">name</span>: <span class="string">"stratedge-ocr-worker-staging"</span>,
+      <span class="key">script</span>: <span class="string">"./workers/ocrWorker.js"</span>,
+      <span class="key">env</span>: {
+        <span class="key">NODE_ENV</span>: <span class="string">"staging"</span>
+      }
+    }
+  ]
+};</pre>
+
+  <h3>Nginx — Route staging subdomain to port 4000</h3>
+  <pre><span class="comment"># /etc/nginx/sites-available/staging.yourdomain.com</span>
+server {
+  listen 80;
+  server_name staging.yourdomain.com;
+
+  location / {
+    proxy_pass http://localhost:<span class="value">4000</span>;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+  }
+}</pre>
+
+  <h3>MongoDB Atlas — Create a Free Staging Cluster</h3>
+  <table class="branch-table" style="margin-top:12px">
+    <thead><tr><th>Setting</th><th>Production</th><th>Staging</th></tr></thead>
+    <tbody>
+      <tr><td>Cluster</td><td>stratedge-prod</td><td>stratedge-staging (free tier M0)</td></tr>
+      <tr><td>Database user</td><td>prod-user</td><td>staging-user (separate credentials)</td></tr>
+      <tr><td>IP Whitelist</td><td>EC2 prod IP</td><td>EC2 same IP (or 0.0.0.0 for staging)</td></tr>
+      <tr><td>Data</td><td>Real user data</td><td>Test/fake data only</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PAGE 7: ACTION PLAN -->
+<div class="page page-break">
+  <div class="section-label">Section 08</div>
+  <h2>Your Action Plan</h2>
+  <p class="section-intro">Ordered by impact. Do the first three this week — they give you 80% of the protection.</p>
+
+  <div class="action-steps">
+    <div class="action-step">
+      <div class="action-num">1</div>
+      <div class="action-body">
+        <div class="action-title">Create staging branch on GitHub</div>
+        <div class="action-detail">Go to GitHub → your repo → create branch "staging" from main. Then protect main branch: Settings → Branches → require PR + status checks before merge.</div>
+        <span class="action-time">⏱ 10 minutes</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">2</div>
+      <div class="action-body">
+        <div class="action-title">Create a free MongoDB Atlas staging cluster</div>
+        <div class="action-detail">atlas.mongodb.com → New Cluster → M0 free tier → name it "stratedge-staging". Copy the connection URI. This is your staging database.</div>
+        <span class="action-time">⏱ 10 minutes</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">3</div>
+      <div class="action-body">
+        <div class="action-title">Set up staging folder on EC2</div>
+        <div class="action-detail">SSH into your EC2, clone the repo to ~/stratedge-staging, checkout staging branch, create .env with staging credentials, start with PM2 on port 4000.</div>
+        <span class="action-time">⏱ 30 minutes</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">4</div>
+      <div class="action-body">
+        <div class="action-title">Install Jest + Supertest in backend</div>
+        <div class="action-detail">npm install --save-dev jest supertest. Add "test": "jest" to package.json scripts. Create backend/tests/ folder.</div>
+        <span class="action-time">⏱ 15 minutes</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">5</div>
+      <div class="action-body">
+        <div class="action-title">Write 5 critical tests</div>
+        <div class="action-detail">auth.test.js (login/signup), trade.test.js (upload endpoint + status), indianTrade.test.js (basic CRUD). These 5 files cover 90% of what breaks.</div>
+        <span class="action-time">⏱ 2 hours</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">6</div>
+      <div class="action-body">
+        <div class="action-title">Add ci.yml and staging.yml GitHub Actions</div>
+        <div class="action-detail">Create .github/workflows/ci.yml (test on every PR) and .github/workflows/staging.yml (deploy to staging on merge). Update deploy.yml to gate on tests passing.</div>
+        <span class="action-time">⏱ 30 minutes</span>
+      </div>
+    </div>
+    <div class="action-step">
+      <div class="action-num">7</div>
+      <div class="action-body">
+        <div class="action-title">Configure Sentry DSN in production .env</div>
+        <div class="action-detail">You already have @sentry/node installed and Sentry wired up in server.js. Just make sure SENTRY_DSN is set in your production .env. That's it — you get real-time error alerts immediately.</div>
+        <span class="action-time">⏱ 5 minutes</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-box">
+    <h3>The Bottom Line</h3>
+    <p>Right now, every commit you push goes <span class="highlight">directly to real users with zero verification</span>. After this setup, every commit goes through <span class="highlight">automated tests → staging environment → manual check → then production</span>. You catch bugs before users do. Your production stays stable. You ship with confidence.</p>
+    <p style="margin-top:12px;">The entire setup takes about <span class="highlight">4 hours</span>. After that, the overhead per feature is <span class="highlight">5 extra minutes</span> of manual testing on staging. That's a good trade.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ FOOTER -->
+<div class="footer">
+  <span class="brand">Stratedge · Edgecipline</span>
+  <span>Professional Deployment & Testing Guide · May 2026</span>
+  <span>Internal · Confidential</span>
+</div>
+
+</body>
+</html>

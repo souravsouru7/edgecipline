@@ -31,11 +31,20 @@ function safeSignedNumber(value) {
 }
 
 const KNOWN_FOREX_SYMBOLS = [
+  // Forex majors
   "EURUSD", "USDJPY", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
+  // Forex crosses
   "EURJPY", "GBPJPY", "EURGBP", "EURAUD", "EURCAD", "EURCHF", "EURNZD",
   "AUDJPY", "AUDCAD", "AUDCHF", "AUDNZD", "CADJPY", "CADCHF", "CHFJPY",
   "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD", "NZDJPY", "NZDCAD", "NZDCHF",
+  // Metals & Crypto
   "XAUUSD", "XAGUSD", "BTCUSD", "ETHUSD",
+  // US Indices
+  "US30", "US100", "US500", "NAS100", "SPX500", "DOW30", "NASDAQ100",
+  // European Indices
+  "GER40", "DE30", "DAX40", "UK100", "FTSE100", "FRA40", "STOXX50", "EU50", "SPAIN35",
+  // Asia-Pacific Indices
+  "JP225", "AUS200", "HK50", "CHINA50",
 ];
 
 function normalizeForexPair(rawPair) {
@@ -52,6 +61,18 @@ function normalizeForexPair(rawPair) {
     return `${base}${suffix}`;
   }
 
+  // Try direct substring match before OCR substitution — critical for index symbols
+  // that contain digits (US30, NAS100) since 0→O substitution garbles them.
+  for (const symbol of KNOWN_FOREX_SYMBOLS) {
+    const suffixGuess = compact.includes(`${symbol}.X`) || compact.includes(`${symbol}X`) || compact.endsWith(`${symbol}X`)
+      ? ".X"
+      : suffix;
+
+    if (compact.includes(symbol) || compactAlphaNum.includes(symbol)) {
+      return `${symbol}${suffixGuess}`;
+    }
+  }
+
   const ocrFixed = compactAlphaNum
     .replace(/0/g, "O")
     .replace(/1/g, "I")
@@ -62,7 +83,7 @@ function normalizeForexPair(rawPair) {
       ? ".X"
       : suffix;
 
-    if (compact.includes(symbol) || ocrFixed.includes(symbol)) {
+    if (ocrFixed.includes(symbol)) {
       return `${symbol}${suffixGuess}`;
     }
   }
@@ -157,20 +178,33 @@ function extractForexPriceData(line) {
   if (!/^\d/.test(source) && !/^-?\d/.test(source)) return null;
   if (/^(#|S\s*\/?\s*L|T\s*\/?\s*P|TIP|Open|Swap|Commission|Balance|Profit)/i.test(source)) return null;
 
+  // Standard Forex: decimal prices like 1.08500
   const decimalMatches = source.match(/-?\d+\.\d+/g) || [];
-  if (decimalMatches.length < 2) return null;
+  if (decimalMatches.length >= 2) {
+    const entry = parseFloat(decimalMatches[0]);
+    const exit = parseFloat(decimalMatches[1]);
+    const pnl = decimalMatches.length >= 3 ? parseFloat(decimalMatches[decimalMatches.length - 1]) : null;
+    if (!Number.isNaN(entry) && !Number.isNaN(exit)) {
+      return { entryPrice: entry, exitPrice: exit, profit: Number.isNaN(pnl) ? null : pnl };
+    }
+  }
 
-  const entry = parseFloat(decimalMatches[0]);
-  const exit = parseFloat(decimalMatches[1]);
-  const pnl = decimalMatches.length >= 3 ? parseFloat(decimalMatches[decimalMatches.length - 1]) : null;
+  // Index/CFD fallback: large integer prices like "49 394 → 49 359" or "49394 49359"
+  // Remove arrow separators and collapse spaced digits (OCR splits "49 394" → "49394")
+  const cleaned = source.replace(/[→–>\-]+/g, " ").replace(/(\d)\s+(\d)/g, "$1$2");
+  const intMatches = cleaned.match(/\b\d{4,6}\b/g) || [];
+  if (intMatches.length >= 2) {
+    const entry = parseInt(intMatches[0], 10);
+    const exit = parseInt(intMatches[1], 10);
+    // P&L is usually a small signed number at the end (e.g. -35.00 or -35)
+    const pnlMatch = source.match(/([+-]?\d+(?:\.\d+)?)\s*$/);
+    const pnl = pnlMatch ? parseFloat(pnlMatch[1]) : null;
+    if (!Number.isNaN(entry) && !Number.isNaN(exit)) {
+      return { entryPrice: entry, exitPrice: exit, profit: Number.isNaN(pnl) ? null : pnl };
+    }
+  }
 
-  if (Number.isNaN(entry) || Number.isNaN(exit)) return null;
-
-  return {
-    entryPrice: entry,
-    exitPrice: exit,
-    profit: Number.isNaN(pnl) ? null : pnl,
-  };
+  return null;
 }
 
 exports.parseTrade = (text) => {
@@ -618,8 +652,8 @@ function normalizeBrokerLabels(text) {
     .replace(/([=~-])%/g, "-₹")
     // Fix OCR typos where decimal dot becomes colon `1313:00`
     .replace(/(\d):(\d{2})(?!\d)/g, "$1.$2")
-    // Strip percentage changes (e.g. "(-53.71%)" or "+1.5%") to prevent them from being parsed as P&L
-    .replace(/\(?\s*[+\-]?\s*[\d,]+\.\d*\s*%\s*\)?/g, " ");
+    // Strip percentage changes (e.g. "(-53.71%)", "(-4112%)", "+1.5%") to prevent them from being parsed as P&L
+    .replace(/\(?\s*[+\-]?\s*[\d,]+\.?\d*\s*%\s*\)?/g, " ");
 }
 
 exports.parseIndianTrade = (text, opts = {}) => {
@@ -935,10 +969,7 @@ function parsePositionRowsFromJoinedText(normalizedText, broker = "") {
       pnl = pnlCandidates.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a));
     }
 
-    const marketMatch = segment.match(/(?:Mkt|LTP)\s*₹?\s*([\d,]+\.\d{2})/i);
-    if (marketMatch) {
-      entryPrice = parseFloat(marketMatch[1].replace(/,/g, ""));
-    }
+    // LTP is current market price — never use as entry price
 
     const qtyMatch = segment.match(/(?:Qty\.?|Quantity|Lots?)\s*[:\s]*(\d[\d,]*)/i);
     if (qtyMatch) {
@@ -1057,6 +1088,7 @@ exports.parseTradesFromOCR = (text, opts = {}) => {
     let ltpPrice = null;   // Fallback
     let pnl = null;
     let pnlHasRupee = false;
+    let pnlFromHeader = false;
 
     // P&L on header line: "+₹8,164.00" or "+₹1,15,943.75" (Indian lakh) or "NIFTY ... Put  +₹1,15,943.75 B>"
     const headerPnlMatch = block.headerLine.match(/([+\-]\s*₹?\s*[\d,\s]+\.?\d*)/);
@@ -1065,6 +1097,7 @@ exports.parseTradesFromOCR = (text, opts = {}) => {
       if (val != null && Math.abs(val) >= 1) {
         pnl = val;
         pnlHasRupee = headerPnlMatch[0].includes("₹");
+        pnlFromHeader = true;
       }
     } else if (broker === "Dhan") {
       // Dhan can show pnl without "+" at the end of the instrument line (e.g. "1,000.00")
@@ -1167,9 +1200,10 @@ exports.parseTradesFromOCR = (text, opts = {}) => {
       strike,
       optionType: rawType,
       quantity,
-      entryPrice: entryPrice !== null && entryPrice !== 0 ? entryPrice : ltpPrice,
+      entryPrice: entryPrice != null && entryPrice > 0 ? entryPrice : null,
       pnl,
       _pnlHasRupee: pnlHasRupee,
+      _pnlFromHeader: pnlFromHeader,
     };
   });
 
@@ -1194,9 +1228,11 @@ exports.parseTradesFromOCR = (text, opts = {}) => {
 
   // If trade pnl is suspiciously small (< 500) but we do have a strong ₹ candidate elsewhere,
   // override it (this is the "232.19" issue).
+  // Skip trades where pnl came directly from the contract header line — those are reliable.
   if (broker !== "Dhan" && globalBestRupeePnl != null) {
     for (const t of trades) {
       if (t._pnlHasRupee) continue;
+      if (t._pnlFromHeader) continue;
       if (t.pnl != null && Math.abs(t.pnl) > 0 && Math.abs(t.pnl) < 500) {
         t.pnl = globalBestRupeePnl;
         t._pnlHasRupee = true;
@@ -1206,7 +1242,7 @@ exports.parseTradesFromOCR = (text, opts = {}) => {
 
   const finalizedTrades = trades.map((t) => {
     // eslint-disable-next-line no-unused-vars
-    const { _pnlHasRupee, ...rest } = t;
+    const { _pnlHasRupee, _pnlFromHeader, ...rest } = t;
     return {
       ...rest,
       ...(broker && { broker }),

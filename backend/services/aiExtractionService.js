@@ -21,7 +21,13 @@ FIELD EXTRACTION RULES:
 
 NUMBER FORMAT: Return raw numbers only. Remove currency symbols ($, €, £). Profit is negative if the trade is a loss.
 
-JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"broker":"MetaTrader 5"}`;
+MULTI-TRADE: If MULTIPLE trade rows are visible on screen, extract ALL of them into a "trades" array. Set top-level fields to the first trade. EVERY VISIBLE ROW = ONE SEPARATE TRADE — do not skip any row.
+
+SINGLE TRADE EXAMPLE:
+JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"broker":"MetaTrader 5"}
+
+MULTI-TRADE EXAMPLE (2 rows visible):
+JSON: {"pair":"GBPUSD","type":"BUY","quantity":0.90,"entryPrice":1.35949,"exitPrice":1.35897,"profit":-46.80,"stopLoss":1.35898,"takeProfit":1.36288,"broker":"MetaTrader 5","trades":[{"pair":"GBPUSD","type":"BUY","quantity":0.90,"entryPrice":1.35949,"exitPrice":1.35897,"profit":-46.80,"stopLoss":1.35898,"takeProfit":1.36288},{"pair":"GBPUSD","type":"SELL","quantity":0.30,"entryPrice":1.35861,"exitPrice":1.35955,"profit":-28.20,"stopLoss":1.35950,"takeProfit":1.35677}]}`;
 
 const INDIAN_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker screenshot (Zerodha, Upstox, Angel One, Groww, Dhan, Fyers, 5paisa, ICICI Direct, Kotak Neo, Paytm Money, Motilal Oswal, Sharekhan).
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
@@ -32,29 +38,41 @@ CRITICAL RULES:
 3. Convert option names exactly:
    - "Call" => "CE"
    - "Put" => "PE"
-4. Example row mappings:
-   - "NIFTY 28 Apr 24450 Call" => pair="NIFTY 24450 CE", underlying="NIFTY", strikePrice=24450, optionType="CE"
-   - "NIFTY 28 Apr 24450 Put" => pair="NIFTY 24450 PE", underlying="NIFTY", strikePrice=24450, optionType="PE"
-5. If multiple option rows are visible, return ALL of them in "trades". Do not collapse them into one trade.
+4. EVERY VISIBLE ROW = ONE SEPARATE TRADE. Do not collapse or merge rows. If you see 4 rows, return exactly 4 items in "trades".
+5. SAME INSTRUMENT + DIFFERENT PRODUCT TYPE = TWO SEPARATE TRADES. Example: "NIFTY 24200 CE" appearing once as "Overnight" and once as "Intraday-BO" = 2 trades, each with its own P&L.
+6. LTP (Last Traded Price) is the CURRENT MARKET PRICE — it is NOT the entry price and NOT the exit price. NEVER put LTP into entryPrice or exitPrice. entryPrice comes only from "Avg", "Avg Price", "Buy Avg", "Entry". exitPrice comes only from "Sell Avg", "Exit Price", "Close Price".
+7. When "Avg" or "Avg Price" shows "0", "0.00", or "₹0.00" — the position is fully closed. Set entryPrice = null and exitPrice = null for that row.
+8. P&L sign: GREEN color or "+" prefix = positive number. RED color or "-" prefix = negative number. Extract the P&L for EACH ROW INDEPENDENTLY — never copy P&L from one row to another.
 
 FIELD EXTRACTION RULES:
-- pair: full instrument name including expiry and strike (e.g. "NIFTY 26000 PE 25JAN", "BANKNIFTY 48000 CE").
-- underlying: index or stock name only (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, SENSEX, or stock ticker like RELIANCE, TCS).
-- optionType: exactly "CE" or "PE". CE = Call = bullish. PE = Put = bearish.
-- strikePrice: strike price number only (e.g. 26000, 48000).
-- quantity: number of lots or units traded.
-- entryPrice: avg buy price. Look for: "Avg. Price", "Avg Price", "Buy Avg", "Entry", "Buy Price".
-- exitPrice: avg sell price. Look for: "Sell Avg", "Exit Price", "LTP" (if closed), "Close".
-- profit: net realized P&L. Look for: "P&L", "Net P&L", "Realized P&L", "Total P&L".
-  CRITICAL: negative profit shown as "-₹500", "₹-500", "(500)", red color, or with minus sign.
-  Indian rupee: ₹ symbol, or "Rs.", or "INR". Strip the symbol, return just the number.
-  Indian lakh format: "1,23,456" = 123456. Remove all commas, parse as plain number.
-- broker: platform name from logo/title.
+- pair: instrument name with strike (e.g. "NIFTY 24200 CE", "BANKNIFTY 48000 PE").
+- underlying: index name only (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, SENSEX, or stock ticker).
+- optionType: "CE" or "PE".
+- strikePrice: the numeric strike price only.
+- quantity: Qty shown in the row (may be 0 for closed positions).
+- entryPrice: null if Avg=0/0.00 or not shown. Otherwise the Avg/Buy Avg value. NEVER LTP.
+- exitPrice: null unless "Sell Avg" or "Exit Price" or "Close Price" is explicitly shown. NEVER LTP.
+- profit: the P&L value of THIS row only. Strip ₹, commas. Negative if red/minus. Indian lakh format "1,23,456" = 123456.
+- productType: "Overnight"/"NRML"/"CNC"/"Delivery" => "DELIVERY". "Intraday"/"Intraday-BO"/"MIS"/"BO"/"CO" => "INTRADAY". Default "INTRADAY".
+- broker: app/platform name from logo or title bar.
 
-If MULTIPLE trades are visible (positions list, trade history), extract ALL of them into "trades" array.
-Set top-level fields to the first/main/most recent trade.
+FYERS / ZERODHA POSITIONS PAGE EXAMPLE:
+Row 1: NIFTY 24200 CE  +₹520.00 | LTP 79.70 | Qty 0 | Overnight | Avg 0.00
+Row 2: NIFTY 24200 CE  +₹338.00 | LTP 79.70 | Qty 0 | Intraday-BO | Avg 0.00
+Row 3: NIFTY 24300 CE  +₹334.75 | LTP 48.25 | Qty 0 | Overnight | Avg 0.00
+Row 4: NIFTY 24300 CE  -₹1072.50 | LTP 48.25 | Qty 0 | Intraday-BO | Avg 0.00
 
-JSON: {"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha","trades":[{"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha"}]}`;
+Correct output for above:
+{"trades":[
+  {"pair":"NIFTY 24200 CE","underlying":"NIFTY","strikePrice":24200,"optionType":"CE","quantity":0,"entryPrice":null,"exitPrice":null,"profit":520.00,"productType":"DELIVERY"},
+  {"pair":"NIFTY 24200 CE","underlying":"NIFTY","strikePrice":24200,"optionType":"CE","quantity":0,"entryPrice":null,"exitPrice":null,"profit":338.00,"productType":"INTRADAY"},
+  {"pair":"NIFTY 24300 CE","underlying":"NIFTY","strikePrice":24300,"optionType":"CE","quantity":0,"entryPrice":null,"exitPrice":null,"profit":334.75,"productType":"DELIVERY"},
+  {"pair":"NIFTY 24300 CE","underlying":"NIFTY","strikePrice":24300,"optionType":"CE","quantity":0,"entryPrice":null,"exitPrice":null,"profit":-1072.50,"productType":"INTRADAY"}
+]}
+
+Extract ALL rows into "trades" array. Set top-level fields to the first trade.
+
+JSON: {"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":520.00,"productType":"DELIVERY","broker":"Fyers","trades":[{"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":520.00,"productType":"DELIVERY"},{"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":338.00,"productType":"INTRADAY"}]}`;
 
 const INDIAN_EQUITY_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker app screenshot showing INTRADAY EQUITY (stock) trades — NOT options/F&O.
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
@@ -166,27 +184,30 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
         entryPrice: toNumberOrNull(item.entryPrice),
         exitPrice: toNumberOrNull(item.exitPrice),
         broker: item.broker ?? null,
+        productType: item.productType === "DELIVERY" ? "DELIVERY" : "INTRADAY",
       });
       const main = mapOne(parsed);
       const trades = Array.isArray(parsed.trades) ? parsed.trades.map(mapOne) : [];
       return { ...main, trades, rawResponse: rawText };
     }
 
-    return {
-      pair: parsed.pair ?? null,
-      type: parsed.type === "BUY" || parsed.type === "SELL" ? parsed.type : null,
-      quantity: toNumberOrNull(parsed.quantity),
-      entryPrice: toNumberOrNull(parsed.entryPrice),
-      exitPrice: toNumberOrNull(parsed.exitPrice),
-      profit: toNumberOrNull(parsed.profit),
-      stopLoss: toNumberOrNull(parsed.stopLoss),
-      takeProfit: toNumberOrNull(parsed.takeProfit),
-      broker: parsed.broker ?? null,
-      strikePrice: toNumberOrNull(parsed.strikePrice),
-      optionType: parsed.optionType === "PE" || parsed.optionType === "CE" ? parsed.optionType : null,
-      underlying: parsed.underlying ?? null,
-      rawResponse: rawText,
-    };
+    const mapOneForex = (item) => ({
+      pair: item.pair ?? null,
+      type: item.type === "BUY" || item.type === "SELL" ? item.type : null,
+      quantity: toNumberOrNull(item.quantity),
+      entryPrice: toNumberOrNull(item.entryPrice),
+      exitPrice: toNumberOrNull(item.exitPrice),
+      profit: toNumberOrNull(item.profit),
+      stopLoss: toNumberOrNull(item.stopLoss),
+      takeProfit: toNumberOrNull(item.takeProfit),
+      broker: item.broker ?? null,
+      strikePrice: toNumberOrNull(item.strikePrice),
+      optionType: item.optionType === "PE" || item.optionType === "CE" ? item.optionType : null,
+      underlying: item.underlying ?? null,
+    });
+    const mainForex = mapOneForex(parsed);
+    const forexTrades = Array.isArray(parsed.trades) ? parsed.trades.map(mapOneForex) : [];
+    return { ...mainForex, trades: forexTrades, rawResponse: rawText };
   } catch (err) {
     logger.warn("Gemini Vision extraction failed", { error: err.message, imageUrl });
     return null;
