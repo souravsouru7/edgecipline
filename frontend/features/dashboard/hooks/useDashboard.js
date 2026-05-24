@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getSummary } from "@/services/analyticsApi";
-import { getWelcomeGuideSeen, markWelcomeGuideSeen } from "@/services/api";
+import { getProfile, getWelcomeGuideSeen, markWelcomeGuideSeen } from "@/services/api";
+import { clearAuthToken, hasValidAuthToken } from "@/utils/auth";
 
 /**
  * useDashboard
@@ -22,25 +23,45 @@ export function useDashboard() {
     queryKey: ["dashboard", "summary"],
     queryFn: () => getSummary(),
     staleTime: 60 * 1000,
-    enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
+    enabled: mounted && hasValidAuthToken(),
   });
 
   // 2. Auth guard + fetch welcome guide flag from backend
   useEffect(() => {
-    const token = typeof window !== "undefined" && localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    let cancelled = false;
 
-    setMounted(true);
+    const verifyAuth = async () => {
+      if (!hasValidAuthToken()) {
+        router.replace("/login");
+        return;
+      }
 
-    getWelcomeGuideSeen()
+      try {
+        await getProfile();
+        if (cancelled) return;
+        setMounted(true);
+      } catch {
+        clearAuthToken();
+        if (!cancelled) router.replace("/login");
+        return;
+      }
+
+      getWelcomeGuideSeen()
       .then((res) => {
-        if (!res?.hasSeenWelcomeGuide) setShowWelcome(true);
+        if (!cancelled && !res?.hasSeenWelcomeGuide) setShowWelcome(true);
       })
       .catch(() => {
         // If the endpoint doesn't exist yet, fall back to localStorage
         const hasSeen = localStorage.getItem("hasSeenWelcomeGuide");
-        if (!hasSeen) setShowWelcome(true);
+        if (!cancelled && !hasSeen) setShowWelcome(true);
       });
+    };
+
+    verifyAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   // 3. Dismiss — saves to backend DB

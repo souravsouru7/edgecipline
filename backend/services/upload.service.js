@@ -6,6 +6,7 @@ const { clearUserCache } = require("../utils/cacheUtils");
 const tradeRepository = require("../repositories/trade.repository");
 const userRepository = require("../repositories/user.repository");
 const { logger } = require("../utils/logger");
+const { normalizeTradeDate } = require("../utils/dateUtils");
 
 const BROKER_MAX_LENGTH = 50;
 
@@ -82,6 +83,10 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       brokerOverrideRaw && brokerOverrideRaw.toUpperCase() !== "AUTO"
         ? brokerOverrideRaw
         : null;
+    const requestedTradeDateRaw = String(body.tradeDate || query.tradeDate || "").trim();
+    const requestedTradeDate = requestedTradeDateRaw
+      ? normalizeTradeDate(requestedTradeDateRaw, { accountCreatedAt: user.createdAt })
+      : new Date();
 
     logger.info("File received for processing", {
       originalName: uploadedImage.originalName || file?.originalname,
@@ -100,6 +105,7 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
         marketType,
         tradeSubType,
         broker: brokerOverride || "",
+        tradeDate: requestedTradeDate,
         status: "pending",
         queuedAt: new Date(),
         error: null,
@@ -194,6 +200,7 @@ async function getUploadJobStatus(userId, tradeId) {
     extractionConfidence: trade.extractionConfidence,
     needsReview: trade.needsReview,
     createdAt: trade.createdAt,
+    tradeDate: trade.tradeDate,
   } : null;
 
   return {

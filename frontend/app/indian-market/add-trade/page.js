@@ -3,9 +3,12 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createTrade } from "@/services/tradeApi";
+import Link from "next/link";
 import { MARKETS } from "@/context/MarketContext";
+import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { fetchSetups } from "@/services/setupApi";
+import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -30,6 +33,7 @@ function IndianOptionsAddTradeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const submitLockRef = useRef(false);
+  const { accountCreatedDate } = useUserProfile();
   const [tradeSubType, setTradeSubType] = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
   );
@@ -189,15 +193,17 @@ function IndianOptionsAddTradeContent() {
       alert("Select trade date.");
       return;
     }
-    if (!isEquity) {
-      if (!trade.riskRewardRatio) {
-        alert("Select planned risk : reward ratio.");
-        return;
-      }
-      if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
-        alert("Enter your custom risk : reward ratio.");
-        return;
-      }
+    if (accountCreatedDate && trade.tradeDate < accountCreatedDate) {
+      alert(`Trade date cannot be before your account creation date (${accountCreatedDate}). You can only log trades from the day you joined.`);
+      return;
+    }
+    if (!trade.riskRewardRatio) {
+      alert("Select planned risk : reward ratio.");
+      return;
+    }
+    if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
+      alert("Enter your custom risk : reward ratio.");
+      return;
     }
     if (!trade.mood) {
       alert("Select how you're feeling (mood).");
@@ -220,10 +226,8 @@ function IndianOptionsAddTradeContent() {
       tradeType: trade.tradeType || "INTRADAY",
       strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
       tradeDate: trade.tradeDate,
-      ...(!isEquity ? {
-        riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
-        riskRewardCustom: trade.riskRewardCustom?.trim() || "",
-      } : {}),
+      riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
+      riskRewardCustom: trade.riskRewardCustom?.trim() || "",
       entryBasis: trade.entryBasis || "Plan",
       entryBasisCustom: trade.entryBasis === "Custom" ? trade.entryBasisCustom : "",
       notes: trade.notes || undefined,
@@ -451,7 +455,12 @@ function IndianOptionsAddTradeContent() {
 
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Trade Date <span style={{ color: "#D63B3B" }}>*</span></label>
-              <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              {accountCreatedDate && (
+                <div style={{ fontSize: 10, color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Earliest allowed: {accountCreatedDate} (account creation date)
+                </div>
+              )}
             </div>
 
             <div>
@@ -566,35 +575,33 @@ function IndianOptionsAddTradeContent() {
               </div>
             )}
 
-            {!isEquity && (
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Planned Risk : Reward <span style={{ color: "#D63B3B" }}>*</span></label>
-                <select
-                  name="riskRewardRatio"
-                  value={trade.riskRewardRatio}
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Planned Risk : Reward <span style={{ color: "#D63B3B" }}>*</span></label>
+              <select
+                name="riskRewardRatio"
+                value={trade.riskRewardRatio}
+                onChange={handleChange}
+                style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }}
+              >
+                <option value="">Select...</option>
+                <option value="1:1">1 : 1</option>
+                <option value="1:1.5">1 : 1.5</option>
+                <option value="1:2">1 : 2</option>
+                <option value="1:3">1 : 3</option>
+                <option value="1:4">1 : 4</option>
+                <option value="1:5">1 : 5</option>
+                <option value="custom">Custom</option>
+              </select>
+              {trade.riskRewardRatio === "custom" && (
+                <input
+                  name="riskRewardCustom"
+                  placeholder="e.g. 1:2.5"
+                  value={trade.riskRewardCustom}
                   onChange={handleChange}
-                  style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }}
-                >
-                  <option value="">Select...</option>
-                  <option value="1:1">1 : 1</option>
-                  <option value="1:1.5">1 : 1.5</option>
-                  <option value="1:2">1 : 2</option>
-                  <option value="1:3">1 : 3</option>
-                  <option value="1:4">1 : 4</option>
-                  <option value="1:5">1 : 5</option>
-                  <option value="custom">Custom</option>
-                </select>
-                {trade.riskRewardRatio === "custom" && (
-                  <input
-                    name="riskRewardCustom"
-                    placeholder="e.g. 1:2.5"
-                    value={trade.riskRewardCustom}
-                    onChange={handleChange}
-                    style={{ marginTop: 8, width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 13 }}
-                  />
-                )}
-              </div>
-            )}
+                  style={{ marginTop: 8, width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 13 }}
+                />
+              )}
+            </div>
 
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Entry Basis</label>
@@ -711,7 +718,7 @@ function IndianOptionsAddTradeContent() {
                   <option value="Low">Low — Unsure about this setup</option>
                   <option value="Medium">Medium — Decent setup</option>
                   <option value="High">High — Strong conviction</option>
-                  <option value="Overconfident">Overconfident — Can&apos;t lose 🚩</option>
+                  <option value="Overconfident">Overconfident — Can't lose 🚩</option>
                 </select>
               </div>
 

@@ -2,7 +2,9 @@ const asyncHandler = require("../utils/asyncHandler");
 const tradeService = require("../services/trade.service");
 
 exports.createTrade = asyncHandler(async (req, res) => {
-  const trade = await tradeService.createTrade(req.user._id, req.body);
+  const trade = await tradeService.createTrade(req.user._id, req.body, {
+    accountCreatedAt: req.user.createdAt,
+  });
   res.status(201).json(trade);
 });
 
@@ -22,7 +24,9 @@ exports.getTradeStatus = asyncHandler(async (req, res) => {
 });
 
 exports.updateTrade = asyncHandler(async (req, res) => {
-  const trade = await tradeService.updateTrade(req.user._id, req.params.id, req.body);
+  const trade = await tradeService.updateTrade(req.user._id, req.params.id, req.body, {
+    accountCreatedAt: req.user.createdAt,
+  });
   res.json(trade);
 });
 

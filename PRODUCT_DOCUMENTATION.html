@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edgecipline — Product Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── RESET & BASE ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:    #0d1b2a;
+      --navy2:   #112240;
+      --navy3:   #1e3a5f;
+      --green:   #00d084;
+      --green2:  #00a86b;
+      --green3:  #e6fff5;
+      --red:     #ff4d4f;
+      --red2:    #fff1f0;
+      --amber:   #faad14;
+      --amber2:  #fffbe6;
+      --blue:    #1890ff;
+      --blue2:   #e6f7ff;
+      --gray100: #f8fafc;
+      --gray200: #f0f4f8;
+      --gray300: #e2e8f0;
+      --gray400: #94a3b8;
+      --gray500: #64748b;
+      --gray700: #334155;
+      --gray900: #0f172a;
+      --white:   #ffffff;
+      --radius:  10px;
+      --shadow:  0 2px 16px rgba(0,0,0,0.08);
+    }
+
+    html { font-size: 15px; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--gray100);
+      color: var(--gray700);
+      line-height: 1.7;
+    }
+
+    /* ─── PRINT ─── */
+    @media print {
+      body { background: white; font-size: 11pt; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+      .cover { page-break-after: always; }
+      section { page-break-inside: avoid; }
+      .toc { page-break-after: always; }
+      @page { margin: 18mm 16mm; size: A4; }
+      .wrapper { max-width: 100%; padding: 0; }
+      .card, .faq-card, .journey-box { box-shadow: none; border: 1px solid #e2e8f0; }
+    }
+
+    /* ─── LAYOUT ─── */
+    .wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+
+    /* ─── COVER PAGE ─── */
+    .cover {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy3) 60%, #0a3d2e 100%);
+      color: white;
+      border-radius: 20px;
+      padding: 72px 60px 64px;
+      margin-bottom: 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 360px; height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,208,132,0.18) 0%, transparent 70%);
+    }
+    .cover::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; left: -60px;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,208,132,0.10) 0%, transparent 70%);
+    }
+    .cover-badge {
+      display: inline-block;
+      background: rgba(0,208,132,0.18);
+      border: 1px solid rgba(0,208,132,0.4);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 28px;
+    }
+    .cover h1 {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .cover h1 span { color: var(--green); }
+    .cover-subtitle {
+      font-size: 18px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 40px;
+      max-width: 520px;
+    }
+    .cover-meta {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      padding-top: 32px;
+      margin-top: 40px;
+    }
+    .cover-meta-item { display: flex; flex-direction: column; gap: 4px; }
+    .cover-meta-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.45); }
+    .cover-meta-value { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.85); }
+    .cover-pillars {
+      display: flex;
+      gap: 16px;
+      margin-top: 36px;
+      flex-wrap: wrap;
+    }
+    .cover-pillar {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .cover-pillar-icon { font-size: 20px; }
+
+    /* ─── TABLE OF CONTENTS ─── */
+    .toc {
+      background: white;
+      border-radius: var(--radius);
+      padding: 36px 40px;
+      margin-bottom: 40px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray300);
+    }
+    .toc h2 { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gray400); margin-bottom: 24px; }
+    .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .toc-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray200);
+      text-decoration: none;
+      color: var(--gray700);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .toc-item:hover { color: var(--green2); }
+    .toc-item:last-child { border-bottom: none; }
+    .toc-num {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      background: var(--green3);
+      color: var(--green2);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ─── SECTION HEADERS ─── */
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--gray200);
+    }
+    .section-num {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--navy), var(--navy3));
+      color: var(--green);
+      border-radius: 14px;
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .section-header h2 {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--navy);
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+    .section-header p { font-size: 14px; color: var(--gray500); margin-top: 4px; }
+
+    /* ─── GENERIC SECTION WRAPPER ─── */
+    .doc-section {
+      background: white;
+      border-radius: var(--radius);
+      padding: 40px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray300);
+    }
+
+    /* ─── TYPOGRAPHY INSIDE SECTIONS ─── */
+    .doc-section h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 28px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--gray200);
+    }
+    .doc-section h3:first-child { margin-top: 0; }
+    .doc-section h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--navy3);
+      margin: 20px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .doc-section p { margin-bottom: 12px; font-size: 14px; line-height: 1.75; color: var(--gray700); }
+    .doc-section ul { padding-left: 20px; margin-bottom: 12px; }
+    .doc-section ul li { font-size: 14px; margin-bottom: 6px; color: var(--gray700); line-height: 1.65; }
+    .doc-section ul li::marker { color: var(--green2); }
+    .doc-section ol { padding-left: 20px; margin-bottom: 12px; }
+    .doc-section ol li { font-size: 14px; margin-bottom: 6px; color: var(--gray700); }
+    .doc-section strong { color: var(--navy); font-weight: 600; }
+
+    /* ─── BLOCKQUOTE ─── */
+    .doc-section blockquote, blockquote {
+      border-left: 4px solid var(--green);
+      background: var(--green3);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-style: italic;
+      color: var(--navy3);
+      font-size: 14px;
+    }
+
+    /* ─── TABLES ─── */
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    thead tr { background: var(--navy); color: white; }
+    thead th { padding: 12px 16px; font-weight: 600; text-align: left; font-size: 12px; letter-spacing: 0.3px; }
+    tbody tr { border-bottom: 1px solid var(--gray200); }
+    tbody tr:nth-child(even) { background: var(--gray100); }
+    tbody tr:hover { background: var(--green3); }
+    tbody td { padding: 11px 16px; color: var(--gray700); vertical-align: top; }
+    tbody td strong { color: var(--navy); }
+    .table-green thead tr { background: var(--green2); }
+    .table-red thead tr { background: var(--red); }
+
+    /* ─── FEATURE CARDS ─── */
+    .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+    .card {
+      background: var(--gray100);
+      border: 1px solid var(--gray300);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .card-icon { font-size: 28px; margin-bottom: 10px; }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .card-body { font-size: 12px; color: var(--gray500); line-height: 1.6; }
+
+    /* ─── PERSONA CARDS ─── */
+    .persona-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+    .persona-card {
+      border: 1px solid var(--gray300);
+      border-radius: var(--radius);
+      padding: 24px;
+      background: white;
+    }
+    .persona-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .persona-avatar {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--navy), var(--navy3));
+      color: var(--green);
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+    .persona-name { font-size: 15px; font-weight: 700; color: var(--navy); }
+    .persona-role { font-size: 12px; color: var(--gray400); font-weight: 500; }
+    .persona-card ul { padding-left: 16px; }
+    .persona-card ul li { font-size: 13px; margin-bottom: 5px; color: var(--gray700); }
+    .persona-need {
+      margin-top: 14px;
+      background: var(--green3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--green2);
+      border-left: 3px solid var(--green);
+    }
+
+    /* ─── FLOW BOX ─── */
+    .flow-box {
+      background: var(--navy);
+      color: rgba(255,255,255,0.88);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.9;
+      margin: 16px 0;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .flow-box .hl { color: var(--green); font-weight: 700; }
+
+    /* ─── PAGE META GRID ─── */
+    .page-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0;
+      border: 1px solid var(--gray300);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    .page-meta-row { display: contents; }
+    .page-meta-key {
+      background: var(--gray100);
+      padding: 10px 16px;
+      font-weight: 600;
+      color: var(--navy);
+      border-bottom: 1px solid var(--gray300);
+    }
+    .page-meta-val {
+      background: white;
+      padding: 10px 16px;
+      color: var(--gray700);
+      border-bottom: 1px solid var(--gray300);
+    }
+
+    /* ─── JOURNEY BOX ─── */
+    .journey-box {
+      background: var(--gray100);
+      border: 1px solid var(--gray300);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin: 16px 0;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .journey-box .step {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--gray300);
+      align-items: flex-start;
+    }
+    .journey-box .step:last-child { border-bottom: none; }
+    .journey-box .step-time {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green2);
+      min-width: 72px;
+      padding-top: 2px;
+    }
+    .journey-box .step-text { color: var(--gray700); }
+
+    /* ─── FAQ ─── */
+    .faq-section-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 32px 0 20px;
+    }
+    .faq-section-badge {
+      background: var(--navy);
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+    }
+    .faq-section-line { flex: 1; height: 1px; background: var(--gray300); }
+    .faq-card {
+      border: 1px solid var(--gray300);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .faq-q {
+      background: var(--gray100);
+      padding: 16px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--navy);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .faq-qnum {
+      background: var(--navy);
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .faq-a {
+      background: white;
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--gray700);
+      line-height: 1.75;
+      border-top: 1px solid var(--gray300);
+    }
+    .faq-a ul { padding-left: 18px; margin: 8px 0; }
+    .faq-a ul li { margin-bottom: 4px; }
+    .faq-a table { margin: 12px 0; }
+
+    /* ─── BADGE PILLS ─── */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: var(--green3); color: var(--green2); }
+    .badge-navy  { background: var(--navy);   color: var(--green);  }
+    .badge-red   { background: var(--red2);   color: var(--red);    }
+    .badge-amber { background: var(--amber2); color: #b85c00;       }
+
+    /* ─── CHECK/CROSS ─── */
+    .check { color: var(--green2); font-weight: 700; }
+    .cross  { color: var(--gray400); }
+
+    /* ─── CALLOUT BOXES ─── */
+    .callout {
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin: 16px 0;
+      font-size: 14px;
+      line-height: 1.7;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .callout-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+    .callout-green { background: var(--green3); border-left: 4px solid var(--green); color: var(--navy3); }
+    .callout-navy  { background: #e8f0fe;        border-left: 4px solid #3b6bdb;     color: #1a3a7a;      }
+    .callout-red   { background: var(--red2);    border-left: 4px solid var(--red);  color: #8b1a1a;      }
+
+    /* ─── TWO-COLUMN LAYOUT ─── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+
+    /* ─── DIVIDER ─── */
+    .divider { height: 1px; background: var(--gray300); margin: 28px 0; }
+
+    /* ─── METRICS GRID ─── */
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+    .metric-card {
+      background: var(--navy);
+      color: white;
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      text-align: center;
+    }
+    .metric-card .val { font-size: 28px; font-weight: 800; color: var(--green); }
+    .metric-card .lbl { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.55); margin-top: 4px; letter-spacing: 0.3px; }
+
+    /* ─── ROADMAP ─── */
+    .roadmap { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+    .roadmap-item {
+      display: flex;
+      gap: 20px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--gray200);
+    }
+    .roadmap-item:last-child { border-bottom: none; }
+    .roadmap-dot {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--green3);
+      border: 2px solid var(--green);
+      color: var(--green2);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .roadmap-title { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
+    .roadmap-desc  { font-size: 13px; color: var(--gray500); }
+
+    /* ─── FOOTER ─── */
+    .footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--gray400);
+      font-size: 12px;
+      line-height: 1.8;
+    }
+    .footer strong { color: var(--gray700); }
+
+    /* ─── PRINT BUTTON ─── */
+    .print-btn {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--navy);
+      color: var(--green);
+      border: none;
+      border-radius: 14px;
+      padding: 14px 24px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      transition: transform 0.15s;
+    }
+    .print-btn:hover { transform: translateY(-2px); }
+    @media print { .print-btn { display: none; } }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">
+  🖨️ Export as PDF
+</button>
+
+<div class="wrapper">
+
+  <!-- ═══════════════════════════════════════════
+       COVER PAGE
+  ════════════════════════════════════════════ -->
+  <div class="cover">
+    <div class="cover-badge">Product Documentation · v1.0</div>
+    <h1><span>Edgecipline</span><br>by Stratedge</h1>
+    <p class="cover-subtitle">AI-Powered Trading Journal &amp; Psychology Coach — Complete Product &amp; Strategy Document</p>
+
+    <div class="cover-pillars">
+      <div class="cover-pillar"><span class="cover-pillar-icon">📓</span> Smart Journal</div>
+      <div class="cover-pillar"><span class="cover-pillar-icon">📊</span> 60+ Analytics</div>
+      <div class="cover-pillar"><span class="cover-pillar-icon">🧠</span> Psychology Coach</div>
+      <div class="cover-pillar"><span class="cover-pillar-icon">🤖</span> AI Morning Mentor</div>
+      <div class="cover-pillar"><span class="cover-pillar-icon">🇮🇳</span> Indian Market</div>
+    </div>
+
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Prepared by</span>
+        <span class="cover-meta-value">Stratedge Product Team</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Date</span>
+        <span class="cover-meta-value">May 2026</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Version</span>
+        <span class="cover-meta-value">1.0 — Initial Release</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Document Type</span>
+        <span class="cover-meta-value">Product &amp; Strategy</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       TABLE OF CONTENTS
+  ════════════════════════════════════════════ -->
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <div class="toc-grid">
+      <a href="#s1"  class="toc-item"><span class="toc-num">1</span> Project Overview</a>
+      <a href="#s2"  class="toc-item"><span class="toc-num">2</span> User Perspective</a>
+      <a href="#s3"  class="toc-item"><span class="toc-num">3</span> Complete App Workflow</a>
+      <a href="#s4"  class="toc-item"><span class="toc-num">4</span> Page-by-Page Explanation</a>
+      <a href="#s5"  class="toc-item"><span class="toc-num">5</span> User Journeys</a>
+      <a href="#s6"  class="toc-item"><span class="toc-num">6</span> Features &amp; Benefits</a>
+      <a href="#s7"  class="toc-item"><span class="toc-num">7</span> Product Value</a>
+      <a href="#s8"  class="toc-item"><span class="toc-num">8</span> UX &amp; Engagement Strategy</a>
+      <a href="#s9"  class="toc-item"><span class="toc-num">9</span> Business &amp; Growth</a>
+      <a href="#s10" class="toc-item"><span class="toc-num">10</span> Future Vision</a>
+      <a href="#s11" class="toc-item"><span class="toc-num">11</span> Final Product Summary</a>
+      <a href="#s12" class="toc-item"><span class="toc-num">12</span> FAQ — 70 Questions</a>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 1 — PROJECT OVERVIEW
+  ════════════════════════════════════════════ -->
+  <div id="s1" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div>
+        <h2>Project Overview</h2>
+        <p>What Edgecipline is, why it exists, and the problem it solves</p>
+      </div>
+    </div>
+
+    <h3>What Is Edgecipline?</h3>
+    <p><strong>Edgecipline</strong> is an AI-powered trading journal and behavioral coaching platform built for retail traders. It combines trade logging, performance analytics, psychological pattern detection, and AI-generated coaching — all in one mobile-first application available on Android and the web.</p>
+
+    <blockquote>The name says it all: <strong>Edge</strong> (your statistical trading advantage) + <strong>Discipline</strong> (the only thing standing between a trader and consistent profitability).</blockquote>
+
+    <div class="callout callout-green">
+      <span class="callout-icon">💡</span>
+      <div><em>Most traders don't fail because they lack a strategy. They fail because they can't follow one.</em> Edgecipline exists to solve exactly that problem.</div>
+    </div>
+
+    <h3>Three Layers — One Platform</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>What It Does</th><th>Key Feature</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Journal</strong></td><td>Frictionless trade logging with full psychological context</td><td>Manual entry + AI screenshot extraction</td></tr>
+          <tr><td><strong>Analytics</strong></td><td>60+ performance metrics that reveal what's actually working</td><td>Equity curve, psychology analytics, setup comparison</td></tr>
+          <tr><td><strong>Psychology Coach</strong></td><td>AI-powered behavioral alerts and coaching reports</td><td>Morning Mentor, Weekly AI Reports</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Vision &amp; Mission</h3>
+    <div class="two-col">
+      <div class="callout callout-navy" style="margin:0;">
+        <span class="callout-icon">🎯</span>
+        <div><strong>Vision</strong><br/>To become the world's most trusted trading accountability system — the coach in every trader's pocket that never lets them forget their own rules.</div>
+      </div>
+      <div class="callout callout-green" style="margin:0;">
+        <span class="callout-icon">🚀</span>
+        <div><strong>Mission</strong><br/>To help retail traders build the discipline, emotional awareness, and analytical clarity required for long-term profitability.</div>
+      </div>
+    </div>
+
+    <h3>The Problem It Solves</h3>
+    <div class="metric-grid">
+      <div class="metric-card"><div class="val">80%</div><div class="lbl">Retail traders lose money consistently</div></div>
+      <div class="metric-card"><div class="val">#1</div><div class="lbl">Cause: emotional decision-making, not bad strategy</div></div>
+      <div class="metric-card"><div class="val">50M+</div><div class="lbl">Indian F&amp;O traders — largely underserved</div></div>
+      <div class="metric-card"><div class="val">0</div><div class="lbl">Competitors connecting psychology directly to P&amp;L</div></div>
+    </div>
+
+    <p>Existing trading journals are spreadsheets or basic loggers — they record data but offer no behavioral insight. Edgecipline is not just a journal. It is a <strong>behavioral accountability system</strong>.</p>
+
+    <h3>Markets Supported</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Market</th><th>Coverage</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Forex / Global</strong></td><td>Currency pairs, indices, commodities, CFDs</td></tr>
+          <tr><td><strong>Indian Markets</strong></td><td>NSE/BSE Equity, F&amp;O (Futures &amp; Options), Intraday, Delivery, BTST, Commodity</td></tr>
+          <tr><td><em>Roadmap</em></td><td>US Stocks, Crypto, Commodities</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 2 — USER PERSPECTIVE
+  ════════════════════════════════════════════ -->
+  <div id="s2" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div>
+        <h2>User Perspective</h2>
+        <p>Who uses Edgecipline, their profiles, and real-world use cases</p>
+      </div>
+    </div>
+
+    <h3>Target Audience</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Segment</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Aspiring professional traders</strong></td><td>Trading 6–36 months, have a strategy, losing discipline under pressure</td></tr>
+          <tr><td><strong>Active Forex traders</strong></td><td>Currency pairs on MetaTrader, want systematic performance review</td></tr>
+          <tr><td><strong>Indian F&amp;O traders</strong></td><td>Options/futures on NSE/BSE, Intraday-focused, high frequency</td></tr>
+          <tr><td><strong>Prop firm traders</strong></td><td>Evaluation / funded accounts — need zero rule violations, obsess over drawdown</td></tr>
+          <tr><td><strong>Trading educators/mentees</strong></td><td>Students proving discipline with data to their mentor</td></tr>
+          <tr><td><strong>Swing traders</strong></td><td>Lower frequency, high-conviction trades, setup quality tracking</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>User Personas</h3>
+    <div class="persona-grid">
+      <div class="persona-card">
+        <div class="persona-header">
+          <div class="persona-avatar">A</div>
+          <div><div class="persona-name">Arjun, 26</div><div class="persona-role">Indian F&amp;O Trader · Nifty Options</div></div>
+        </div>
+        <ul>
+          <li>Trades intraday — 3–5 trades/day</li>
+          <li>Has a profitable strategy in theory</li>
+          <li>Revenge trades after losses</li>
+          <li>Ends green days negative because of "one bad trade"</li>
+        </ul>
+        <div class="persona-need">🎯 Needs: Revenge alerts · Daily P&amp;L awareness · Emotional detection</div>
+      </div>
+      <div class="persona-card">
+        <div class="persona-header">
+          <div class="persona-avatar">S</div>
+          <div><div class="persona-name">Sarah, 31</div><div class="persona-role">Forex Swing Trader · EUR/USD</div></div>
+        </div>
+        <ul>
+          <li>Trades 4–8 times/week</li>
+          <li>Keeps a messy spreadsheet</li>
+          <li>Doesn't review consistently</li>
+          <li>Unsure which setups actually work</li>
+        </ul>
+        <div class="persona-need">🎯 Needs: Clean journal · Setup comparison · Weekly AI review</div>
+      </div>
+      <div class="persona-card">
+        <div class="persona-header">
+          <div class="persona-avatar">M</div>
+          <div><div class="persona-name">Marcus, 34</div><div class="persona-role">Prop Firm Trader · $50K Account</div></div>
+        </div>
+        <ul>
+          <li>4% max drawdown — one breach ends account</li>
+          <li>Rule adherence is existential</li>
+          <li>Needs auditable discipline proof</li>
+        </ul>
+        <div class="persona-need">🎯 Needs: Checklist · Drawdown tracking · No-SL alerts · Discipline score</div>
+      </div>
+      <div class="persona-card">
+        <div class="persona-header">
+          <div class="persona-avatar">P</div>
+          <div><div class="persona-name">Priya, 22</div><div class="persona-role">Learning Trader · 8 Months In</div></div>
+        </div>
+        <ul>
+          <li>Taking courses, building strategy</li>
+          <li>Wants to build habits from day one</li>
+          <li>No bad habits formed yet — keep it that way</li>
+        </ul>
+        <div class="persona-need">🎯 Needs: Morning mentor · Simple journal · Setup builder · Weekly reports</div>
+      </div>
+    </div>
+
+    <h3>Real-World Use Cases</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User's Problem</th><th>How Edgecipline Helps</th></tr></thead>
+        <tbody>
+          <tr><td>"I always revenge trade after losses"</td><td>Morning mentor detects pattern, sends alert before market open</td></tr>
+          <tr><td>"I don't know which setup is actually profitable"</td><td>Analytics shows P&amp;L breakdown by setup/strategy</td></tr>
+          <tr><td>"I trade when stressed and it always goes wrong"</td><td>Mood tracking correlates emotional state to win rate</td></tr>
+          <tr><td>"I forget my rules mid-trade"</td><td>Pre-trade checklist forces rule verification before entry</td></tr>
+          <tr><td>"I want to upload my MT4 screenshot"</td><td>AI extraction reads screenshot, fills the form automatically</td></tr>
+          <tr><td>"I need a weekly review of my trading"</td><td>Sunday AI report: mistakes, improvements, next-week focus</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 3 — COMPLETE APP WORKFLOW
+  ════════════════════════════════════════════ -->
+  <div id="s3" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div>
+        <h2>Complete App Workflow</h2>
+        <p>The master flow from first visit to long-term habit</p>
+      </div>
+    </div>
+
+    <h3>Master Flow</h3>
+    <div class="flow-box"><span class="hl">SIGN UP / LOG IN</span>
+      │
+      ▼
+<span class="hl">DASHBOARD</span>  (Home Hub — KPIs · Equity Curve · Feature Cards)
+      │
+      ├──► <span class="hl">PRE-TRADE CHECKLIST</span>  →  Verify rules  →  Take / Skip trade
+      │
+      ├──► <span class="hl">ADD TRADE</span> (Manual)  ──or──  <span class="hl">UPLOAD TRADE</span> (AI Screenshot)
+      │                │                              │
+      │                └──────────────────────────────┘
+      │                               │
+      │                         Trade Saved
+      │                               │
+      ▼                               ▼
+<span class="hl">TRADE JOURNAL</span>             <span class="hl">ANALYTICS UPDATE</span>
+(All trade history)        (60+ metrics recalculate)
+      │
+      ▼
+<span class="hl">WEEKLY AI REPORT</span>  (auto-generated Sunday)
+      │
+      ▼
+<span class="hl">MORNING MENTOR</span>  (daily personalized push notification)
+      │
+      ▼
+<span class="hl">NOTIFICATIONS HUB</span>  →  <span class="hl">PROFILE</span></div>
+
+    <h3>Step-by-Step: Day 1 → Month 1+</h3>
+
+    <h4>Day 1 — First Visit</h4>
+    <div class="journey-box">
+      <div class="step"><span class="step-time">Step 1</span><span class="step-text">User lands on root page → automatic auth check</span></div>
+      <div class="step"><span class="step-time">Step 2</span><span class="step-text">Not logged in → redirected to Login page (demo stats visible)</span></div>
+      <div class="step"><span class="step-time">Step 3</span><span class="step-text">Signs up with Email/Password or Google OAuth</span></div>
+      <div class="step"><span class="step-time">Step 4</span><span class="step-text">Redirected to Dashboard → empty state → "Log your first trade"</span></div>
+      <div class="step"><span class="step-time">Step 5</span><span class="step-text">Visits Add Trade → fills details + psychology tags → saved</span></div>
+    </div>
+
+    <h4>Week 1 — Building the System</h4>
+    <div class="journey-box">
+      <div class="step"><span class="step-time">Day 2–3</span><span class="step-text">Creates first Trading Setup (name, rules, reference screenshots)</span></div>
+      <div class="step"><span class="step-time">Day 4</span><span class="step-text">Before next trade → Pre-Trade Checklist → runs rules → A+ → takes trade</span></div>
+      <div class="step"><span class="step-time">Day 5</span><span class="step-text">Receives first Morning Mentor push notification</span></div>
+      <div class="step"><span class="step-time">Day 7</span><span class="step-text">First Weekly AI Report generated → AI identifies top 3 mistakes by P&amp;L cost</span></div>
+    </div>
+
+    <h4>Month 1+ — Long-Term Accountability</h4>
+    <div class="journey-box">
+      <div class="step"><span class="step-time">Week 2–3</span><span class="step-text">Analytics shows "I win 70% when calm, 30% when frustrated" — personal data proof</span></div>
+      <div class="step"><span class="step-time">Month 1</span><span class="step-text">Morning mentor becomes a daily ritual — behavioral guardrail before every session</span></div>
+      <div class="step"><span class="step-time">Month 2</span><span class="step-text">Discipline score visibly improving → win rate improving → emotional investment in app</span></div>
+      <div class="step"><span class="step-time">Month 3</span><span class="step-text">Upgrades to Annual Pro → shares app with trading community → referral loop</span></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 4 — PAGE-BY-PAGE
+  ════════════════════════════════════════════ -->
+  <div id="s4" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div>
+        <h2>Page-by-Page Explanation</h2>
+        <p>Every page, its purpose, what users see, and why it exists</p>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <h3>📊 Dashboard — The Command Center</h3>
+    <blockquote>A trader who opens the app should know in 5 seconds whether they're on track or not.</blockquote>
+    <div class="page-meta">
+      <div class="page-meta-key">URL</div><div class="page-meta-val">/dashboard &amp; /indian-market/dashboard</div>
+      <div class="page-meta-key">Purpose</div><div class="page-meta-val">Top-level performance overview — the trader's morning briefing</div>
+      <div class="page-meta-key">KPI Cards</div><div class="page-meta-val">Win Rate · Net P&amp;L · Profit Factor · Max Drawdown · Sharpe Ratio · Streak · Avg Win/Loss</div>
+      <div class="page-meta-key">Feature Cards</div><div class="page-meta-val">6 shortcuts: Journal · Add Trade · Analytics · Upload · Checklist · Reports</div>
+      <div class="page-meta-key">User Emotion</div><div class="page-meta-val">Grounded, informed, accountable — or appropriately cautious if metrics are red</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Add Trade -->
+    <h3>✏️ Add Trade — Manual Entry</h3>
+    <blockquote>Data without psychology is useless. A trade logged with mood and emotions reveals <em>why</em> you win and lose — not just what happened.</blockquote>
+    <div class="page-meta">
+      <div class="page-meta-key">URL</div><div class="page-meta-val">/add-trade &amp; /indian-market/add-trade</div>
+      <div class="page-meta-key">Trade Fields</div><div class="page-meta-val">Symbol · Direction · Entry/Exit · SL · TP · Size · P&amp;L (auto) · R:R (auto)</div>
+      <div class="page-meta-key">Indian Fields</div><div class="page-meta-val">Segment · Trade Type · Instrument · Strike · Expiry</div>
+      <div class="page-meta-key">Psychology Layer</div><div class="page-meta-val">Mood (1–5 emoji) · Confidence · Emotional Tags · Setup Used · Would You Retake?</div>
+      <div class="page-meta-key">Emotional Tags</div><div class="page-meta-val">FOMO · Revenge · Fear · Greed · Impatient · Disciplined · Confident · Hesitant</div>
+      <div class="page-meta-key">User Emotion</div><div class="page-meta-val">Reflective and honest — psychology fields force a moment of self-awareness</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Upload Trade -->
+    <h3>🤖 Upload Trade — AI Extraction</h3>
+    <blockquote>Zero friction. Take a screenshot, let AI do the rest.</blockquote>
+    <div class="page-meta">
+      <div class="page-meta-key">URL</div><div class="page-meta-val">/upload-trade &amp; /indian-market/upload-trade</div>
+      <div class="page-meta-key">How It Works</div><div class="page-meta-val">Upload screenshot → AI reads (OCR + Vision AI) → fields pre-filled → user reviews + confirms</div>
+      <div class="page-meta-key">AI Detects</div><div class="page-meta-val">Broker type · Symbol · Direction · Entry/Exit · SL/TP · P&amp;L · Timestamp · Multi-trades</div>
+      <div class="page-meta-key">Time Saving</div><div class="page-meta-val">Manual: 60–90 sec per trade → AI: 15–30 sec per trade</div>
+      <div class="page-meta-key">User Emotion</div><div class="page-meta-val">Delight at AI magic + relief at removed friction</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Analytics -->
+    <h3>📈 Analytics — The Performance Mirror</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Analytics Dimension</th><th>Key Metrics &amp; Insights</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Performance Overview</strong></td><td>Win rate, profit factor, expectancy, Sharpe ratio, max drawdown, recovery factor, streaks</td></tr>
+          <tr><td><strong>Setup Analysis</strong></td><td>P&amp;L and win rate per strategy — shows which setup actually makes money</td></tr>
+          <tr><td><strong>Time Analysis</strong></td><td>Best/worst hour of day, best/worst day of week, session performance</td></tr>
+          <tr><td><strong>Direction Analysis</strong></td><td>Long vs Short performance, directional bias identification</td></tr>
+          <tr><td><strong>Psychology Analytics</strong></td><td>Mood→win rate, confidence→outcome, emotional tag impact, would-you-retake calibration</td></tr>
+          <tr><td><strong>Behavioral Detection</strong></td><td>Revenge trading, overtrading, tilt pattern, discipline score</td></tr>
+          <tr><td><strong>Visual Charts</strong></td><td>Equity curve, calendar heatmap, distribution charts</td></tr>
+          <tr><td><strong>Repeated Mistakes</strong></td><td>Mistakes ranked by total P&amp;L cost — shows what to fix first</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Checklist -->
+    <h3>✅ Pre-Trade Checklist — The Discipline Gate</h3>
+    <blockquote>The #1 cause of bad trades is taking setups that "feel close enough." This page makes traders confront that gap before money is on the line.</blockquote>
+    <div class="table-wrap">
+      <table class="table-green">
+        <thead><tr><th>Confidence Grade</th><th>Rules Met</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr><td><strong>A+ Setup</strong></td><td>≥80% Yes</td><td>"Take Trade" button unlocked</td></tr>
+          <tr><td><strong>Moderate Setup</strong></td><td>50–79% Yes</td><td>Warning shown, user can override</td></tr>
+          <tr><td><strong>Low Confidence</strong></td><td>&lt;50% Yes</td><td>"Skip This Trade" recommended</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Setups -->
+    <h3>🗂️ Trading Setups — The Strategy Library</h3>
+    <p>Create named strategies (e.g., "London Breakout", "Nifty Opening Range") with up to 5 reference screenshots and 10+ rules. Once defined, setups flow into the Checklist, Analytics, and AI Reports automatically.</p>
+
+    <div class="divider"></div>
+
+    <!-- Weekly Reports -->
+    <h3>📋 Weekly AI Reports — Sunday Coaching Session</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Report Section</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td>Week Summary</td><td>Total trades, win rate, net P&amp;L for the week</td></tr>
+          <tr><td>Top Mistakes</td><td>AI-identified behavioral errors ranked by P&amp;L cost</td></tr>
+          <tr><td>Discipline Score</td><td>% of trades with checklist confirmation</td></tr>
+          <tr><td>Psychology Trend</td><td>Mood and emotional pattern for the week</td></tr>
+          <tr><td>Focus Areas</td><td>Specific behaviors to address next week</td></tr>
+          <tr><td>Next Week Checklist</td><td>3–5 AI-generated action items</td></tr>
+          <tr><td>Positive Patterns</td><td>What worked — reinforce good behavior</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout callout-green">
+      <span class="callout-icon">💬</span>
+      <div><strong>Sample AI Output:</strong> <em>"This week your biggest loss came from 3 revenge trades on Tuesday after a morning loss of ₹4,200. Each revenge trade was 2× your normal position size. Consider implementing a hard stop: no trading for 2 hours after hitting your daily loss limit."</em></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Morning Mentor -->
+    <h3>🌅 Morning Mentor — Daily Behavioral Coaching</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Scenario</th><th>Alert Type</th><th>Message Focus</th></tr></thead>
+        <tbody>
+          <tr><td>Revenge trading pattern</td><td><span class="badge badge-red">Warning</span></td><td>"Yesterday's loss led to 2 oversized trades"</td></tr>
+          <tr><td>No stop-loss trades</td><td><span class="badge badge-red">Risk</span></td><td>"2 recent trades had no stop loss defined"</td></tr>
+          <tr><td>Overtrading detected</td><td><span class="badge badge-amber">Warning</span></td><td>"You're averaging 40% more trades this week"</td></tr>
+          <tr><td>Emotional trading tags</td><td><span class="badge badge-amber">Psychology</span></td><td>"3 trades tagged FOMO this week — watch for it"</td></tr>
+          <tr><td>Low setup discipline</td><td><span class="badge badge-amber">Discipline</span></td><td>"Only 50% of trades used your checklist"</td></tr>
+          <tr><td>Disciplined win day</td><td><span class="badge badge-green">Positive</span></td><td>"Yesterday you followed all rules and won. Do it again."</td></tr>
+          <tr><td>Profitable streak</td><td><span class="badge badge-green">Reinforce</span></td><td>"4-day winning streak — stay disciplined, don't oversize"</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Subscription -->
+    <h3>👤 Profile &amp; Subscription Tiers</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Feature</th><th>Free</th><th>Monthly Pro</th><th>Annual Pro</th></tr></thead>
+        <tbody>
+          <tr><td>Trade logging (manual)</td><td><span class="check">✓</span> Unlimited</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Basic analytics</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Indian market module</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>AI screenshot extraction</td><td><span class="cross">—</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Full analytics (60+ metrics)</td><td><span class="cross">—</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Weekly AI reports</td><td><span class="cross">—</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Morning Mentor notifications</td><td><span class="cross">—</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Psychology analytics</td><td><span class="cross">—</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Advanced psychology insights</td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td><span class="check">✓</span></td></tr>
+          <tr><td>Priority support</td><td><span class="cross">—</span></td><td><span class="cross">—</span></td><td><span class="check">✓</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 5 — USER JOURNEYS
+  ════════════════════════════════════════════ -->
+  <div id="s5" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div>
+        <h2>User Journeys</h2>
+        <p>How different users interact with the app over time</p>
+      </div>
+    </div>
+
+    <h3>Beginner User Journey</h3>
+    <div class="journey-box">
+      <div class="step"><span class="step-time">Week 1</span><span class="step-text">Sign up → Log first 3 trades manually → Explore dashboard KPIs</span></div>
+      <div class="step"><span class="step-time">Week 2</span><span class="step-text">Create first setup → Use checklist → Feel what discipline actually feels like</span></div>
+      <div class="step"><span class="step-time">Week 3</span><span class="step-text">Receive first weekly report → Identify first mistake pattern with data</span></div>
+      <div class="step"><span class="step-time">Week 4</span><span class="step-text">Morning mentor alerts start → Begin building pre-market routine</span></div>
+      <div class="step"><span class="step-time">Month 2</span><span class="step-text">Analytics shows mood-performance correlation → Behavior starts shifting</span></div>
+      <div class="step"><span class="step-time">Month 3</span><span class="step-text">Discipline score improves → Win rate improves → User tells a friend</span></div>
+    </div>
+    <p><strong>Emotional arc:</strong> Curiosity → Structure → Awareness → Improvement → Loyalty</p>
+
+    <div class="divider"></div>
+
+    <h3>Returning Daily User Journey</h3>
+    <div class="journey-box">
+      <div class="step"><span class="step-time">6:30 AM</span><span class="step-text">Morning mentor notification arrives → "Yesterday you revenge traded. Start fresh today." → Opens notification → feels accountability</span></div>
+      <div class="step"><span class="step-time">8:30 AM</span><span class="step-text">Opens app → checks Dashboard KPIs → reviews equity curve → notes current position</span></div>
+      <div class="step"><span class="step-time">9:00 AM</span><span class="step-text">Pre-trade checklist → London Breakout → Rules check: A+ → Takes trade</span></div>
+      <div class="step"><span class="step-time">10:15 AM</span><span class="step-text">Trade exits → Add Trade → logs details + mood: Confident + tag: Disciplined</span></div>
+      <div class="step"><span class="step-time">12:00 PM</span><span class="step-text">Second trade opportunity → Checklist again → Low confidence → Skips trade → satisfaction of discipline</span></div>
+      <div class="step"><span class="step-time">5:00 PM</span><span class="step-text">Reviews Trade Journal → reflects on day → closes app</span></div>
+      <div class="step"><span class="step-time">Sunday</span><span class="step-text">Weekly AI Report → reads coaching → plans next week → sets improvement goal</span></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3>Daily Habit Flow — Triple Touch</h3>
+    <div class="table-wrap">
+      <table class="table-green">
+        <thead><tr><th>Touch Point</th><th>Timing</th><th>Feature Used</th><th>Duration</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Morning</strong></td><td>Pre-market</td><td>Morning Mentor + Checklist</td><td>3–5 min</td></tr>
+          <tr><td><strong>During Session</strong></td><td>After each trade</td><td>Add Trade (manual or upload)</td><td>1–2 min/trade</td></tr>
+          <tr><td><strong>Evening</strong></td><td>Post-session</td><td>Journal review + Dashboard</td><td>5–10 min</td></tr>
+          <tr><td><strong>Weekly</strong></td><td>Sunday</td><td>Weekly AI Report</td><td>10–15 min</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3>Retention Flow</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Timeline</th><th>Milestone</th><th>Effect on Retention</th></tr></thead>
+        <tbody>
+          <tr><td>Day 1–3</td><td>New user excitement — first trades logged, analytics explored</td><td>Initial activation</td></tr>
+          <tr><td>Day 7</td><td>First weekly report — "AI identified exactly what I was doing wrong"</td><td>First "wow" moment</td></tr>
+          <tr><td>Day 14</td><td>Morning mentor becomes expected — habit formed</td><td>Daily active retention</td></tr>
+          <tr><td>Day 30</td><td>Analytics shows real improvement — emotional investment in data</td><td>Data lock-in begins</td></tr>
+          <tr><td>Day 60</td><td>Discipline score visibly improved — proof of growth</td><td>Identity formation</td></tr>
+          <tr><td>Day 90</td><td>Upgrades to Annual Pro</td><td>Long-term retained user</td></tr>
+          <tr><td>Day 180</td><td>Shares app with trading community</td><td>Organic referral loop</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 6 — FEATURES & BENEFITS
+  ════════════════════════════════════════════ -->
+  <div id="s6" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <div>
+        <h2>Features &amp; Benefits</h2>
+        <p>What the app does and why it matters to users</p>
+      </div>
+    </div>
+
+    <h3>Feature Overview</h3>
+    <div class="card-grid">
+      <div class="card"><div class="card-icon">📓</div><div class="card-title">Smart Trade Journal</div><div class="card-body">Manual + AI screenshot logging with full psychology tagging</div></div>
+      <div class="card"><div class="card-icon">📊</div><div class="card-title">60+ Analytics Metrics</div><div class="card-body">Performance, psychology, setup, time, and behavioral analysis</div></div>
+      <div class="card"><div class="card-icon">✅</div><div class="card-title">Pre-Trade Checklist</div><div class="card-body">Rule-by-rule verification with A+/Moderate/Low confidence scoring</div></div>
+      <div class="card"><div class="card-icon">🗂️</div><div class="card-title">Setup Builder</div><div class="card-body">Named strategies with rules, reference images, and performance tracking</div></div>
+      <div class="card"><div class="card-icon">🌅</div><div class="card-title">Morning Mentor</div><div class="card-body">Daily personalized AI behavioral coaching via push notification</div></div>
+      <div class="card"><div class="card-icon">📋</div><div class="card-title">Weekly AI Reports</div><div class="card-body">Sunday coaching reports with ranked mistakes and next-week actions</div></div>
+      <div class="card"><div class="card-icon">🧠</div><div class="card-title">Psychology Tracking</div><div class="card-body">Mood, confidence, emotional tags correlated directly to P&amp;L</div></div>
+      <div class="card"><div class="card-icon">🇮🇳</div><div class="card-title">Indian Market Module</div><div class="card-body">Full F&amp;O/Equity/Intraday support with ₹ analytics</div></div>
+      <div class="card"><div class="card-icon">🤖</div><div class="card-title">AI Screenshot Extraction</div><div class="card-body">Auto-fill trade details from any broker screenshot in 15 seconds</div></div>
+      <div class="card"><div class="card-icon">📉</div><div class="card-title">Equity Curve &amp; Drawdown</div><div class="card-body">Visual account growth chart with drawdown periods highlighted</div></div>
+      <div class="card"><div class="card-icon">⚠️</div><div class="card-title">Revenge Trading Detection</div><div class="card-body">Automatic behavioral flags for dangerous trading patterns</div></div>
+      <div class="card"><div class="card-icon">🎯</div><div class="card-title">Repeated Mistakes Tracker</div><div class="card-body">Ranks costly mistakes by P&amp;L cost — shows what to fix first</div></div>
+    </div>
+
+    <h3>Competitive Advantages</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>vs Competitor</th><th>Edgecipline's Edge</th></tr></thead>
+        <tbody>
+          <tr><td><strong>vs Tradervue</strong></td><td>Psychology tracking, AI coaching, Indian market, native mobile app</td></tr>
+          <tr><td><strong>vs Edgewonk</strong></td><td>Mobile app, AI extraction, Morning Mentor, push notifications</td></tr>
+          <tr><td><strong>vs TraderSync</strong></td><td>Psychology depth, Indian market, AI coaching reports, behavioral detection</td></tr>
+          <tr><td><strong>vs Spreadsheets</strong></td><td>Zero friction, automated analysis, AI insights, real-time behavioral alerts</td></tr>
+          <tr><td><strong>vs Nothing (no journal)</strong></td><td>An accountability system that actually changes trading behavior</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Psychological Benefits</h3>
+    <div class="callout callout-green"><span class="callout-icon">🧠</span>
+      <ul style="margin:0; padding-left:18px;">
+        <li><strong>Reduces emotional trading</strong> — by making emotions data, not just feelings</li>
+        <li><strong>Builds trading identity</strong> — users start thinking of themselves as disciplined traders</li>
+        <li><strong>Creates positive feedback loops</strong> — discipline → better results → more discipline</li>
+        <li><strong>Reduces post-loss spiral</strong> — morning mentor resets mindset before next session</li>
+        <li><strong>Eliminates shame</strong> — replaces self-judgment with data-driven understanding</li>
+      </ul>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 7 — PRODUCT VALUE
+  ════════════════════════════════════════════ -->
+  <div id="s7" class="doc-section">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <div>
+        <h2>Product Value</h2>
+        <p>Why users love it, stay, and why it can succeed as a business</p>
+      </div>
+    </div>
+
+    <h3>Before vs After Edgecipline</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Before Edgecipline</th><th>After Edgecipline</th></tr></thead>
+        <tbody>
+          <tr><td>Vague sense of what went wrong</td><td>Exact data on what went wrong and why</td></tr>
+          <tr><td>Emotional reactions to losses</td><td>Data-driven understanding of patterns</td></tr>
+          <tr><td>Breaking rules without realizing</td><td>Morning alerts warn before markets open</td></tr>
+          <tr><td>Unknown which setups work</td><td>Setup performance ranked by P&amp;L</td></tr>
+          <tr><td>Weekly losses from repeated mistakes</td><td>Mistakes ranked and systematically eliminated</td></tr>
+          <tr><td>No accountability</td><td>AI coach reviews every trade every week</td></tr>
+          <tr><td>Trading journal is a chore</td><td>Trading journal is a competitive advantage</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Why It Can Succeed as a SaaS</h3>
+    <div class="two-col">
+      <div class="card"><div class="card-icon">📈</div><div class="card-title">Massive TAM</div><div class="card-body">50M+ Indian F&amp;O traders · 20M+ global Forex traders</div></div>
+      <div class="card"><div class="card-icon">🔥</div><div class="card-title">High Pain Point</div><div class="card-body">Emotional trading is the #1 reason traders lose — deeply felt</div></div>
+      <div class="card"><div class="card-icon">🔄</div><div class="card-title">Recurring Behavior</div><div class="card-body">Trading is a daily activity → daily DAU → daily engagement</div></div>
+      <div class="card"><div class="card-icon">🤖</div><div class="card-title">AI Moat</div><div class="card-body">Personalization quality improves with more trade data over time</div></div>
+    </div>
+
+    <blockquote><strong>No other trading journal connects psychology directly to performance metrics and then coaches you about it every single morning.</strong><br/>The three-layer combination — Journal + Psychology + AI Coach — has never been done at this depth in a single mobile product.</blockquote>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 8 — UX & ENGAGEMENT
+  ════════════════════════════════════════════ -->
+  <div id="s8" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <div>
+        <h2>UX &amp; Engagement Strategy</h2>
+        <p>How the app keeps users coming back and building habits</p>
+      </div>
+    </div>
+
+    <h3>Habit Loop Architecture</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Mechanism</th><th>Frequency</th></tr></thead>
+        <tbody>
+          <tr><td><strong>External Trigger</strong></td><td>Morning push notification (Morning Mentor)</td><td>Daily</td></tr>
+          <tr><td><strong>Internal Trigger</strong></td><td>Curiosity about metrics · Accountability to data</td><td>Continuous</td></tr>
+          <tr><td><strong>Variable Reward</strong></td><td>AI insight discovery in weekly report</td><td>Weekly</td></tr>
+          <tr><td><strong>Investment</strong></td><td>Trade history data grows — leaving means losing it</td><td>Cumulative</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Gamification Elements</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Element</th><th>Mechanic</th><th>Psychological Effect</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Discipline Score</strong></td><td>% of trades with checklist confirmation</td><td>Motivates rule-following — everyone wants a high %</td></tr>
+          <tr><td><strong>Win Streak Counter</strong></td><td>Consecutive profitable trades</td><td>Creates "streak protection" mindset</td></tr>
+          <tr><td><strong>Setup Confidence Grade</strong></td><td>A+ / Moderate / Low</td><td>Gamifies setup quality — traders aim for A+</td></tr>
+          <tr><td><strong>Mood Emoji Scale</strong></td><td>1–5 emoji progression</td><td>Makes emotional tracking playful, not burdensome</td></tr>
+          <tr><td><strong>Repeated Mistakes Rank</strong></td><td>Mistakes ranked by total P&amp;L cost</td><td>Creates clear "fix the #1 mistake" goal</td></tr>
+          <tr><td><strong>Equity Curve</strong></td><td>Visual account growth line</td><td>Makes progress tangible and personally meaningful</td></tr>
+          <tr><td><strong>Weekly Report Delivery</strong></td><td>Sunday ritual / "reward"</td><td>Creates anticipation and weekly engagement anchor</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Retention Ideas (Roadmap)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Initiative</th><th>Mechanism</th></tr></thead>
+        <tbody>
+          <tr><td>30-Day Discipline Challenge</td><td>Streak of checklist-confirmed trades with badge reward</td></tr>
+          <tr><td>Monthly Improvement Badge</td><td>Discipline score improved vs prior month</td></tr>
+          <tr><td>Setup Performance Awards</td><td>"Your London Breakout has 78% win rate"</td></tr>
+          <tr><td>Milestone Celebrations</td><td>100 trades logged · 6-month member · First profitable month</td></tr>
+          <tr><td>Insight of the Week</td><td>One personalized analytical insight on Dashboard</td></tr>
+          <tr><td>Trading Streak</td><td>Days in a row logging trades — builds consistency habit</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 9 — BUSINESS & GROWTH
+  ════════════════════════════════════════════ -->
+  <div id="s9" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">9</div>
+      <div>
+        <h2>Business &amp; Growth Perspective</h2>
+        <p>Monetization, marketing, branding, and community strategy</p>
+      </div>
+    </div>
+
+    <h3>Primary Monetization — SaaS Subscription</h3>
+    <div class="table-wrap">
+      <table class="table-green">
+        <thead><tr><th>Plan</th><th>Suggested Price</th><th>Target User</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Free</strong></td><td>₹0 / $0</td><td>Trial users, casual traders exploring the app</td></tr>
+          <tr><td><strong>Monthly Pro</strong></td><td>₹499/mo · $9.99/mo</td><td>Active traders testing the product</td></tr>
+          <tr><td><strong>Annual Pro</strong></td><td>₹3,999/yr · $79/yr</td><td>Serious traders — 30–40% saving over monthly</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Secondary Revenue Streams</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stream</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Prop Firm Partnerships</strong></td><td>Prop firms give evaluation traders an Edgecipline Pro subscription</td></tr>
+          <tr><td><strong>Trading Course Integrations</strong></td><td>Educators use Edgecipline as accountability tool for students</td></tr>
+          <tr><td><strong>Community Licenses</strong></td><td>Discord/Telegram trading communities license for their members</td></tr>
+          <tr><td><strong>White Label</strong></td><td>Broker-branded version of the journal for their retail clients</td></tr>
+          <tr><td><strong>Anonymized Data Insights</strong></td><td>Aggregate behavioral patterns for institutional researchers</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Branding</h3>
+    <div class="two-col">
+      <div>
+        <h4>Tagline Options</h4>
+        <ul>
+          <li><em>"Trade with discipline. Win with data."</em></li>
+          <li><em>"Your AI coach for consistent trading."</em></li>
+          <li><em>"The journal that coaches back."</em></li>
+          <li><em>"Know yourself. Trade yourself."</em></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Brand Voice</h4>
+        <p>Like a respected trading mentor — direct, no-nonsense, supportive, data-driven. Not a cheerleader. Not a robot. A coach.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 10 — FUTURE VISION
+  ════════════════════════════════════════════ -->
+  <div id="s10" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">10</div>
+      <div>
+        <h2>Future Vision</h2>
+        <p>Roadmap, AI opportunities, and long-term product direction</p>
+      </div>
+    </div>
+
+    <h3>Near-Term Roadmap (6–12 months)</h3>
+    <div class="roadmap">
+      <div class="roadmap-item"><div class="roadmap-dot">1</div><div><div class="roadmap-title">iOS App</div><div class="roadmap-desc">Doubles addressable market via Capacitor iOS build</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">2</div><div><div class="roadmap-title">Broker API Integration</div><div class="roadmap-desc">Auto-import trades from Zerodha, MT4, Interactive Brokers</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">3</div><div><div class="roadmap-title">Built-in Risk Calculator</div><div class="roadmap-desc">Position sizing tool integrated into the pre-checklist flow</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">4</div><div><div class="roadmap-title">Data Export (CSV/Excel)</div><div class="roadmap-desc">Download full trade history and analytics</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">5</div><div><div class="roadmap-title">Goals &amp; Milestones</div><div class="roadmap-desc">Set monthly P&amp;L, win rate, or discipline goals with progress tracking</div></div></div>
+    </div>
+
+    <h3>Medium-Term Vision (12–24 months)</h3>
+    <div class="roadmap">
+      <div class="roadmap-item"><div class="roadmap-dot">6</div><div><div class="roadmap-title">AI Trade Quality Scorer</div><div class="roadmap-desc">AI rates each trade entry quality 1–10 with written reasoning</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">7</div><div><div class="roadmap-title">Social Trading Journal</div><div class="roadmap-desc">Share selected trades publicly; follow other disciplined traders</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">8</div><div><div class="roadmap-title">Prop Firm / Team Dashboard</div><div class="roadmap-desc">Admin view for prop firm managers to monitor trader discipline</div></div></div>
+      <div class="roadmap-item"><div class="roadmap-dot">9</div><div><div class="roadmap-title">AI Backtesting</div><div class="roadmap-desc">Submit setup rules → AI backtests against historical data</div></div></div>
+    </div>
+
+    <h3>Long-Term Vision (24–48 months)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Vision</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bloomberg Terminal for Retail</strong></td><td>The definitive platform for serious retail trading — analytics + coaching + community</td></tr>
+          <tr><td><strong>AI Trading Coach (Conversational)</strong></td><td>Chat-based AI coach with full knowledge of your trade history — answers like a human mentor</td></tr>
+          <tr><td><strong>Predictive Behavioral Alerts</strong></td><td>"Based on your pattern, you're 73% likely to revenge trade today"</td></tr>
+          <tr><td><strong>Global Expansion</strong></td><td>US, UK, EU, SEA market localizations</td></tr>
+          <tr><td><strong>Prop Firm OS</strong></td><td>Complete operating system for prop trading firms — evaluation, compliance, trader dev</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 11 — FINAL SUMMARY
+  ════════════════════════════════════════════ -->
+  <div id="s11" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">11</div>
+      <div>
+        <h2>Final Product Summary</h2>
+        <p>The complete picture — what this product is and why it matters</p>
+      </div>
+    </div>
+
+    <h3>End-to-End Product Flow</h3>
+    <div class="flow-box"><span class="hl">TRADER OPENS APP</span>
+      │
+      ├── Morning:    Reads AI mentor alert → enters market psychologically prepared
+      │
+      ├── Pre-Trade:  Runs checklist → only takes A+ setups
+      │
+      ├── In-Trade:   AI extraction logs trade in 15 seconds
+      │
+      ├── Post-Trade: Adds mood tag and emotional state
+      │
+      ├── Evening:    Reviews dashboard KPIs and equity curve
+      │
+      └── Sunday:     Reads weekly AI coaching report → adjusts behavior
+
+<span class="hl">MONTH OVER MONTH:</span>
+      Discipline score rises → Win rate improves → Drawdown shrinks
+      → Account grows → Trader becomes consistently profitable
+      → Trader is loyal, tells other traders → Platform grows</div>
+
+    <h3>What Edgecipline Is</h3>
+    <div class="card-grid">
+      <div class="card" style="border-top: 3px solid var(--green)"><div class="card-icon">⚡</div><div class="card-title">Productivity Tool</div><div class="card-body">Frictionless logging, instant analytics, AI extraction</div></div>
+      <div class="card" style="border-top: 3px solid var(--blue)"><div class="card-icon">🎓</div><div class="card-title">Coaching Platform</div><div class="card-body">Morning Mentor, Weekly AI Reports, personalized insights</div></div>
+      <div class="card" style="border-top: 3px solid var(--amber)"><div class="card-icon">🛡️</div><div class="card-title">Accountability System</div><div class="card-body">Checklist, psychology tracking, behavioral alerts</div></div>
+    </div>
+
+    <blockquote style="font-size: 16px; font-weight: 500; margin-top: 28px;">
+      The trading world gives retail traders every disadvantage: no coach, no accountability, no behavioral awareness tools. Institutional traders have risk managers, performance coaches, and trading desks. Retail traders have nothing.<br/><br/>
+      <strong>Edgecipline is the retail trader's institutional advantage.</strong><br/><br/>
+      The design philosophy is simple: <em>every feature serves one mission — helping traders follow their own rules consistently.</em>
+    </blockquote>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 12 — FAQ
+  ════════════════════════════════════════════ -->
+  <div id="s12" class="doc-section page-break">
+    <div class="section-header">
+      <div class="section-num">12</div>
+      <div>
+        <h2>Frequently Asked Questions</h2>
+        <p>70 questions across 12 categories — from first-time visitors to power users</p>
+      </div>
+    </div>
+
+    <!-- Section A -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">A — Getting Started</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q1</span> What exactly is Edgecipline and how is it different from a regular trading journal?</div>
+      <div class="faq-a">A regular journal records what happened. Edgecipline is a <strong>behavioral coaching system</strong> built on top of a journal. It tracks mood, emotions, and confidence — and connects those directly to P&amp;L. Then an AI coach analyzes patterns every morning and every week, telling you exactly what you're doing wrong and what it costs you. No spreadsheet does that.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q2</span> I'm a complete beginner. Is this app for me?</div>
+      <div class="faq-a">Edgecipline is best for traders who have a strategy but struggle to execute it consistently. Beginners can absolutely use it to build disciplined habits from day one — which is far better than forming bad habits and trying to fix them later.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q3</span> What markets does Edgecipline support?</div>
+      <div class="faq-a">
+        <div class="table-wrap"><table><thead><tr><th>Market</th><th>Coverage</th></tr></thead><tbody>
+          <tr><td><strong>Forex / Global</strong></td><td>Currency pairs, indices, commodities, CFDs</td></tr>
+          <tr><td><strong>Indian Markets</strong></td><td>NSE/BSE Equity, F&amp;O, Intraday, Delivery, BTST, Commodity</td></tr>
+          <tr><td><em>Roadmap</em></td><td>US Stocks, Crypto</td></tr>
+        </tbody></table></div>
+      </div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q4</span> Is Edgecipline a web app, mobile app, or both?</div>
+      <div class="faq-a">Both. Available as a Progressive Web App (browser) and native Android app. The Android app supports push notifications for the Morning Mentor — a key advantage over web-only journals. iOS is on the roadmap.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q5</span> How long does it take to see useful insights?</div>
+      <div class="faq-a"><ul><li><strong>5–10 trades:</strong> Basic KPIs appear</li><li><strong>30–50 trades:</strong> Psychology correlations and setup performance emerge</li><li><strong>100+ trades:</strong> Full behavioral pattern detection and reliable mood-P&amp;L correlation</li></ul></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q6</span> Can I import old trades from a spreadsheet?</div>
+      <div class="faq-a">CSV/Excel bulk import is on the roadmap. Currently, use manual entry or AI screenshot extraction for past trades. You can upload historical screenshots from your broker platform.</div>
+    </div>
+
+    <!-- Section B -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">B — Trade Logging</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q7</span> How do I log a trade?</div>
+      <div class="faq-a"><strong>Manual:</strong> Add Trade → fill in details + psychology tags → save. ~60–90 seconds.<br/><br/><strong>AI Screenshot:</strong> Upload Trade → upload broker screenshot → AI pre-fills form → review + confirm. ~15–30 seconds.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q8</span> What are "emotional tags" and why should I use them?</div>
+      <div class="faq-a">Tags describe your mental state: <strong>FOMO, Revenge, Fear, Greed, Impatient, Hesitant, Confident, Disciplined.</strong><br/><br/>After 50+ trades, analytics shows the P&amp;L difference between "Disciplined" trades and "Revenge" trades. For most traders, this single comparison is worth the entire subscription — it puts a dollar figure on emotional trading.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q9</span> What is the "Would You Retake?" field?</div>
+      <div class="faq-a">After a trade exits, you answer: <em>"If you could go back to the entry moment, would you take this trade again?"</em> — regardless of win or loss.<br/><br/>Over time, this calibrates your instinct. If you say "Yes" to losing trades, your intuition is inversed. If you consistently say "No" to trades that lose — your gut is already ahead of your execution.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q10</span> Can I edit or delete a trade after saving?</div>
+      <div class="faq-a">Yes. Find the trade in the Journal and use edit or delete. Editing updates all analytics immediately. Only correct genuine data entry errors — don't retroactively delete losing trades as it corrupts your analytics.</div>
+    </div>
+
+    <!-- Section C -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">C — AI Screenshot Extraction</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q11</span> How does AI trade extraction work?</div>
+      <div class="faq-a">Upload a broker screenshot → AI uses OCR + Vision to detect broker type, read all trade data, extract symbol/direction/prices/P&amp;L/timestamp, and pre-fill the form. Each field has a confidence score. You review, correct any errors, add psychology tags, and confirm.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q12</span> Which broker platforms does the AI support?</div>
+      <div class="faq-a"><strong>Forex:</strong> MetaTrader 4/5, cTrader, TradingView, and most major statement formats.<br/><strong>Indian:</strong> Zerodha Kite, Groww, Upstox, Angel One, IIFL, Dhan, Fyers, 5Paisa, and growing. Manual correction is always available for any misread fields.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q13</span> Can I upload multiple trades from one screenshot?</div>
+      <div class="faq-a">Yes. If the screenshot shows multiple closed trades (e.g., trade history page), AI detects and extracts all of them. You review each and confirm which to save.</div>
+    </div>
+
+    <!-- Section D -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">D — Analytics</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q14</span> What is the "Discipline Score" and how is it calculated?</div>
+      <div class="faq-a">The % of trades confirmed through the Pre-Trade Checklist before entry.<br/><br/><strong>Formula:</strong> <code>(Disciplined Trades ÷ Total Trades) × 100</code><br/><br/>Above 80% = excellent. Below 50% = trading on impulse more than rules.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q15</span> What is the "Repeated Mistakes Tracker"?</div>
+      <div class="faq-a">Ranks your self-tagged mistakes by total P&amp;L cost. If you tagged "No Stop Loss" on 5 trades that lost ₹12,400, it shows at the top ranked by cost. The insight: fixing your #1 mistake typically recovers more P&amp;L than finding a new strategy.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q16</span> How does mood tracking connect to P&amp;L?</div>
+      <div class="faq-a">Every trade has a mood rating (1–5). Analytics plots average P&amp;L by mood level. Most traders discover they win significantly more when calm (mood 3–4) vs stressed (mood 1–2). Once visible in your own data, the motivation to trade with the right mindset becomes personal — not theoretical advice.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q17</span> Can I filter analytics by time period or setup?</div>
+      <div class="faq-a">Yes. Filters available: Time period (Today/Week/Month/Last 3M/Custom), Setup/Strategy, Direction (Long/Short), Market (Forex/Indian).</div>
+    </div>
+
+    <!-- Section E -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">E — Pre-Trade Checklist</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q18</span> Do I have to use the checklist before every trade?</div>
+      <div class="faq-a">No — it's not mandatory. But every trade taken without checklist confirmation is counted as "undisciplined" in your Discipline Score. Over time, your data will show the P&amp;L difference between checklist-confirmed trades and impulse trades. For most traders, this difference makes the checklist a non-negotiable habit.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q19</span> What if I score Moderate on the checklist — is it okay to take the trade?</div>
+      <div class="faq-a">The app doesn't block Moderate-confidence trades — it shows the score and highlights which rules aren't met. But Analytics tracks P&amp;L separately for A+, Moderate, and Low. Most traders discover only A+ trades are profitable on average, making the choice clear over time.</div>
+    </div>
+
+    <!-- Section F -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">F — Morning Mentor &amp; Notifications</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q20</span> What is the Morning Mentor?</div>
+      <div class="faq-a">A daily AI push notification arriving before market open. It analyzes recent trading behavior (last 24–72h) and sends a <strong>personalized coaching message referencing your actual trades</strong>. Example:<br/><br/><em>"Good morning. Yesterday you placed 3 trades after your initial stop-out — each one larger than the last. That's your revenge trading pattern. Today, set a daily loss limit before the session starts."</em></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q21</span> When does the Morning Mentor arrive?</div>
+      <div class="faq-a"><ul><li><strong>Forex:</strong> Before London or New York session open</li><li><strong>Indian Market:</strong> Before 9:15 AM IST (NSE/BSE open)</li><li><strong>Weekends:</strong> Sunday evening — week preparation message</li></ul></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q22</span> Are notifications personalized to my actual trades?</div>
+      <div class="faq-a">Yes. Notifications reference your specific trades — a revenge trading alert says exactly how many trades you placed, after which loss, and by how much you oversized. This personalization is what makes them feel like coaching rather than spam.</div>
+    </div>
+
+    <!-- Section G -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">G — Trading Setups</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q23</span> What is a "Trading Setup" in Edgecipline?</div>
+      <div class="faq-a">A named, documented strategy with defined rules and reference images. Once defined, it flows into the Checklist (for rule verification), Analytics (for performance tracking), and AI Reports (for coaching context). Examples: London Breakout, Nifty Opening Range, EMA Pullback.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q24</span> Can I add reference images to setups?</div>
+      <div class="faq-a">Yes — up to 5 reference screenshots per setup showing ideal entries. During the checklist, these appear alongside rules so you can visually compare current market conditions against historical ideal setups.</div>
+    </div>
+
+    <!-- Section H -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">H — Indian Market</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q25</span> Is Edgecipline built for Indian traders specifically?</div>
+      <div class="faq-a">Yes. The Indian market module was built from the ground up for NSE/BSE traders: full F&amp;O support (strike/expiry), Intraday/Delivery/BTST types, ₹ analytics, 9:15 AM IST morning mentor, AI extraction trained on Indian broker screenshots, lot-size aware P&amp;L calculation.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q26</span> I trade both Nifty options and Forex. Can I use Edgecipline for both?</div>
+      <div class="faq-a">Yes. The Market Switcher in the header toggles between Forex and Indian Market modes. Both maintain completely separate journals, analytics, and setups. One subscription covers both markets.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q27</span> Does the app work with Zerodha, Upstox, Groww?</div>
+      <div class="faq-a">Yes. AI extraction supports: Zerodha Kite, Upstox, Groww, Angel One, IIFL Markets, Dhan, Fyers, 5Paisa. Manual entry works for any broker regardless of screenshot support.</div>
+    </div>
+
+    <!-- Section I -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">I — Subscription &amp; Pricing</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q28</span> What happens to my data if I downgrade from Pro to Free?</div>
+      <div class="faq-a">Your data is <strong>never deleted</strong>. All trades, setups, and history remain intact. You lose access to Pro-gated features (AI extraction, full analytics, weekly reports, morning mentor) but all data is preserved and fully re-accessible when you re-subscribe.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q29</span> Is annual worth it over monthly?</div>
+      <div class="faq-a">Annual Pro offers 30–40% savings. If you plan to use the app for more than 4–5 months, annual is the better value. Serious traders who integrate Edgecipline into their daily routine consistently renew annually.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q30</span> Is there a plan for trading communities or prop firms?</div>
+      <div class="faq-a">Yes. Community and business licensing is available for Discord servers, Telegram groups, trading courses, and prop firms. Contact the team for group pricing and white-label options.</div>
+    </div>
+
+    <!-- Section J -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">J — Privacy &amp; Data Security</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q31</span> Is my trade data private? Who can see it?</div>
+      <div class="faq-a">Your data is private to your account. No other user can see your trades, analytics, or reports. Edgecipline does not sell or share individual trading data. The only opt-in exception is a future community leaderboard (discipline score only, no trade details).</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q32</span> Are my trade screenshots stored securely?</div>
+      <div class="faq-a">Yes. All images are stored in Cloudinary — enterprise-grade cloud storage with encryption at rest and in transit. Screenshots are linked only to your account.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q33</span> Can I delete my account and all my data?</div>
+      <div class="faq-a">Yes. Request full account deletion from the Profile page or by contacting support. Deletion is permanent and irreversible.</div>
+    </div>
+
+    <!-- Section K -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">K — Technical</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q34</span> I'm not receiving Morning Mentor notifications. How do I fix it?</div>
+      <div class="faq-a"><ul>
+        <li>Check notifications are enabled: Android Settings → Notifications → Edgecipline</li>
+        <li>Disable battery optimization for Edgecipline (kills background processes)</li>
+        <li>Confirm you have a Pro subscription (Morning Mentor is a Pro feature)</li>
+        <li>Ensure you've logged enough trades — the mentor needs data to analyze</li>
+        <li>Check Notifications page in-app — messages appear there even if push fails</li>
+      </ul></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q35</span> I accidentally deleted a trade. Can I recover it?</div>
+      <div class="faq-a">Currently no — deleted trades cannot be recovered. This is intentional to prevent users from selectively deleting losing trades to game analytics. A confirmation prompt always appears before deletion.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q36</span> Can I use Edgecipline on multiple devices?</div>
+      <div class="faq-a">Yes. Your account is cloud-based — log in on any device (Android, tablet, browser) and all data syncs automatically.</div>
+    </div>
+
+    <!-- Section L -->
+    <div class="faq-section-title">
+      <span class="faq-section-badge">L — Product Philosophy</span>
+      <div class="faq-section-line"></div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q37</span> Will using Edgecipline make me profitable?</div>
+      <div class="faq-a">Edgecipline does not make trading decisions and does not guarantee profitability. It gives you accurate data about your own behavior and a coaching system to improve it. Traders who consistently log, use the checklist, and act on weekly insights typically see measurable improvement in discipline score and behavioral mistakes within 60–90 days. Profitability follows from discipline — but execution is always yours.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q38</span> I already have a trading strategy. Why do I need this app?</div>
+      <div class="faq-a">Having a strategy and executing it consistently are completely different skills. Most traders with good strategies lose money not because their strategy is wrong, but because they don't follow it when it counts — when they're scared, greedy, or recovering from a loss.<br/><br/>Edgecipline's value is not in improving your strategy. It is in helping you follow the strategy you already have.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q39</span> Does the app give trading signals or tell me when to buy/sell?</div>
+      <div class="faq-a">No. Edgecipline is not a signal service, copy-trading platform, or market analysis tool. It is a behavioral coaching and analytics platform. All trade decisions remain entirely yours.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q40</span> How is the AI coaching generated — templates or real AI?</div>
+      <div class="faq-a">Real AI. Weekly reports and Morning Mentor messages are generated using large language models that receive your actual trade data as input. The AI reads your trades, identifies behavioral patterns, calculates impact, and writes a coaching response personalized to your specific situation. As your history grows, coaching becomes more precise.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q41</span> What happens if I have a really bad trading week? Will the app make me feel worse?</div>
+      <div class="faq-a">No. The coaching philosophy is rooted in <strong>data, not judgment</strong>. A bad week is presented as patterns and numbers — not shame or failure. Weekly reports always include positive reinforcement alongside improvement areas. The morning mentor after a loss is supportive — focused on reset and preparation, not criticism. The app presents truth. It does not punish.</div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q42</span> Is Edgecipline suitable for prop firm traders?</div>
+      <div class="faq-a">Yes — prop firm traders are one of the most motivated user segments. Key features for them:
+        <ul>
+          <li><strong>Max drawdown tracking</strong> — shown prominently on Dashboard</li>
+          <li><strong>Pre-trade checklist</strong> — prevents rule violations that fail evaluations</li>
+          <li><strong>No stop-loss alerts</strong> — immediately flags missing risk management</li>
+          <li><strong>Discipline score</strong> — auditable proof of rule adherence</li>
+          <li><strong>Morning mentor</strong> — prevents tilt/revenge trading that ends evaluations</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="faq-card">
+      <div class="faq-q"><span class="faq-qnum">Q43</span> What is the long-term vision for Edgecipline?</div>
+      <div class="faq-a">To become the <strong>standard accountability and development platform for serious retail traders globally</strong> — the same way Strava became the standard for runners and cyclists.<br/><br/>Over time: broker integrations (auto-import), live market alerts, AI backtesting, a trader community, and an AI coach you can have a conversation with — one that knows your entire trading history and coaches you like a human mentor would.<br/><br/>The mission never changes: <em>help every trader close the gap between knowing what to do and actually doing it.</em></div>
+    </div>
+
+  </div><!-- end faq section -->
+
+
+  <!-- ═══════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════ -->
+  <div class="footer">
+    <strong>Edgecipline — by Stratedge</strong><br/>
+    AI-Powered Trading Journal &amp; Psychology Coach<br/>
+    Product Documentation v1.0 · May 2026<br/><br/>
+    <em>Confidential — For Internal &amp; Investor Use</em>
+  </div>
+
+</div><!-- end wrapper -->
+
+<script>
+  // Auto-update TOC anchor links
+  document.querySelectorAll('.toc-item').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+</body>
+</html>

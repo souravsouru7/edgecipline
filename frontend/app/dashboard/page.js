@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import {
@@ -199,6 +199,23 @@ function DashboardContent() {
   const netPnl    = stats?.netPnL ?? stats?.totalProfit ?? 0;
   const showSkeleton = mounted && loading;
 
+  if (!mounted) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#F4F2EE",
+          color: "#0F1923",
+          fontFamily: "'Plus Jakarta Sans',sans-serif",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Checking session...</div>
+      </main>
+    );
+  }
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -358,16 +375,6 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  if (!hydrated) {
-    return null;
-  }
-
   return (
     <ErrorBoundary fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Dashboard failed to load. Please refresh.</div>}>
       <Suspense><DashboardContent /></Suspense>

@@ -141,11 +141,32 @@ const globalRateLimiter = createRedisRateLimiter({
   message: "Too many requests. Please try again later.",
 });
 
+// Strict limiter: credential-submitting endpoints (login, register, google, password reset).
+// These are the targets for brute-force and credential stuffing — keep them tight.
 const authRateLimiter = createRedisRateLimiter({
   scope: "auth",
   windowMs: appConfig.rateLimit.authWindowMs,
   maxRequests: appConfig.rateLimit.authMaxRequests,
   message: "Too many authentication attempts. Please try again later.",
+});
+
+// Loose limiter: profile/preferences endpoints called frequently by the app on every load.
+// Previously these shared the same 5 req/60s auth budget, causing legitimate 429s.
+const profileRateLimiter = createRedisRateLimiter({
+  scope: "profile",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.PROFILE_RATE_LIMIT_MAX_REQUESTS) || 60,
+  message: "Too many profile requests. Please try again later.",
+});
+
+// Medium limiter: token refresh — called silently by the client when access tokens expire.
+// Must be looser than auth (multiple tabs can trigger simultaneous refreshes) but not
+// open (prevents token grinding). 10/min per user/IP is a comfortable ceiling.
+const refreshRateLimiter = createRedisRateLimiter({
+  scope: "refresh",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.REFRESH_RATE_LIMIT_MAX_REQUESTS) || 10,
+  message: "Too many refresh requests. Please try again later.",
 });
 
 const uploadRateLimiter = createRedisRateLimiter({
@@ -166,6 +187,8 @@ module.exports = {
   createRedisRateLimiter,
   globalRateLimiter,
   authRateLimiter,
+  profileRateLimiter,
+  refreshRateLimiter,
   uploadRateLimiter,
   statusRateLimiter,
 };

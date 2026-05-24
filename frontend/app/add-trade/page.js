@@ -13,7 +13,13 @@ import { FormInput }         from "@/features/trade/components/FormInput";
 import { FormSelect }        from "@/features/trade/components/FormSelect";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
 import { useAddTrade }       from "@/features/trade/hooks/useAddTrade";
+import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
 import { Spinner }           from "@/features/shared";
+
+const getTodayInputValue = () => {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
 
 const MOODS = [
   { emoji: "😰", val: 1, label: "Stressed" },
@@ -39,6 +45,7 @@ function AddTradeContent() {
     handleSubmit, screenshotPreview, uploading, isSaving, setupsLoading, strategies, mounted
   } = useAddTrade(currentMarket, isIndianMarket);
 
+  const { accountCreatedDate } = useUserProfile();
   const bull = parseFloat(trade.profit || 0) >= 0;
   const inProgress = uploading || isSaving;
 
@@ -62,7 +69,7 @@ function AddTradeContent() {
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 24 }}>
+        <form onSubmit={(e) => handleSubmit(e, { accountCreatedDate })} style={{ display: "grid", gap: 24 }}>
           {/* ── Market Specific ── */}
           {isIndianMarket && (
             <SectionCard title="Market Segment" accentColor="#10B981">
@@ -80,7 +87,10 @@ function AddTradeContent() {
               <FormInput label={isIndianMarket ? "SYMBOL" : "PAIR"} name="pair" value={trade.pair} onChange={handleChange} placeholder={isIndianMarket ? "RELIANCE" : "XAUUSD"} />
               <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <FormSelect label="ACTION" name="type" value={trade.type} onChange={handleChange} options={[{v:"BUY",l:"BUY"},{v:"SELL",l:"SELL"}].map(o=>({value:o.v,label:o.l}))} />
-                <FormInput label="TRADE DATE" name="tradeDate" value={trade.tradeDate} onChange={handleChange} type="date" required />
+                <div>
+                  <FormInput label="TRADE DATE" name="tradeDate" value={trade.tradeDate} onChange={handleChange} type="date" required min={accountCreatedDate || undefined} max={getTodayInputValue()} />
+                  {accountCreatedDate && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>Earliest: {accountCreatedDate}</div>}
+                </div>
               </div>
               <div style={{ maxWidth: 352 }}>
                 <FormInput label={isIndianMarket ? "QUANTITY" : "LOT SIZE"} name={isIndianMarket ? "quantity" : "lotSize"} value={isIndianMarket ? trade.quantity : trade.lotSize} onChange={handleChange} placeholder={isIndianMarket ? "100" : "0.01"} />

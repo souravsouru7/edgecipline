@@ -169,7 +169,7 @@ export function useAddTrade(marketType, isIndianMarket) {
   const addSetupRule = () => setSetupRules(p => [...p, { id: Date.now(), label: "", followed: false }]);
   const clearSetupRules = () => setSetupRules(p => p.map(r => ({ ...r, followed: false })));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e, { accountCreatedDate } = {}) => {
     if (e) e.preventDefault();
     if (submitLockRef.current || createTradeMutation.isPending) {
       return;
@@ -182,16 +182,8 @@ export function useAddTrade(marketType, isIndianMarket) {
       addToast("Please select a trade date", "info");
       return;
     }
-    if (!trade.mood) {
-      addToast("Please select your emotional state (mood)", "info");
-      return;
-    }
-    if (!trade.confidence) {
-      addToast("Please select your confidence level", "info");
-      return;
-    }
-    if (!Array.isArray(trade.emotionalTags) || trade.emotionalTags.length === 0) {
-      addToast("Please select at least one emotional tag", "info");
+    if (accountCreatedDate && trade.tradeDate < accountCreatedDate) {
+      addToast(`Trade date cannot be before your account creation date (${accountCreatedDate})`, "info");
       return;
     }
 

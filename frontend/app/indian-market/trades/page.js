@@ -21,6 +21,11 @@ const fmtINR = (v) => v != null ? `₹${Number(v).toLocaleString("en-IN", { mini
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
 const fmtTime = (d) => new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 const getTradeDisplayDate = (trade) => trade.tradeDate || trade.createdAt;
+const fmtTradeDateLine = (trade) => {
+  const dateValue = getTradeDisplayDate(trade);
+  const dateText = fmtDate(dateValue);
+  return trade.tradeDate ? dateText : `${dateText} · ${fmtTime(dateValue)}`;
+};
 const isEquityTrade = (trade) => {
   const instrumentType = String(trade?.instrumentType || "").toUpperCase();
   if (instrumentType === "EQUITY") return true;
@@ -182,7 +187,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
                   {equityTrade ? (trade.stockSymbol || trade.pair) : (trade.pair || `${trade.underlying} ${trade.strikePrice} ${optType}`)}
                 </div>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
-                  {fmtDate(getTradeDisplayDate(trade))} · {fmtTime(getTradeDisplayDate(trade))}
+                  {fmtTradeDateLine(trade)}
                   {equityTrade && trade.sector ? ` · ${trade.sector}` : ""}
                 </div>
               </div>

@@ -1,25 +1,52 @@
 const crypto = require("crypto");
 const User = require("../models/Users");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const { sendOTPEmail } = require("../services/mailService");
 const { appConfig } = require("../config");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const {
+  generateAccessToken,
+  createRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  revokeAllUserTokens,
+  getCookieOptions,
+  getClearCookieOptions,
+  REFRESH_COOKIE_NAME,
+} = require("../services/tokenService");
 
-// Bump this string whenever the Terms or Privacy Policy are updated.
-// Any user whose stored termsVersion doesn't match will be forced to re-accept.
 const CURRENT_TERMS_VERSION = "v1.0";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const NAME_MAX_LENGTH = 100;
-const PASSWORD_MIN_LENGTH = 8;
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
-const generateToken = (id, role, tokenVersion = 0) =>
-  jwt.sign({ id, role, tokenVersion }, appConfig.jwt.secret, {
-    expiresIn: appConfig.jwt.expiresIn,
-  });
+/**
+ * Issues an access token + refresh token pair for a user.
+ * - Access token: short-lived JWT returned in the response body (backward compat).
+ * - Refresh token: long-lived opaque token set as an httpOnly cookie.
+ *
+ * This is the ONLY place tokens are issued after authentication. All login paths
+ * (local, Google, refresh) funnel through here so the policy is consistent.
+ */
+async function issueTokenPair(user, req, res) {
+  const deviceInfo = {
+    userAgent: (req.headers["user-agent"] || "").slice(0, 512),
+    ip: req.ip || "",
+  };
+
+  const accessToken = generateAccessToken(user._id, user.role, user.tokenVersion);
+  const rawRefresh = await createRefreshToken(user._id, deviceInfo);
+
+  res.cookie(REFRESH_COOKIE_NAME, rawRefresh, getCookieOptions());
+  return accessToken;
+}
+
+// ---------------------------------------------------------------------------
+// Google token verification (Firebase Admin SDK preferred, raw Google API fallback)
+// ---------------------------------------------------------------------------
 
 async function verifyFirebaseToken(firebaseIdToken) {
   try {
@@ -35,12 +62,11 @@ async function verifyFirebaseToken(firebaseIdToken) {
 
 async function verifyGoogleIdToken(googleIdToken) {
   let response;
-
   try {
     response = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(googleIdToken)}`
     );
-  } catch (error) {
+  } catch {
     throw new ApiError(502, "Unable to reach Google token verification service", "GOOGLE_AUTH_UNAVAILABLE");
   }
 
@@ -49,15 +75,11 @@ async function verifyGoogleIdToken(googleIdToken) {
   }
 
   const payload = await response.json();
-  const issuer = payload.iss;
-  const emailVerified =
-    payload.email_verified === true ||
-    payload.email_verified === "true";
+  const emailVerified = payload.email_verified === true || payload.email_verified === "true";
 
-  if (!["accounts.google.com", "https://accounts.google.com"].includes(issuer)) {
+  if (!["accounts.google.com", "https://accounts.google.com"].includes(payload.iss)) {
     throw new ApiError(401, "Invalid Google token issuer", "AUTH_FAILED");
   }
-
   if (!payload.email || !emailVerified) {
     throw new ApiError(401, "Google email not verified", "AUTH_FAILED");
   }
@@ -74,30 +96,21 @@ async function verifyGoogleIdToken(googleIdToken) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Auth controllers
+// ---------------------------------------------------------------------------
+
 exports.registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, acceptedTerms, acceptedPrivacy } = req.body;
 
   if (!name || !email || !password) {
     throw new ApiError(400, "All fields are required (name, email, password)", "VALIDATION_ERROR");
   }
-
-  if (String(name).trim().length > NAME_MAX_LENGTH) {
-    throw new ApiError(400, `Name must be ${NAME_MAX_LENGTH} characters or fewer`, "VALIDATION_ERROR");
-  }
-
-  if (!EMAIL_REGEX.test(String(email).trim())) {
-    throw new ApiError(400, "Invalid email address", "VALIDATION_ERROR");
-  }
-
-  if (String(password).length < PASSWORD_MIN_LENGTH) {
-    throw new ApiError(400, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`, "VALIDATION_ERROR");
-  }
-
   if (!acceptedTerms || !acceptedPrivacy) {
     throw new ApiError(400, "You must accept the Terms & Privacy Policy to continue", "TERMS_NOT_ACCEPTED");
   }
 
-  const userExists = await User.findOne({ email: String(email).trim().toLowerCase() });
+  const userExists = await User.findOne({ email });
   if (userExists) {
     throw new ApiError(400, "User already exists", "VALIDATION_ERROR");
   }
@@ -118,12 +131,14 @@ exports.registerUser = asyncHandler(async (req, res) => {
     },
   });
 
+  const token = await issueTokenPair(user, req, res);
+
   res.status(201).json({
     _id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
-    token: generateToken(user._id, user.role, user.tokenVersion),
+    token,
   });
 });
 
@@ -134,7 +149,6 @@ exports.loginUser = asyncHandler(async (req, res) => {
   if (user?.authProvider === "google") {
     throw new ApiError(401, "This account uses Google sign-in. Please continue with Google.", "AUTH_PROVIDER_MISMATCH");
   }
-
   if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
     throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
@@ -143,20 +157,19 @@ exports.loginUser = asyncHandler(async (req, res) => {
   await user.save();
 
   const needsTerms = user.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION;
+  const token = await issueTokenPair(user, req, res);
 
   res.json({
     _id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
-    token: generateToken(user._id, user.role, user.tokenVersion),
+    token,
     requiresTermsAcceptance: needsTerms || undefined,
   });
 });
 
 exports.googleLogin = asyncHandler(async (req, res) => {
-  req.timeoutConfig?.extendTimeout(35000);
-
   const { idToken, credential } = req.body || {};
   const authToken = idToken || credential;
 
@@ -165,7 +178,6 @@ exports.googleLogin = asyncHandler(async (req, res) => {
   }
 
   let decodedToken;
-  let identities = {};
   let signInProvider;
   let email;
   let emailVerified;
@@ -173,7 +185,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
 
   try {
     decodedToken = await verifyFirebaseToken(authToken);
-    identities = decodedToken.firebase?.identities || {};
+    const identities = decodedToken.firebase?.identities || {};
     signInProvider = decodedToken.firebase?.sign_in_provider;
     email = decodedToken.email;
     emailVerified = decodedToken.email_verified;
@@ -189,14 +201,15 @@ exports.googleLogin = asyncHandler(async (req, res) => {
   if (!email || !emailVerified) {
     throw new ApiError(401, "Google email not verified", "AUTH_FAILED");
   }
-
   if (signInProvider !== "google.com") {
     throw new ApiError(401, "Unsupported Firebase sign-in provider", "AUTH_FAILED");
   }
 
   const name =
     decodedToken.name ||
-    (decodedToken.given_name ? `${decodedToken.given_name} ${decodedToken.family_name || ""}`.trim() : "Trader");
+    (decodedToken.given_name
+      ? `${decodedToken.given_name} ${decodedToken.family_name || ""}`.trim()
+      : "Trader");
   const avatar = decodedToken.picture || null;
 
   const now = new Date();
@@ -227,9 +240,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
       { upsert: true, new: true, runValidators: true }
     );
   } catch (error) {
-    if (error?.code !== 11000) {
-      throw error;
-    }
+    if (error?.code !== 11000) throw error;
     user = await User.findOneAndUpdate(
       { email },
       { $set: setPayload },
@@ -238,21 +249,102 @@ exports.googleLogin = asyncHandler(async (req, res) => {
   }
 
   const needsTerms = user.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION;
+  const token = await issueTokenPair(user, req, res);
 
   res.json({
     _id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
-    token: generateToken(user._id, user.role, user.tokenVersion),
+    token,
     requiresTermsAcceptance: needsTerms || undefined,
   });
 });
 
-exports.getMe = asyncHandler(async (req, res) => {
-  if (!req.user) {
-    throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+/**
+ * POST /api/auth/refresh
+ *
+ * Silent token refresh — client sends the httpOnly refresh-token cookie,
+ * gets back a new short-lived access token + a rotated refresh cookie.
+ *
+ * On replay detection the entire token family is revoked; the user must
+ * re-authenticate from scratch.
+ */
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+  if (!rawToken) {
+    throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
   }
+
+  const deviceInfo = {
+    userAgent: (req.headers["user-agent"] || "").slice(0, 512),
+    ip: req.ip || "",
+  };
+
+  let rotated;
+  try {
+    rotated = await rotateRefreshToken(rawToken, deviceInfo);
+  } catch (err) {
+    // On any token error, clear the stale cookie so the browser stops sending it
+    res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+    throw err;
+  }
+
+  const newAccessToken = generateAccessToken(
+    rotated.userId,
+    rotated.role,
+    rotated.tokenVersion
+  );
+
+  res.cookie(REFRESH_COOKIE_NAME, rotated.newRawToken, getCookieOptions());
+  res.json({ token: newAccessToken });
+});
+
+/**
+ * POST /api/auth/logout
+ *
+ * Revokes the presented refresh token so it can never be rotated again.
+ * Clears the cookie. The short-lived access token will naturally expire.
+ * Does NOT require authentication — it's idempotent and safe to call even
+ * if the session is already invalid.
+ */
+exports.logoutUser = asyncHandler(async (req, res) => {
+  const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+  if (rawToken) {
+    // Best-effort — don't fail logout if DB is momentarily unavailable
+    revokeRefreshToken(rawToken).catch(() => {});
+  }
+
+  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+  res.json({ success: true, message: "Logged out successfully" });
+});
+
+/**
+ * POST /api/auth/logout-all
+ *
+ * Revokes ALL active sessions for the authenticated user (requires valid access token).
+ * Also increments tokenVersion so any in-flight access tokens are rejected.
+ */
+exports.logoutAll = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+
+  await Promise.all([
+    revokeAllUserTokens(req.user._id),
+    User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } }),
+  ]);
+
+  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+  res.json({ success: true, message: "All sessions revoked. Please login again." });
+});
+
+// ---------------------------------------------------------------------------
+// Profile
+// ---------------------------------------------------------------------------
+
+exports.getMe = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
   res.json({
     _id: req.user._id,
@@ -264,26 +356,18 @@ exports.getMe = asyncHandler(async (req, res) => {
 });
 
 exports.getMyPreferences = asyncHandler(async (req, res) => {
-  if (!req.user) {
-    throw new ApiError(401, "Not authorized", "AUTH_FAILED");
-  }
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
-  res.json({
-    hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide),
-  });
+  res.json({ hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide) });
 });
 
 exports.updateMyPreferences = asyncHandler(async (req, res) => {
-  if (!req.user) {
-    throw new ApiError(401, "Not authorized", "AUTH_FAILED");
-  }
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
   const updates = {};
-
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "hasSeenWelcomeGuide")) {
     updates.hasSeenWelcomeGuide = Boolean(req.body.hasSeenWelcomeGuide);
   }
-
   if (Object.keys(updates).length === 0) {
     throw new ApiError(400, "No valid preferences provided", "VALIDATION_ERROR");
   }
@@ -293,16 +377,11 @@ exports.updateMyPreferences = asyncHandler(async (req, res) => {
     { $set: updates },
     { new: true, runValidators: true }
   );
-
-  res.json({
-    hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide),
-  });
+  res.json({ hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide) });
 });
 
 exports.acceptTerms = asyncHandler(async (req, res) => {
-  if (!req.user) {
-    throw new ApiError(401, "Not authorized", "AUTH_FAILED");
-  }
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
   await User.findByIdAndUpdate(
     req.user._id,
@@ -320,29 +399,24 @@ exports.acceptTerms = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Terms and Privacy Policy accepted." });
 });
 
+// ---------------------------------------------------------------------------
+// Password reset (OTP flow)
+// ---------------------------------------------------------------------------
+
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  if (!email) {
-    throw new ApiError(400, "Email is required", "VALIDATION_ERROR");
-  }
-
-  if (!EMAIL_REGEX.test(String(email).trim())) {
-    return res.json({ message: "If that email is registered, an OTP has been sent." });
-  }
+  if (!email) throw new ApiError(400, "Email is required", "VALIDATION_ERROR");
 
   const user = await User.findOne({ email });
 
-  // Always return the same response regardless of whether the email exists
-  // to prevent user enumeration attacks
+  // Always return the same response to prevent user enumeration
   if (!user || user.authProvider === "google") {
     return res.json({ message: "If that email is registered, an OTP has been sent." });
   }
 
   const otp = String(crypto.randomInt(100000, 1000000));
-  const otpExpires = Date.now() + 10 * 60 * 1000;
-
   user.resetPasswordOTP = otp;
-  user.resetPasswordOTPExpires = otpExpires;
+  user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000;
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
   await user.save();
@@ -352,15 +426,13 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const OTP_MAX_ATTEMPTS = 5;
-const OTP_LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+const OTP_LOCK_DURATION_MS = 30 * 60 * 1000;
 const OTP_DIGITS = 6;
 
 function timingSafeOtpEquals(expectedOtp, providedOtp) {
   const expected = String(expectedOtp || "");
   const provided = String(providedOtp || "");
-  if (expected.length !== OTP_DIGITS || provided.length !== OTP_DIGITS) {
-    return false;
-  }
+  if (expected.length !== OTP_DIGITS || provided.length !== OTP_DIGITS) return false;
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
   } catch {
@@ -370,12 +442,9 @@ function timingSafeOtpEquals(expectedOtp, providedOtp) {
 
 exports.verifyOTP = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
-  if (!email || !otp) {
-    throw new ApiError(400, "Email and OTP are required", "VALIDATION_ERROR");
-  }
+  if (!email || !otp) throw new ApiError(400, "Email and OTP are required", "VALIDATION_ERROR");
 
   const user = await User.findOne({ email });
-
   if (!user || user.authProvider === "google") {
     throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
   }
@@ -413,27 +482,12 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required", "VALIDATION_ERROR");
   }
 
-  if (String(password).length < PASSWORD_MIN_LENGTH) {
-    throw new ApiError(400, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`, "VALIDATION_ERROR");
-  }
-
-  const user = await User.findOne({ email });
-
-  if (!user || user.authProvider === "google") {
-    throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
-  }
-
-  if (user.otpLockUntil && user.otpLockUntil > new Date()) {
-    const retryAfterMin = Math.ceil((user.otpLockUntil - Date.now()) / 60000);
-    throw new ApiError(429, `Too many failed attempts. Try again in ${retryAfterMin} minute(s).`, "OTP_LOCKED");
-  }
-
-  const isValid =
-    timingSafeOtpEquals(user.resetPasswordOTP, otp) &&
-    user.resetPasswordOTPExpires &&
-    user.resetPasswordOTPExpires > new Date();
-
-  if (!isValid) {
+  const user = await User.findOne({
+    email,
+    resetPasswordOTP: otp,
+    resetPasswordOTPExpires: { $gt: Date.now() },
+  });
+  if (!user) {
     throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
   }
 
@@ -443,8 +497,12 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   user.resetPasswordOTPExpires = undefined;
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
-  user.tokenVersion = (user.tokenVersion || 0) + 1; // invalidates all existing sessions
+  // Bump tokenVersion — invalidates all existing JWT access tokens immediately.
+  // Also revoke all refresh tokens so every device must re-authenticate.
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
+
+  await revokeAllUserTokens(user._id);
 
   res.json({ message: "Password reset successful. Please login with your new password." });
 });

@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 
 const C = {
   bull: "#0D9E6E",
@@ -25,7 +26,7 @@ const C = {
   sans: "'Plus Jakarta Sans',sans-serif",
 };
 
-function InputField({ label, name, value, onChange, type = "text", options = null, placeholder = "", required = false }) {
+function InputField({ label, name, value, onChange, type = "text", options = null, placeholder = "", required = false, min, max }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
@@ -49,6 +50,8 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
           value={value || ""}
           onChange={onChange}
           placeholder={placeholder}
+          min={min}
+          max={max}
           style={{ width: "100%", boxSizing: "border-box", background: "#F8F6F2", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 12, fontFamily: C.mono, outline: "none" }}
         />
       )}
@@ -61,6 +64,11 @@ function normalizeDateInput(value) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+}
+
+function getTodayInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 }
 
 function normalizeSetupRules(rules = []) {
@@ -82,10 +90,12 @@ function calculateSetupScore(rules = []) {
 function IndianEditTradeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { accountCreatedDate } = useUserProfile();
   const id = searchParams.get("id");
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dateError, setDateError] = useState("");
 
   const fetchTrade = useCallback(async () => {
     if (!id) return;
@@ -109,6 +119,7 @@ function IndianEditTradeContent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "tradeDate") setDateError("");
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -150,11 +161,19 @@ function IndianEditTradeContent() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData?.tradeDate) {
-      alert("Trade date is required.");
+      setDateError("Trade date is required.");
       return;
     }
-    const isEquityTrade = formData?.instrumentType === "EQUITY";
-    if (!isEquityTrade && !formData.riskRewardRatio) {
+    if (accountCreatedDate && formData.tradeDate < accountCreatedDate) {
+      setDateError(`Date cannot be before your account creation date (${accountCreatedDate}).`);
+      return;
+    }
+    if (formData.tradeDate > getTodayInputValue()) {
+      setDateError("Trade date cannot be in the future.");
+      return;
+    }
+    setDateError("");
+    if (!formData.riskRewardRatio) {
       alert("Select risk : reward ratio.");
       return;
     }
@@ -232,8 +251,6 @@ function IndianEditTradeContent() {
     );
   }
 
-  const isEquityTrade = formData?.instrumentType === "EQUITY";
-
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: C.sans, color: C.ink }}>
       <IndianMarketHeader />
@@ -259,7 +276,18 @@ function IndianEditTradeContent() {
           <form onSubmit={handleSubmit} style={{ padding: "24px 20px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <InputField label="UNDERLYING / SYMBOL" name="underlying" value={formData.underlying} onChange={handleChange} />
-              <InputField label="TRADE DATE" name="tradeDate" type="date" value={formData.tradeDate} onChange={handleChange} required />
+              <div>
+                <InputField label="TRADE DATE" name="tradeDate" type="date" value={formData.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} />
+                {dateError ? (
+                  <div style={{ fontSize: 11, color: "#D63B3B", marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
+                    {dateError}
+                  </div>
+                ) : accountCreatedDate ? (
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
+                    Earliest: {accountCreatedDate}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -299,12 +327,10 @@ function IndianEditTradeContent() {
               <InputField label="TRADING SETUP" name="strategy" value={formData.strategy} onChange={handleChange} />
             </div>
 
-            {!isEquityTrade && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <InputField label="RISK : REWARD" name="riskRewardRatio" value={formData.riskRewardRatio} onChange={handleChange} options={[{ value: "", label: "Select…" }, { value: "1:1", label: "1:1" }, { value: "1:2", label: "1:2" }, { value: "1:3", label: "1:3" }, { value: "1:4", label: "1:4" }, { value: "1:5", label: "1:5" }, { value: "custom", label: "Custom" }]} required />
-                <InputField label="CUSTOM R:R" name="riskRewardCustom" value={formData.riskRewardCustom} onChange={handleChange} />
-              </div>
-            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <InputField label="RISK : REWARD" name="riskRewardRatio" value={formData.riskRewardRatio} onChange={handleChange} options={[{ value: "", label: "Select…" }, { value: "1:1", label: "1:1" }, { value: "1:2", label: "1:2" }, { value: "1:3", label: "1:3" }, { value: "1:4", label: "1:4" }, { value: "1:5", label: "1:5" }, { value: "custom", label: "Custom" }]} required />
+              <InputField label="CUSTOM R:R" name="riskRewardCustom" value={formData.riskRewardCustom} onChange={handleChange} />
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <InputField label="BROKERAGE" name="brokerage" type="number" value={formData.brokerage} onChange={handleChange} />

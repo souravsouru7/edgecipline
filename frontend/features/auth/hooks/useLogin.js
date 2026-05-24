@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { loginUser, googleLogin } from "@/services/api";
+import { getProfile, loginUser, googleLogin } from "@/services/api";
+import { clearAuthToken, getValidToken, setAuthToken } from "@/utils/auth";
+import { silentRefresh } from "@/services/apiClient";
 import {
   signInWithFirebaseGoogle,
   handleGoogleRedirectResult,
@@ -13,20 +15,25 @@ import {
 } from "@/services/firebaseAuth";
 import { initializePushNotifications } from "@/services/pushNotifications";
 
+// ---------------------------------------------------------------------------
+// In-app / WebView browser detection
+// ---------------------------------------------------------------------------
+
 const isInAppBrowser = () => {
   if (typeof window === "undefined") return false;
-  // Capacitor Android uses a native WebView whose UA contains "; wv)" — but it handles
-  // Google Sign-In natively via @capacitor-firebase/authentication, so it is never blocked.
+  // Capacitor Android uses a native WebView that handles Google Sign-In natively
+  // via @capacitor-firebase/authentication — never block it here.
   if (window.Capacitor) return false;
-  // iOS "Add to Home Screen" / PWA standalone runs in a browser-less WebView shell.
-  // Google OAuth often blocks embedded agents there (disallowed_useragent).
+
   const isStandalone =
     (typeof navigator !== "undefined" && navigator.standalone === true) ||
-    (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches);
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(display-mode: standalone)").matches);
 
   const ua = navigator.userAgent || "";
-  // Common embedded/in-app browsers that Google blocks for OAuth (disallowed_useragent).
-  const isEmbeddedUa = /(FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|TikTok|Pinterest|GSA\/|; wv\)|WebView)/i.test(ua);
+  const isEmbeddedUa =
+    /(FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|TikTok|Pinterest|GSA\/|; wv\)|WebView)/i.test(ua);
+
   return isStandalone || isEmbeddedUa;
 };
 
@@ -35,64 +42,116 @@ const getAuthDebugInfo = () => {
   const ua = navigator.userAgent || "";
   const isStandalone =
     (typeof navigator !== "undefined" && navigator.standalone === true) ||
-    (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches);
-  const isEmbeddedUa = /(FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|TikTok|Pinterest|GSA\/|; wv\)|WebView)/i.test(ua);
-  const isAndroidWv = /; wv\)/i.test(ua) || /\bVersion\/\d+\.\d+.*Chrome\/\d+.*Mobile\b/i.test(ua) && /\bSafari\/\d+/i.test(ua) === false;
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(display-mode: standalone)").matches);
+  const isEmbeddedUa =
+    /(FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|TikTok|Pinterest|GSA\/|; wv\)|WebView)/i.test(ua);
   return {
     isStandalone,
     isEmbeddedUa,
-    isAndroidWv,
     platform: navigator.platform || "",
     vendor: navigator.vendor || "",
     ua,
   };
 };
 
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 /**
  * useLogin
- * Manages login form state, terms acceptance gate, and authentication mutations.
+ *
+ * Session restore order on page load:
+ *  1. Valid access token in localStorage   → verify with /me, redirect to dashboard
+ *  2. No/expired access token              → try POST /auth/refresh (httpOnly cookie)
+ *     2a. Refresh succeeds                 → redirect to dashboard  (user stays logged in)
+ *     2b. Refresh fails                    → proceed to Firebase redirect/session check
+ *  3. Firebase pending redirect            → complete OAuth redirect, call /google, redirect
+ *  4. Recovered Firebase session           → call /google, redirect
+ *  5. Nothing found                        → show login form
+ *
+ * This order prevents the login form from flashing for users whose 15-minute
+ * access token has expired but whose 30-day refresh cookie is still valid.
  */
 export function useLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // 1. Local UI State
-  const [form, setForm]               = useState({ email: "", password: "" });
-  const [focused, setFocused]         = useState(null);
-  const [showPass, setShowPass]       = useState(false);
-  const [mounted, setMounted]         = useState(false);
-  const [shake, setShake]             = useState(false);
-  const [inAppBrowser, setInAppBrowser] = useState(false);
+  const [form, setForm]                   = useState({ email: "", password: "" });
+  const [focused, setFocused]             = useState(null);
+  const [showPass, setShowPass]           = useState(false);
+  const [mounted, setMounted]             = useState(false);
+  const [shake, setShake]                 = useState(false);
+  const [inAppBrowser, setInAppBrowser]   = useState(false);
   const [authDebugInfo, setAuthDebugInfo] = useState(null);
 
-  // Terms were accepted at registration — login never re-checks them
-
   useEffect(() => {
-    setMounted(true);
+    let cancelled = false;
+
     setInAppBrowser(isInAppBrowser());
     setAuthDebugInfo(getAuthDebugInfo());
-    const token = typeof window !== "undefined" && localStorage.getItem("token");
-    if (token) { router.push("/dashboard"); return; }
 
-    // Pick up the idToken after a mobile redirect Google sign-in.
-    // Fallback to an existing Firebase session when redirect result is empty.
-    const wasPending = hasRedirectPending();
-    handleGoogleRedirectResult()
-      .then(async (idToken) => {
-        if (idToken) return idToken;
-        const recovered = await recoverFirebaseSessionIdToken();
-        if (!recovered && wasPending) {
-          clearRedirectPending();
-          alert("Google Sign-In was interrupted or failed. Please try again or use a different browser.");
+    const showForm = () => {
+      if (!cancelled) setMounted(true);
+    };
+
+    const checkFirebaseSession = async () => {
+      const wasPending = hasRedirectPending();
+      try {
+        let idToken = await handleGoogleRedirectResult();
+        if (!idToken) {
+          const recovered = await recoverFirebaseSessionIdToken();
+          if (!recovered && wasPending) {
+            clearRedirectPending();
+            alert("Google Sign-In was interrupted or failed. Please try again or use a different browser.");
+          }
+          idToken = recovered;
         }
-        return recovered;
-      })
-      .then(idToken => { if (idToken) return googleLogin(idToken); })
-      .then(data => { if (data) handleAuthSuccess(data); })
-      .catch(err => {
+        if (idToken) {
+          const data = await googleLogin(idToken);
+          if (data && !cancelled) {
+            handleAuthSuccess(data);
+            return;
+          }
+        }
+      } catch (err) {
         clearRedirectPending();
         alert("Google login failed: " + (err?.message || err));
-      });
+      }
+      showForm();
+    };
+
+    const restoreSession = async () => {
+      // Step 1: valid access token in localStorage
+      const token = getValidToken();
+      if (token) {
+        try {
+          await getProfile();
+          if (!cancelled) router.push("/dashboard");
+          return;
+        } catch {
+          clearAuthToken();
+        }
+      }
+
+      // Step 2: try silent refresh — the httpOnly refresh cookie may still be valid
+      // even though the 15-minute access token has expired.
+      const newToken = await silentRefresh();
+      if (newToken && !cancelled) {
+        router.push("/dashboard");
+        return;
+      }
+
+      // Step 3+: fall through to Firebase session / OAuth redirect check
+      if (!cancelled) await checkFirebaseSession();
+    };
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -101,27 +160,19 @@ export function useLogin() {
     setTimeout(() => setShake(false), 600);
   };
 
-  /** Shared post-auth redirect: if backend signals terms not yet accepted,
-   *  store the token and go to /accept-terms; otherwise go straight to dashboard. */
   const handleAuthSuccess = async (data) => {
-    if (!data.token) {
+    if (!data?.token) {
       triggerShake();
-      alert(data.message || "Login failed");
+      alert(data?.message || "Login failed");
       return;
     }
-    localStorage.setItem("token", data.token);
-    initializePushNotifications().catch((error) => {
-      console.error("Push notification setup failed after login", error);
-    });
+    setAuthToken(data.token);
+    initializePushNotifications().catch(() => {});
     queryClient.clear();
-    if (data.requiresTermsAcceptance) {
-      router.push("/accept-terms");
-    } else {
-      router.push("/dashboard");
-    }
+    router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
   };
 
-  // 3. Email/Password Login Mutation
+  // Email/password login
   const loginMutation = useMutation({
     mutationFn: (credentials) => loginUser(credentials),
     onSuccess: handleAuthSuccess,
@@ -131,11 +182,13 @@ export function useLogin() {
     },
   });
 
-  // 4. Google Sign-In Mutation
+  // Google Sign-In
   const googleMutation = useMutation({
     mutationFn: async () => {
       if (isInAppBrowser()) {
-        const e = new Error("Google login is blocked inside in-app browsers. Please open this page in Chrome/Safari and try again.");
+        const e = new Error(
+          "Google login is blocked inside in-app browsers. Please open this page in Chrome/Safari and try again."
+        );
         e.code = "DISALLOWED_USER_AGENT";
         throw e;
       }
@@ -153,7 +206,7 @@ export function useLogin() {
       if (/disallowed_useragent/i.test(msg) || err?.code === "DISALLOWED_USER_AGENT") {
         alert(
           "Google blocked this browser (Error 403: disallowed_useragent).\n\n" +
-          "Fix: open the site in Safari (iPhone) or update Chrome + System WebView + Play Services (Android), then try again."
+            "Fix: open the site in Safari (iPhone) or update Chrome + System WebView + Play Services (Android), then try again."
         );
         return;
       }
@@ -172,14 +225,17 @@ export function useLogin() {
     googleMutation.mutate();
   };
 
-
   return {
-    form, handleChange,
-    focused, setFocused,
+    form,
+    handleChange,
+    focused,
+    setFocused,
     loading: loginMutation.isPending,
     googleLoading: googleMutation.isPending,
-    showPass, setShowPass,
-    mounted, shake,
+    showPass,
+    setShowPass,
+    mounted,
+    shake,
     inAppBrowser,
     authDebugInfo,
     handleSubmit,

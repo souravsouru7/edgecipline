@@ -14,6 +14,7 @@ import SectionCard           from "@/features/trade/components/SectionCard";
 import { FormInput }         from "@/features/trade/components/FormInput";
 import { FormSelect }        from "@/features/trade/components/FormSelect";
 import { useUploadTrade }    from "@/features/trade/hooks/useUploadTrade";
+import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
 
 // ── shared form constants ─────────────────────────────────────────────────────
 const ENTRY_BASIS  = ["Plan", "Impulsive", "Emotion", "Custom"];
@@ -59,8 +60,8 @@ const grid2     = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
 
 // ── upload / status card ─────────────────────────────────────────────────────
 
-function UploadCard({ state }) {
-  const { file, setFile, setError, loading, processingStatus, error, isInd, broker, setBroker, handleUpload, trade, tradeSubType, setTradeSubType } = state;
+function UploadCard({ state, accountCreatedDate, todayInputMax }) {
+  const { file, setFile, setError, loading, processingStatus, error, isInd, broker, setBroker, handleUpload, trade, tradeSubType, setTradeSubType, preExtractDate, handlePreExtractDateChange } = state;
   const isEquityMode = isInd && tradeSubType === "EQUITY";
   const [showSample, setShowSample] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -187,6 +188,26 @@ function UploadCard({ state }) {
           )}
         </div>
       )}
+
+      {/* Trade Date */}
+      <div style={{ marginTop: 14 }}>
+        <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#4A5568", letterSpacing: "0.1em", marginBottom: 7, fontFamily: "'JetBrains Mono',monospace" }}>
+          TRADE DATE
+        </label>
+        <input
+          type="date"
+          value={preExtractDate}
+          onChange={e => handlePreExtractDateChange(e.target.value)}
+          min={accountCreatedDate && accountCreatedDate <= todayInputMax ? accountCreatedDate : undefined}
+          max={todayInputMax}
+          style={{ width: "100%", padding: "11px 14px", fontSize: 13, background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 8, color: "#0F1923", outline: "none", boxSizing: "border-box", fontFamily: "'JetBrains Mono',monospace" }}
+        />
+        {accountCreatedDate && (
+          <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+            Earliest: {accountCreatedDate}
+          </div>
+        )}
+      </div>
 
       {/* Error */}
       {error && (
@@ -339,7 +360,7 @@ function UploadCard({ state }) {
 
 // ── single trade form ─────────────────────────────────────────────────────────
 
-function TradeFormCard({ state, tradeIdx = null, psychologyRef = null }) {
+function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCreatedDate = "", todayInputMax = "" }) {
   const isMulti = tradeIdx !== null;
   const trade   = isMulti ? state.trades[tradeIdx] : state.trade;
   const onChange = isMulti
@@ -422,7 +443,10 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null }) {
           <FormSelect label="ACTION" name="action" value={trade?.action} onChange={onChange} options={[{ value: "buy", label: "Buy / Long" }, { value: "sell", label: "Sell / Short" }]} />
         </div>
         <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
-          <FormInput label="TRADE DATE" name="tradeDate" value={trade?.tradeDate} onChange={onChange} type="date" required />
+          <div>
+            <FormInput label="TRADE DATE" name="tradeDate" value={trade?.tradeDate} onChange={onChange} type="date" required min={accountCreatedDate || undefined} max={todayInputMax || undefined} />
+            {accountCreatedDate && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>Earliest: {accountCreatedDate}</div>}
+          </div>
           <div />
         </div>
 
@@ -660,10 +684,11 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null }) {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 function UploadTradeContent() {
-  const state   = useUploadTrade();
+  const { accountCreatedDate } = useUserProfile();
+  const state   = useUploadTrade({ accountCreatedDate });
   const clock   = useClock();
   const router  = useRouter();
-  const { isInd, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount } = state;
+  const { isInd, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax } = state;
   const visibleTradeCount = trades.length > 1 ? trades.length : tradeCount;
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
   const extractionStepMap = {
@@ -712,7 +737,7 @@ function UploadTradeContent() {
           </div>
 
           {/* Upload zone */}
-          <UploadCard state={state} />
+          <UploadCard state={state} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} />
 
           {/* Processing spinner */}
           {loading && (
@@ -825,7 +850,7 @@ function UploadTradeContent() {
                     </div>
                   );
                 }
-                return <TradeFormCard key={i} state={state} tradeIdx={i} />;
+                return <TradeFormCard key={i} state={state} tradeIdx={i} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} />;
               })}
 
               {/* Save all */}
@@ -841,7 +866,7 @@ function UploadTradeContent() {
           )}
 
           {/* ── Single trade path ─────────────────────────────────────────── */}
-          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} />}
+          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} />}
 
           {/* No extraction yet */}
           {!loading && !trade && trades.length === 0 && (
