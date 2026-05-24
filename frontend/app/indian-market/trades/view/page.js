@@ -38,6 +38,12 @@ function formatDateTime(d) {
   if (!d) return "—";
   return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+function formatTradeDateLine(trade) {
+  if (!trade) return "—";
+  return trade.tradeDate
+    ? formatDate(trade.tradeDate)
+    : formatDateTime(trade.createdAt);
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function Badge({ label, color = C.bull, bg }) {
@@ -351,7 +357,7 @@ function IndianTradeDetailContent() {
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4, fontFamily: C.mono }}>
-                  {formatDateTime(trade.tradeDate || trade.createdAt)}
+                  {formatTradeDateLine(trade)}
                 </div>
               </div>
             </div>
@@ -489,7 +495,7 @@ function IndianTradeDetailContent() {
                   borderRadius: 8, padding: "10px 12px",
                   fontStyle: "italic",
                 }}>
-                  "{trade.lesson}"
+                  &quot;{trade.lesson}&quot;
                 </div>
               </div>
             )}

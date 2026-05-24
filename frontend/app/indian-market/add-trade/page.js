@@ -8,6 +8,7 @@ import { MARKETS } from "@/context/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { fetchSetups } from "@/services/setupApi";
+import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -32,6 +33,7 @@ function IndianOptionsAddTradeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const submitLockRef = useRef(false);
+  const { accountCreatedDate } = useUserProfile();
   const [tradeSubType, setTradeSubType] = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
   );
@@ -189,6 +191,10 @@ function IndianOptionsAddTradeContent() {
     }
     if (!trade.tradeDate) {
       alert("Select trade date.");
+      return;
+    }
+    if (accountCreatedDate && trade.tradeDate < accountCreatedDate) {
+      alert(`Trade date cannot be before your account creation date (${accountCreatedDate}). You can only log trades from the day you joined.`);
       return;
     }
     if (!trade.riskRewardRatio) {
@@ -449,7 +455,12 @@ function IndianOptionsAddTradeContent() {
 
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Trade Date <span style={{ color: "#D63B3B" }}>*</span></label>
-              <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              {accountCreatedDate && (
+                <div style={{ fontSize: 10, color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Earliest allowed: {accountCreatedDate} (account creation date)
+                </div>
+              )}
             </div>
 
             <div>

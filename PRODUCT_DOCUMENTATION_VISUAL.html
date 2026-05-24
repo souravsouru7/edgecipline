@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edgecipline - Visual Product Documentation</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #5b6472;
+      --paper: #ffffff;
+      --line: #d8e0e9;
+      --soft: #f4f7fb;
+      --navy: #0d1b2a;
+      --teal: #00a878;
+      --lime: #8adf7b;
+      --red: #e5484d;
+      --amber: #f59e0b;
+      --blue: #2563eb;
+      --violet: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #edf2f7;
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      line-height: 1.62;
+      font-size: 15px;
+    }
+    .doc {
+      width: 980px;
+      max-width: calc(100% - 32px);
+      margin: 28px auto 64px;
+      background: var(--paper);
+      box-shadow: 0 18px 60px rgba(13, 27, 42, 0.12);
+    }
+    .cover {
+      min-height: 880px;
+      padding: 74px 70px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 12%, rgba(0, 208, 132, 0.36), transparent 24%),
+        linear-gradient(135deg, #07111f 0%, #123456 56%, #073b33 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .cover:after {
+      content: "";
+      position: absolute;
+      left: 70px;
+      right: 70px;
+      bottom: 92px;
+      height: 250px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px) 0 0 / 72px 72px,
+        linear-gradient(rgba(255,255,255,0.14) 1px, transparent 1px) 0 0 / 72px 72px;
+      opacity: .45;
+    }
+    .brand { text-transform: uppercase; letter-spacing: 4px; color: #9ee8c5; font-weight: 800; }
+    .cover h1 { margin: 92px 0 18px; font-size: 64px; line-height: 0.98; max-width: 720px; letter-spacing: 0; }
+    .cover .subtitle { font-size: 24px; max-width: 660px; color: #dceaf5; }
+    .cover .meta { position: absolute; left: 70px; bottom: 64px; display: flex; gap: 16px; z-index: 2; }
+    .pill { border: 1px solid rgba(255,255,255,.28); padding: 10px 14px; border-radius: 6px; background: rgba(255,255,255,.08); }
+    .content { padding: 48px 70px 80px; }
+    h1, h2, h3, h4 { color: var(--navy); line-height: 1.18; letter-spacing: 0; }
+    h1 { font-size: 38px; margin: 28px 0 18px; }
+    h2 { font-size: 30px; margin: 46px 0 18px; padding-top: 10px; border-top: 4px solid var(--teal); }
+    h3 { font-size: 21px; margin: 30px 0 10px; }
+    h4 { font-size: 17px; margin: 22px 0 8px; }
+    p { margin: 0 0 14px; color: var(--muted); }
+    a { color: var(--blue); text-decoration: none; }
+    strong { color: var(--ink); }
+    blockquote {
+      margin: 22px 0;
+      padding: 18px 22px;
+      border-left: 5px solid var(--teal);
+      background: #eefbf6;
+      color: #12352b;
+      font-size: 17px;
+      border-radius: 0 6px 6px 0;
+    }
+    ul, ol { margin: 10px 0 18px 24px; color: var(--muted); }
+    li { margin: 5px 0; }
+    code, pre { font-family: Consolas, Menlo, monospace; }
+    code { background: #edf2f7; color: #0f766e; padding: 2px 5px; border-radius: 4px; }
+    pre {
+      background: #08111f;
+      color: #c8f7dc;
+      padding: 22px;
+      border-radius: 8px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
+    .toc-page { page-break-after: always; padding-bottom: 30px; }
+    .toc-page h2 { border-top: 0; font-size: 36px; }
+    .toc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
+    .toc a { color: var(--ink); border-bottom: 1px solid var(--line); padding: 8px 0; }
+    .toc-l3 { padding-left: 18px !important; color: var(--muted) !important; font-size: 13px; }
+    .visual {
+      margin: 18px 0 28px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, #f8fbfe);
+      border-radius: 8px;
+      page-break-inside: avoid;
+    }
+    .visual-title { color: var(--navy); font-weight: 800; text-transform: uppercase; font-size: 12px; letter-spacing: 2px; margin-bottom: 16px; }
+    .triad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .triad div { background: #0f2238; color: #fff; padding: 18px; border-radius: 8px; min-height: 142px; }
+    .triad span { color: var(--lime); font-weight: 800; display: block; margin-bottom: 12px; }
+    .triad p { color: #d4e2ef; font-size: 13px; margin-top: 8px; }
+    .flow-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .flow-row div { background: #10233a; color: #fff; border-radius: 6px; padding: 12px 14px; font-weight: 700; }
+    .flow-row span { width: 22px; height: 2px; background: var(--teal); display: inline-block; }
+    .map-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .map-grid div, .wheel div { background: #eef4ff; color: #14315f; border: 1px solid #cfe0ff; border-radius: 6px; padding: 12px; font-weight: 700; text-align: center; }
+    .milestones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .milestones div { border-top: 5px solid var(--teal); background: #f4fbf8; padding: 14px; border-radius: 6px; }
+    .milestones small { display: block; color: var(--muted); margin-top: 6px; }
+    .wheel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .bar { display: grid; grid-template-columns: 130px 1fr 130px; align-items: center; gap: 12px; margin: 12px 0; }
+    .bar span { display: block; height: 18px; border-radius: 20px; background: linear-gradient(90deg, var(--teal), var(--blue)); }
+    .bar label, .bar b { font-size: 13px; color: var(--navy); }
+    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .roadmap .visual-title { grid-column: 1 / -1; }
+    .roadmap div:not(.visual-title) { background: #fff8e8; border: 1px solid #ffe0a3; border-radius: 6px; padding: 14px; }
+    .table-wrap { width: 100%; overflow-x: auto; margin: 18px 0 24px; page-break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #10233a; color: #fff; text-align: left; padding: 10px; }
+    td { border: 1px solid var(--line); padding: 9px 10px; vertical-align: top; color: var(--muted); }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .section-title { page-break-before: always; }
+    @page { size: A4; margin: 14mm 13mm; }
+    @media print {
+      body { background: #fff; font-size: 11px; }
+      .doc { width: 100%; max-width: none; margin: 0; box-shadow: none; }
+      .cover { min-height: 257mm; page-break-after: always; }
+      .content { padding: 0; }
+      h2.section-title { page-break-before: always; }
+      h2, h3, h4, .visual, table, blockquote, pre { page-break-inside: avoid; }
+      .toc { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="doc">
+    <section class="cover">
+      <div class="brand">Stratedge Product Documentation</div>
+      <h1>Edgecipline</h1>
+      <p class="subtitle">AI-powered trading journal, performance analytics system, and psychology coach for disciplined retail traders.</p>
+      <div class="meta">
+        <div class="pill">Version 1.0</div>
+        <div class="pill">May 2026</div>
+        <div class="pill">Visual PDF Edition</div>
+      </div>
+    </section>
+    <section class="content">
+      <section class="toc-page">
+        <h2>Contents</h2>
+        <nav class="toc"><a class="toc-l2" href="#table-of-contents">Table of Contents</a><a class="toc-l2" href="#1-project-overview">1. Project Overview</a><a class="toc-l3" href="#what-is-edgecipline">What Is Edgecipline?</a><a class="toc-l3" href="#main-concept">Main Concept</a><a class="toc-l3" href="#vision">Vision</a><a class="toc-l3" href="#mission">Mission</a><a class="toc-l3" href="#the-problem-it-solves">The Problem It Solves</a><a class="toc-l3" href="#why-this-app-matters">Why This App Matters</a><a class="toc-l2" href="#2-user-perspective">2. User Perspective</a><a class="toc-l3" href="#who-uses-edgecipline">Who Uses Edgecipline?</a><a class="toc-l3" href="#target-audience">Target Audience</a><a class="toc-l3" href="#user-personas">User Personas</a><a class="toc-l3" href="#real-world-use-cases">Real-World Use Cases</a><a class="toc-l2" href="#3-complete-app-workflow">3. Complete App Workflow</a><a class="toc-l3" href="#the-master-flow">The Master Flow</a><a class="toc-l3" href="#step-by-step-first-visit-to-long-term-habit">Step-by-Step: First Visit to Long-Term Habit</a><a class="toc-l2" href="#4-page-by-page-explanation">4. Page-by-Page Explanation</a><a class="toc-l3" href="#root-page">Root Page (<code>/</code>)</a><a class="toc-l3" href="#login-page-login">Login Page (<code>/login</code>)</a><a class="toc-l3" href="#register-page-register">Register Page (<code>/register</code>)</a><a class="toc-l3" href="#dashboard-dashboard-indian-market-dashboard">Dashboard (<code>/dashboard</code> &amp; <code>/indian-market/dashboard</code>)</a><a class="toc-l3" href="#trade-journal-trades-indian-market-trades">Trade Journal (<code>/trades</code> &amp; <code>/indian-market/trades</code>)</a><a class="toc-l3" href="#add-trade-manual-add-trade-indian-market-add-trade">Add Trade — Manual (<code>/add-trade</code> &amp; <code>/indian-market/add-trade</code>)</a><a class="toc-l3" href="#upload-trade-ai-extraction-upload-trade-indian-market-upload-trade">Upload Trade — AI Extraction (<code>/upload-trade</code> &amp; <code>/indian-market/upload-trade</code>)</a><a class="toc-l3" href="#analytics-analytics-indian-market-analytics">Analytics (<code>/analytics</code> &amp; <code>/indian-market/analytics</code>)</a><a class="toc-l3" href="#pre-trade-checklist-checklist">Pre-Trade Checklist (<code>/checklist</code>)</a><a class="toc-l3" href="#trading-setups-setups">Trading Setups (<code>/setups</code>)</a><a class="toc-l3" href="#weekly-ai-reports-weekly-reports">Weekly AI Reports (<code>/weekly-reports</code>)</a><a class="toc-l3" href="#notifications-notifications">Notifications (<code>/notifications</code>)</a><a class="toc-l3" href="#morning-mentor-notifications">Morning Mentor Notifications</a><a class="toc-l3" href="#profile-profile">Profile (<code>/profile</code>)</a><a class="toc-l3" href="#support-support">Support (<code>/support</code>)</a><a class="toc-l3" href="#indian-market-full-feature-parity">Indian Market — Full Feature Parity</a><a class="toc-l2" href="#5-user-journeys">5. User Journeys</a><a class="toc-l3" href="#beginner-user-journey">Beginner User Journey</a><a class="toc-l3" href="#returning-daily-user-journey">Returning Daily User Journey</a><a class="toc-l3" href="#power-user-journey">Power User Journey</a><a class="toc-l3" href="#daily-habit-flow">Daily Habit Flow</a><a class="toc-l3" href="#retention-flow">Retention Flow</a><a class="toc-l2" href="#6-features-benefits">6. Features &amp; Benefits</a><a class="toc-l3" href="#main-features">Main Features</a><a class="toc-l3" href="#user-benefits">User Benefits</a><a class="toc-l3" href="#psychological-benefits">Psychological Benefits</a><a class="toc-l3" href="#habit-building-advantages">Habit-Building Advantages</a><a class="toc-l3" href="#competitive-advantages">Competitive Advantages</a><a class="toc-l2" href="#7-product-value">7. Product Value</a><a class="toc-l3" href="#why-users-would-love-this-app">Why Users Would Love This App</a><a class="toc-l3" href="#why-users-would-continue-using-it">Why Users Would Continue Using It</a><a class="toc-l3" href="#what-makes-it-unique">What Makes It Unique</a><a class="toc-l3" href="#why-it-can-succeed-as-a-startup-saas">Why It Can Succeed as a Startup/SaaS</a><a class="toc-l2" href="#8-ux-engagement-strategy">8. UX &amp; Engagement Strategy</a><a class="toc-l3" href="#user-engagement-architecture">User Engagement Architecture</a><a class="toc-l3" href="#gamification-elements">Gamification Elements</a><a class="toc-l3" href="#notification-reminder-strategy">Notification &amp; Reminder Strategy</a><a class="toc-l3" href="#emotional-connection-with-users">Emotional Connection with Users</a><a class="toc-l3" href="#retention-ideas">Retention Ideas</a><a class="toc-l2" href="#9-business-growth-perspective">9. Business &amp; Growth Perspective</a><a class="toc-l3" href="#monetization-model">Monetization Model</a><a class="toc-l3" href="#marketing-strategy">Marketing Strategy</a><a class="toc-l3" href="#branding-ideas">Branding Ideas</a><a class="toc-l3" href="#community-building">Community Building</a><a class="toc-l2" href="#10-future-vision">10. Future Vision</a><a class="toc-l3" href="#near-term-roadmap-6-12-months">Near-Term Roadmap (6–12 months)</a><a class="toc-l3" href="#medium-term-vision-12-24-months">Medium-Term Vision (12–24 months)</a><a class="toc-l3" href="#long-term-vision-24-48-months">Long-Term Vision (24–48 months)</a><a class="toc-l3" href="#ai-opportunities">AI Opportunities</a><a class="toc-l3" href="#scaling-possibilities">Scaling Possibilities</a><a class="toc-l2" href="#11-final-product-summary">11. Final Product Summary</a><a class="toc-l3" href="#complete-end-to-end-product-flow">Complete End-to-End Product Flow</a><a class="toc-l3" href="#overall-app-experience">Overall App Experience</a><a class="toc-l3" href="#overall-user-value">Overall User Value</a><a class="toc-l3" href="#why-this-app-matters">Why This App Matters</a><a class="toc-l2" href="#12-frequently-asked-questions-faq">12. Frequently Asked Questions (FAQ)</a><a class="toc-l3" href="#section-a-getting-started">SECTION A — Getting Started</a><a class="toc-l3" href="#section-b-trade-logging">SECTION B — Trade Logging</a><a class="toc-l3" href="#section-c-ai-screenshot-extraction">SECTION C — AI Screenshot Extraction</a><a class="toc-l3" href="#section-d-analytics">SECTION D — Analytics</a><a class="toc-l3" href="#section-e-pre-trade-checklist">SECTION E — Pre-Trade Checklist</a><a class="toc-l3" href="#section-f-morning-mentor-notifications">SECTION F — Morning Mentor &amp; Notifications</a><a class="toc-l3" href="#section-g-trading-setups">SECTION G — Trading Setups</a><a class="toc-l3" href="#section-h-indian-market-specific">SECTION H — Indian Market Specific</a><a class="toc-l3" href="#section-i-subscription-pricing">SECTION I — Subscription &amp; Pricing</a><a class="toc-l3" href="#section-j-privacy-data-security">SECTION J — Privacy &amp; Data Security</a><a class="toc-l3" href="#section-k-technical-app-usage">SECTION K — Technical &amp; App Usage</a><a class="toc-l3" href="#section-l-product-philosophy-questions">SECTION L — Product &amp; Philosophy Questions</a></nav>
+      </section>
+      <h1 id="edgecipline-complete-product-documentation">Edgecipline — Complete Product Documentation</h1>
+
+<blockquote><strong>Edgecipline</strong> by Stratedge · AI-Powered Trading Journal &amp; Psychology Coach   Version 1.0 · Product &amp; Strategy Document · May 2026</blockquote>
+<hr />
+<h2 class="section-title page-break" id="table-of-contents">Table of Contents</h2>
+
+<ol><li><a href="#1-project-overview">Project Overview</a></li><li><a href="#2-user-perspective">User Perspective</a></li><li><a href="#3-complete-app-workflow">Complete App Workflow</a></li><li><a href="#4-page-by-page-explanation">Page-by-Page Explanation</a></li><li><a href="#5-user-journeys">User Journeys</a></li><li><a href="#6-features--benefits">Features &amp; Benefits</a></li><li><a href="#7-product-value">Product Value</a></li><li><a href="#8-ux--engagement-strategy">UX &amp; Engagement Strategy</a></li><li><a href="#9-business--growth-perspective">Business &amp; Growth Perspective</a></li><li><a href="#10-future-vision">Future Vision</a></li><li><a href="#11-final-product-summary">Final Product Summary</a></li></ol>
+<hr />
+<h2 class="section-title page-break" id="1-project-overview">1. Project Overview</h2>
+
+      <div class="visual visual-system">
+        <div class="visual-title">Product System</div>
+        <div class="triad">
+          <div><span>01</span><strong>Journal</strong><p>Fast manual logging plus AI screenshot extraction.</p></div>
+          <div><span>02</span><strong>Analytics</strong><p>Performance, setup, risk, time, and psychology metrics.</p></div>
+          <div><span>03</span><strong>AI Coach</strong><p>Morning Mentor, alerts, and weekly behavioral reports.</p></div>
+        </div>
+      </div>
+<h3 id="what-is-edgecipline">What Is Edgecipline?</h3>
+
+<p><strong>Edgecipline</strong> is an AI-powered trading journal and behavioral coaching platform built for retail traders. It combines trade logging, performance analytics, psychological pattern detection, and AI-generated coaching — all in one mobile-first application available on Android and the web.</p>
+<p>The name says it all: <strong>Edge</strong> (your trading edge, your statistical advantage) + <strong>Discipline</strong> (the only thing standing between a trader and consistent profitability).</p>
+<blockquote><em>Most traders don't fail because they lack a strategy. They fail because they can't follow one.</em></blockquote>
+<p>Edgecipline exists to solve exactly that problem.</p>
+<hr />
+<h3 id="main-concept">Main Concept</h3>
+
+<p>At its core, Edgecipline is three things working together:</p>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>What It Does</th></tr></thead><tbody><tr><td><strong>Journal</strong></td><td>Frictionless trade logging — manual entry or AI screenshot extraction</td></tr><tr><td><strong>Analytics</strong></td><td>60+ performance metrics that reveal what's actually working</td></tr><tr><td><strong>Psychology Coach</strong></td><td>AI-powered behavioral alerts, mood tracking, and weekly coaching reports</td></tr></tbody></table></div>
+<p>The platform supports two major markets out of the box:</p>
+<ul><li><strong>Forex / Global Markets</strong> — Currency pairs, indices, commodities</li><li><strong>Indian Markets</strong> — NSE/BSE Equity, F&amp;O (Futures &amp; Options), Intraday/Delivery</li></ul>
+<hr />
+<h3 id="vision">Vision</h3>
+
+<blockquote><strong>To become the world's most trusted trading accountability system — the coach in every trader's pocket that never lets them forget their own rules.</strong></blockquote>
+<h3 id="mission">Mission</h3>
+
+<p>To help retail traders build the discipline, emotional awareness, and analytical clarity required for long-term profitability — by connecting their psychology directly to their performance data.</p>
+<hr />
+<h3 id="the-problem-it-solves">The Problem It Solves</h3>
+
+<p>The global retail trading industry has a brutal reality:</p>
+<ul><li><strong>~70–80% of retail traders lose money</strong> consistently</li><li>The #1 reason cited is not strategy failure — it is <strong>emotional decision-making</strong>: revenge trading, overtrading, ignoring stop losses, breaking their own rules</li><li>Existing trading journals are spreadsheets or basic loggers — they record data but offer no behavioral insight</li><li>There is no product today that <strong>connects mood, emotions, and psychology directly to P&amp;L outcomes</strong></li></ul>
+<p>Edgecipline fills this exact gap. It is not just a journal. It is a <strong>behavioral accountability system</strong>.</p>
+<hr />
+<h3 id="why-this-app-matters">Why This App Matters</h3>
+
+<ol><li>The retail trading audience is <strong>massive and growing</strong> — millions of new traders entered markets globally post-2020</li><li>Every trader, at every level, struggles with discipline and emotional control</li><li>AI has made it possible — for the first time — to deliver <strong>personalized coaching at scale</strong>, without a human coach</li><li>No existing competitor (Tradervue, Edgewonk, TraderSync) tracks <strong>psychology as a primary first-class metric</strong> the way Edgecipline does</li><li>The Indian F&amp;O market alone has <strong>50 million+ active retail traders</strong> — a largely underserved product-market fit</li></ol>
+<hr />
+<h2 class="section-title page-break" id="2-user-perspective">2. User Perspective</h2>
+
+<h3 id="who-uses-edgecipline">Who Uses Edgecipline?</h3>
+
+<p>Edgecipline is built for <strong>retail traders</strong> who are serious about improving their performance. This is not a beginner app for people learning what a candlestick is. It is for traders who already have a strategy but struggle to execute it consistently.</p>
+<hr />
+<h3 id="target-audience">Target Audience</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Segment</th><th>Description</th></tr></thead><tbody><tr><td><strong>Aspiring professional traders</strong></td><td>Trading 6–36 months, have a strategy, losing discipline under pressure</td></tr><tr><td><strong>Active Forex traders</strong></td><td>Trading currency pairs, using MetaTrader, want systematic performance review</td></tr><tr><td><strong>Indian F&amp;O traders</strong></td><td>Options/futures traders on NSE/BSE, Intraday-focused, high trade frequency</td></tr><tr><td><strong>Prop firm traders</strong></td><td>In evaluation or funded accounts — need zero rule violations, track drawdown obsessively</td></tr><tr><td><strong>Trading educators/mentees</strong></td><td>Students of trading mentors who want to prove their discipline with data</td></tr><tr><td><strong>Independent swing traders</strong></td><td>Lower frequency, high-conviction trades, want setup quality tracking</td></tr></tbody></table></div>
+<hr />
+<h3 id="user-personas">User Personas</h3>
+
+<h4 id="persona-1-arjun-26-indian-f-o-trader">Persona 1 — Arjun, 26, Indian F&amp;O Trader</h4>
+
+<ul><li>Trades Nifty options intraday, 3–5 trades/day</li><li>Has a profitable strategy in theory but revenge trades after losses</li><li>Frustrated that he ends green days negative because of &quot;one bad trade&quot;</li><li><strong>What he needs:</strong> Revenge trading alerts, daily P&amp;L awareness, emotional pattern detection</li></ul>
+<h4 id="persona-2-sarah-31-forex-swing-trader">Persona 2 — Sarah, 31, Forex Swing Trader</h4>
+
+<ul><li>Trades 4–8 trades/week on EUR/USD, GBP/JPY</li><li>Keeps a messy spreadsheet, never reviews it consistently</li><li>Wants to know which setups actually make money</li><li><strong>What she needs:</strong> Clean journal, setup performance comparison, weekly AI review</li></ul>
+<h4 id="persona-3-marcus-34-prop-firm-trader">Persona 3 — Marcus, 34, Prop Firm Trader</h4>
+
+<ul><li>Trades a $50K funded account with 4% max drawdown</li><li>One violation ends his account — rule adherence is critical</li><li><strong>What he needs:</strong> Pre-trade checklist, drawdown tracking, no-stop-loss alerts, discipline score</li></ul>
+<h4 id="persona-4-priya-22-learning-trader">Persona 4 — Priya, 22, Learning Trader</h4>
+
+<ul><li>8 months into trading, taking courses, building a strategy</li><li>Wants to build habits from the beginning</li><li><strong>What she needs:</strong> Morning mentor guidance, simple journal, setup builder, weekly reports</li></ul>
+<hr />
+<h3 id="real-world-use-cases">Real-World Use Cases</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Use Case</th><th>How Edgecipline Helps</th></tr></thead><tbody><tr><td>&quot;I always revenge trade after losses&quot;</td><td>Morning mentor detects pattern, sends alert before market open</td></tr><tr><td>&quot;I don't know which setup is actually profitable&quot;</td><td>Analytics shows P&amp;L breakdown by setup/strategy</td></tr><tr><td>&quot;I trade when I'm stressed and it always goes wrong&quot;</td><td>Mood tracking correlates emotional state to win rate</td></tr><tr><td>&quot;I forget my rules mid-trade&quot;</td><td>Pre-trade checklist forces rule verification before entry</td></tr><tr><td>&quot;I want to upload my MT4 screenshot and log the trade&quot;</td><td>AI extraction reads the screenshot and fills the form</td></tr><tr><td>&quot;I need a weekly review of my trading&quot;</td><td>Sunday AI report covers mistakes, improvements, next-week focus</td></tr></tbody></table></div>
+<hr />
+<h2 class="section-title page-break" id="3-complete-app-workflow">3. Complete App Workflow</h2>
+
+      <div class="visual visual-flow">
+        <div class="visual-title">Core Habit Loop</div>
+        <div class="flow-row">
+          <div>Login</div><span></span><div>Dashboard</div><span></span><div>Checklist</div><span></span><div>Log Trade</div><span></span><div>Analytics</div><span></span><div>AI Coaching</div>
+        </div>
+      </div>
+<h3 id="the-master-flow">The Master Flow</h3>
+
+<pre><code>SIGN UP / LOG IN
+      │
+      ▼
+DASHBOARD (Home Hub)
+      │
+      ├──► PRE-TRADE CHECKLIST → Verify setup rules → Take/Skip trade
+      │
+      ├──► ADD TRADE (Manual) ─── or ──► UPLOAD TRADE (AI Screenshot)
+      │              │                              │
+      │              └──────────────────────────────┘
+      │                          │
+      │                    Trade Saved
+      │                          │
+      ▼                          ▼
+TRADE JOURNAL             ANALYTICS UPDATE
+(View all trades)         (KPIs recalculate)
+      │
+      ▼
+WEEKLY AI REPORT (auto-generated Sunday)
+      │
+      ▼
+MORNING MENTOR NOTIFICATION (daily behavioral coaching)
+      │
+      ▼
+NOTIFICATIONS HUB (review all alerts &amp; insights)
+      │
+      ▼
+PROFILE (Subscription, settings)</code></pre>
+<hr />
+<h3 id="step-by-step-first-visit-to-long-term-habit">Step-by-Step: First Visit to Long-Term Habit</h3>
+
+<h4 id="day-1-first-visit">Day 1 — First Visit</h4>
+
+<ol><li>User lands on the <strong>root page</strong> → automatic auth check</li><li>If not logged in → redirected to <strong>Login page</strong></li><li>Login page shows <strong>demo stats</strong> (win rate, P&amp;L sample data) to build trust and desire</li><li>User signs up with <strong>Email/Password</strong> or <strong>Google OAuth</strong></li><li>Account created → redirected to <strong>Dashboard</strong></li><li>Dashboard shows empty state with welcome guide prompting &quot;Log your first trade&quot;</li></ol>
+<h4 id="day-1-logging-first-trade">Day 1 — Logging First Trade</h4>
+
+<ol><li>User visits <strong>Add Trade</strong> page</li><li>Fills in trade details: pair, direction, prices, P&amp;L</li><li>Tags <strong>mood</strong> (emoji scale) and <strong>emotional state</strong> (FOMO, Fear, Confident, etc.)</li><li>Optionally links to a <strong>Setup</strong> (or creates one)</li><li>Trade saved → Analytics page now has first data point</li></ol>
+<h4 id="week-1-building-the-system">Week 1 — Building the System</h4>
+
+<ol><li>User creates their first <strong>Trading Setup</strong> (strategy name, rules, reference screenshots)</li><li>Before the next trade: visits <strong>Pre-Trade Checklist</strong>, selects setup, runs through rules</li><li>Gets confidence score (A+/Moderate/Low) — only takes trade if A+</li><li>Logs outcome → sees checklist adherence tracked in Analytics</li><li>Receives first <strong>Morning Mentor</strong> notification next morning</li></ol>
+<h4 id="week-2-ai-insights-begin">Week 2 — AI Insights Begin</h4>
+
+<ol><li>Accumulates enough trades → <strong>Analytics</strong> shows patterns</li><li>User discovers: &quot;I win 70% when calm, 30% when frustrated&quot;</li><li><strong>Weekly AI Report</strong> generated (Sunday) — AI identifies top 3 mistakes, ranks by P&amp;L cost</li><li>User adjusts behavior → next week improves</li></ol>
+<h4 id="month-1-long-term-accountability">Month 1+ — Long-Term Accountability</h4>
+
+<ol><li>Morning mentor becomes daily habit — behavioral guardrail before trading</li><li>Pre-trade checklist prevents impulsive trades</li><li>Weekly reports track discipline trend over time</li><li>Equity curve shows account growth trajectory</li><li>Repeated mistakes panel shrinks as user fixes behaviors</li></ol>
+<hr />
+<h2 class="section-title page-break" id="4-page-by-page-explanation">4. Page-by-Page Explanation</h2>
+
+      <div class="visual app-map">
+        <div class="visual-title">Application Map</div>
+        <div class="map-grid">
+          <div>Dashboard</div><div>Trade Journal</div><div>Add Trade</div><div>Upload Trade</div>
+          <div>Analytics</div><div>Checklist</div><div>Setups</div><div>Weekly Reports</div>
+          <div>Notifications</div><div>Profile</div><div>Support</div><div>Indian Market</div>
+        </div>
+      </div>
+<h3 id="root-page">Root Page (<code>/</code>)</h3>
+
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Auth gatekeeper &amp; smart redirect</td></tr><tr><td><strong>What user sees</strong></td><td>Blank (instant redirect)</td></tr><tr><td><strong>Logic</strong></td><td>If authenticated → Dashboard. If not → Login</td></tr><tr><td><strong>User emotion</strong></td><td>Seamless — no friction, no loading screen confusion</td></tr></tbody></table></div>
+<hr />
+<h3 id="login-page-login">Login Page (<code>/login</code>)</h3>
+
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Authenticate returning users, attract new ones</td></tr><tr><td><strong>What user sees</strong></td><td>Edgecipline branding, login form, Google OAuth button, demo statistics panel</td></tr><tr><td><strong>Key design decision</strong></td><td>Shows live-looking demo stats (win rate, trades, P&amp;L) to build social proof before user even logs in</td></tr><tr><td><strong>Actions available</strong></td><td>Email/password login, Google sign-in, link to Register</td></tr><tr><td><strong>User goal</strong></td><td>Get back into their trading data as fast as possible</td></tr><tr><td><strong>User emotion</strong></td><td>Curiosity from demo stats → motivation to see their own data</td></tr></tbody></table></div>
+<hr />
+<h3 id="register-page-register">Register Page (<code>/register</code>)</h3>
+
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Create new account</td></tr><tr><td><strong>What user sees</strong></td><td>Signup form (name, email, password) + Google OAuth option</td></tr><tr><td><strong>Actions available</strong></td><td>Create account, switch to login</td></tr><tr><td><strong>User goal</strong></td><td>Quick signup, no friction</td></tr><tr><td><strong>Post-action</strong></td><td>Account created → redirect to Dashboard with empty state</td></tr></tbody></table></div>
+<hr />
+<h3 id="dashboard-dashboard-indian-market-dashboard">Dashboard (<code>/dashboard</code> &amp; <code>/indian-market/dashboard</code>)</h3>
+
+<blockquote><strong>The command center. The first thing a trader sees every session.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Top-level performance overview — the trader's morning briefing</td></tr><tr><td><strong>What user sees</strong></td><td>KPI cards, equity curve chart, 6 feature shortcut cards, recent activity</td></tr></tbody></table></div>
+<p><strong>KPI Cards Displayed:</strong></p>
+<ul><li>Total Trades</li><li>Win Rate (%)</li><li>Net P&amp;L ($ or ₹)</li><li>Average Win / Average Loss</li><li>Profit Factor</li><li>Max Drawdown (%)</li><li>Sharpe Ratio</li><li>Current Streak</li></ul>
+<p><strong>Feature Cards (navigation shortcuts):</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Card</th><th>Destination</th><th>Purpose</th></tr></thead><tbody><tr><td>Trade Journal</td><td><code>/trades</code></td><td>View &amp; manage trade history</td></tr><tr><td>Add Trade</td><td><code>/add-trade</code></td><td>Log a new trade</td></tr><tr><td>Analytics</td><td><code>/analytics</code></td><td>Deep performance analysis</td></tr><tr><td>Upload Trade</td><td><code>/upload-trade</code></td><td>AI screenshot extraction</td></tr><tr><td>Pre-Trade Checklist</td><td><code>/checklist</code></td><td>Pre-entry discipline check</td></tr><tr><td>Weekly Reports</td><td><code>/weekly-reports</code></td><td>AI coaching summaries</td></tr></tbody></table></div>
+<p><strong>Why This Page Exists:</strong> A trader who opens the app should know in 5 seconds whether they're on track or not. No digging. No clicking. The dashboard delivers that instant awareness.</p>
+<p><strong>User emotion:</strong> Grounded, informed, accountable — or appropriately cautious if metrics are negative.</p>
+<hr />
+<h3 id="trade-journal-trades-indian-market-trades">Trade Journal (<code>/trades</code> &amp; <code>/indian-market/trades</code>)</h3>
+
+<blockquote><strong>The complete record of every trading decision ever made.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>The searchable, filterable record of all trades</td></tr><tr><td><strong>What user sees</strong></td><td>Trade cards/list with direction (Buy/Sell), pair, P&amp;L, date, setup used, mood indicator</td></tr></tbody></table></div>
+<p><strong>Filter &amp; Search Options:</strong></p>
+<ul><li>Direction: Long / Short / All</li><li>Time period: Today / This Week / This Month / Custom range</li><li>Setup: Filter by strategy</li><li>Text search: By symbol/pair</li></ul>
+<p><strong>Trade Card Shows:</strong></p>
+<ul><li>Symbol / Pair</li><li>Direction (color-coded: green Buy, red Sell)</li><li>Entry / Exit prices</li><li>P&amp;L (green profit, red loss)</li><li>Setup name used</li><li>Mood emoji</li><li>Emotional tags</li><li>Date &amp; time</li></ul>
+<p><strong>Actions available:</strong></p>
+<ul><li>View trade detail</li><li>Edit trade</li><li>Delete trade</li><li>Filter/search</li></ul>
+<p><strong>User goal:</strong> Review past trades, identify patterns, audit decisions.</p>
+<p><strong>User emotion:</strong> Reflective — &quot;Did I follow my rules?&quot; This page makes a trader face their own decisions.</p>
+<hr />
+<h3 id="add-trade-manual-add-trade-indian-market-add-trade">Add Trade — Manual (<code>/add-trade</code> &amp; <code>/indian-market/add-trade</code>)</h3>
+
+<blockquote><strong>The primary data entry point. Fast, structured, psychologically aware.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Log a completed trade with full context</td></tr><tr><td><strong>What user sees</strong></td><td>Multi-section form covering trade details + psychology layer</td></tr></tbody></table></div>
+<p><strong>Trade Details Fields:</strong></p>
+<ul><li>Market / Symbol (e.g., EUR/USD, NIFTY)</li><li>Direction: Buy / Sell (Long / Short)</li><li>Entry Price</li><li>Exit Price</li><li>Stop Loss</li><li>Take Profit</li><li>Position Size / Lot Size</li><li>Profit / Loss (auto-calculated)</li><li>Risk-Reward Ratio (auto-calculated)</li><li>Trade Date &amp; Time</li></ul>
+<p><strong>Indian Market Specific Fields:</strong></p>
+<ul><li>Segment: Equity / F&amp;O / Commodity / Currency</li><li>Trade Type: Intraday / Delivery / BTST</li><li>Instrument: Equity / Future / Option</li><li>Strike Price &amp; Expiry (for Options)</li></ul>
+<p><strong>Psychology Layer (unique differentiator):</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Options</th></tr></thead><tbody><tr><td><strong>Mood</strong></td><td>1–5 emoji scale (😰 Stressed → 😐 Neutral → 🔥 Peak State)</td></tr><tr><td><strong>Confidence Level</strong></td><td>Low / Medium / High / Overconfident</td></tr><tr><td><strong>Emotional Tags</strong></td><td>FOMO, Revenge, Fear, Greed, Impatient, Disciplined, Confident, Hesitant</td></tr><tr><td><strong>Setup Used</strong></td><td>Dropdown of user-created strategies</td></tr><tr><td><strong>Would You Retake?</strong></td><td>Yes / No (instinct calibration)</td></tr><tr><td><strong>Notes</strong></td><td>Free-text trade notes</td></tr><tr><td><strong>Screenshot</strong></td><td>Optional image upload</td></tr></tbody></table></div>
+<p><strong>Why This Page Exists:</strong> Data without context is useless. A trade logged with mood, emotions, and setup creates a dataset that reveals <em>why</em> you win and lose — not just <em>what</em> happened.</p>
+<p><strong>User emotion:</strong> Reflective and honest. The psychology fields force a moment of self-awareness.</p>
+<hr />
+<h3 id="upload-trade-ai-extraction-upload-trade-indian-market-upload-trade">Upload Trade — AI Extraction (<code>/upload-trade</code> &amp; <code>/indian-market/upload-trade</code>)</h3>
+
+<blockquote><strong>Zero-friction logging. Take a screenshot, let AI do the rest.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Remove the friction of manual data entry via AI-powered screenshot reading</td></tr><tr><td><strong>What user sees</strong></td><td>Upload zone (drag &amp; drop or camera), processing animation, extracted data preview, confirmation form</td></tr></tbody></table></div>
+<p><strong>The Flow:</strong></p>
+<ol><li>User uploads broker screenshot (MT4, Zerodha, Groww, Upstox, Angel One, etc.)</li><li>AI (OCR + Gemini Vision) reads the image</li><li>Extracted fields appear pre-filled: pair, direction, entry, exit, P&amp;L</li><li>User reviews, corrects if needed, adds psychology tags</li><li>Confirms → trade saved</li></ol>
+<p><strong>What AI Detects:</strong></p>
+<ul><li>Broker type / platform</li><li>Trade direction (Buy/Sell)</li><li>Symbol / instrument</li><li>Entry &amp; exit prices</li><li>Stop loss &amp; take profit levels</li><li>Profit / Loss amount</li><li>Trade timestamp</li><li>Multi-trade detection (when screenshot shows multiple trades)</li><li>Confidence score for each extracted field</li></ul>
+<p><strong>User goal:</strong> Log trades in under 30 seconds. No manual typing.</p>
+<p><strong>User emotion:</strong> Delight at the magic of AI extraction. Relief at removed friction.</p>
+<hr />
+<h3 id="analytics-analytics-indian-market-analytics">Analytics (<code>/analytics</code> &amp; <code>/indian-market/analytics</code>)</h3>
+
+<blockquote><strong>The performance mirror. 60+ metrics that reveal the honest truth about your trading.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Deep, data-driven performance analysis across every dimension</td></tr><tr><td><strong>What user sees</strong></td><td>Tabbed dashboard with KPIs, charts, psychology insights, and behavioral flags</td></tr></tbody></table></div>
+<p><strong>Analytics Sections:</strong></p>
+<h4 id="performance-overview">Performance Overview</h4>
+
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>What It Reveals</th></tr></thead><tbody><tr><td>Win Rate %</td><td>Raw success frequency</td></tr><tr><td>Profit Factor</td><td>Gross profit ÷ gross loss (&gt;1.5 = good)</td></tr><tr><td>Expectancy</td><td>Average $ earned per trade</td></tr><tr><td>Sharpe Ratio</td><td>Risk-adjusted return</td></tr><tr><td>Max Drawdown %</td><td>Worst peak-to-trough decline</td></tr><tr><td>Recovery Factor</td><td>How fast account recovered from drawdown</td></tr><tr><td>Best/Worst Streak</td><td>Consecutive wins / consecutive losses</td></tr><tr><td>Avg Win vs Avg Loss</td><td>Risk-reward reality check</td></tr></tbody></table></div>
+<h4 id="setup-performance-analysis">Setup Performance Analysis</h4>
+
+<ul><li>P&amp;L breakdown by strategy/setup</li><li>Win rate per setup</li><li>Number of trades per setup</li><li>Shows which setup is actually profitable vs which &quot;feels&quot; good</li></ul>
+<h4 id="direction-analysis">Direction Analysis</h4>
+
+<ul><li>Long trades vs Short trades performance</li><li>Directional bias identification</li></ul>
+<h4 id="symbol-pair-analysis">Symbol / Pair Analysis</h4>
+
+<ul><li>Performance by currency pair or stock/index</li><li>Best and worst performing instruments</li></ul>
+<h4 id="time-analysis">Time Analysis</h4>
+
+<ul><li>Best time of day to trade (by session/hour)</li><li>Worst time of day to trade</li><li>Day of week performance breakdown</li></ul>
+<h4 id="equity-curve">Equity Curve</h4>
+
+<ul><li>Visual account growth chart over time</li><li>Drawdown periods highlighted</li><li>Trend line overlay</li></ul>
+<h4 id="calendar-heatmap">Calendar Heatmap</h4>
+
+<ul><li>Daily P&amp;L color-coded on calendar grid</li><li>Instantly shows loss-heavy days/weeks</li></ul>
+<h4 id="psychology-analytics-unique-to-edgecipline">Psychology Analytics (unique to Edgecipline)</h4>
+
+<div class="table-wrap"><table><thead><tr><th>Insight</th><th>What It Shows</th></tr></thead><tbody><tr><td><strong>Mood vs Win Rate</strong></td><td>Correlation: do you win more when calm?</td></tr><tr><td><strong>Confidence vs Outcome</strong></td><td>Is overconfidence causing losses?</td></tr><tr><td><strong>Emotional Tag Impact</strong></td><td>FOMO trades vs Confident trades — P&amp;L difference</td></tr><tr><td><strong>Would You Retake analysis</strong></td><td>Are your instincts calibrated correctly?</td></tr><tr><td><strong>Discipline Score</strong></td><td>% of trades that followed setup rules</td></tr><tr><td><strong>Revenge Trading Detection</strong></td><td>Flags: trade after loss with 1.5× bigger position</td></tr><tr><td><strong>Overtrading Detection</strong></td><td>More trades than usual + declining performance</td></tr><tr><td><strong>Tilt Pattern</strong></td><td>3+ consecutive losses with increasing size</td></tr></tbody></table></div>
+<h4 id="repeated-mistakes-tracker">Repeated Mistakes Tracker</h4>
+
+<ul><li>Lists user's self-tagged mistakes ranked by total P&amp;L cost</li><li>Shows: &quot;Your top mistake cost you $430 this month&quot;</li><li>Visual emphasis: fixing one mistake = more gain than finding a new setup</li></ul>
+<p><strong>User emotion:</strong> Confronting but empowering. Seeing the data forces honesty and creates clear direction.</p>
+<hr />
+<h3 id="pre-trade-checklist-checklist">Pre-Trade Checklist (<code>/checklist</code>)</h3>
+
+<blockquote><strong>The gate between impulse and execution. The discipline enforcer.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Force rule verification before entering any trade</td></tr><tr><td><strong>What user sees</strong></td><td>Setup selector, rules checklist, visual reference images, confidence score, action button</td></tr></tbody></table></div>
+<p><strong>The Checklist Flow:</strong></p>
+<ol><li>Select which trading setup you're considering</li><li>View reference screenshot(s) of ideal setup pattern</li><li>Go through each rule one-by-one (check Yes / Partly / No)</li><li>System calculates confidence score:</li></ol>
+<ul><li><strong>A+ Setup</strong> (≥80% Yes) → &quot;Take Trade&quot; unlocked</li><li><strong>Moderate Setup</strong> (50–79%) → Warning shown, user can override</li><li><strong>Low Confidence</strong> (&lt;50%) → &quot;Skip This Trade&quot; recommended</li></ul>
+<ol><li>User takes or skips trade</li><li>Decision logged for discipline tracking in Analytics</li></ol>
+<p><strong>Rules Examples (user-defined):</strong></p>
+<ul><li>&quot;Price is above 200 EMA&quot;</li><li>&quot;RSI is between 40–60&quot;</li><li>&quot;Session is London or New York&quot;</li><li>&quot;Stop loss placed before entry&quot;</li><li>&quot;Risk is max 1% of account&quot;</li></ul>
+<p><strong>Why This Page Exists:</strong> The #1 cause of bad trades is taking setups that &quot;feel close enough.&quot; This page makes traders confront the gap between their ideal setup and the current one — before money is on the line.</p>
+<p><strong>User emotion:</strong> Grounded, methodical, protected. If they skip a bad trade, they feel the satisfaction of discipline.</p>
+<hr />
+<h3 id="trading-setups-setups">Trading Setups (<code>/setups</code>)</h3>
+
+<blockquote><strong>The strategy library. Where discipline is defined before the market opens.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Define, document, and manage trading strategies</td></tr><tr><td><strong>What user sees</strong></td><td>Setup cards, create/edit setup form</td></tr></tbody></table></div>
+<p><strong>What a Setup Contains:</strong></p>
+<ul><li>Setup name (e.g., &quot;London Breakout&quot;, &quot;Nifty Opening Range&quot;)</li><li>Up to 5 reference screenshots (ideal setup examples)</li><li>Up to 10+ rules (the conditions that must be met)</li><li>Tags or description</li><li>Trade count and P&amp;L linked to this setup (from analytics)</li></ul>
+<p><strong>Why This Page Exists:</strong> Without defined setups, every trade becomes a judgment call. Setups create an objective standard that the checklist enforces and analytics tracks.</p>
+<p><strong>User emotion:</strong> Structured, professional. Users feel like real trading businesses, not gamblers.</p>
+<hr />
+<h3 id="weekly-ai-reports-weekly-reports">Weekly AI Reports (<code>/weekly-reports</code>)</h3>
+
+<blockquote><strong>The Sunday coaching session. Honest, specific, actionable.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>AI-generated weekly performance review with coaching insights</td></tr><tr><td><strong>What user sees</strong></td><td>Report cards organized by week, each containing structured AI analysis</td></tr></tbody></table></div>
+<p><strong>Report Sections:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Section</th><th>Content</th></tr></thead><tbody><tr><td><strong>Week Summary</strong></td><td>Total trades, win rate, net P&amp;L for the week</td></tr><tr><td><strong>Top Mistakes</strong></td><td>AI-identified behavioral errors ranked by P&amp;L cost</td></tr><tr><td><strong>Discipline Score</strong></td><td>% of trades taken with checklist confirmation</td></tr><tr><td><strong>Psychology Trend</strong></td><td>Mood and emotional pattern for the week</td></tr><tr><td><strong>Focus Areas</strong></td><td>Specific behaviors to address next week</td></tr><tr><td><strong>Next Week Checklist</strong></td><td>3–5 specific action items generated by AI</td></tr><tr><td><strong>Positive Patterns</strong></td><td>What worked well (reinforce good behavior)</td></tr></tbody></table></div>
+<p><strong>Sample AI Coaching Output:</strong></p>
+<blockquote><em>&quot;This week your biggest loss came from 3 revenge trades on Tuesday after a morning loss of ₹4,200. Each revenge trade was 2× your normal position size. Consider implementing a hard stop: no trading for 2 hours after hitting your daily loss limit.&quot;</em></blockquote>
+<p><strong>Why This Page Exists:</strong> Daily data alone doesn't build improvement. Weekly pattern analysis, delivered by an AI coach that has seen every trade, creates the reflection loop that drives behavioral change.</p>
+<p><strong>User emotion:</strong> Accountable, coached, motivated. Like having a mentor who studied your entire week and gave you honest feedback.</p>
+<hr />
+<h3 id="notifications-notifications">Notifications (<code>/notifications</code>)</h3>
+
+<blockquote><strong>The behavioral alert center. Where the AI coach speaks.</strong></blockquote>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Central hub for all alerts, coaching messages, and insights</td></tr><tr><td><strong>What user sees</strong></td><td>Notification cards with color-coded badges, unread indicators, timestamps</td></tr></tbody></table></div>
+<p><strong>Notification Types:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Description</th><th>Trigger</th></tr></thead><tbody><tr><td><strong>Morning Mentor</strong></td><td>Daily behavioral coaching message</td><td>Every trading morning</td></tr><tr><td><strong>Revenge Trading Alert</strong></td><td>&quot;You're at risk of revenge trading&quot;</td><td>After a significant loss</td></tr><tr><td><strong>Overtrading Warning</strong></td><td>&quot;You've taken 40% more trades than usual&quot;</td><td>High-frequency day</td></tr><tr><td><strong>No Stop-Loss Alert</strong></td><td>&quot;Last 2 trades had no stop loss set&quot;</td><td>Missing risk management</td></tr><tr><td><strong>Daily Loss Limit</strong></td><td>&quot;You've hit 3% drawdown today&quot;</td><td>Risk threshold breach</td></tr><tr><td><strong>Discipline Signal</strong></td><td>&quot;Well done — 5 consecutive rule-following trades&quot;</td><td>Positive reinforcement</td></tr><tr><td><strong>Setup Reminder</strong></td><td>&quot;You haven't used your checklist in 3 days&quot;</td><td>Engagement nudge</td></tr><tr><td><strong>Weekly Report Ready</strong></td><td>&quot;Your weekly report is available&quot;</td><td>Sunday report generation</td></tr><tr><td><strong>Mood Risk Warning</strong></td><td>&quot;Your last 3 trades were taken at Stress Level 1&quot;</td><td>Low-mood trading pattern</td></tr></tbody></table></div>
+<p><strong>Notification UX:</strong></p>
+<ul><li>Dark mode cards with color-coded priority badges</li><li>Unread indicators (dot badges)</li><li>Deep links to relevant page (tapping &quot;Revenge Alert&quot; → opens analytics)</li><li>Mark all as read option</li></ul>
+<p><strong>Why This Page Exists:</strong> The journal is where users record the past. Notifications are where the app speaks in real-time — the behavioral guardrail that fires before damage is done.</p>
+<hr />
+<h3 id="morning-mentor-notifications">Morning Mentor Notifications</h3>
+
+<blockquote><strong>The most powerful engagement feature. Daily behavioral coaching delivered to your phone.</strong></blockquote>
+<p>The Morning Mentor is an AI-driven notification system that analyzes recent trading behavior and sends a <strong>personalized coaching message every trading morning</strong> before markets open.</p>
+<p><strong>Behavioral Scenarios Tracked:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Alert Type</th><th>Message Focus</th></tr></thead><tbody><tr><td>Revenge trading pattern</td><td>Warning</td><td>&quot;Yesterday's loss led to 2 oversized trades&quot;</td></tr><tr><td>No stop-loss trades</td><td>Risk</td><td>&quot;2 recent trades had no stop loss defined&quot;</td></tr><tr><td>Overtrading detected</td><td>Warning</td><td>&quot;You're averaging 40% more trades this week&quot;</td></tr><tr><td>Emotional trading (FOMO/Fear tags)</td><td>Psychology</td><td>&quot;3 trades tagged FOMO this week — watch for it&quot;</td></tr><tr><td>Low setup discipline</td><td>Discipline</td><td>&quot;Only 50% of trades used your checklist&quot;</td></tr><tr><td>Loss-heavy day</td><td>Support</td><td>&quot;Yesterday was tough. Reset your risk for today.&quot;</td></tr><tr><td>Disciplined win day</td><td>Positive</td><td>&quot;Yesterday you followed all rules and won. Do it again.&quot;</td></tr><tr><td>Profitable streak</td><td>Reinforcement</td><td>&quot;4-day winning streak — stay disciplined, don't oversize&quot;</td></tr><tr><td>Weekend reset</td><td>Preparation</td><td>&quot;Markets open Monday. Review your setups tonight.&quot;</td></tr></tbody></table></div>
+<p><strong>Push Notification Flow:</strong></p>
+<ol><li>System evaluates past 24–72h of trading behavior every morning</li><li>Selects highest-priority behavioral scenario</li><li>Generates personalized message referencing actual trade data</li><li>Delivers via Android push notification</li><li>Tapping notification → opens Notifications page with full message</li></ol>
+<hr />
+<h3 id="profile-profile">Profile (<code>/profile</code>)</h3>
+
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Account management, subscription status, quick navigation</td></tr><tr><td><strong>What user sees</strong></td><td>Profile info, subscription tier/expiry, quick action buttons</td></tr></tbody></table></div>
+<p><strong>Profile Information:</strong></p>
+<ul><li>Display name &amp; email</li><li>Authentication method (Email or Google)</li><li>Member since date</li><li>Last login</li><li>Subscription tier (Free / Monthly Pro / Annual Pro)</li><li>Subscription expiry date</li></ul>
+<p><strong>Quick Actions:</strong></p>
+<ul><li>Go to Analytics</li><li>Upload Trade</li><li>Weekly Reports</li><li>Indian Market</li></ul>
+<p><strong>Subscription Tiers:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Free</th><th>Monthly Pro</th><th>Annual Pro</th></tr></thead><tbody><tr><td>Trade Journal</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>Basic Analytics</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>Add Trade (Manual)</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>AI Screenshot Extraction</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Full Analytics (60+ metrics)</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Weekly AI Reports</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Morning Mentor Notifications</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Psychology Analytics</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Setup Score Tracking</td><td>—</td><td>✓</td><td>✓</td></tr><tr><td>Advanced Psychology Insights</td><td>—</td><td>—</td><td>✓</td></tr><tr><td>Priority Support</td><td>—</td><td>—</td><td>✓</td></tr></tbody></table></div>
+<hr />
+<h3 id="support-support">Support (<code>/support</code>)</h3>
+
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Purpose</strong></td><td>Help center and feedback channel</td></tr><tr><td><strong>What user sees</strong></td><td>FAQ, contact options, feedback form</td></tr><tr><td><strong>Why it exists</strong></td><td>Reduce churn by solving problems quickly; gather product feedback</td></tr></tbody></table></div>
+<hr />
+<h3 id="indian-market-full-feature-parity">Indian Market — Full Feature Parity</h3>
+
+<p>The Indian Market section is a <strong>complete parallel universe</strong> within the app — every Forex feature exists for Indian markets with market-appropriate adaptations:</p>
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Indian Market Adaptation</th></tr></thead><tbody><tr><td>Add Trade</td><td>Segment (Equity/F&amp;O/Commodity), Trade Type (Intraday/Delivery/BTST), Instrument (Equity/Future/Option), Strike &amp; Expiry</td></tr><tr><td>Analytics</td><td>₹ currency, lot-size aware calculations, F&amp;O specific metrics</td></tr><tr><td>Dashboard</td><td>NSE/BSE context, F&amp;O P&amp;L</td></tr><tr><td>AI Extraction</td><td>Trained on Zerodha, Groww, Upstox, Angel One, IIFL screenshots</td></tr><tr><td>Morning Mentor</td><td>Indian trading session-aware (9:15 AM IST)</td></tr></tbody></table></div>
+<p><strong>Market Switcher:</strong> A prominent toggle in the header lets users switch between Forex and Indian Market seamlessly, preserving context.</p>
+<hr />
+<h2 class="section-title page-break" id="5-user-journeys">5. User Journeys</h2>
+
+      <div class="visual journey-strip">
+        <div class="visual-title">Retention Arc</div>
+        <div class="milestones">
+          <div><b>Day 1</b><small>First trade logged</small></div>
+          <div><b>Day 7</b><small>First weekly report</small></div>
+          <div><b>Day 30</b><small>Behavior pattern visible</small></div>
+          <div><b>Day 90</b><small>Annual habit formed</small></div>
+        </div>
+      </div>
+<h3 id="beginner-user-journey">Beginner User Journey</h3>
+
+<pre><code>Week 1:  Sign up → Log first 3 trades manually → Explore dashboard
+Week 2:  Create first setup → Use checklist → Feel what discipline feels like
+Week 3:  Receive first weekly report → Identify first mistake pattern
+Week 4:  Morning mentor alerts start → Begin building pre-market routine
+Month 2: Analytics shows mood-performance correlation → Behavior starts shifting
+Month 3: Discipline score improves → Win rate improves → User tells a friend</code></pre>
+<p><strong>Key emotions:</strong> Curiosity → Structure → Awareness → Improvement → Loyalty</p>
+<hr />
+<h3 id="returning-daily-user-journey">Returning Daily User Journey</h3>
+
+<pre><code>6:30 AM → Morning mentor notification arrives (check phone)
+         → Open notification: &quot;Yesterday you revenge traded after a loss. Start fresh today.&quot;
+         → Tap through to full message → feel accountability
+8:30 AM → Open app → check Dashboard KPIs
+         → Review equity curve → note where we are
+9:00 AM → Pre-trade checklist before first trade
+         → Setup: London Breakout → Rules check: A+ → Take trade
+10:15 AM → Trade exits → Open Add Trade → Log details + mood (Confident) + tag (Disciplined)
+12:00 PM → Second trade opportunity → Checklist again → Low confidence → Skip trade
+5:00 PM → Review Journal → reflect on day
+Sunday  → Weekly AI Report notification → open report → plan next week</code></pre>
+<p><strong>Retention driver:</strong> The app is woven into the trader's routine at 4–5 natural touch points per day.</p>
+<hr />
+<h3 id="power-user-journey">Power User Journey</h3>
+
+<pre><code>· Creates 5+ setups with full rules and reference images
+· Uses checklist religiously — only A+ trades
+· Uploads screenshots for instant logging (saves 3 min/trade)
+· Checks psychology analytics weekly to spot behavioral drift
+· Uses weekly reports to set measurable improvement goals
+· Compares Forex and Indian Market performance side-by-side
+· Reviews repeated mistakes panel monthly — fixes one mistake at a time
+· Discipline score consistently above 85%
+· Win rate improving quarter-over-quarter</code></pre>
+<p><strong>Power user identity:</strong> They don't just use the app — they consider it their competitive advantage.</p>
+<hr />
+<h3 id="daily-habit-flow">Daily Habit Flow</h3>
+
+<p>The app is designed to create a <strong>triple-touch daily habit:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Touch</th><th>Timing</th><th>Feature</th><th>Duration</th></tr></thead><tbody><tr><td><strong>Morning</strong></td><td>Pre-market</td><td>Morning Mentor notification + Checklist</td><td>3–5 min</td></tr><tr><td><strong>During Session</strong></td><td>After each trade</td><td>Add Trade (manual or upload)</td><td>1–2 min per trade</td></tr><tr><td><strong>Evening</strong></td><td>Post-session</td><td>Journal review + Dashboard KPIs</td><td>5–10 min</td></tr></tbody></table></div>
+<p>Weekly:</p>
+<ul><li><strong>Sunday:</strong> Weekly AI Report → planning session → setup review</li></ul>
+<hr />
+<h3 id="retention-flow">Retention Flow</h3>
+
+<pre><code>Day 1–3:   New user excitement → logging trades, exploring analytics
+Day 7:     First weekly report → &quot;Wow, the AI identified exactly what I was doing wrong&quot;
+Day 14:    Morning mentor becomes expected → habit formed
+Day 30:    Analytics shows real improvement → emotional investment in data
+Day 60:    Discipline score visibly improved → user has proof of growth
+Day 90:    User upgrades to Annual Pro → becomes long-term retained user
+Day 180:   User shares app with trading community → organic referral</code></pre>
+<hr />
+<h2 class="section-title page-break" id="6-features-benefits">6. Features &amp; Benefits</h2>
+
+      <div class="visual feature-wheel">
+        <div class="visual-title">Feature Engine</div>
+        <div class="wheel">
+          <div>Trade Data</div><div>Psychology</div><div>Risk</div><div>Setups</div><div>Reports</div><div>Alerts</div>
+        </div>
+      </div>
+<h3 id="main-features">Main Features</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody><tr><td><strong>Smart Trade Journal</strong></td><td>Manual + AI screenshot logging with full psychology tagging</td></tr><tr><td><strong>60+ Analytics Metrics</strong></td><td>Performance, psychology, setup, time, and behavioral analysis</td></tr><tr><td><strong>Pre-Trade Checklist</strong></td><td>Rule-by-rule verification with confidence scoring before entry</td></tr><tr><td><strong>Trading Setup Builder</strong></td><td>Create named strategies with rules, images, and performance tracking</td></tr><tr><td><strong>Morning Mentor</strong></td><td>Daily AI behavioral coaching push notification</td></tr><tr><td><strong>Weekly AI Reports</strong></td><td>Sunday coaching reports with ranked mistakes and action items</td></tr><tr><td><strong>Psychology Tracking</strong></td><td>Mood, confidence, emotional tags linked directly to P&amp;L</td></tr><tr><td><strong>Indian Market Support</strong></td><td>Full F&amp;O/Equity/Intraday support with ₹ analytics</td></tr><tr><td><strong>AI Screenshot Extraction</strong></td><td>Auto-fill trade details from broker screenshots</td></tr><tr><td><strong>Equity Curve &amp; Drawdown</strong></td><td>Visual account growth with drawdown visualization</td></tr><tr><td><strong>Revenge Trading Detection</strong></td><td>Automatic behavioral flags for dangerous trading patterns</td></tr><tr><td><strong>Repeated Mistakes Tracker</strong></td><td>Ranks costly mistakes to prioritize improvement</td></tr></tbody></table></div>
+<hr />
+<h3 id="user-benefits">User Benefits</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Benefit</th><th>Impact</th></tr></thead><tbody><tr><td><strong>Clarity</strong></td><td>Know exactly which setups, times, and emotional states make money</td></tr><tr><td><strong>Discipline</strong></td><td>Checklist prevents emotional entries before they happen</td></tr><tr><td><strong>Accountability</strong></td><td>Morning mentor and weekly reports hold you to your own rules</td></tr><tr><td><strong>Speed</strong></td><td>AI extraction means logging takes seconds, not minutes</td></tr><tr><td><strong>Insight</strong></td><td>Psychology analytics reveal patterns invisible in any spreadsheet</td></tr><tr><td><strong>Confidence</strong></td><td>Discipline score and streak tracking build genuine confidence</td></tr><tr><td><strong>Safety</strong></td><td>No-stop-loss and overtrading alerts protect the account</td></tr></tbody></table></div>
+<hr />
+<h3 id="psychological-benefits">Psychological Benefits</h3>
+
+<ul><li><strong>Reduces emotional trading</strong> by making emotions data, not just feelings</li><li><strong>Builds trading identity</strong> — users start thinking of themselves as disciplined traders</li><li><strong>Creates positive feedback loops</strong> — discipline → better results → more discipline</li><li><strong>Reduces post-loss spiral</strong> — morning mentor resets mindset before the next session</li><li><strong>Eliminates shame</strong> — replacing self-judgment with data-driven understanding</li></ul>
+<hr />
+<h3 id="habit-building-advantages">Habit-Building Advantages</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Trigger</th><th>Routine</th><th>Reward</th></tr></thead><tbody><tr><td>Morning notification</td><td>Open app, read mentor</td><td>Feel prepared and accountable</td></tr><tr><td>Trade exits</td><td>Log trade with emotions</td><td>Data feels complete, habit satisfied</td></tr><tr><td>End of day</td><td>Review journal</td><td>Sense of closure, reflection done</td></tr><tr><td>Sunday</td><td>Read weekly report</td><td>Insight, improvement direction</td></tr></tbody></table></div>
+<p>Edgecipline is designed using <strong>habit loop psychology</strong> — every feature creates a trigger, routine, and reward.</p>
+<hr />
+<h3 id="competitive-advantages">Competitive Advantages</h3>
+
+<div class="table-wrap"><table><thead><tr><th>vs Competitors</th><th>Edgecipline Advantage</th></tr></thead><tbody><tr><td><strong>vs Tradervue</strong></td><td>Psychology tracking, AI coaching, Indian market, mobile-first</td></tr><tr><td><strong>vs Edgewonk</strong></td><td>Mobile app, AI extraction, morning mentor, push notifications</td></tr><tr><td><strong>vs TraderSync</strong></td><td>Psychology depth, Indian market, AI report coaching, behavioral detection</td></tr><tr><td><strong>vs Spreadsheets</strong></td><td>Zero friction, automated analysis, AI insights, behavioral alerts</td></tr><tr><td><strong>vs Nothing</strong></td><td>Accountability system that actually changes trading behavior</td></tr></tbody></table></div>
+<hr />
+<h2 class="section-title page-break" id="7-product-value">7. Product Value</h2>
+
+<h3 id="why-users-would-love-this-app">Why Users Would Love This App</h3>
+
+<ol><li><strong>It tells the truth</strong> — no vanity metrics, no feel-good dashboards. It shows exactly what's wrong and what it costs.</li><li><strong>It feels like a coach</strong> — the morning mentor and weekly reports have personality, specificity, and genuine insight</li><li><strong>It removes friction</strong> — AI extraction, one-tap logging, instant KPIs</li><li><strong>It meets traders where they are</strong> — both Forex and Indian market traders have a home</li><li><strong>It builds pride</strong> — a rising discipline score and equity curve create emotional ownership</li></ol>
+<hr />
+<h3 id="why-users-would-continue-using-it">Why Users Would Continue Using It</h3>
+
+<ul><li><strong>Data lock-in:</strong> All trade history, setups, and analytics live here — leaving means losing the record</li><li><strong>Habit integration:</strong> Morning mentor is woven into the pre-market routine</li><li><strong>Progress visibility:</strong> Discipline score and streak tracking make improvement visible and motivating</li><li><strong>Weekly rhythm:</strong> Sunday AI reports create a weekly appointment with the app</li><li><strong>Identity shift:</strong> Users start identifying as &quot;disciplined traders&quot; — the app becomes part of that identity</li></ul>
+<hr />
+<h3 id="what-makes-it-unique">What Makes It Unique</h3>
+
+<blockquote><strong>No other trading journal connects psychology directly to performance metrics and then coaches you about it every single morning.</strong></blockquote>
+<p>The three-layer combination — Journal + Psychology + AI Coach — has never been done in a single mobile product at this depth.</p>
+<hr />
+<h3 id="why-it-can-succeed-as-a-startup-saas">Why It Can Succeed as a Startup/SaaS</h3>
+
+<ul><li><strong>Massive TAM:</strong> 50M+ Indian F&amp;O traders, 20M+ global retail Forex traders</li><li><strong>High pain point:</strong> Emotional trading is the #1 reason traders lose money — it's deeply felt</li><li><strong>Recurring behavior:</strong> Trading is a daily activity — daily habit = daily DAU</li><li><strong>Network effects possible:</strong> Leaderboard of discipline scores, community features</li><li><strong>AI moat:</strong> Morning mentor personalization and weekly report quality improve with data</li><li><strong>Subscription model fit:</strong> Traders are accustomed to paying for tools and education</li></ul>
+<hr />
+<h2 class="section-title page-break" id="8-ux-engagement-strategy">8. UX &amp; Engagement Strategy</h2>
+
+<h3 id="user-engagement-architecture">User Engagement Architecture</h3>
+
+<p>Edgecipline engages users at <strong>every level of the habit stack:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Mechanism</th><th>Frequency</th></tr></thead><tbody><tr><td>External trigger</td><td>Morning push notification</td><td>Daily</td></tr><tr><td>Internal trigger</td><td>Curiosity about their metrics</td><td>Continuous</td></tr><tr><td>Variable reward</td><td>AI insight discovery</td><td>Weekly</td></tr><tr><td>Investment</td><td>Trade history data grows</td><td>Cumulative</td></tr></tbody></table></div>
+<hr />
+<h3 id="gamification-elements">Gamification Elements</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Element</th><th>Mechanic</th><th>Effect</th></tr></thead><tbody><tr><td><strong>Discipline Score</strong></td><td>% of trades with checklist</td><td>Motivates rule-following</td></tr><tr><td><strong>Win Streak Counter</strong></td><td>Consecutive profitable trades</td><td>Creates streak protection mindset</td></tr><tr><td><strong>Setup Confidence Grade</strong></td><td>A+ / Moderate / Low</td><td>Gamifies setup quality</td></tr><tr><td><strong>Mood Emoji Scale</strong></td><td>1–5 emoji progression</td><td>Makes emotional tracking playful</td></tr><tr><td><strong>Repeated Mistakes Rank</strong></td><td>Cost-ranked mistake list</td><td>Creates &quot;fix the #1&quot; goal</td></tr><tr><td><strong>Equity Curve</strong></td><td>Visual growth line</td><td>Makes progress tangible and visual</td></tr><tr><td><strong>Weekly Report Delivery</strong></td><td>Sunday &quot;reward&quot;</td><td>Creates anticipation and ritual</td></tr></tbody></table></div>
+<hr />
+<h3 id="notification-reminder-strategy">Notification &amp; Reminder Strategy</h3>
+
+<p><strong>Morning Mentor (Primary Engagement Driver):</strong></p>
+<ul><li>Personalized — references actual trades, actual mistakes</li><li>Timely — arrives before market open</li><li>Actionable — specific behavioral guidance</li><li>Positive and negative — reinforces wins, warns about risks</li></ul>
+<p><strong>Secondary Notifications:</strong></p>
+<ul><li>Unread badge on notification icon creates FOMO on insights</li><li>Weekly report arrival is an event, not a notification</li><li>In-app empty states (first trade, first setup) guide users to next action</li></ul>
+<hr />
+<h3 id="emotional-connection-with-users">Emotional Connection with Users</h3>
+
+<p>Edgecipline builds emotional connection through <strong>radical honesty with kindness:</strong></p>
+<ul><li>It never shames. It presents data.</li><li>It celebrates discipline even when trades lose money.</li><li>It reminds users that bad days are patterns, not destiny.</li><li>The morning mentor speaks like a respected mentor, not a system message.</li><li>Weekly reports highlight positives alongside areas for improvement.</li></ul>
+<p><strong>Brand personality:</strong> Disciplined, honest, supportive, data-driven, psychologically aware.</p>
+<hr />
+<h3 id="retention-ideas">Retention Ideas</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Idea</th><th>Mechanism</th></tr></thead><tbody><tr><td><strong>30-Day Discipline Challenge</strong></td><td>Streak of checklist-confirmed trades with badge reward</td></tr><tr><td><strong>Monthly Improvement Badge</strong></td><td>Discipline score improved vs prior month</td></tr><tr><td><strong>Setup Performance Awards</strong></td><td>&quot;Your London Breakout setup has 78% win rate&quot;</td></tr><tr><td><strong>Milestone celebrations</strong></td><td>100 trades logged, 6-month member, first profitable month</td></tr><tr><td><strong>Insight of the Week</strong></td><td>One personalized analytical insight surfaced on Dashboard</td></tr><tr><td><strong>Trading Streak</strong></td><td>Days in a row logging trades (builds consistency habit)</td></tr></tbody></table></div>
+<hr />
+<h2 class="section-title page-break" id="9-business-growth-perspective">9. Business &amp; Growth Perspective</h2>
+
+      <div class="visual revenue-bars">
+        <div class="visual-title">SaaS Growth Model</div>
+        <div class="bar"><label>Free</label><span style="width:34%"></span><b>Trial + habit</b></div>
+        <div class="bar"><label>Monthly Pro</label><span style="width:64%"></span><b>Active traders</b></div>
+        <div class="bar"><label>Annual Pro</label><span style="width:88%"></span><b>Serious users</b></div>
+      </div>
+<h3 id="monetization-model">Monetization Model</h3>
+
+<h4 id="primary-saas-subscription-b2c">Primary: SaaS Subscription (B2C)</h4>
+
+<div class="table-wrap"><table><thead><tr><th>Plan</th><th>Price (Suggested)</th><th>Target User</th></tr></thead><tbody><tr><td><strong>Free</strong></td><td>₹0 / $0</td><td>Trial, casual traders</td></tr><tr><td><strong>Monthly Pro</strong></td><td>₹499/mo / $9.99/mo</td><td>Active traders, testing the product</td></tr><tr><td><strong>Annual Pro</strong></td><td>₹3,999/yr / $79/yr</td><td>Serious traders, committed improvers</td></tr></tbody></table></div>
+<p><strong>Free → Paid Conversion Triggers:</strong></p>
+<ul><li>Free user hits analytics paywall after 30 trades</li><li>Free user can't access AI extraction</li><li>Free user sees &quot;Weekly Report&quot; in nav but can't open it (teaser locked state)</li><li>Morning mentor is a Pro feature (free users miss the most powerful feature)</li></ul>
+<hr />
+<h4 id="secondary-revenue-streams">Secondary Revenue Streams</h4>
+
+<div class="table-wrap"><table><thead><tr><th>Stream</th><th>Description</th></tr></thead><tbody><tr><td><strong>Prop Firm Partnerships</strong></td><td>Co-brand with prop firms; they give new traders an Edgecipline Pro subscription</td></tr><tr><td><strong>Trading Course Integrations</strong></td><td>Trading educators use Edgecipline as the accountability tool for students</td></tr><tr><td><strong>Trading Community Licenses</strong></td><td>Discord communities or Telegram groups license Edgecipline for their members</td></tr><tr><td><strong>White Label</strong></td><td>Broker-branded version of the journal for their retail clients</td></tr><tr><td><strong>Data Insights (Anonymized)</strong></td><td>Aggregate behavioral patterns sold to institutional researchers</td></tr></tbody></table></div>
+<hr />
+<h3 id="marketing-strategy">Marketing Strategy</h3>
+
+<h4 id="organic-content-marketing">Organic / Content Marketing</h4>
+
+<ul><li><strong>YouTube channel:</strong> &quot;What your trading data reveals about you&quot; — analytics walkthroughs</li><li><strong>Twitter/X:</strong> Daily discipline tips, morning mentor sample messages, P&amp;L transparency threads</li><li><strong>Reddit (r/Forex, r/IndianStreetBets, r/DayTrading):</strong> Genuine value posts, community building</li><li><strong>Trading Discord servers:</strong> Sponsor or partner with large trading communities</li></ul>
+<h4 id="performance-marketing">Performance Marketing</h4>
+
+<ul><li><strong>YouTube ads</strong> targeting &quot;trading journal&quot;, &quot;how to stop revenge trading&quot;, &quot;trading psychology&quot;</li><li><strong>Google Search ads</strong> for &quot;best trading journal app&quot;, &quot;trading analytics app&quot;</li><li><strong>Instagram/Meta</strong> targeting users following trading pages</li></ul>
+<h4 id="referral-mechanics">Referral Mechanics</h4>
+
+<ul><li>&quot;Share your discipline score&quot; → shareable card with QR code</li><li>Refer a friend → both get 1 month Pro free</li><li>Trading community license → admin gets Pro free for managing X active users</li></ul>
+<h4 id="influencer-creator-strategy">Influencer / Creator Strategy</h4>
+
+<ul><li>Partner with Indian trading YouTubers (Finance with Sharan, CA Rachana, etc.)</li><li>Affiliate commissions for trading educators who recommend to students</li><li>&quot;Pro trader case studies&quot; — real traders sharing before/after data</li></ul>
+<hr />
+<h3 id="branding-ideas">Branding Ideas</h3>
+
+<p><strong>Name:</strong> Edgecipline (Edge + Discipline) — memorable, domain-ownable, mission-aligned <strong>Tagline options:</strong></p>
+<ul><li><em>&quot;Trade with discipline. Win with data.&quot;</em></li><li><em>&quot;Your AI coach for consistent trading.&quot;</em></li><li><em>&quot;The journal that coaches back.&quot;</em></li><li><em>&quot;Know yourself. Trade yourself.&quot;</em></li></ul>
+<p><strong>Color palette:</strong> Dark navy/charcoal primary (professional, trustworthy), electric green accents (growth, profit), red for warnings (immediate attention)</p>
+<p><strong>Brand voice:</strong> Like a respected trading mentor — direct, no-nonsense, supportive, data-driven. Not a cheerleader. Not a robot. A coach.</p>
+<hr />
+<h3 id="community-building">Community Building</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Initiative</th><th>Description</th></tr></thead><tbody><tr><td><strong>Discipline Leaderboard</strong></td><td>Weekly public leaderboard of discipline scores (opt-in)</td></tr><tr><td><strong>Setup Library</strong></td><td>Community-shared setups with crowd-sourced performance ratings</td></tr><tr><td><strong>Weekly Challenge</strong></td><td>&quot;This week's challenge: No trades below 70% checklist score&quot;</td></tr><tr><td><strong>Mentor Pairing</strong></td><td>Connect experienced users with newer ones based on similar trading styles</td></tr><tr><td><strong>Live Group Reports</strong></td><td>Trading communities share anonymized group performance data</td></tr></tbody></table></div>
+<hr />
+<h2 class="section-title page-break" id="10-future-vision">10. Future Vision</h2>
+
+      <div class="visual roadmap">
+        <div class="visual-title">Roadmap Horizon</div>
+        <div><strong>6-12 months</strong><p>iOS, broker import, risk calculator, replay.</p></div>
+        <div><strong>12-24 months</strong><p>AI quality scoring, live alerts, team dashboards.</p></div>
+        <div><strong>24-48 months</strong><p>Conversational coach and global retail trader OS.</p></div>
+      </div>
+<h3 id="near-term-roadmap-6-12-months">Near-Term Roadmap (6–12 months)</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Impact</th></tr></thead><tbody><tr><td><strong>iOS App</strong> (Capacitor)</td><td>Doubles addressable market</td></tr><tr><td><strong>Broker API Integration</strong></td><td>Auto-import trades from supported brokers (Zerodha, MT4, Interactive Brokers)</td></tr><tr><td><strong>Risk Calculator</strong></td><td>Built-in position sizing tool before entering the checklist</td></tr><tr><td><strong>Trade Replay</strong></td><td>Replay how a trade developed on a price chart</td></tr><tr><td><strong>Custom Analytics Builder</strong></td><td>Drag-and-drop your own metrics dashboard</td></tr><tr><td><strong>Multi-Account Support</strong></td><td>Track multiple brokerage accounts separately</td></tr><tr><td><strong>Goals &amp; Milestones</strong></td><td>Set monthly P&amp;L, win rate, or discipline goals with progress tracking</td></tr></tbody></table></div>
+<hr />
+<h3 id="medium-term-vision-12-24-months">Medium-Term Vision (12–24 months)</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Impact</th></tr></thead><tbody><tr><td><strong>AI Trade Quality Scorer</strong></td><td>AI reviews each trade entry and rates quality (1–10) with reasoning</td></tr><tr><td><strong>Broker Direct Integration</strong></td><td>Zerodha API, Dhan API, MT5 API for real-time auto-import</td></tr><tr><td><strong>Live Market Alerts</strong></td><td>&quot;Your London Breakout setup is forming right now&quot; (real-time market scanning)</td></tr><tr><td><strong>Social Trading Journal</strong></td><td>Share selected trades publicly; follow other traders</td></tr><tr><td><strong>Team / Prop Firm Dashboard</strong></td><td>Admin view for prop firm managers to monitor trader discipline</td></tr><tr><td><strong>Edgecipline Academy</strong></td><td>Curated psychology courses embedded within the app</td></tr><tr><td><strong>AI Backtesting</strong></td><td>Submit a setup's rules → AI backtests against historical data</td></tr></tbody></table></div>
+<hr />
+<h3 id="long-term-vision-24-48-months">Long-Term Vision (24–48 months)</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Vision</th><th>Description</th></tr></thead><tbody><tr><td><strong>The Bloomberg Terminal for Retail Traders</strong></td><td>The definitive platform for serious retail trading — analytics + coaching + community</td></tr><tr><td><strong>Institutional Grade Psychology Data</strong></td><td>The largest dataset of trading psychology vs performance correlations ever assembled</td></tr><tr><td><strong>AI Trading Coach (Conversational)</strong></td><td>Chat-based AI coach that knows your full trade history and answers questions like a human mentor</td></tr><tr><td><strong>Global Expansion</strong></td><td>Localized for US (TD Ameritrade, ThinkorSwim), UK, EU, SEA markets</td></tr><tr><td><strong>Prop Firm OS</strong></td><td>The operating system for prop trading firms — evaluation tracking, rule enforcement, trader development</td></tr></tbody></table></div>
+<hr />
+<h3 id="ai-opportunities">AI Opportunities</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Opportunity</th><th>Description</th></tr></thead><tbody><tr><td><strong>Predictive Behavioral Alerts</strong></td><td>&quot;Based on your pattern, you're 73% likely to revenge trade today&quot;</td></tr><tr><td><strong>Setup Discovery</strong></td><td>AI analyzes trade history and suggests new setups based on your winning patterns</td></tr><tr><td><strong>Personalized Risk Rules</strong></td><td>AI recommends position sizing rules based on your drawdown history</td></tr><tr><td><strong>Emotional State Prediction</strong></td><td>Before a session, AI asks 3 questions → predicts trading readiness score</td></tr><tr><td><strong>Market Context Awareness</strong></td><td>AI adjusts coaching based on current market volatility (VIX, India VIX)</td></tr><tr><td><strong>Voice Trade Logging</strong></td><td>Speak your trade details → AI transcribes and logs</td></tr></tbody></table></div>
+<hr />
+<h3 id="scaling-possibilities">Scaling Possibilities</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Scale Vector</th><th>Path</th></tr></thead><tbody><tr><td><strong>Geographic</strong></td><td>India → SEA → Middle East → Global</td></tr><tr><td><strong>Market</strong></td><td>Forex + Indian → US Stocks → Crypto → Commodities</td></tr><tr><td><strong>User Segment</strong></td><td>Retail → Prop Firms → Hedge Fund Compliance</td></tr><tr><td><strong>Platform</strong></td><td>Mobile → Web → Desktop → TradingView Plugin</td></tr><tr><td><strong>Revenue</strong></td><td>Subscription → Marketplace → Data → White Label</td></tr></tbody></table></div>
+<hr />
+<h2 class="section-title page-break" id="11-final-product-summary">11. Final Product Summary</h2>
+
+<h3 id="complete-end-to-end-product-flow">Complete End-to-End Product Flow</h3>
+
+<pre><code>TRADER OPENS APP
+        │
+        ├── Morning: Reads AI mentor alert → enters market psychologically prepared
+        │
+        ├── Pre-Trade: Runs checklist → only takes A+ setups
+        │
+        ├── During Trade: AI extraction logs trade in 10 seconds
+        │
+        ├── Post-Trade: Adds mood tag and emotional state
+        │
+        ├── Evening: Reviews dashboard KPIs and equity curve
+        │
+        └── Sunday: Reads weekly AI coaching report → adjusts behavior
+
+MONTH OVER MONTH:
+        Discipline score rises → Win rate improves → Drawdown shrinks
+        → Account grows → Trader becomes consistently profitable
+        → Trader is loyal, tells other traders → Platform grows</code></pre>
+<hr />
+<h3 id="overall-app-experience">Overall App Experience</h3>
+
+<p>Edgecipline feels like <strong>having a world-class trading mentor inside your phone</strong> — one who watched every trade you made, knows every mistake you repeated, celebrates your discipline, and warns you before you make costly emotional decisions.</p>
+<p>It is simultaneously:</p>
+<ul><li>A <strong>productivity tool</strong> (frictionless logging, instant analytics)</li><li>A <strong>coaching platform</strong> (morning mentor, weekly reports)</li><li>A <strong>behavioral accountability system</strong> (checklist, psychology tracking)</li><li>A <strong>performance analytics engine</strong> (60+ metrics, psychological correlations)</li></ul>
+<p>The design philosophy: <strong>every feature serves one mission — helping traders follow their own rules consistently.</strong></p>
+<hr />
+<h3 id="overall-user-value">Overall User Value</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Before Edgecipline</th><th>After Edgecipline</th></tr></thead><tbody><tr><td>Vague sense of what went wrong</td><td>Exact data on what went wrong and why</td></tr><tr><td>Emotional reactions to losses</td><td>Data-driven understanding of patterns</td></tr><tr><td>Breaking rules without realizing</td><td>Morning alerts warn before the market opens</td></tr><tr><td>Unknown which setups work</td><td>Setup performance ranked by P&amp;L</td></tr><tr><td>Weekly losses from repeated mistakes</td><td>Mistakes ranked and systematically eliminated</td></tr><tr><td>No accountability</td><td>AI coach reviews every week</td></tr><tr><td>Trading journal as chore</td><td>Trading journal as competitive advantage</td></tr></tbody></table></div>
+<hr />
+<h3 id="why-this-app-matters">Why This App Matters</h3>
+
+<blockquote>The trading world gives retail traders every disadvantage: no coach, no accountability, no systematic review, and no behavioral awareness tools. Institutional traders have risk managers, performance coaches, and trading desks. Retail traders have nothing.  <strong>Edgecipline is the retail trader's institutional advantage.</strong></blockquote>
+<p>It closes the gap between knowing what to do and actually doing it — consistently, day after day, trade after trade.</p>
+<p>That gap is where retail traders lose money. And closing it is worth building a company around.</p>
+<hr />
+<hr />
+<h2 class="section-title page-break" id="12-frequently-asked-questions-faq">12. Frequently Asked Questions (FAQ)</h2>
+
+<blockquote>Organized by user intent — from first-time visitors to long-term power users. These are the real questions users ask, with the answers they need.</blockquote>
+<hr />
+<h3 id="section-a-getting-started">SECTION A — Getting Started</h3>
+
+<hr />
+<p><strong>Q1. What exactly is Edgecipline and how is it different from a regular trading journal?</strong></p>
+<p>A regular trading journal is a spreadsheet or basic log — you record what happened and that's it. Edgecipline is a <strong>behavioral coaching system</strong> built on top of a journal. It tracks not just your trades but your psychology — mood, emotions, confidence — and connects those directly to your P&amp;L. Then an AI coach analyzes your patterns every morning and every week, tells you exactly what you're doing wrong and what it's costing you. No spreadsheet does that.</p>
+<hr />
+<p><strong>Q2. I'm a complete beginner. Is this app for me?</strong></p>
+<p>Edgecipline is best suited for traders who already have some experience — people who have a strategy but struggle to follow it consistently. That said, beginners can absolutely use it to build disciplined habits from day one, which is far better than forming bad habits and trying to fix them later. The app will guide you through setup creation, checklist use, and journaling from your very first trade.</p>
+<hr />
+<p><strong>Q3. What markets does Edgecipline support?</strong></p>
+<p>Currently Edgecipline supports two market types:</p>
+<div class="table-wrap"><table><thead><tr><th>Market</th><th>What's Supported</th></tr></thead><tbody><tr><td><strong>Forex / Global</strong></td><td>Currency pairs, indices, commodities, CFDs</td></tr><tr><td><strong>Indian Markets</strong></td><td>NSE/BSE Equity, F&amp;O (Futures &amp; Options), Intraday, Delivery, BTST, Commodity</td></tr></tbody></table></div>
+<p>More markets (US Stocks, Crypto) are on the roadmap.</p>
+<hr />
+<p><strong>Q4. Is Edgecipline a web app, mobile app, or both?</strong></p>
+<p>Both. Edgecipline is available as:</p>
+<ul><li>A <strong>Progressive Web App (PWA)</strong> accessible from any browser</li><li>A <strong>native Android app</strong> (available on Play Store / direct APK)</li><li>iOS support is on the near-term roadmap</li></ul>
+<p>The mobile app uses push notifications for the Morning Mentor feature — this is a key advantage over web-only journals.</p>
+<hr />
+<p><strong>Q5. Do I need to create an account to use the app?</strong></p>
+<p>Yes. An account is required to save your trade data, generate analytics, and receive personalized AI coaching. You can sign up with your email/password or with Google (one-tap). Your data is linked to your account and accessible from any device.</p>
+<hr />
+<p><strong>Q6. How long does it take to see useful insights from the app?</strong></p>
+<p>You'll see basic analytics after your <strong>first 5–10 trades</strong>. Meaningful patterns — psychology correlations, setup performance, behavioral flags — start emerging after <strong>30–50 trades</strong> (typically 2–4 weeks of active trading). The weekly AI report generates after your <strong>first full trading week</strong>. The more you log, the smarter the insights become.</p>
+<hr />
+<p><strong>Q7. Can I import my old trades from a spreadsheet or another journal?</strong></p>
+<p>Bulk import from CSV/spreadsheet is on the roadmap. Currently, trades can be added manually or via AI screenshot extraction. If you have historical trades in a broker platform, you can upload screenshots from past trades to use the AI extraction feature.</p>
+<hr />
+<h3 id="section-b-trade-logging">SECTION B — Trade Logging</h3>
+
+<hr />
+<p><strong>Q8. How do I log a trade?</strong></p>
+<p>Two ways:</p>
+<ol><li><strong>Manual entry</strong> — Go to Add Trade, fill in the details (pair, direction, entry/exit, P&amp;L), add your psychology tags (mood, emotional state, setup used), and save. Takes about 60–90 seconds.</li></ol>
+<ol><li><strong>AI Screenshot Upload</strong> — Go to Upload Trade, take or upload a screenshot of your broker platform. The AI reads the image, extracts all trade details, and pre-fills the form. You review, add psychology tags, and confirm. Takes about 15–30 seconds.</li></ol>
+<hr />
+<p><strong>Q9. What information should I log for each trade?</strong></p>
+<p>At minimum: symbol, direction (buy/sell), entry price, exit price, and P&amp;L. For maximum value from analytics, also log: stop loss, take profit, position size, mood, emotional state tags, confidence level, and which setup/strategy you used. The psychology fields are what make Edgecipline powerful — don't skip them.</p>
+<hr />
+<p><strong>Q10. What are &quot;emotional tags&quot; and why should I use them?</strong></p>
+<p>Emotional tags are labels you apply to a trade describing your mental state when you took it. Options include: <strong>FOMO, Revenge, Fear, Greed, Impatient, Hesitant, Confident, Disciplined.</strong></p>
+<p>Why they matter: after 50+ trades, the analytics will show you the P&amp;L difference between your &quot;Disciplined&quot; trades and your &quot;Revenge&quot; trades. For most traders, this single comparison is worth the entire subscription — it puts a dollar figure on what emotional trading is actually costing you.</p>
+<hr />
+<p><strong>Q11. What is the &quot;Would You Retake?&quot; field?</strong></p>
+<p>After a trade exits, you answer: <em>&quot;If you could go back to the entry moment, would you take this trade again?&quot;</em> This is answered regardless of whether the trade was a win or loss.</p>
+<p>Over time, this trains your instinct calibration. If you're saying &quot;Yes&quot; to losing trades and &quot;No&quot; to winning trades, your intuition is inversed. If you're consistently saying &quot;No&quot; and those trades are losses — your gut is already ahead of your execution.</p>
+<hr />
+<p><strong>Q12. Can I add notes or screenshots to individual trades?</strong></p>
+<p>Yes. Each trade has a free-text notes field where you can write your reasoning, market context, or post-trade observations. You can also attach a screenshot (broker screenshot, chart screenshot, etc.) to any trade for visual reference.</p>
+<hr />
+<p><strong>Q13. Can I edit or delete a trade after saving it?</strong></p>
+<p>Yes. Go to the Trade Journal, find the trade, and use the edit or delete options. Editing updates all analytics calculations immediately. Note: editing historical trades changes your analytics history — only correct genuine data entry errors, don't retroactively &quot;clean up&quot; bad trades.</p>
+<hr />
+<p><strong>Q14. For Indian market trades, what specific fields are available?</strong></p>
+<p>Indian market trades have additional fields:</p>
+<ul><li><strong>Segment:</strong> Equity / F&amp;O / Commodity / Currency</li><li><strong>Trade Type:</strong> Intraday / Delivery / BTST (Buy Today Sell Tomorrow)</li><li><strong>Instrument:</strong> Equity / Future / Option</li><li><strong>Strike Price</strong> (for Options)</li><li><strong>Expiry Date</strong> (for F&amp;O)</li><li><strong>Lot Size</strong> (auto-calculated for position value)</li></ul>
+<p>These enable accurate analytics specific to F&amp;O trading — including lot-aware P&amp;L and segment-wise performance breakdown.</p>
+<hr />
+<h3 id="section-c-ai-screenshot-extraction">SECTION C — AI Screenshot Extraction</h3>
+
+<hr />
+<p><strong>Q15. How does the AI trade extraction work?</strong></p>
+<p>You upload a screenshot from your broker platform (or take a photo). The AI uses OCR (text recognition) and Vision AI to:</p>
+<ol><li>Detect which broker/platform the screenshot is from</li><li>Read all relevant trade data from the image</li><li>Extract: symbol, direction, entry/exit prices, P&amp;L, date/time, stop loss, take profit</li><li>Pre-fill the trade form with the extracted data</li><li>Show a confidence score for each extracted field</li></ol>
+<p>You then review the pre-filled data, make any corrections, add psychology tags, and confirm.</p>
+<hr />
+<p><strong>Q16. Which broker platforms does the AI support?</strong></p>
+<p><strong>Forex/Global:</strong> MetaTrader 4, MetaTrader 5, cTrader, TradingView, and most major broker statement formats.</p>
+<p><strong>Indian Markets:</strong> Zerodha (Kite), Groww, Upstox, Angel One, IIFL Markets, Dhan, Fyers, 5Paisa, and growing.</p>
+<p>If your broker isn't listed, try uploading a screenshot anyway — the AI often handles new formats. You can also manually correct any misread fields before confirming.</p>
+<hr />
+<p><strong>Q17. What if the AI reads the screenshot incorrectly?</strong></p>
+<p>The AI shows a confidence score for each extracted field. Low-confidence fields are highlighted. Before confirming, you can manually correct any field that was misread. The corrected data is what gets saved — you always have the final review step. Over time, the AI improves as it processes more screenshots.</p>
+<hr />
+<p><strong>Q18. Can I upload multiple trades at once from a single screenshot?</strong></p>
+<p>Yes. If your screenshot shows multiple closed trades (like a trade history page), the AI detects multiple trades and extracts all of them in one upload. You review each extracted trade and confirm which ones to save.</p>
+<hr />
+<p><strong>Q19. Is the screenshot upload feature available on the free plan?</strong></p>
+<p>No. AI screenshot extraction is a Pro feature. Free plan users can log trades manually without limitation, but AI extraction requires a Monthly Pro or Annual Pro subscription.</p>
+<hr />
+<h3 id="section-d-analytics">SECTION D — Analytics</h3>
+
+<hr />
+<p><strong>Q20. What analytics does Edgecipline provide?</strong></p>
+<p>Edgecipline tracks 60+ metrics across six dimensions:</p>
+<div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Key Metrics</th></tr></thead><tbody><tr><td><strong>Performance</strong></td><td>Win rate, profit factor, expectancy, Sharpe ratio, max drawdown</td></tr><tr><td><strong>Risk</strong></td><td>Avg risk:reward, recovery factor, max drawdown %, worst loss</td></tr><tr><td><strong>Setup</strong></td><td>P&amp;L and win rate per strategy/setup</td></tr><tr><td><strong>Time</strong></td><td>Best/worst hour, day of week, market session</td></tr><tr><td><strong>Direction</strong></td><td>Long vs short performance comparison</td></tr><tr><td><strong>Psychology</strong></td><td>Mood-win rate correlation, emotional tag impact, discipline score</td></tr></tbody></table></div>
+<hr />
+<p><strong>Q21. What is the &quot;Discipline Score&quot; and how is it calculated?</strong></p>
+<p>The Discipline Score is the percentage of your trades that were confirmed through the Pre-Trade Checklist before entry. A trade taken with an A+ checklist result counts as disciplined. A trade taken without using the checklist at all — or with Low Confidence — counts as undisciplined.</p>
+<p>Formula: <code>(Disciplined Trades / Total Trades) × 100</code></p>
+<p>A score above 80% is excellent. Below 50% means you're trading on impulse more than on rules. The score appears on your Dashboard and is tracked week-over-week in your weekly reports.</p>
+<hr />
+<p><strong>Q22. What is the &quot;Repeated Mistakes Tracker&quot;?</strong></p>
+<p>This panel in Analytics ranks your self-tagged mistakes by their total P&amp;L cost. For example, if you tagged &quot;No Stop Loss&quot; on 5 trades that together lost ₹12,400, that mistake appears at the top ranked by cost.</p>
+<p>The insight: instead of hunting for a new strategy, fixing your single most expensive habit typically recovers more P&amp;L than anything else you could do. The tracker makes that priority obvious.</p>
+<hr />
+<p><strong>Q23. How does mood tracking connect to my P&amp;L?</strong></p>
+<p>Every trade you log includes a mood rating (1 = very stressed, 5 = peak state). Over time, Analytics plots your average P&amp;L by mood level. Most traders discover a clear pattern: they win significantly more when calm (mood 3–4) and significantly more when stressed (mood 1–2).</p>
+<p>Once this correlation is visible in your own data, the motivation to trade with the right mindset becomes personal — not theoretical advice, but your own numbers.</p>
+<hr />
+<p><strong>Q24. What is the equity curve and why does it matter?</strong></p>
+<p>The equity curve is a visual chart of your account balance growing (or shrinking) over time, based on your logged trade P&amp;L. It shows:</p>
+<ul><li>Overall account trajectory (upward trend = profitable)</li><li>Drawdown periods (dips below peak)</li><li>Recovery speed</li><li>Consistency of growth vs erratic swings</li></ul>
+<p>Professional traders watch their equity curve religiously. A smooth, upward-sloping curve indicates consistent, disciplined trading. A jagged, volatile curve signals emotional or inconsistent execution.</p>
+<hr />
+<p><strong>Q25. Can I filter analytics by a specific time period or setup?</strong></p>
+<p>Yes. Analytics supports filters for:</p>
+<ul><li>Time period (Today, This Week, This Month, Last 3 Months, Custom range)</li><li>Setup / Strategy</li><li>Direction (Long / Short)</li><li>Market (Forex or Indian)</li></ul>
+<p>This lets you compare performance across different strategies, time periods, or market conditions to find what's actually working.</p>
+<hr />
+<p><strong>Q26. How many trades do I need before analytics becomes meaningful?</strong></p>
+<ul><li><strong>5–10 trades:</strong> Basic KPIs (win rate, P&amp;L) show up</li><li><strong>20–30 trades:</strong> Setup performance comparison starts being reliable</li><li><strong>50+ trades:</strong> Psychology correlations become statistically meaningful</li><li><strong>100+ trades:</strong> Full behavioral pattern detection, reliable mood-P&amp;L correlation</li></ul>
+<p>The app works with any number of trades, but the insights get dramatically more accurate and useful as your dataset grows.</p>
+<hr />
+<h3 id="section-e-pre-trade-checklist">SECTION E — Pre-Trade Checklist</h3>
+
+<hr />
+<p><strong>Q27. What is the Pre-Trade Checklist and why should I use it?</strong></p>
+<p>The Pre-Trade Checklist is a structured gate you go through before entering any trade. You select your setup, then go through your predefined rules one by one, marking Yes / Partly / No for each. The system scores the result and gives you a confidence grade:</p>
+<ul><li><strong>A+ (≥80% Yes):</strong> Setup conditions fully met — take the trade</li><li><strong>Moderate (50–79%):</strong> Conditions partially met — proceed with caution</li><li><strong>Low (&lt;50%):</strong> Setup not ready — skip the trade</li></ul>
+<p>The checklist forces a deliberate, rational evaluation before money enters the market — the most reliable way to prevent impulse trades.</p>
+<hr />
+<p><strong>Q28. Do I have to use the checklist before every trade?</strong></p>
+<p>No — it's not mandatory. But every trade you take without a checklist confirmation is counted as &quot;undisciplined&quot; in your Discipline Score and analytics. Over time, your data will show the P&amp;L difference between your checklist-confirmed trades and your impulse trades. For most traders, this difference is significant enough to make the checklist a non-negotiable habit.</p>
+<hr />
+<p><strong>Q29. How do I create my rules for the checklist?</strong></p>
+<p>Rules are created in the <strong>Trading Setups</strong> section. When you create or edit a setup, you define its rules — the conditions that must be met for the setup to be valid. Examples:</p>
+<ul><li>&quot;Price is above the 200 EMA&quot;</li><li>&quot;RSI is not overbought (below 70)&quot;</li><li>&quot;Session is London or New York open&quot;</li><li>&quot;Stop loss is placed below structure&quot;</li><li>&quot;Risk is maximum 1% of account&quot;</li></ul>
+<p>These rules then automatically appear in the checklist whenever you select that setup.</p>
+<hr />
+<p><strong>Q30. What if I take a trade and score Moderate on the checklist — is that okay?</strong></p>
+<p>The app doesn't prevent you from taking Moderate-confidence trades. It shows you the score and highlights which rules aren't met, then you make the decision. The system is an informer, not a blocker.</p>
+<p>However, your Analytics will track the P&amp;L separately for A+, Moderate, and Low confidence trades. Most traders discover that only their A+ trades are profitable on average — making the choice clear over time.</p>
+<hr />
+<h3 id="section-f-morning-mentor-notifications">SECTION F — Morning Mentor &amp; Notifications</h3>
+
+<hr />
+<p><strong>Q31. What is the Morning Mentor?</strong></p>
+<p>The Morning Mentor is an AI-powered push notification that arrives every trading morning before the market opens. It analyzes your recent trading behavior (last 24–72 hours) and sends a personalized coaching message relevant to your specific patterns.</p>
+<p>It is not a generic motivational message. It references your actual trades. For example:</p>
+<blockquote><em>&quot;Good morning. Yesterday you placed 3 trades after your initial stop-out — each one larger than the last. That's your revenge trading pattern. Today, set a daily loss limit before the session starts.&quot;</em></blockquote>
+<hr />
+<p><strong>Q32. When does the Morning Mentor notification arrive?</strong></p>
+<ul><li><strong>Forex traders:</strong> Typically sent early morning before London or New York session open (timing configurable)</li><li><strong>Indian market traders:</strong> Sent before NSE/BSE market open at 9:15 AM IST</li><li><strong>Weekends:</strong> A &quot;week preparation&quot; message sent Sunday evening to review the upcoming week</li></ul>
+<hr />
+<p><strong>Q33. What behavioral patterns does the Morning Mentor detect?</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Pattern</th><th>What Triggers It</th></tr></thead><tbody><tr><td>Revenge trading</td><td>Losing trade followed by a larger position within 30–60 minutes</td></tr><tr><td>Overtrading</td><td>Significantly more trades than your average (40%+ above baseline)</td></tr><tr><td>No stop-loss</td><td>Two or more recent trades logged without a stop loss price</td></tr><tr><td>Emotional trading</td><td>Multiple FOMO/Fear/Revenge tags in recent trades</td></tr><tr><td>Low setup discipline</td><td>Discipline score dropped below threshold this week</td></tr><tr><td>Loss day reset</td><td>Yesterday ended with a significant loss</td></tr><tr><td>Positive reinforcement</td><td>Following rules consistently — streak of disciplined trades</td></tr><tr><td>Profitable week</td><td>Week ended positively — don't get overconfident</td></tr></tbody></table></div>
+<hr />
+<p><strong>Q34. Can I turn off Morning Mentor notifications?</strong></p>
+<p>Yes. Notification preferences can be managed from your device notification settings or within the app's profile/settings section. However, the Morning Mentor is consistently cited by users as the highest-value feature — most users who initially disable it re-enable it within a week.</p>
+<hr />
+<p><strong>Q35. What other notifications does the app send?</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Notification</th><th>When</th></tr></thead><tbody><tr><td>Weekly Report Ready</td><td>Sunday after trading week ends</td></tr><tr><td>Revenge Trading Alert</td><td>Detected in real-time after a loss</td></tr><tr><td>Daily Loss Limit Warning</td><td>When drawdown threshold is reached</td></tr><tr><td>Overtrading Warning</td><td>During session when trade frequency spikes</td></tr><tr><td>No Stop-Loss Alert</td><td>After logging trades without stop loss</td></tr><tr><td>Setup Reminder</td><td>If you haven't used checklist in 3+ days</td></tr><tr><td>Discipline Signal</td><td>Positive — after consistent rule-following</td></tr></tbody></table></div>
+<hr />
+<p><strong>Q36. Are the notifications personalized to my actual trades?</strong></p>
+<p>Yes. Notifications are generated from analysis of your specific trade data — not generic templates. A revenge trading alert references how many trades you placed, after which loss, and by how much you oversized. This personalization is what makes them feel like coaching rather than spam.</p>
+<hr />
+<h3 id="section-g-trading-setups">SECTION G — Trading Setups</h3>
+
+<hr />
+<p><strong>Q37. What is a &quot;Trading Setup&quot; in Edgecipline?</strong></p>
+<p>A Trading Setup is a named, documented strategy with defined rules and reference images. It is the foundation of the discipline system. Examples:</p>
+<ul><li><strong>London Breakout</strong> — rules for trading the London session opening range</li><li><strong>Nifty Opening Range</strong> — rules for the first 15 minutes of NSE trading</li><li><strong>EMA Pullback</strong> — rules for taking pullbacks to the 50 EMA in trend</li></ul>
+<p>Once defined, a setup:</p>
+<ul><li>Appears in the Pre-Trade Checklist for rule verification</li><li>Tags trades logged under it</li><li>Gets its own analytics (win rate, P&amp;L, number of trades)</li><li>Feeds into Weekly AI Reports</li></ul>
+<hr />
+<p><strong>Q38. How many setups can I create?</strong></p>
+<p>You can create multiple setups based on your subscription tier. Pro users have no practical limit. For most traders, 2–5 well-defined setups is ideal — more than that and the checklist becomes unwieldy.</p>
+<hr />
+<p><strong>Q39. Can I add reference images to my setups?</strong></p>
+<p>Yes. Each setup supports up to 5 reference screenshots — examples of ideal trade entries for that setup. When you use the checklist, these images appear alongside the rules, letting you visually compare the current setup with your historical ideal examples. This is extremely useful for pattern recognition.</p>
+<hr />
+<p><strong>Q40. What if I trade differently each day — can I still use setups?</strong></p>
+<p>Yes. Setups don't restrict what you trade — they define the standard for each strategy. You can have multiple setups for different market conditions (trending, ranging, breakout) and select the appropriate one in the checklist. Trades without a setup tag are still logged — they just don't contribute to setup-specific analytics.</p>
+<hr />
+<h3 id="section-h-indian-market-specific">SECTION H — Indian Market Specific</h3>
+
+<hr />
+<p><strong>Q41. Is Edgecipline built for Indian traders specifically?</strong></p>
+<p>Yes. The Indian market module was built from the ground up for NSE/BSE traders, with features specific to the Indian trading context:</p>
+<ul><li>Full F&amp;O support (Futures, Options with strike/expiry)</li><li>Intraday / Delivery / BTST trade types</li><li>Segment tracking (Equity, F&amp;O, Commodity, Currency)</li><li>₹ currency throughout analytics</li><li>Morning Mentor timed to 9:15 AM IST</li><li>AI extraction trained on Indian broker screenshots</li><li>Lot-size aware P&amp;L calculation</li></ul>
+<hr />
+<p><strong>Q42. I trade both Nifty options and Forex. Can I use Edgecipline for both?</strong></p>
+<p>Yes. Edgecipline has a Market Switcher in the header that toggles between Forex and Indian Market modes. Both maintain completely separate journals, analytics, and setups. You can switch between them at any time. Your profile and subscription covers both markets.</p>
+<hr />
+<p><strong>Q43. Does the app work with Zerodha? Upstox? Groww?</strong></p>
+<p>Yes. The AI extraction feature is trained on screenshots from:</p>
+<ul><li><strong>Zerodha Kite</strong> — web and mobile</li><li><strong>Upstox</strong> — web and mobile</li><li><strong>Groww</strong> — web and mobile</li><li><strong>Angel One</strong> — web and mobile</li><li><strong>IIFL Markets</strong></li><li><strong>Dhan</strong></li><li><strong>Fyers</strong></li></ul>
+<p>Manual entry works for any broker regardless of screenshot support.</p>
+<hr />
+<p><strong>Q44. Can I track F&amp;O Greeks (Delta, Theta, IV) in the app?</strong></p>
+<p>Currently the app focuses on P&amp;L, psychology, and discipline tracking rather than Greeks analysis. F&amp;O-specific metrics like IV, Delta, and Theta tracking are planned for a future release in the Advanced Analytics module.</p>
+<hr />
+<h3 id="section-i-subscription-pricing">SECTION I — Subscription &amp; Pricing</h3>
+
+<hr />
+<p><strong>Q45. What is the difference between Free and Pro?</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Free</th><th>Pro</th></tr></thead><tbody><tr><td>Trade logging (manual)</td><td>✓ Unlimited</td><td>✓ Unlimited</td></tr><tr><td>Basic dashboard</td><td>✓</td><td>✓</td></tr><tr><td>AI screenshot extraction</td><td>—</td><td>✓</td></tr><tr><td>Full analytics (60+ metrics)</td><td>Limited (30 trades)</td><td>✓ Unlimited</td></tr><tr><td>Psychology analytics</td><td>—</td><td>✓</td></tr><tr><td>Weekly AI reports</td><td>—</td><td>✓</td></tr><tr><td>Morning Mentor notifications</td><td>—</td><td>✓</td></tr><tr><td>Setup score tracking</td><td>—</td><td>✓</td></tr><tr><td>Pre-trade checklist</td><td>✓</td><td>✓</td></tr><tr><td>Indian market module</td><td>✓</td><td>✓</td></tr><tr><td>Priority support</td><td>—</td><td>✓ Annual only</td></tr></tbody></table></div>
+<hr />
+<p><strong>Q46. Is there a free trial of Pro features?</strong></p>
+<p>Yes. New users get a trial period of Pro features when they first sign up, so they can experience the weekly report, morning mentor, and full analytics before deciding to subscribe. The trial period is shown in your profile.</p>
+<hr />
+<p><strong>Q47. What happens to my data if I downgrade from Pro to Free?</strong></p>
+<p>Your data is never deleted. All your trades, setups, and history remain intact. You lose access to Pro-gated features (AI extraction, full analytics, weekly reports, morning mentor) but your data is preserved and fully accessible again when you re-subscribe.</p>
+<hr />
+<p><strong>Q48. Is annual subscription worth it over monthly?</strong></p>
+<p>The Annual Pro plan offers significant savings over paying monthly (typically 30–40% discount). If you plan to use the app for more than 4–5 months, annual is the better value. Serious traders who integrate Edgecipline into their daily routine consistently renew annually.</p>
+<hr />
+<p><strong>Q49. Can I get a refund if I'm not satisfied?</strong></p>
+<p>Refund policy is available on the Terms of Service page. Generally, if you haven't used the Pro features significantly after subscribing, a refund can be requested within the policy window. Contact support for individual cases.</p>
+<hr />
+<p><strong>Q50. Is there a plan for trading communities or prop firms?</strong></p>
+<p>Community and business licensing is available. If you run a trading group, Discord server, or prop firm and want to give your members/traders access to Edgecipline, contact the team for group pricing and white-label options.</p>
+<hr />
+<h3 id="section-j-privacy-data-security">SECTION J — Privacy &amp; Data Security</h3>
+
+<hr />
+<p><strong>Q51. Is my trade data private? Who can see it?</strong></p>
+<p>Your trade data is private to your account. No other user can see your trades, analytics, or reports. The only exception is if you explicitly opt-in to a future community leaderboard feature (which only shows discipline score, not individual trades). Edgecipline does not sell or share individual user trading data.</p>
+<hr />
+<p><strong>Q52. What data does Edgecipline store about me?</strong></p>
+<p>The app stores:</p>
+<ul><li>Account info (name, email, auth method)</li><li>Trade records you log (prices, P&amp;L, tags, notes, screenshots)</li><li>Analytics derived from your trades</li><li>Notification history</li><li>Setups and checklists you create</li><li>Subscription status</li></ul>
+<p>It does not store: your actual brokerage account credentials, live positions, or direct broker data.</p>
+<hr />
+<p><strong>Q53. Are my trade screenshots stored securely?</strong></p>
+<p>Yes. All uploaded images are stored in Cloudinary — a secure, enterprise-grade cloud storage platform with encryption at rest and in transit. Screenshots are linked only to your account and are not accessible to other users.</p>
+<hr />
+<p><strong>Q54. Can I export or download my trade data?</strong></p>
+<p>Data export (CSV/Excel) is on the near-term roadmap. Currently your data lives within the app. This is a high-priority feature request and will be released in an upcoming version.</p>
+<hr />
+<p><strong>Q55. Can I delete my account and all my data?</strong></p>
+<p>Yes. You can request full account deletion including all associated data from the Profile page or by contacting support. Deletion is permanent and irreversible.</p>
+<hr />
+<h3 id="section-k-technical-app-usage">SECTION K — Technical &amp; App Usage</h3>
+
+<hr />
+<p><strong>Q56. The app is slow or not loading. What should I do?</strong></p>
+<ol><li>Check your internet connection</li><li>Force-close and reopen the app</li><li>Clear the app cache (Android: Settings → Apps → Edgecipline → Clear Cache)</li><li>Try on a different network (WiFi vs mobile data)</li><li>If the issue persists, report it via the Support page with your device model and Android version</li></ol>
+<hr />
+<p><strong>Q57. I'm not receiving Morning Mentor notifications. How do I fix it?</strong></p>
+<ol><li>Check that notifications are enabled for Edgecipline in Android Settings → Notifications</li><li>Check that battery optimization is NOT enabled for Edgecipline (battery optimization kills background processes)</li><li>Ensure you have a Pro subscription (Morning Mentor is a Pro feature)</li><li>Make sure you have logged at least a few trades — the mentor needs trade data to analyze</li><li>Check the Notifications page inside the app — messages appear there even if push delivery fails</li></ol>
+<hr />
+<p><strong>Q58. Can I use Edgecipline on multiple devices?</strong></p>
+<p>Yes. Your account is cloud-based — log in on any device (Android phone, tablet, or web browser) and all your trades, analytics, and setups sync automatically. Notifications are delivered to whichever device is logged into the Android app.</p>
+<hr />
+<p><strong>Q59. Does Edgecipline work offline?</strong></p>
+<p>Basic browsing of cached data is possible offline, but logging trades and accessing analytics requires an internet connection as all data is cloud-stored. Offline trade logging with sync on reconnect is planned for a future release.</p>
+<hr />
+<p><strong>Q60. I accidentally deleted a trade. Can I recover it?</strong></p>
+<p>Currently, deleted trades cannot be recovered. There is no recycle bin or undo for trade deletion. Be careful when deleting — this is intentional to prevent users from selectively deleting losing trades to game their analytics. A confirmation prompt appears before any deletion.</p>
+<hr />
+<h3 id="section-l-product-philosophy-questions">SECTION L — Product &amp; Philosophy Questions</h3>
+
+<hr />
+<p><strong>Q61. Will using Edgecipline make me profitable?</strong></p>
+<p>Edgecipline does not make trading decisions for you and does not guarantee profitability. What it does is give you accurate, honest data about your own behavior — and a coaching system that helps you improve it. Traders who consistently log trades, use the checklist, and act on weekly report insights typically see measurable improvement in discipline score and reduction in behavioral mistakes over 60–90 days. Profitability follows from discipline — but execution is always yours.</p>
+<hr />
+<p><strong>Q62. How is this different from just using a spreadsheet?</strong></p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Spreadsheet</th><th>Edgecipline</th></tr></thead><tbody><tr><td>Trade logging</td><td>Manual, tedious</td><td>Manual + AI extraction</td></tr><tr><td>Psychology tracking</td><td>Not possible</td><td>Built-in, structured</td></tr><tr><td>Analytics</td><td>Manual formulas</td><td>Auto-calculated, 60+ metrics</td></tr><tr><td>Psychology-P&amp;L correlation</td><td>Impossible</td><td>Core feature</td></tr><tr><td>AI coaching</td><td>No</td><td>Morning mentor + weekly reports</td></tr><tr><td>Mobile access</td><td>Poor</td><td>Native Android app</td></tr><tr><td>Behavioral alerts</td><td>No</td><td>Real-time + daily</td></tr><tr><td>Equity curve</td><td>Manual chart</td><td>Auto-generated</td></tr><tr><td>Weekly reports</td><td>Write yourself</td><td>AI-generated coaching</td></tr></tbody></table></div>
+<hr />
+<p><strong>Q63. I already have a trading strategy. Why do I need this app?</strong></p>
+<p>Having a strategy and executing it consistently are completely different skills. Most traders with good strategies lose money not because their strategy is wrong, but because they don't follow it when it counts — when they're scared, greedy, or recovering from a loss.</p>
+<p>Edgecipline's value is not in improving your strategy. It is in helping you follow the strategy you already have, identify when and why you deviate, and reduce the cost of those deviations over time.</p>
+<hr />
+<p><strong>Q64. Does the app tell me when to buy or sell? Does it give trading signals?</strong></p>
+<p>No. Edgecipline is not a signal service, a copy-trading platform, or a market analysis tool. It does not predict market movements or tell you what to trade. It is a behavioral coaching and analytics platform — it helps you understand and improve your own trading process. All trade decisions remain entirely yours.</p>
+<hr />
+<p><strong>Q65. I'm a trading mentor/educator. Can my students use Edgecipline?</strong></p>
+<p>Yes, and this is an ideal use case. Students can use Edgecipline to demonstrate their discipline to their mentor — sharing weekly reports, discipline scores, and setup adherence data. Group licensing for trading courses and communities is available. Contact the team for educator partnerships and custom pricing.</p>
+<hr />
+<p><strong>Q66. How is the AI coaching generated? Is it actually intelligent or just templates?</strong></p>
+<p>The weekly reports and morning mentor messages are generated using large language model AI (similar to ChatGPT/Claude) that receives your actual trade data as input — not templates with fill-in-the-blank values. The AI reads your trades, identifies behavioral patterns, calculates impact, and writes a coaching response personalized to your specific situation.</p>
+<p>The result is a message that references your actual numbers, your specific mistakes, and your actual patterns — not generic advice. As your trade history grows, the AI has more context to work with, and the coaching becomes more precise.</p>
+<hr />
+<p><strong>Q67. What happens if I have a really bad trading week — will the app make me feel worse?</strong></p>
+<p>No. The coaching philosophy of Edgecipline is rooted in <strong>data, not judgment</strong>. A bad week is presented as patterns and numbers — not shame or failure. The weekly report always includes positive reinforcement alongside improvement areas. The morning mentor after a loss is supportive in tone — focused on reset and preparation, not criticism.</p>
+<p>The goal is always the same: understand what happened, adjust, and trade better tomorrow. The app does not celebrate losses — but it also does not punish them. It simply shows you the truth and gives you tools to respond to it.</p>
+<hr />
+<p><strong>Q68. Is Edgecipline suitable for prop firm traders?</strong></p>
+<p>Yes — and prop firm traders are one of the most motivated user segments. For prop firm traders:</p>
+<ul><li><strong>Max drawdown tracking</strong> is critical — Edgecipline shows this prominently</li><li><strong>Pre-trade checklist</strong> prevents rule violations that can fail evaluations</li><li><strong>No stop-loss alerts</strong> immediately flag missing risk management</li><li><strong>Discipline score</strong> provides auditable proof of rule adherence</li><li><strong>Morning mentor</strong> prevents tilt/revenge trading that typically ends evaluations</li></ul>
+<p>Many prop firm failures happen in a single session of emotional trading. The morning mentor and real-time behavioral alerts are designed exactly for this scenario.</p>
+<hr />
+<p><strong>Q69. Can Edgecipline help with trading psychology specifically?</strong></p>
+<p>Yes — this is the core of what makes Edgecipline unique. The psychology layer includes:</p>
+<ul><li><strong>Mood tracking</strong> (1–5 scale per trade) correlated to P&amp;L</li><li><strong>Emotional tags</strong> (FOMO, Revenge, Fear, Greed, etc.) with impact analysis</li><li><strong>Confidence level tracking</strong> with outcome correlation</li><li><strong>Revenge trading detection</strong> and alerts</li><li><strong>Overtrading behavioral flags</strong></li><li><strong>Tilt pattern detection</strong> (escalating position size after losses)</li><li><strong>Weekly psychology trend</strong> in AI reports</li><li><strong>Would-you-retake analysis</strong> for instinct calibration</li></ul>
+<p>No other trading journal tracks psychology at this depth or connects it directly to financial outcomes.</p>
+<hr />
+<p><strong>Q70. What is your long-term vision for Edgecipline?</strong></p>
+<p>The long-term vision is to become <strong>the standard accountability and development platform for serious retail traders globally</strong> — the same way Strava became the standard for runners and cyclists. A platform where traders track not just their P&amp;L, but their behavioral growth, their discipline evolution, and their journey from emotional to systematic trading.</p>
+<p>Over time, Edgecipline will expand to include broker integrations (auto-import), live market alerts, AI backtesting, a trader community, and eventually an AI coach you can actually have a conversation with — one that knows your entire trading history and coaches you like a human mentor would.</p>
+<p>The mission never changes: help every trader close the gap between knowing what to do and actually doing it.</p>
+<hr />
+<p><em>Documentation prepared for Edgecipline / Stratedge · May 2026</em> <em>Version 1.0 — Product &amp; Strategy Document</em></p>
+<hr />
+    </section>
+  </main>
+</body>
+</html>

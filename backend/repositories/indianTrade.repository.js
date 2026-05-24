@@ -11,14 +11,18 @@ const WEEKLY_INDIAN_TRADE_PROJECTION = [
   "entryBasis",
   "mistakeTag",
   "createdAt",
+  "tradeDate",
 ].join(" ");
 
 async function findIndianTradesForWeeklyWindow(userId, startDate, endDate) {
   return IndianTrade.find({
     user: userId,
-    createdAt: { $gte: startDate, $lt: endDate },
+    $or: [
+      { tradeDate: { $gte: startDate, $lt: endDate } },
+      { tradeDate: null, createdAt: { $gte: startDate, $lt: endDate } },
+    ],
   })
-    .sort({ createdAt: 1 })
+    .sort({ tradeDate: 1, createdAt: 1 })
     .select(WEEKLY_INDIAN_TRADE_PROJECTION)
     .lean();
 }

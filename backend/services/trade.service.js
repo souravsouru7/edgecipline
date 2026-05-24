@@ -3,6 +3,7 @@ const { buildCacheKey, getCache, rememberCache } = require("../utils/cache");
 const { clearUserCache } = require("../utils/cacheUtils");
 const tradeRepository = require("../repositories/trade.repository");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
+const { normalizeTradeDate } = require("../utils/dateUtils");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -14,14 +15,6 @@ function normalizeTradeType(type) {
     throw new ApiError(400, "Type must be BUY or SELL", "VALIDATION_ERROR");
   }
   return normalizedType;
-}
-
-function normalizeTradeDate(tradeDate) {
-  const parsed = new Date(tradeDate);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new ApiError(400, "Trade date is invalid", "VALIDATION_ERROR");
-  }
-  return parsed;
 }
 
 function getEffectiveTradeTime(trade) {
@@ -50,7 +43,7 @@ function getPeriodStart(period) {
   }
 }
 
-async function createTrade(userId, payload) {
+async function createTrade(userId, payload, { accountCreatedAt } = {}) {
   if (!payload.pair) {
     throw new ApiError(400, "Pair is required", "VALIDATION_ERROR");
   }
@@ -64,7 +57,7 @@ async function createTrade(userId, payload) {
   const trade = await tradeRepository.createTrade({
     ...payload,
     type: normalizeTradeType(payload.type),
-    tradeDate: normalizeTradeDate(payload.tradeDate),
+    tradeDate: normalizeTradeDate(payload.tradeDate, { accountCreatedAt }),
     user: userId,
     status: payload.status || "completed",
     error: payload.error ?? null,
@@ -160,6 +153,7 @@ async function getTradeStatus(userId, tradeId) {
         extractedText: trade.extractedText || "",
         marketType: trade.marketType || "Forex",
         tradeSubType: trade.tradeSubType || "",
+        tradeDate: trade.tradeDate || null,
       },
       error: null,
     };
@@ -174,13 +168,25 @@ async function getTradeStatus(userId, tradeId) {
   };
 }
 
-async function updateTrade(userId, tradeId, payload) {
-  const update = { ...payload };
+function resolveTradeDateFromPayload(payload, { accountCreatedAt } = {}) {
+  if (payload.tradeDate == null || String(payload.tradeDate).trim() === "") {
+    return undefined;
+  }
+  return normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
+}
+
+async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) {
+  const update = Object.fromEntries(
+    Object.entries({ ...payload }).filter(([, value]) => value !== undefined)
+  );
   if (payload.type) {
     update.type = normalizeTradeType(payload.type);
   }
-  if (payload.tradeDate) {
-    update.tradeDate = normalizeTradeDate(payload.tradeDate);
+  const normalizedTradeDate = resolveTradeDateFromPayload(payload, { accountCreatedAt });
+  if (normalizedTradeDate !== undefined) {
+    update.tradeDate = normalizedTradeDate;
+  } else {
+    delete update.tradeDate;
   }
 
   const trade = await tradeRepository.updateForexTradeByUser(tradeId, userId, update);

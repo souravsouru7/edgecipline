@@ -11,10 +11,10 @@ const nextConfig: NextConfig = {
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
-  // Suppress verbose Sentry build output
   silent: !process.env.CI,
-  // Disable server/edge wrapping — this is a static export, client-only
-  autoInstrumentServerFunctions: false,
-  autoInstrumentMiddleware: false,
-  autoInstrumentAppDirectory: false,
+  webpack: {
+    autoInstrumentServerFunctions: false,
+    autoInstrumentMiddleware: false,
+    autoInstrumentAppDirectory: false,
+  },
 });

@@ -232,67 +232,55 @@ function CreateTradeButton() {
                 <div style={{
                     position: "absolute", top: "100%", right: 0, marginTop: 8,
                     background: "#FFFFFF", borderRadius: 12, border: `1px solid ${theme.border}`,
-                    boxShadow: "0 8px 32px rgba(15,25,35,0.15)", overflow: "hidden", minWidth: 220, zIndex: 100,
+                    boxShadow: "0 8px 32px rgba(15,25,35,0.15)", overflow: "hidden", minWidth: 200, zIndex: 100,
                 }}>
-                    <button onClick={() => handleOptionClick("/indian-market/add-trade")} style={dropOptionStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F9F9F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <div style={{ ...dropIconBox, background: "rgba(13,158,110,0.12)", color: theme.bull }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    {/* Manual */}
+                    <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: theme.muted, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace" }}>MANUAL</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "0 10px 10px" }}>
+                        <button onClick={() => handleOptionClick("/indian-market/add-trade")} style={tileStyle}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(13,158,110,0.1)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(13,158,110,0.06)"}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.bull} strokeWidth="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
-                        </div>
-                        <div>
-                            <div style={dropLabelStyle}>Log options trade</div>
-                            <div style={dropSubStyle}>Underlying, strike, CE/PE, premium</div>
-                        </div>
-                    </button>
-                    <div style={{ height: 1, background: theme.border, margin: "0 12px" }} />
-                    <button onClick={() => handleOptionClick("/indian-market/add-trade?type=EQUITY")} style={dropOptionStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F9F9F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <div style={{ ...dropIconBox, background: "rgba(37,99,235,0.12)", color: "#2563EB" }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><path d="M3 17l3 3 7-7" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: theme.bull }}>Options</span>
+                        </button>
+                        <button onClick={() => handleOptionClick("/indian-market/add-trade?type=EQUITY")} style={{ ...tileStyle, background: "rgba(37,99,235,0.06)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(37,99,235,0.12)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(37,99,235,0.06)"}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                             </svg>
-                        </div>
-                        <div>
-                            <div style={dropLabelStyle}>Log intraday stock trade</div>
-                            <div style={dropSubStyle}>Stock symbol, shares qty, P&L</div>
-                        </div>
-                    </button>
-                    <div style={{ height: 1, background: theme.border, margin: "0 12px" }} />
-                    <button onClick={() => handleOptionClick("/indian-market/upload-trade")} style={dropOptionStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F9F9F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <div style={{ ...dropIconBox, background: "rgba(184,134,11,0.12)", color: theme.gold }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#2563EB" }}>Stock</span>
+                        </button>
+                    </div>
+
+                    <div style={{ height: 1, background: theme.border }} />
+
+                    {/* AI Extract */}
+                    <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: theme.muted, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace" }}>AI EXTRACT</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "0 10px 10px" }}>
+                        <button onClick={() => handleOptionClick("/indian-market/upload-trade")} style={{ ...tileStyle, background: "rgba(184,134,11,0.06)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(184,134,11,0.12)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(184,134,11,0.06)"}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.gold} strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
                             </svg>
-                        </div>
-                        <div>
-                            <div style={dropLabelStyle}>Extract options screenshot</div>
-                            <div style={dropSubStyle}>AI reads your options screenshot</div>
-                        </div>
-                    </button>
-                    <div style={{ height: 1, background: theme.border, margin: "0 12px" }} />
-                    <button onClick={() => handleOptionClick("/indian-market/upload-trade?type=EQUITY")} style={dropOptionStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F9F9F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <div style={{ ...dropIconBox, background: "rgba(124,58,237,0.12)", color: "#7C3AED" }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: theme.gold }}>Options</span>
+                        </button>
+                        <button onClick={() => handleOptionClick("/indian-market/upload-trade?type=EQUITY")} style={{ ...tileStyle, background: "rgba(124,58,237,0.06)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(124,58,237,0.12)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(124,58,237,0.06)"}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
                             </svg>
-                        </div>
-                        <div>
-                            <div style={dropLabelStyle}>Extract stock screenshot</div>
-                            <div style={dropSubStyle}>AI reads your stock trade image</div>
-                        </div>
-                    </button>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED" }}>Stock</span>
+                        </button>
+                    </div>
                 </div>
             )}
             {isOpen && <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setIsOpen(false)} />}
@@ -300,10 +288,7 @@ function CreateTradeButton() {
     );
 }
 
-const dropOptionStyle = { display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", transition: "background 0.15s ease" };
-const dropIconBox = { width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" };
-const dropLabelStyle = { fontSize: 13, fontWeight: 700, color: theme.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" };
-const dropSubStyle = { fontSize: 10, color: theme.muted, fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 2 };
+const tileStyle = { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 8px", borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(13,158,110,0.06)", transition: "background 0.15s ease", width: "100%" };
 
 export default function IndianMarketDashboard() {
     const router = useRouter();

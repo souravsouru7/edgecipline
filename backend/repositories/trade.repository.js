@@ -122,9 +122,12 @@ async function findTradesForWeeklyWindow(userId, startDate, endDate) {
   return Trade.find({
     user: userId,
     marketType: "Forex",
-    createdAt: { $gte: startDate, $lt: endDate },
+    $or: [
+      { tradeDate: { $gte: startDate, $lt: endDate } },
+      { tradeDate: null, createdAt: { $gte: startDate, $lt: endDate } },
+    ],
   })
-    .sort({ createdAt: 1 })
+    .sort({ tradeDate: 1, createdAt: 1 })
     .select(WEEKLY_TRADE_PROJECTION)
     .lean();
 }

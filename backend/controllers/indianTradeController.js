@@ -3,14 +3,7 @@ const { clearUserCache } = require("../utils/cacheUtils");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { evaluateSmartNotifications } = require("../services/smartNotificationEvaluator");
-
-function normalizeTradeDate(tradeDate) {
-  const parsed = new Date(tradeDate);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new ApiError(400, "Trade date is invalid", "VALIDATION_ERROR");
-  }
-  return parsed;
-}
+const { normalizeTradeDate } = require("../utils/dateUtils");
 
 function getEffectiveTradeTime(trade) {
   return new Date(trade.tradeDate || trade.createdAt || 0).getTime();
@@ -103,7 +96,7 @@ exports.createTrade = asyncHandler(async (req, res) => {
     ...req.body,
     pair: symbol,
     type: type.toUpperCase(),
-    tradeDate: normalizeTradeDate(tradeDate),
+    tradeDate: normalizeTradeDate(tradeDate, { accountCreatedAt: req.user.createdAt }),
     user: req.user._id,
   };
   if (!isEquity) {
@@ -166,18 +159,21 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Type must be BUY or SELL", "VALIDATION_ERROR");
   }
 
+  const update = { ...req.body };
+  delete update.tradeDate;
+  if (tradeDate != null && String(tradeDate).trim() !== "") {
+    update.tradeDate = normalizeTradeDate(tradeDate, { accountCreatedAt: req.user.createdAt });
+  }
+  if (type) {
+    update.type = type.toUpperCase();
+  }
+
   const trade = await IndianTrade.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id },
-    {
-      ...req.body,
-      ...(tradeDate && { tradeDate: normalizeTradeDate(tradeDate) }),
-      ...(type && { type: type.toUpperCase() }),
-    },
+    update,
     {
       returnDocument: "after",
-      upsert: true,
       runValidators: true,
-      setDefaultsOnInsert: true
     }
   );
 

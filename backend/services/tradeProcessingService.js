@@ -477,6 +477,12 @@ function mergeGenericAiData(parsedTrade, aiData) {
   };
 }
 
+function omitUndefinedFields(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  );
+}
+
 function buildTradeUpdate({
   trade,
   parsedTrade,
@@ -488,7 +494,11 @@ function buildTradeUpdate({
   needsReview,
   validationFailures,
 }) {
-  return {
+  const tradeDateUpdate = trade.tradeDate
+    ? { tradeDate: trade.tradeDate }
+    : {};
+
+  return omitUndefinedFields({
     pair: parsedTrade?.pair || trade.pair || undefined,
     type: normalizeTradeType(parsedTrade?.type || parsedTrade?.action) || trade.type || undefined,
     quantity: parsedTrade?.quantity ?? trade.quantity ?? undefined,
@@ -502,6 +512,7 @@ function buildTradeUpdate({
     swap: parsedTrade?.swap ?? trade.swap ?? undefined,
     balance: parsedTrade?.balance ?? trade.balance ?? undefined,
     session: parsedTrade?.session ?? trade.session ?? undefined,
+    ...tradeDateUpdate,
     broker: parsedTrade?.broker || trade.broker || "",
     segment: parsedTrade?.segment || trade.segment || "",
     instrumentType: parsedTrade?.instrumentType || trade.instrumentType || "",
@@ -532,7 +543,7 @@ function buildTradeUpdate({
     status: "completed",
     error: needsReview ? (validationFailures.join(", ") || "Needs manual review") : null,
     processedAt: new Date(),
-  };
+  });
 }
 
 async function logExtraction({ trade, extractedText, parsedTrade, parsedTrades, aiUsed, errorMessage }) {

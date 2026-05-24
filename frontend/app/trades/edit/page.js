@@ -5,6 +5,7 @@ import { getTrade, updateTrade } from "@/services/tradeApi";
 import { uploadTradeImage } from "@/services/uploadApi";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS — Light Trading Theme
@@ -116,7 +117,7 @@ function TickerTape() {
 /* ─────────────────────────────────────────
    INPUT FIELD
 ───────────────────────────────────────── */
-function InputField({ label, name, value, onChange, type = "text", options = null }) {
+function InputField({ label, name, value, onChange, type = "text", options = null, required = false, min, max }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <label style={{
@@ -128,7 +129,7 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
         fontFamily: "'JetBrains Mono',monospace",
         fontWeight: 500,
       }}>
-        {label}
+        {label}{required && <span style={{ color: "#D63B3B", marginLeft: 2 }}>*</span>}
       </label>
       {options ? (
         <select
@@ -158,6 +159,8 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
           name={name}
           value={value || ""}
           onChange={onChange}
+          min={min}
+          max={max}
           style={{
             width: "100%",
             boxSizing: "border-box",
@@ -176,6 +179,18 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
   );
 }
 
+function normalizeDateInput(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+}
+
+function getTodayInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+}
+
 /* ─────────────────────────────────────────
    MAIN PAGE
 ───────────────────────────────────────── */
@@ -183,17 +198,22 @@ function EditTradePageContent() {
   const searchParams = useSearchParams();
   const resolvedParams = useMemo(() => ({ id: searchParams.get('id') }), [searchParams]);
   const router = useRouter();
+  const { accountCreatedDate } = useUserProfile();
   const [trade, setTrade] = useState(null);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [dateError, setDateError] = useState("");
 
   const fetchTrade = useCallback(async () => {
     if (resolvedParams?.id) {
       const data = await getTrade(resolvedParams.id);
       setTrade(data);
-      setFormData(data);
+      setFormData({
+        ...data,
+        tradeDate: normalizeDateInput(data.tradeDate || data.createdAt),
+      });
       setLoading(false);
     }
   }, [resolvedParams]);
@@ -205,11 +225,26 @@ function EditTradePageContent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "tradeDate") setDateError("");
     setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData?.tradeDate) {
+      setDateError("Trade date is required.");
+      return;
+    }
+    if (accountCreatedDate && formData.tradeDate < accountCreatedDate) {
+      setDateError(`Date cannot be before your account creation date (${accountCreatedDate}).`);
+      return;
+    }
+    const today = getTodayInputValue();
+    if (formData.tradeDate > today) {
+      setDateError("Trade date cannot be in the future.");
+      return;
+    }
+    setDateError("");
     setSaving(true);
     try {
       const result = await updateTrade(resolvedParams.id, formData);
@@ -306,6 +341,27 @@ function EditTradePageContent() {
                   onChange={handleChange}
                   options={typeOptions}
                 />
+
+                <InputField
+                  label="TRADE DATE"
+                  name="tradeDate"
+                  type="date"
+                  value={formData.tradeDate}
+                  onChange={handleChange}
+                  required
+                  min={accountCreatedDate || undefined}
+                  max={getTodayInputValue()}
+                />
+                {dateError && (
+                  <div style={{ fontSize: 11, color: "#D63B3B", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+                    {dateError}
+                  </div>
+                )}
+                {!dateError && accountCreatedDate && (
+                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+                    Earliest allowed: {accountCreatedDate}
+                  </div>
+                )}
 
                 <InputField
                   label="LOT SIZE"

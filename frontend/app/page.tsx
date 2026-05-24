@@ -2,17 +2,35 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getProfile } from "@/services/api";
+import { clearAuthToken, getValidToken } from "@/utils/auth";
 
 export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    try {
-      const token = localStorage.getItem("token");
-      router.replace(token ? "/dashboard" : "/login");
-    } catch {
-      router.replace("/login");
-    }
+    let cancelled = false;
+
+    const routeByAuth = async () => {
+      try {
+        if (!getValidToken()) {
+          router.replace("/login");
+          return;
+        }
+
+        await getProfile();
+        if (!cancelled) router.replace("/dashboard");
+      } catch {
+        clearAuthToken();
+        if (!cancelled) router.replace("/login");
+      }
+    };
+
+    routeByAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return (

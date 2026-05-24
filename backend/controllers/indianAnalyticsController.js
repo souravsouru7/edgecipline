@@ -69,11 +69,11 @@ exports.getSummary = asyncHandler(async (req, res) => {
 
 exports.getWeeklyStats = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
     const weekly = {};
-    
+
     trades.forEach(trade => {
-      const date = new Date(trade.createdAt);
+      const date = new Date(trade.tradeDate || trade.createdAt);
       // ISO week calculation helper
       const d = new Date(date.getTime());
       d.setHours(0, 0, 0, 0);
@@ -97,8 +97,8 @@ exports.getWeeklyStats = asyncHandler(async (req, res) => {
  */
 exports.getPnLBreakdown = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
-    
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
+
     const dailyMap = {};
     const weeklyMap = {};
     const monthlyMap = {};
@@ -106,7 +106,7 @@ exports.getPnLBreakdown = asyncHandler(async (req, res) => {
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
     trades.forEach(t => {
-      const date = new Date(t.createdAt);
+      const date = new Date(t.tradeDate || t.createdAt);
       const profit = t.profit || 0;
 
       // Daily
@@ -413,7 +413,7 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 
 exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
@@ -478,7 +478,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     const byMonth = {};
     const byDate = {};
     trades.forEach(t => {
-      const date = new Date(t.createdAt);
+      const date = new Date(t.tradeDate || t.createdAt);
       const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       if (!byMonth[key]) byMonth[key] = { total: 0, wins: 0, losses: 0, profit: 0, avgProfit: 0 };
@@ -513,7 +513,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     };
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     trades.forEach(t => {
-      const day = dayNames[new Date(t.createdAt).getDay()];
+      const day = dayNames[new Date(t.tradeDate || t.createdAt).getDay()];
       if (byDay[day]) {
         byDay[day].total++;
         if (t.profit > 0) byDay[day].wins++;
@@ -698,7 +698,7 @@ exports.getTradeQuality = asyncHandler(async (req, res) => {
 
 exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({
@@ -720,7 +720,7 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
 
     trades.forEach(t => {
       balance += t.profit || 0;
-      equityCurve.push({ date: t.createdAt, balance });
+      equityCurve.push({ date: t.tradeDate || t.createdAt, balance });
       if (balance > peak) peak = balance;
       const drawdown = peak - balance;
       if (drawdown > maxDrawdown) {
@@ -837,7 +837,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
     const dayStats = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0 };
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     trades.forEach(t => {
-      const day = dayNames[new Date(t.createdAt).getDay()];
+      const day = dayNames[new Date(t.tradeDate || t.createdAt).getDay()];
       if (dayStats[day] !== undefined) dayStats[day] += t.profit || 0;
     });
     const bestDay = Object.entries(dayStats).reduce((a, b) => (a[1] > b[1] ? a : b));
@@ -880,7 +880,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
     const weeklyPlan = {};
     trades.forEach(t => {
-      const d = new Date(t.createdAt);
+      const d = new Date(t.tradeDate || t.createdAt);
       const year = d.getFullYear();
       const week = Math.ceil(((d - new Date(year, 0, 1)) / 86400000 + d.getDay() + 1) / 7);
       const key = `${year}-W${week}`;
@@ -908,9 +908,9 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       const prevLoss = (prev.profit || 0) < 0;
       const prevRisk = prev.entryPrice && prev.stopLoss ? Math.abs(prev.entryPrice - prev.stopLoss) : 0;
       const currRisk = curr.entryPrice && curr.stopLoss ? Math.abs(curr.entryPrice - curr.stopLoss) : 0;
-      const sameDay = new Date(prev.createdAt).toDateString() === new Date(curr.createdAt).toDateString();
+      const sameDay = new Date(prev.tradeDate || prev.createdAt).toDateString() === new Date(curr.tradeDate || curr.createdAt).toDateString();
       if (prevLoss && sameDay && prevRisk > 0 && currRisk > prevRisk * 1.5) {
-        revengeTrades.push({ id: curr._id, pair: curr.pair, createdAt: curr.createdAt, prevProfit: prev.profit, currRisk, prevRisk });
+        revengeTrades.push({ id: curr._id, pair: curr.pair, createdAt: curr.tradeDate || curr.createdAt, prevProfit: prev.profit, currRisk, prevRisk });
       }
     }
     const revengeCostTotal = revengeTrades.reduce((acc, t) => acc + (t.prevProfit || 0), 0);
@@ -964,7 +964,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
         });
         if (increasing) {
           tiltDays.push({
-            day: new Date(currentStreak[0].createdAt).toDateString(),
+            day: new Date(currentStreak[0].tradeDate || currentStreak[0].createdAt).toDateString(),
             streakLength: currentStreak.length,
             totalLoss: currentStreak.reduce((acc, t) => acc + (t.profit || 0), 0).toFixed(2)
           });
@@ -1054,7 +1054,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
 exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     const totalTrades = trades.length;
     const totalProfit = trades.reduce((acc, t) => acc + (t.profit || 0), 0);
@@ -1137,7 +1137,7 @@ exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
 
 exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({
@@ -1233,7 +1233,7 @@ exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
       const prevLoss = (prev.profit || 0) < 0;
       const prevRisk = prev.entryPrice && prev.stopLoss ? Math.abs(prev.entryPrice - prev.stopLoss) : 0;
       const currRisk = curr.entryPrice && curr.stopLoss ? Math.abs(curr.entryPrice - curr.stopLoss) : 0;
-      const sameDay = new Date(prev.createdAt).toDateString() === new Date(curr.createdAt).toDateString();
+      const sameDay = new Date(prev.tradeDate || prev.createdAt).toDateString() === new Date(curr.tradeDate || curr.createdAt).toDateString();
       if (prevLoss && sameDay && prevRisk > 0 && currRisk > prevRisk * 1.5) revengeCount++;
     }
     const noRevengePct = totalTrades ? ((totalTrades - revengeCount) / totalTrades) * 100 : 100;

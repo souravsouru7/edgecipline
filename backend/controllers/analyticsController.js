@@ -117,12 +117,12 @@ exports.getWeeklyStats = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
-      .select("profit createdAt")
+      .select("profit tradeDate createdAt")
       .limit(10000);
     const weekly = {};
 
     trades.forEach(trade => {
-      const week = getIsoWeekKey(trade.createdAt);
+      const week = getIsoWeekKey(trade.tradeDate || trade.createdAt);
       if (!week) return;
       if (!weekly[week]) weekly[week] = 0;
       weekly[week] += toNum(trade.profit);
@@ -363,8 +363,8 @@ exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
-      .sort({ createdAt: 1 })
-      .select("profit createdAt lotSize")
+      .sort({ tradeDate: 1, createdAt: 1 })
+      .select("profit tradeDate createdAt lotSize")
       .limit(10000);
 
     const winningTrades = trades.filter(t => t.profit > 0);
@@ -415,7 +415,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     let trades = await Trade.find(query).lean()
-      .select("profit createdAt session")
+      .select("profit tradeDate createdAt session")
       .limit(10000);
 
     // Optional date range filter for "byDay/byHour" style widgets.
@@ -434,7 +434,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
       weekEnd.setDate(weekEnd.getDate() + 7);
 
       trades = trades.filter(t => {
-        const d = getAnalyticsLocalDate(t.createdAt);
+        const d = getAnalyticsLocalDate(t.tradeDate || t.createdAt);
         return d >= weekStart && d < weekEnd;
       });
     }
@@ -445,7 +445,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     const byDate = {};
 
     trades.forEach(t => {
-      const date = getAnalyticsLocalDate(t.createdAt);
+      const date = getAnalyticsLocalDate(t.tradeDate || t.createdAt);
       const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       if (!byMonth[key]) byMonth[key] = { total: 0, wins: 0, losses: 0, profit: 0, avgProfit: 0 };
@@ -484,7 +484,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     trades.forEach(t => {
-      const day = dayNames[getAnalyticsLocalDate(t.createdAt).getDay()];
+      const day = dayNames[getAnalyticsLocalDate(t.tradeDate || t.createdAt).getDay()];
       if (byDay[day]) {
         byDay[day].total++;
         if (t.profit > 0) byDay[day].wins++;
@@ -724,9 +724,8 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
-      .sort({ createdAt: 1 })
-      .select("profit createdAt")
-      .lean()
+      .sort({ tradeDate: 1, createdAt: 1 })
+      .select("profit tradeDate createdAt")
       .limit(10000);
 
     if (trades.length === 0) {
@@ -742,7 +741,7 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
 
     trades.forEach(t => {
       cumulativeProfit += t.profit || 0;
-      equityCurve.push({ date: t.createdAt, balance: cumulativeProfit });
+      equityCurve.push({ date: t.tradeDate || t.createdAt, balance: cumulativeProfit });
       
       // Update peak if we're at a new high
       if (cumulativeProfit > peakProfit) {
@@ -789,7 +788,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
-      .select("profit entryPrice stopLoss takeProfit session pair createdAt entryBasis strategy riskRewardRatio riskRewardCustom lotSize mistakeTag lesson")
+      .select("profit entryPrice stopLoss takeProfit session pair tradeDate createdAt entryBasis strategy riskRewardRatio riskRewardCustom lotSize mistakeTag lesson")
       .lean()
       .limit(10000);
 
@@ -846,7 +845,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       if (profit > 0) stats.byPair[t.pair].wins++;
 
       // Day stats
-      const day = dayNames[getAnalyticsLocalDate(t.createdAt).getDay()];
+      const day = dayNames[getAnalyticsLocalDate(t.tradeDate || t.createdAt).getDay()];
       if (stats.byDay[day] !== undefined) stats.byDay[day] += profit;
 
       // Behavior stats
@@ -855,7 +854,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       stats.behaviorBuckets[behaviorKey].pnl += profit;
 
       // Weekly plan
-      const d = new Date(t.createdAt);
+      const d = new Date(t.tradeDate || t.createdAt);
       const year = d.getFullYear();
       const week = Math.ceil(((d - new Date(year, 0, 1)) / 86400000 + d.getDay() + 1) / 7);
       const weekKey = `${year}-W${week}`;
@@ -983,10 +982,10 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       const prevLoss = (prev.profit || 0) < 0;
       const prevRisk = prev.entryPrice && prev.stopLoss ? Math.abs(prev.entryPrice - prev.stopLoss) : 0;
       const currRisk = curr.entryPrice && curr.stopLoss ? Math.abs(curr.entryPrice - curr.stopLoss) : 0;
-      const sameDay = new Date(prev.createdAt).toDateString() === new Date(curr.createdAt).toDateString();
+      const sameDay = new Date(prev.tradeDate || prev.createdAt).toDateString() === new Date(curr.tradeDate || curr.createdAt).toDateString();
 
       if (prevLoss && sameDay && prevRisk > 0 && currRisk > prevRisk * 1.5) {
-        revengeTrades.push({ id: curr._id, pair: curr.pair, createdAt: curr.createdAt, prevProfit: prev.profit, currRisk, prevRisk });
+        revengeTrades.push({ id: curr._id, pair: curr.pair, createdAt: curr.tradeDate || curr.createdAt, prevProfit: prev.profit, currRisk, prevRisk });
       }
     }
     const revengeCostTotal = revengeTrades.reduce((acc, t) => acc + (t.prevProfit || 0), 0);
@@ -1116,9 +1115,8 @@ exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
-      .sort({ createdAt: 1 })
-      .select("profit commission swap entryPrice stopLoss takeProfit riskRewardRatio pair type createdAt balance")
-      .lean()
+      .sort({ tradeDate: 1, createdAt: 1 })
+      .select("profit commission swap entryPrice stopLoss takeProfit riskRewardRatio pair type tradeDate createdAt balance")
       .limit(10000);
 
     if (!trades.length) {

@@ -170,11 +170,18 @@ export const handleGoogleRedirectResult = async () => {
 
 export const recoverFirebaseSessionIdToken = async () => {
   const auth = await getFirebaseAuth();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       unsubscribe();
-      if (!user) resolve(null);
-      else resolve(await user.getIdToken());
+      if (!user) {
+        resolve(null);
+      } else {
+        try {
+          resolve(await user.getIdToken());
+        } catch (err) {
+          reject(err);
+        }
+      }
     });
   });
 };

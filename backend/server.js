@@ -37,12 +37,12 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const cookieParser = require("cookie-parser");
 
 const connectDB = require("./config/db");
 const { appConfig } = require("./config");
 const {
   globalRateLimiter,
-  authRateLimiter,
   statusRateLimiter,
 } = require("./middleware/rateLimiter");
 const { sanitizeInput } = require("./middleware/sanitizeInput");
@@ -205,6 +205,9 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Parse cookies — required for httpOnly refresh-token cookie
+app.use(cookieParser());
+
 // Prevent browsers from caching API responses
 app.use("/api", (_req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -219,8 +222,10 @@ app.use(sanitizeInput);
 // Apply global rate limiter to all routes
 app.use(globalRateLimiter);
 
-// Apply stricter rate limiter to authentication-related routes
-app.use("/api/auth", authRateLimiter, require("./routes/authRoutes"));
+// Auth routes use per-route rate limiters (authRateLimiter for credentials,
+// refreshRateLimiter for token refresh, profileRateLimiter for /me endpoints).
+// Applying a single strict limiter at the router level caused 429s on frequent /me calls.
+app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/trades", require("./routes/tradeRoutes"));
 app.use("/api/trade", statusRateLimiter, require("./routes/tradeStatusRoutes"));
 app.use("/api/setups", require("./routes/setupRoutes"));
