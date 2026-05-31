@@ -41,12 +41,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className="antialiased">
         <Providers>{children}</Providers>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
+            // M22: Escape </script> so an injected string can't break out of the script tag
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
@@ -55,9 +56,8 @@ export default function RootLayout({
               logo: "https://edgecipline.com/logo.png",
               sameAs: [
                 "https://twitter.com/edgecipline",
-                // Add more social links
               ]
-            })
+            }).replace(/<\/script>/gi, "<\\/script>")
           }}
         />
       </body>

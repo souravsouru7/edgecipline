@@ -3,6 +3,21 @@ const User = require("../models/Users");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { CURRENT_TERMS_VERSION } = require("../constants/terms");
+
+const TERMS_ALLOWED_PATHS = new Set([
+  "/api/auth/me",
+  "/api/auth/accept-terms",
+  "/api/auth/logout",
+]);
+
+function hasAcceptedCurrentTerms(user) {
+  return (
+    user?.termsAcceptance?.acceptedTerms === true &&
+    user?.termsAcceptance?.acceptedPrivacy === true &&
+    user?.termsAcceptance?.termsVersion === CURRENT_TERMS_VERSION
+  );
+}
 
 const protect = asyncHandler(async (req, res, next) => {
   let token;
@@ -49,6 +64,16 @@ const protect = asyncHandler(async (req, res, next) => {
   if (!req.user) {
     console.warn(`[Security] Token for missing user | path=${req.originalUrl} | ip=${req.ip}`);
     throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+  }
+
+  if (!TERMS_ALLOWED_PATHS.has(req.path) && !TERMS_ALLOWED_PATHS.has(req.originalUrl.split("?")[0])) {
+    if (!hasAcceptedCurrentTerms(req.user)) {
+      throw new ApiError(
+        403,
+        "You must accept the Terms & Privacy Policy to continue",
+        "TERMS_NOT_ACCEPTED"
+      );
+    }
   }
 
   return next();

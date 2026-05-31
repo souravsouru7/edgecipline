@@ -4,18 +4,46 @@ const jwt = require("jsonwebtoken");
 const { appConfig } = require("../../config");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
+const { ADMIN_COOKIE_NAME } = require("../../middleware/adminAuth");
 
-// Generate JWT with role
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, appConfig.jwt.secret, {
-    expiresIn: appConfig.jwt.expiresIn,
-  });
-};
+// Admin sessions last 8 hours — long enough for a working session, short enough to limit exposure.
+// Stored in httpOnly cookie, never in localStorage.
+const ADMIN_TOKEN_EXPIRY = "8h";
+const ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
+
+function generateAdminToken(user) {
+  return jwt.sign(
+    { id: String(user._id), role: user.role, tokenVersion: user.tokenVersion ?? 0 },
+    appConfig.jwt.secret,
+    { expiresIn: ADMIN_TOKEN_EXPIRY }
+  );
+}
+
+function getAdminCookieOptions() {
+  const isProduction = appConfig.env === "production";
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    maxAge: ADMIN_COOKIE_MAX_AGE,
+    path: "/api/admin",
+  };
+}
+
+function getClearAdminCookieOptions() {
+  const isProduction = appConfig.env === "production";
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    path: "/api/admin",
+  };
+}
 
 /**
  * Admin Login
  * POST /api/admin/auth/login
- * Validates credentials and confirms user has admin role.
+ * Validates credentials, confirms admin role, and sets an httpOnly session cookie.
  */
 exports.adminLogin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -24,37 +52,39 @@ exports.adminLogin = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email and password are required", "VALIDATION_ERROR");
   }
 
-    const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email }).select("+password");
 
-  if (!user) {
+  // L1: Always run bcrypt compare to prevent timing attacks that reveal whether
+  // the email exists. Use a dummy hash when the user is not found.
+  const DUMMY_HASH = "$2b$10$invalidsaltinvalidsaltinvalidsal" + "tXXXXXXXXXXXXXXXXXXXX";
+  const candidateHash = (user?.password && user.authProvider !== "google" && user.role === "admin")
+    ? user.password
+    : DUMMY_HASH;
+  const isMatch = await bcrypt.compare(password, candidateHash);
+
+  if (!user || user.authProvider === "google" || !user.password || user.role !== "admin" || !isMatch) {
     throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
 
-  if (user.authProvider === "google") {
-    throw new ApiError(401, "This account uses Google sign-in. Admin login requires email/password.", "AUTH_PROVIDER_MISMATCH");
-  }
-
-  if (!user.password) {
-    throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
-  }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
-  }
-
-    // Check admin role
-  if (user.role !== "admin") {
-    throw new ApiError(403, "Access denied. You do not have admin privileges.", "FORBIDDEN");
-  }
+  const token = generateAdminToken(user);
+  res.cookie(ADMIN_COOKIE_NAME, token, getAdminCookieOptions());
 
   res.json({
     _id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
-    token: generateToken(user._id, user.role)
   });
+});
+
+/**
+ * Admin Logout
+ * POST /api/admin/auth/logout
+ * Clears the admin session cookie.
+ */
+exports.adminLogout = asyncHandler(async (req, res) => {
+  res.clearCookie(ADMIN_COOKIE_NAME, getClearAdminCookieOptions());
+  res.json({ success: true, message: "Logged out successfully" });
 });
 
 /**
@@ -72,6 +102,6 @@ exports.getAdminProfile = asyncHandler(async (req, res) => {
     name: req.user.name,
     email: req.user.email,
     role: req.user.role,
-    createdAt: req.user.createdAt
+    createdAt: req.user.createdAt,
   });
 });

@@ -76,19 +76,20 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
 
 async function getTrades(userId, query) {
   const period = String(query.period || "all").toLowerCase();
-  const key = buildCacheKey("trades", userId, "list", `period=${period}`);
+  const page   = Math.max(1, parseInt(query.page,  10) || 1);
+  const limit  = Math.min(200, Math.max(1, parseInt(query.limit, 10) || 50));
+  const periodStart = getPeriodStart(period);
+  const key = buildCacheKey("trades", userId, "list", `period=${period}&page=${page}&limit=${limit}`);
   const startedAt = Date.now();
   const { data: trades } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
-    const rows = await tradeRepository.findForexTradesByUser(userId);
-    const periodStart = getPeriodStart(period);
+    const rows = await tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit });
     return rows
-      .filter((trade) => !periodStart || getEffectiveTradeTime(trade) >= periodStart.getTime())
       .sort((a, b) => getEffectiveTradeTime(b) - getEffectiveTradeTime(a))
       .map((trade) => ({
-      ...trade,
-      symbol: trade.pair ?? null,
-      pnl: trade.profit ?? 0,
-    }));
+        ...trade,
+        symbol: trade.pair ?? null,
+        pnl: trade.profit ?? 0,
+      }));
   });
   const duration = Date.now() - startedAt;
 

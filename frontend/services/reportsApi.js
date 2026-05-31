@@ -1,20 +1,16 @@
 import { API_URL as BASE_URL } from "@/config/api";
+import { getValidToken } from "@/utils/auth";
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("token");
+  const token = getValidToken();
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+    Authorization: token ? `Bearer ${token}` : "",
   };
 };
 
 const handleResponse = async (res) => {
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-      return new Promise(() => {});
-    }
     const errorText = await res.text();
     let errorMessage = `Request failed with status ${res.status}`;
     try {
@@ -23,7 +19,9 @@ const handleResponse = async (res) => {
     } catch (e) {
       // ignore
     }
-    throw new Error(errorMessage);
+    const err = new Error(errorMessage);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 };

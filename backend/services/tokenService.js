@@ -85,8 +85,13 @@ async function createRefreshToken(userId, deviceInfo) {
 }
 
 /**
- * Validates the presented refresh token, revokes it, and issues a new one
+ * Validates the presented refresh token, revokes it atomically, and issues a new one
  * in the same family. Returns data needed to issue a new access token.
+ *
+ * Race condition fix: uses findOneAndUpdate with { revokedAt: null } filter so that
+ * only ONE concurrent request can successfully revoke the token. If two requests race
+ * with the same token, one wins and gets a new token; the other sees null and triggers
+ * the replay-attack family-revocation path.
  *
  * Throws ApiError on:
  *  - Unknown token (possible theft)
@@ -96,40 +101,45 @@ async function createRefreshToken(userId, deviceInfo) {
 async function rotateRefreshToken(rawToken, deviceInfo) {
   const tokenHash = hashToken(rawToken);
 
-  const existing = await RefreshToken.findOne({ tokenHash }).populate(
-    "userId",
-    "_id role tokenVersion"
-  );
+  // Atomically mark the token as revoked. Returns the document as it was BEFORE the
+  // update. Returns null if the token is already revoked or doesn't exist.
+  const existing = await RefreshToken.findOneAndUpdate(
+    { tokenHash, revokedAt: null },
+    { $set: { revokedAt: new Date() } },
+    { new: false } // Return original (pre-update) document
+  ).populate("userId", "_id role tokenVersion");
 
-  if (!existing || !existing.userId) {
-    // Token unknown — conservative: revoke nothing (we can't find the user),
-    // but return a generic error. The cookie will be cleared by the caller.
+  if (!existing) {
+    // Token not found with revokedAt: null — either genuinely unknown or already revoked.
+    // Check if it's a replay attack (token exists but was already used).
+    const staleToken = await RefreshToken.findOne({ tokenHash }).lean();
+
+    if (staleToken?.revokedAt) {
+      // Replay attack detected — revoke the entire family to protect the legitimate user.
+      await RefreshToken.updateMany(
+        { userId: staleToken.userId, family: staleToken.family },
+        { $set: { revokedAt: new Date() } }
+      );
+      throw new ApiError(
+        401,
+        "Security alert: session reuse detected. Please login again.",
+        "TOKEN_REPLAY_DETECTED"
+      );
+    }
+
+    // Token simply doesn't exist
     throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
   }
 
-  const { userId } = existing;
-
-  if (existing.revokedAt) {
-    // Already-used token presented again — replay attack detected.
-    // Revoke every token in this family to protect the legitimate user.
-    await RefreshToken.updateMany(
-      { userId: userId._id, family: existing.family },
-      { revokedAt: new Date() }
-    );
-    throw new ApiError(
-      401,
-      "Security alert: session reuse detected. Please login again.",
-      "TOKEN_REPLAY_DETECTED"
-    );
+  if (!existing.userId) {
+    throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
   }
 
   if (existing.expiresAt < new Date()) {
     throw new ApiError(401, "Session expired, please login again", "REFRESH_TOKEN_EXPIRED");
   }
 
-  // Revoke the old token synchronously — it must never be reused.
-  existing.revokedAt = new Date();
-  await existing.save();
+  const { userId } = existing;
 
   // Issue replacement token in the same family (rotation chain).
   const newRaw = crypto.randomBytes(48).toString("hex");

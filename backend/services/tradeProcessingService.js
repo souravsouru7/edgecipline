@@ -11,6 +11,7 @@ const {
   parseTradesFromOCR,
   parseForexTradesFromOCR,
   parseEquityIntradayTrade,
+  parseEquityIntradayTrades,
 } = require("./parsingService");
 const cloudinary = require("../config/cloudinary");
 const {
@@ -200,23 +201,51 @@ function safeParseEquityTrade(text, options) {
   }
 }
 
+function safeParseEquityTrades(text, options) {
+  try {
+    return parseEquityIntradayTrades(text || "", options || {});
+  } catch (error) {
+    logger.error("Safe parseEquityIntradayTrades failed", { error: error.message });
+    return [];
+  }
+}
+
 function mergeEquityAiData(parsedTrade, aiData) {
   if (!aiData) return parsedTrade;
   const merged = { ...parsedTrade };
   // AI (Gemini Vision / text AI) takes precedence over OCR regex — it reads the image
   // directly and understands context; OCR regex is a dumb pattern match.
-  if (aiData.stockSymbol) merged.stockSymbol = aiData.stockSymbol;
+  const aiSymbol = String(aiData.stockSymbol || "").trim().toUpperCase();
+  const parsedSymbol = String(parsedTrade?.stockSymbol || "").trim().toUpperCase();
+  const aiSymbolLooksTruncated =
+    aiSymbol &&
+    parsedSymbol &&
+    aiSymbol.length <= 3 &&
+    parsedSymbol.length > aiSymbol.length &&
+    parsedSymbol.endsWith(aiSymbol);
+  const parsedSymbolIsBetterRowMatch =
+    aiSymbol &&
+    parsedSymbol &&
+    aiSymbol.length <= 3 &&
+    parsedSymbol.length > 3;
+  if (aiSymbol && !aiSymbolLooksTruncated && !parsedSymbolIsBetterRowMatch) merged.stockSymbol = aiSymbol;
+  else if (parsedSymbol) merged.stockSymbol = parsedSymbol;
   if (aiData.exchange) merged.exchange = aiData.exchange;
   if (aiData.sharesQty != null && aiData.sharesQty > 0) merged.sharesQty = aiData.sharesQty;
   if (aiData.type) merged.type = aiData.type;
   if (aiData.entryPrice != null && aiData.entryPrice > 0) merged.entryPrice = aiData.entryPrice;
   if (aiData.exitPrice != null && aiData.exitPrice > 0) merged.exitPrice = aiData.exitPrice;
-  if (aiData.profit != null) merged.profit = aiData.profit;
+  const parsedHasBetterSymbol =
+    parsedSymbol &&
+    aiSymbol &&
+    aiSymbol.length <= 3 &&
+    parsedSymbol.length > aiSymbol.length;
+  if (aiData.profit != null && !parsedHasBetterSymbol) merged.profit = aiData.profit;
   if (aiData.broker) merged.broker = aiData.broker;
   if (aiData.sector) merged.sector = aiData.sector;
   merged.instrumentType = "EQUITY";
   merged.segment = "EQUITY";
-  merged.tradeType = "INTRADAY";
+  merged.tradeType = aiData.productType === "DELIVERY" ? "DELIVERY" : (parsedTrade.tradeType || "INTRADAY");
   if (merged.stockSymbol && !merged.pair) {
     merged.pair = merged.stockSymbol;
   }
@@ -691,6 +720,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
           if (visionData) break;
           logger.warn(`Gemini Vision returned null | tradeId=${tradeId} | attempt=${vAttempt}`, { tradeId, vAttempt });
         } catch (vErr) {
+          if (vErr.code === "WRONG_MARKET_TYPE") throw vErr;
           logger.warn(`Gemini Vision attempt ${vAttempt} failed | tradeId=${tradeId}`, { tradeId, vAttempt, error: vErr.message });
           if (vAttempt === 2) visionData = null;
         }
@@ -716,8 +746,13 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         logger.info(`Gemini Vision primary extraction succeeded | tradeId=${tradeId}`, { tradeId, marketType });
 
         if (isEquityIntraday) {
-          parsedTrade = mergeEquityAiData({}, aiData);
-          parsedTrades = Array.isArray(aiData?.trades) ? aiData.trades.map((t) => mergeEquityAiData({}, t)) : [];
+          const ocrEquityTrade = safeParseEquityTrade(cleanedText, { broker });
+          const ocrEquityTrades = safeParseEquityTrades(cleanedText, { broker });
+          parsedTrade = mergeEquityAiData(ocrEquityTrade, aiData);
+          parsedTrades = ocrEquityTrades.length > 0
+            ? ocrEquityTrades.map((t, index) => mergeEquityAiData(t, aiData?.trades?.[index] || {}))
+            : Array.isArray(aiData?.trades) ? aiData.trades.map((t) => mergeEquityAiData(ocrEquityTrade, t)) : [];
+          if (parsedTrades.length > 0) parsedTrade = parsedTrades[0];
         } else if (marketType === "Indian_Market") {
           parsedTrade = mergeIndianAiData({}, aiData);
           parsedTrades = mergeIndianAiTrades([], aiData?.trades || [], broker || aiData.broker || "");
@@ -741,6 +776,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         }
       }
     } catch (err) {
+      if (err.code === "WRONG_MARKET_TYPE") throw err;
       logger.warn(`Gemini Vision step error | tradeId=${tradeId}`, { error: err.message });
     }
 
@@ -748,7 +784,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     if (!geminiVisionUsed) {
       if (isEquityIntraday && !weakOcr) {
         parsedTrade = safeParseEquityTrade(cleanedText, { broker });
-        parsedTrades = [];
+        parsedTrades = safeParseEquityTrades(cleanedText, { broker });
       } else if (marketType === "Indian_Market" && !weakOcr) {
         parsedTrade = safeParseIndianTrade(cleanedText, { broker });
         parsedTrades = safeParseTradesFromOCR(cleanedText, { broker });
@@ -858,10 +894,15 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         }
 
         if (isEquityIntraday) {
-          parsedTrade = mergeEquityAiData(safeParseEquityTrade(cleanedText, { broker }), aiData);
-          parsedTrades = Array.isArray(aiData?.trades) && aiData.trades.length > 1
-            ? aiData.trades.map((t) => mergeEquityAiData({}, t))
+          const ocrEquityTrade = safeParseEquityTrade(cleanedText, { broker });
+          const ocrEquityTrades = safeParseEquityTrades(cleanedText, { broker });
+          parsedTrade = mergeEquityAiData(ocrEquityTrade, aiData);
+          parsedTrades = ocrEquityTrades.length > 0
+            ? ocrEquityTrades.map((t, index) => mergeEquityAiData(t, aiData?.trades?.[index] || {}))
+            : Array.isArray(aiData?.trades) && aiData.trades.length > 1
+            ? aiData.trades.map((t) => mergeEquityAiData(ocrEquityTrade, t))
             : [];
+          if (parsedTrades.length > 0) parsedTrade = parsedTrades[0];
         } else if (marketType === "Indian_Market") {
           parsedTrade = mergeIndianAiData(safeParseIndianTrade(cleanedText, { broker }), aiData);
           parsedTrades = mergeIndianAiTrades(
@@ -1044,8 +1085,24 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
   })(), "Processing timeout");
 }
 
+function getFriendlyProcessingError(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  const code = error?.code;
+
+  if (code === "WRONG_MARKET_TYPE" || msg.includes("wrong screenshot type")) {
+    return error.message;
+  }
+  if (code === 429 || msg.includes("429") || msg.includes("resource_exhausted") || msg.includes("quota") || msg.includes("rate limit")) {
+    return "Our AI is currently busy due to high demand. Please try uploading again in a few minutes.";
+  }
+  if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("deadline")) {
+    return "AI processing timed out due to high load. Please try again shortly.";
+  }
+  return error?.message || "Processing failed";
+}
+
 async function failTradeProcessing(tradeId, error) {
-  const failureMessage = error?.message || "Processing failed";
+  const failureMessage = getFriendlyProcessingError(error);
   const trade = await Trade.findByIdAndUpdate(
     tradeId,
     {

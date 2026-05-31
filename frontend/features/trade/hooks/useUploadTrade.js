@@ -8,6 +8,8 @@ import { uploadTradeImage } from "@/services/uploadApi";
 import { createTrade, getTradeStatus, updateTrade, deleteTrade } from "@/services/tradeApi";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
+import { getValidToken } from "@/utils/auth";
+import { silentRefresh } from "@/services/apiClient";
 
 const DEFAULT_SETUP_RULES = [];
 const getTodayInputValue = () => {
@@ -83,6 +85,13 @@ const parseOptionalNumber = (value) => {
   if (value == null) return undefined;
   const n = Number.parseFloat(String(value).replace(/,/g, "").trim());
   return Number.isFinite(n) ? n : undefined;
+};
+
+const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+const hasNumericValue = (value) => {
+  if (!hasValue(value)) return false;
+  const n = Number.parseFloat(String(value).replace(/,/g, "").trim());
+  return Number.isFinite(n);
 };
 
 const normalizeText = (value) => String(value ?? "").trim().toUpperCase();
@@ -173,7 +182,7 @@ function buildEquityTradeTemplate(imageUrl, t = {}) {
     screenshot: imageUrl,
     instrumentType: "EQUITY",
     segment: "EQUITY",
-    tradeType: "INTRADAY",
+    tradeType: t.tradeType || "INTRADAY",
     strategy: "", strategyCustom: "",
     tradeDate: normalizeDateForInput(t.tradeDate) || getTodayInputValue(),
     brokerage: "", sttTaxes: "",
@@ -246,7 +255,7 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
     Object.assign(base, {
       instrumentType: "EQUITY",
       segment: "EQUITY",
-      tradeType: "INTRADAY",
+      tradeType: trade.tradeType || "INTRADAY",
       stockSymbol: (trade.stockSymbol || trade.pair || "").toUpperCase(),
       exchange: trade.exchange || "NSE",
       sharesQty: parseOptionalNumber(trade.sharesQty),
@@ -354,9 +363,26 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   // 3. Authenticity check
   useEffect(() => {
-    const token = typeof window !== "undefined" && localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
-    setMounted(true);
+    let cancelled = false;
+
+    const checkAuth = async () => {
+      if (getValidToken()) {
+        if (!cancelled) setMounted(true);
+        return;
+      }
+
+      const token = await silentRefresh();
+      if (cancelled) return;
+
+      if (token) {
+        setMounted(true);
+      } else {
+        router.replace("/login");
+      }
+    };
+
+    checkAuth();
+    return () => { cancelled = true; };
   }, [router]);
 
   // 4. Setups Query
@@ -392,6 +418,29 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     }
   });
 
+  // Detects if extracted data belongs to the wrong market type
+  const detectMarketMismatch = (payload) => {
+    const pair = String(payload?.pair || payload?.stockSymbol || "").trim().toUpperCase();
+    if (isInd) {
+      // On Indian market page — flag Forex data
+      const forexPair = /^[A-Z]{3}[A-Z]{3}(\.[A-Z]+)?$/.test(pair) ||
+        /^(XAU|XAG|GOLD|SILVER|OIL|BRENT|US30|US100|US500|NAS|DAX|FTSE|SP500)/.test(pair);
+      const forexBroker = /metatrader|mt4|mt5|ctrader/i.test(String(payload?.broker || ""));
+      const noIndianSignals = !/CE$|PE$/.test(pair) && !payload?.strikePrice;
+      if ((forexPair || forexBroker) && noIndianSignals) {
+        return "This looks like a Forex/MT5 screenshot. Please go back and use the Forex upload page instead.";
+      }
+    } else {
+      // On Forex page — flag Indian market data
+      const indianPair = /CE$|PE$/.test(pair) || payload?.strikePrice != null;
+      const indianBroker = /zerodha|upstox|angel|groww|dhan|fyers|kite|5paisa|kotak/i.test(String(payload?.broker || ""));
+      if (indianPair || indianBroker) {
+        return "This looks like an Indian broker screenshot. Please go back and use the Indian Market upload page instead.";
+      }
+    }
+    return null;
+  };
+
   // ─ apply default setup (first saved strategy) ─
   const applyDefaultSetup = (tradeObj, savedStrategies) => {
     if (!savedStrategies?.length) return tradeObj;
@@ -405,6 +454,17 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // ─ apply parsed data helper ─
   const applyProcessedTradeData = (payload) => {
     if (userEditedFormRef.current) return;
+
+    // Check for market type mismatch before populating the form
+    const mismatchMessage = detectMarketMismatch(payload);
+    if (mismatchMessage) {
+      if (activeToastId) { removeToast(activeToastId); setActiveToastId(null); }
+      setError(mismatchMessage);
+      setJobId("");
+      setFile(null);
+      addToast(mismatchMessage, "error");
+      return;
+    }
 
     const p = payload?.parsedData?.parsedTrade || payload?.parsedTrade || {};
     const parsedTradesPayload = dedupeParsedTrades(
@@ -491,9 +551,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     queryKey: ["uploadStatus", jobId],
     queryFn: () => getTradeStatus(jobId),
     enabled: !!jobId,
-    retry: false, // don't retry failed status polls — stop immediately on error
+    // Retry transient network/server errors with exponential backoff.
+    // Don't retry 404 (trade not found) — that's a definitive failure.
+    retry: (failureCount, error) => error?.status === 404 ? false : failureCount < 3,
+    retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
-      // Stop polling on completed, failed, or any error (404 = trade not found)
+      // Stop polling on completed, failed, or persistent error
       if (query.state.error) return false;
       const status = query.state.data?.status;
       if (status === "completed" || status === "failed") return false;
@@ -521,13 +584,32 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (jobStatusQuery.data?.status === "failed") {
       const rawError = jobStatusQuery.data.error || "Processing failed.";
       const normalizedRawError = String(rawError || "Processing failed.");
-      const isNotTradeImage =
-        normalizedRawError.toLowerCase().includes("not appear to be a trade") ||
-        normalizedRawError.toLowerCase().includes("could not extract any trade") ||
-        normalizedRawError.toLowerCase().includes("not a trade");
+      const lc = normalizedRawError.toLowerCase();
 
-      const userMessage = isNotTradeImage
+      const isNotTradeImage =
+        lc.includes("not appear to be a trade") ||
+        lc.includes("could not extract any trade") ||
+        lc.includes("not a trade");
+
+      const isWrongMarket =
+        lc.includes("wrong screenshot type") ||
+        lc.includes("forex upload page") ||
+        lc.includes("indian market upload page");
+
+      const isSystemBusy =
+        lc.includes("currently busy") ||
+        lc.includes("high demand") ||
+        lc.includes("timed out") ||
+        lc.includes("429") ||
+        lc.includes("resource_exhausted") ||
+        lc.includes("quota");
+
+      const userMessage = isWrongMarket
+        ? normalizedRawError
+        : isNotTradeImage
         ? "This doesn't look like a trade screenshot. Please upload a screenshot directly from your broker platform (MT5, Zerodha Kite, etc.) showing the trade details."
+        : isSystemBusy
+        ? "Our AI is currently busy due to high demand. Please wait a moment and try uploading again."
         : normalizedRawError;
 
       setError(userMessage);
@@ -538,8 +620,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         setActiveToastId(null);
       }
       addToast(
-        isNotTradeImage
+        isWrongMarket
+          ? normalizedRawError
+          : isNotTradeImage
           ? "Not a valid trade screenshot — please upload from your broker app"
+          : isSystemBusy
+          ? "AI busy — please try again in a few minutes"
           : normalizedRawError,
         "error"
       );
@@ -579,7 +665,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       // and the ghost should be updated in-place rather than a new doc created.
       const isMultiTrade = trades.length > 1;
 
-      if (!forceCreate && !isMultiTrade && idx === null && uploadedTradeId) {
+      // Indian market ghost trades are stored in the Forex Trade collection (the upload
+      // pipeline always uses the Forex model). Calling updateTrade via the Indian market
+      // endpoint looks in the IndianTrade collection and gets a 404. Always createTrade
+      // for Indian market so the doc lands in the correct IndianTrade collection.
+      if (!forceCreate && !isMultiTrade && idx === null && uploadedTradeId && !isInd) {
         return updateTrade(uploadedTradeId, tradeData, marketType);
       }
 
@@ -592,6 +682,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
 
       addToast("Trade saved to your journal!", "success");
+
+      // For Indian market single-trade saves the ghost trade lives in the Forex
+      // collection — delete it using the Forex endpoint so it doesn't appear in logs.
+      if (isInd && idx === null && uploadedTradeId) {
+        deleteTrade(uploadedTradeId, "Forex").catch(() => {});
+      }
 
       if (idx !== null) {
         setSavedTrades(prev => {
@@ -669,6 +765,72 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       addToast("Trade date cannot be in the future", "info");
       return false;
     }
+    if (!isInd) {
+      const requiredForexFields = [
+        ["entryPrice", "Entry price is required before saving"],
+        ["exitPrice", "Exit price is required before saving"],
+        ["lotSize", "Lot size is required before saving"],
+        ["profit", "P&L is required before saving"],
+        ["stopLoss", "Stop loss is required before saving"],
+        ["takeProfit", "Take profit is required before saving"],
+      ];
+
+      for (const [field, message] of requiredForexFields) {
+        if (!hasNumericValue(tradeToSave?.[field])) {
+          addToast(message, "info");
+          return false;
+        }
+      }
+
+      if (!hasValue(tradeToSave?.riskRewardRatio)) {
+        addToast("Planned R:R is required before saving", "info");
+        return false;
+      }
+      if (tradeToSave?.riskRewardRatio === "custom" && !hasValue(tradeToSave?.riskRewardCustom)) {
+        addToast("Custom R:R is required before saving", "info");
+        return false;
+      }
+      if (strategies?.length > 0 && !hasValue(tradeToSave?.strategy)) {
+        addToast("Strategy / setup is required before saving", "info");
+        return false;
+      }
+      if (tradeToSave?.strategy === "Custom" && !hasValue(tradeToSave?.strategyCustom)) {
+        addToast("Custom setup name is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.entryBasis)) {
+        addToast("Entry basis is required before saving", "info");
+        return false;
+      }
+      if (tradeToSave?.entryBasis === "Custom" && !hasValue(tradeToSave?.entryBasisCustom)) {
+        addToast("Custom entry basis is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.session)) {
+        addToast("Session is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.notes)) {
+        addToast("Notes are required before saving", "info");
+        return false;
+      }
+      if (!hasNumericValue(tradeToSave?.mood)) {
+        addToast("Emotional state is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.confidence)) {
+        addToast("Trade confidence is required before saving", "info");
+        return false;
+      }
+      if (!Array.isArray(tradeToSave?.emotionalTags) || tradeToSave.emotionalTags.length === 0) {
+        addToast("At least one emotional tag is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.wouldRetake)) {
+        addToast("Would you retake this trade? is required before saving", "info");
+        return false;
+      }
+    }
     if (isInd && tradeToSave?.instrumentType === "EQUITY") {
       const sharesQty = parseOptionalNumber(tradeToSave?.sharesQty);
       if (sharesQty == null || sharesQty <= 0) {
@@ -731,8 +893,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       // regardless of which individual trades the user chose to keep.
       if (uploadedTradeId) {
         try {
-          await deleteTrade(uploadedTradeId, marketType);
-        } catch (_) {
+          // Ghost trade is always in the Forex Trade collection regardless of marketType.
+          await deleteTrade(uploadedTradeId, "Forex");
+        } catch {
           // Ghost may already be gone — not a blocking error
         }
       }

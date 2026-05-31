@@ -87,6 +87,19 @@ function calculateSetupScore(rules = []) {
   return Math.round((followedCount / activeRules.length) * 100);
 }
 
+function isEquityTrade(trade) {
+  const instrumentType = String(trade?.instrumentType || "").toUpperCase();
+  if (instrumentType === "EQUITY") return true;
+  if (instrumentType === "OPTION") return false;
+  return !!trade?.stockSymbol || trade?.sharesQty != null || String(trade?.segment || "").toUpperCase() === "EQUITY";
+}
+
+function toOptionalNumber(value) {
+  if (value === "" || value == null) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function IndianEditTradeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -96,6 +109,7 @@ function IndianEditTradeContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dateError, setDateError] = useState("");
+  const equityTrade = isEquityTrade(formData);
 
   const fetchTrade = useCallback(async () => {
     if (!id) return;
@@ -108,6 +122,8 @@ function IndianEditTradeContent() {
         emotionalTags: Array.isArray(data.emotionalTags) ? data.emotionalTags.join(", ") : "",
         setupRules: normalizeSetupRules(data.setupRules),
       });
+    } catch {
+      setFormData(null);
     } finally {
       setLoading(false);
     }
@@ -199,7 +215,11 @@ function IndianEditTradeContent() {
           followed: Boolean(rule.followed),
         }))
         .filter((rule) => rule.label);
-      const derivedPair = formData.underlying && formData.strikePrice && formData.optionType
+      const isEquity = isEquityTrade(formData);
+      const stockSymbol = String(formData.stockSymbol || formData.pair || "").trim().toUpperCase();
+      const derivedPair = isEquity
+        ? stockSymbol
+        : formData.underlying && formData.strikePrice && formData.optionType
         ? `${String(formData.underlying).trim()} ${String(formData.strikePrice).trim()} ${String(formData.optionType).trim()}`
         : formData.pair;
 
@@ -208,17 +228,24 @@ function IndianEditTradeContent() {
         {
           ...formData,
           pair: derivedPair,
-          quantity: formData.quantity === "" ? undefined : Number(formData.quantity),
-          lotSize: formData.lotSize === "" ? undefined : Number(formData.lotSize),
-          strikePrice: formData.strikePrice === "" ? undefined : Number(formData.strikePrice),
-          entryPrice: formData.entryPrice === "" ? undefined : Number(formData.entryPrice),
-          exitPrice: formData.exitPrice === "" ? undefined : Number(formData.exitPrice),
-          stopLoss: formData.stopLoss === "" ? undefined : Number(formData.stopLoss),
-          takeProfit: formData.takeProfit === "" ? undefined : Number(formData.takeProfit),
-          profit: formData.profit === "" ? undefined : Number(formData.profit),
-          brokerage: formData.brokerage === "" ? undefined : Number(formData.brokerage),
-          sttTaxes: formData.sttTaxes === "" ? undefined : Number(formData.sttTaxes),
-          mood: formData.mood === "" ? undefined : Number(formData.mood),
+          stockSymbol: isEquity ? stockSymbol : formData.stockSymbol,
+          exchange: isEquity ? (formData.exchange || "NSE") : formData.exchange,
+          sharesQty: isEquity ? toOptionalNumber(formData.sharesQty) : toOptionalNumber(formData.sharesQty),
+          instrumentType: isEquity ? "EQUITY" : "OPTION",
+          segment: isEquity ? "EQUITY" : "F&O",
+          quantity: isEquity ? undefined : toOptionalNumber(formData.quantity),
+          lotSize: isEquity ? undefined : toOptionalNumber(formData.lotSize),
+          strikePrice: isEquity ? undefined : toOptionalNumber(formData.strikePrice),
+          optionType: isEquity ? undefined : formData.optionType,
+          expiryDate: isEquity ? undefined : formData.expiryDate,
+          entryPrice: toOptionalNumber(formData.entryPrice),
+          exitPrice: toOptionalNumber(formData.exitPrice),
+          stopLoss: toOptionalNumber(formData.stopLoss),
+          takeProfit: toOptionalNumber(formData.takeProfit),
+          profit: toOptionalNumber(formData.profit),
+          brokerage: toOptionalNumber(formData.brokerage),
+          sttTaxes: toOptionalNumber(formData.sttTaxes),
+          mood: toOptionalNumber(formData.mood),
           emotionalTags: String(formData.emotionalTags || "").split(",").map((tag) => tag.trim()).filter(Boolean),
           setupRules: activeSetupRules,
           setupScore: calculateSetupScore(activeSetupRules),
@@ -259,7 +286,7 @@ function IndianEditTradeContent() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-              Edit <span style={{ color: C.bull }}>Options Trade</span>
+              Edit <span style={{ color: C.bull }}>{equityTrade ? "Stock Trade" : "Options Trade"}</span>
             </h1>
             <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, letterSpacing: "0.08em", marginTop: 6 }}>
               UPDATE ALL JOURNAL DETAILS
@@ -275,7 +302,11 @@ function IndianEditTradeContent() {
 
           <form onSubmit={handleSubmit} style={{ padding: "24px 20px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="UNDERLYING / SYMBOL" name="underlying" value={formData.underlying} onChange={handleChange} />
+              {equityTrade ? (
+                <InputField label="STOCK SYMBOL" name="stockSymbol" value={formData.stockSymbol || formData.pair} onChange={handleChange} required />
+              ) : (
+                <InputField label="UNDERLYING / SYMBOL" name="underlying" value={formData.underlying} onChange={handleChange} />
+              )}
               <div>
                 <InputField label="TRADE DATE" name="tradeDate" type="date" value={formData.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} />
                 {dateError ? (
@@ -290,37 +321,62 @@ function IndianEditTradeContent() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="TYPE" name="type" value={formData.type} onChange={handleChange} options={[{ value: "BUY", label: "BUY" }, { value: "SELL", label: "SELL" }]} />
-              <InputField label="OPTION TYPE" name="optionType" value={formData.optionType} onChange={handleChange} options={[{ value: "CE", label: "CE" }, { value: "PE", label: "PE" }]} />
-            </div>
+            {equityTrade ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="TYPE" name="type" value={formData.type} onChange={handleChange} options={[{ value: "BUY", label: "BUY" }, { value: "SELL", label: "SELL" }]} />
+                  <InputField label="EXCHANGE" name="exchange" value={formData.exchange || "NSE"} onChange={handleChange} options={[{ value: "NSE", label: "NSE" }, { value: "BSE", label: "BSE" }]} />
+                </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="STRIKE PRICE" name="strikePrice" type="number" value={formData.strikePrice} onChange={handleChange} />
-              <InputField label="LOT SIZE" name="lotSize" type="number" value={formData.lotSize} onChange={handleChange} />
-            </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="SHARES QTY" name="sharesQty" type="number" value={formData.sharesQty} onChange={handleChange} />
+                  <InputField label="PROFIT / LOSS" name="profit" type="number" value={formData.profit} onChange={handleChange} />
+                </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="QUANTITY (LOTS)" name="quantity" type="number" value={formData.quantity} onChange={handleChange} />
-              <InputField label="PROFIT / LOSS" name="profit" type="number" value={formData.profit} onChange={handleChange} />
-            </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="AVG BUY PRICE" name="entryPrice" type="number" value={formData.entryPrice} onChange={handleChange} />
+                  <InputField label="AVG SELL PRICE" name="exitPrice" type="number" value={formData.exitPrice} onChange={handleChange} />
+                </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="ENTRY PRICE (PREMIUM)" name="entryPrice" type="number" value={formData.entryPrice} onChange={handleChange} />
-              <InputField label="EXIT PRICE (PREMIUM)" name="exitPrice" type="number" value={formData.exitPrice} onChange={handleChange} />
-            </div>
+                <InputField label="SECTOR" name="sector" value={formData.sector} onChange={handleChange} />
+              </>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="TYPE" name="type" value={formData.type} onChange={handleChange} options={[{ value: "BUY", label: "BUY" }, { value: "SELL", label: "SELL" }]} />
+                  <InputField label="OPTION TYPE" name="optionType" value={formData.optionType} onChange={handleChange} options={[{ value: "CE", label: "CE" }, { value: "PE", label: "PE" }]} />
+                </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <InputField label="STOP LOSS" name="stopLoss" type="number" value={formData.stopLoss} onChange={handleChange} />
-              <InputField label="TAKE PROFIT" name="takeProfit" type="number" value={formData.takeProfit} onChange={handleChange} />
-            </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="STRIKE PRICE" name="strikePrice" type="number" value={formData.strikePrice} onChange={handleChange} />
+                  <InputField label="LOT SIZE" name="lotSize" type="number" value={formData.lotSize} onChange={handleChange} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="QUANTITY (LOTS)" name="quantity" type="number" value={formData.quantity} onChange={handleChange} />
+                  <InputField label="PROFIT / LOSS" name="profit" type="number" value={formData.profit} onChange={handleChange} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="ENTRY PRICE (PREMIUM)" name="entryPrice" type="number" value={formData.entryPrice} onChange={handleChange} />
+                  <InputField label="EXIT PRICE (PREMIUM)" name="exitPrice" type="number" value={formData.exitPrice} onChange={handleChange} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <InputField label="STOP LOSS" name="stopLoss" type="number" value={formData.stopLoss} onChange={handleChange} />
+                  <InputField label="TAKE PROFIT" name="takeProfit" type="number" value={formData.takeProfit} onChange={handleChange} />
+                </div>
+              </>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <InputField label="TRADE TYPE" name="tradeType" value={formData.tradeType} onChange={handleChange} options={[{ value: "INTRADAY", label: "INTRADAY" }, { value: "DELIVERY", label: "DELIVERY" }, { value: "SWING", label: "SWING" }]} />
               <InputField label="ENTRY BASIS" name="entryBasis" value={formData.entryBasis} onChange={handleChange} options={[{ value: "Plan", label: "Plan" }, { value: "Emotion", label: "Emotion" }, { value: "Impulsive", label: "Impulsive" }, { value: "Custom", label: "Custom" }, { value: "", label: "None" }]} />
             </div>
 
-            <InputField label="EXPIRY DATE" name="expiryDate" type="date" value={formData.expiryDate} onChange={handleChange} />
+            {!equityTrade && (
+              <InputField label="EXPIRY DATE" name="expiryDate" type="date" value={formData.expiryDate} onChange={handleChange} />
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <InputField label="ENTRY BASIS CUSTOM" name="entryBasisCustom" value={formData.entryBasisCustom} onChange={handleChange} />

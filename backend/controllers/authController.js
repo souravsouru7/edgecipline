@@ -6,6 +6,7 @@ const { appConfig } = require("../config");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { CURRENT_TERMS_VERSION } = require("../constants/terms");
 const {
   generateAccessToken,
   createRefreshToken,
@@ -17,7 +18,46 @@ const {
   REFRESH_COOKIE_NAME,
 } = require("../services/tokenService");
 
-const CURRENT_TERMS_VERSION = "v1.0";
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Password validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Enforces minimum password complexity.
+ * Throws ApiError if requirements are not met.
+ * Requirements: 8+ chars, at least one uppercase, lowercase, digit, and special char.
+ */
+function validatePasswordStrength(password) {
+  if (!password || typeof password !== "string") {
+    throw new ApiError(400, "Password is required", "VALIDATION_ERROR");
+  }
+  if (password.length < 8) {
+    throw new ApiError(400, "Password must be at least 8 characters", "WEAK_PASSWORD");
+  }
+  if (!/[A-Z]/.test(password)) {
+    throw new ApiError(400, "Password must contain at least one uppercase letter", "WEAK_PASSWORD");
+  }
+  if (!/[a-z]/.test(password)) {
+    throw new ApiError(400, "Password must contain at least one lowercase letter", "WEAK_PASSWORD");
+  }
+  if (!/[0-9]/.test(password)) {
+    throw new ApiError(400, "Password must contain at least one number", "WEAK_PASSWORD");
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    throw new ApiError(400, "Password must contain at least one special character", "WEAK_PASSWORD");
+  }
+}
+
+function needsTermsAcceptance(user) {
+  return (
+    user?.termsAcceptance?.acceptedTerms !== true ||
+    user?.termsAcceptance?.acceptedPrivacy !== true ||
+    user?.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -61,13 +101,21 @@ async function verifyFirebaseToken(firebaseIdToken) {
 }
 
 async function verifyGoogleIdToken(googleIdToken) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   let response;
   try {
     response = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(googleIdToken)}`
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(googleIdToken)}`,
+      { signal: controller.signal }
     );
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new ApiError(504, "Google token verification timed out", "GOOGLE_AUTH_TIMEOUT");
+    }
     throw new ApiError(502, "Unable to reach Google token verification service", "GOOGLE_AUTH_UNAVAILABLE");
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!response.ok) {
@@ -110,6 +158,8 @@ exports.registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You must accept the Terms & Privacy Policy to continue", "TERMS_NOT_ACCEPTED");
   }
 
+  validatePasswordStrength(password);
+
   const userExists = await User.findOne({ email });
   if (userExists) {
     throw new ApiError(400, "User already exists", "VALIDATION_ERROR");
@@ -144,19 +194,38 @@ exports.registerUser = asyncHandler(async (req, res) => {
 
 exports.loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email }).select("+password +loginAttempts +loginLockedUntil");
+
+  // Account lockout check before expensive bcrypt comparison
+  if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) {
+    const retryAfterMin = Math.ceil((user.loginLockedUntil - Date.now()) / 60000);
+    throw new ApiError(429, `Account temporarily locked. Try again in ${retryAfterMin} minute(s).`, "ACCOUNT_LOCKED");
+  }
 
   if (user?.authProvider === "google") {
     throw new ApiError(401, "This account uses Google sign-in. Please continue with Google.", "AUTH_PROVIDER_MISMATCH");
   }
-  if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
+
+  const isPasswordValid = Boolean(user?.password && await bcrypt.compare(password, user.password));
+
+  if (!user || !isPasswordValid) {
+    if (user) {
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      if (user.loginAttempts >= LOGIN_MAX_ATTEMPTS) {
+        user.loginLockedUntil = new Date(Date.now() + LOGIN_LOCK_DURATION_MS);
+        user.loginAttempts = 0;
+      }
+      await user.save();
+    }
     throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
 
+  user.loginAttempts = 0;
+  user.loginLockedUntil = undefined;
   user.lastLogin = new Date();
   await user.save();
 
-  const needsTerms = user.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION;
+  const needsTerms = needsTermsAcceptance(user);
   const token = await issueTokenPair(user, req, res);
 
   res.json({
@@ -248,7 +317,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
     );
   }
 
-  const needsTerms = user.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION;
+  const needsTerms = needsTermsAcceptance(user);
   const token = await issueTokenPair(user, req, res);
 
   res.json({
@@ -346,28 +415,44 @@ exports.logoutAll = asyncHandler(async (req, res) => {
 exports.getMe = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
+  const needsTerms = needsTermsAcceptance(req.user);
+
   res.json({
     _id: req.user._id,
     name: req.user.name,
     email: req.user.email,
     role: req.user.role,
     createdAt: req.user.createdAt,
+    requiresTermsAcceptance: needsTerms || undefined,
   });
 });
 
 exports.getMyPreferences = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
-  res.json({ hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide) });
+  // isOnboardingCompleted tracks the new joyride tour independently.
+  // hasSeenWelcomeGuide is kept for legacy compatibility only.
+  res.json({
+    hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide),
+    isOnboardingCompleted: Boolean(req.user.isOnboardingCompleted),
+  });
 });
 
 exports.updateMyPreferences = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
+  const body = req.body || {};
   const updates = {};
-  if (Object.prototype.hasOwnProperty.call(req.body || {}, "hasSeenWelcomeGuide")) {
-    updates.hasSeenWelcomeGuide = Boolean(req.body.hasSeenWelcomeGuide);
+
+  if (Object.prototype.hasOwnProperty.call(body, "hasSeenWelcomeGuide")) {
+    updates.hasSeenWelcomeGuide = Boolean(body.hasSeenWelcomeGuide);
   }
+  if (Object.prototype.hasOwnProperty.call(body, "isOnboardingCompleted")) {
+    updates.isOnboardingCompleted = Boolean(body.isOnboardingCompleted);
+    // Keep hasSeenWelcomeGuide in sync so legacy code stays consistent
+    updates.hasSeenWelcomeGuide = Boolean(body.isOnboardingCompleted);
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new ApiError(400, "No valid preferences provided", "VALIDATION_ERROR");
   }
@@ -377,7 +462,11 @@ exports.updateMyPreferences = asyncHandler(async (req, res) => {
     { $set: updates },
     { new: true, runValidators: true }
   );
-  res.json({ hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide) });
+
+  res.json({
+    hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide),
+    isOnboardingCompleted: Boolean(user?.isOnboardingCompleted),
+  });
 });
 
 exports.acceptTerms = asyncHandler(async (req, res) => {
@@ -425,7 +514,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
   res.json({ message: "If that email is registered, an OTP has been sent." });
 });
 
-const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_ATTEMPTS = 3;
 const OTP_LOCK_DURATION_MS = 30 * 60 * 1000;
 const OTP_DIGITS = 6;
 
@@ -481,6 +570,8 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   if (!email || !otp || !password) {
     throw new ApiError(400, "All fields are required", "VALIDATION_ERROR");
   }
+
+  validatePasswordStrength(password);
 
   const user = await User.findOne({
     email,

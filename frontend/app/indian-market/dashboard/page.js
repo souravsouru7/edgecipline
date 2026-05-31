@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import {
     getSummary,
     getPerformanceMetrics,
@@ -26,9 +27,7 @@ import {
     YAxis
 } from "recharts";
 
-/* ─────────────────────────────────────────
-   Same as Forex — Bull Green, Deep Navy, Gold
-───────────────────────────────────────── */
+/* Same as Forex  Bull Green Deep Navy Gold */
 
 const theme = {
     bull: "#0D9E6E",
@@ -43,9 +42,7 @@ const theme = {
     ink: "#0F1923"
 };
 
-/* ─────────────────────────────────────────
-   TICKER TAPE — Real recent trades
-───────────────────────────────────────── */
+/* TICKER TAPE  Real recent trades */
 function TickerTape({ items }) {
     const safe = Array.isArray(items) ? items.filter(Boolean) : [];
     const loopItems = safe.length > 0 ? [...safe, ...safe] : [];
@@ -62,13 +59,13 @@ function TickerTape({ items }) {
                         <span key={i} style={{ fontSize: "11px", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
                         <span style={{ color: "#E8F5E9", marginRight: 8 }}>{t.sym}</span>
                         <span style={{ color: t.bull ? "#A5D6A7" : "#EF9A9A" }}>
-                                {t.bull ? "▲" : "▼"} {t.val}
+                                {t.bull ? "UP" : "DOWN"} {t.val}
                             </span>
                         </span>
                     ))
                 ) : (
                     <span style={{ fontSize: "11px", fontFamily: "'JetBrains Mono',monospace", color: "#E8F5E9", letterSpacing: "0.04em" }}>
-                        Log trades to activate tape · Recent trades · Real P&L · NSE · BSE
+                        Log trades to activate tape - Recent trades - Real P&L - NSE - BSE
                     </span>
                 )}
             </div>
@@ -76,9 +73,7 @@ function TickerTape({ items }) {
     );
 }
 
-/* ─────────────────────────────────────────
-   STAT CARD
-───────────────────────────────────────── */
+/* STAT CARD */
 function StatCard({ label, value, sub, accentColor, icon, delay = 0 }) {
     const displayValue = value !== undefined && value !== null && !isNaN(value) ? value : (value || 0);
 
@@ -121,9 +116,7 @@ function StatCard({ label, value, sub, accentColor, icon, delay = 0 }) {
     );
 }
 
-/* ─────────────────────────────────────────
-   NAV CARD
-───────────────────────────────────────── */
+/* NAV CARD */
 function NavCard({ href, label, sub, icon, accentColor = theme.primary, delay = 0 }) {
     return (
         <Link href={href} style={{ textDecoration: "none", flex: "1 1 140px" }}>
@@ -151,7 +144,7 @@ function NavCard({ href, label, sub, icon, accentColor = theme.primary, delay = 
                     {label}
                 </div>
                 <div style={{ fontSize: 10, color: theme.muted, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{sub}</div>
-                <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: `${accentColor}55`, fontSize: 18, fontWeight: 300 }}>›</div>
+                <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: `${accentColor}55`, fontSize: 18, fontWeight: 300 }}>{">"}</div>
             </div>
         </Link>
     );
@@ -181,13 +174,11 @@ function MetricBar({ label, value, sub, percent = 0, color = theme.bull }) {
 
 function formatINR(val) {
     const n = Number(val);
-    if (Number.isNaN(n)) return "₹0";
-    return `₹${Math.round(n).toLocaleString("en-IN")}`;
+    if (Number.isNaN(n)) return "Rs 0";
+    return `Rs ${Math.round(n).toLocaleString("en-IN")}`;
 }
 
-/* ─────────────────────────────────────────
-   CREATE TRADE DROPDOWN BUTTON
-───────────────────────────────────────── */
+/* CREATE TRADE DROPDOWN BUTTON */
 function CreateTradeButton() {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -292,6 +283,7 @@ const tileStyle = { display: "flex", flexDirection: "column", alignItems: "cente
 
 export default function IndianMarketDashboard() {
     const router = useRouter();
+    const { ready } = useRequireAuth();
     const { currentMarket, toggleMarket } = useMarket();
     const [stats, setStats] = useState(null);
     const [perf, setPerf] = useState(null);
@@ -327,13 +319,10 @@ export default function IndianMarketDashboard() {
     };
 
     useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (!token) { router.push("/login"); return; }
-
+        if (!ready) return;
         setMounted(true);
         fetchStats();
-
-    }, [router, currentMarket]);
+    }, [router, ready, currentMarket]);
 
     const profitBull = stats ? parseFloat(stats.netProfit ?? stats.totalProfit) >= 0 : true;
     const winBull = stats ? parseFloat(stats.winRate) >= 50 : true;
@@ -345,7 +334,7 @@ export default function IndianMarketDashboard() {
     const totalTrades = stats?.totalTrades ?? 0;
     const planPct = parseFloat(ai?.behaviorDiscipline?.ruleEmotion?.planPct || 0);
     const recoveryFactor = parseFloat(drawdown?.recoveryFactor || 0);
-    const profitFactor = perf?.profitFactor === "∞" ? "∞" : parseFloat(perf?.profitFactor || 0).toFixed(2);
+    const profitFactor = perf?.profitFactor === "Infinity" ? "Infinity" : parseFloat(perf?.profitFactor || 0).toFixed(2);
     const maxWinStreak = perf?.maxWinStreak ?? 0;
 
     const tapeItems = recentTrades.slice(0, 6).map(t => {
@@ -390,7 +379,7 @@ export default function IndianMarketDashboard() {
                                     Options <span style={{ color: theme.secondary }}>Dashboard</span>
                                 </h1>
                                 <p style={{ fontSize: 12, color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
-                                    COMMAND CENTER — EDGE • DISCIPLINE • PROFITABILITY
+                                    COMMAND CENTER - EDGE - DISCIPLINE - PROFITABILITY
                                 </p>
                             </div>
                             <CreateTradeButton />
@@ -475,7 +464,7 @@ export default function IndianMarketDashboard() {
                                             EDGE OVERVIEW
                                         </div>
                                         <div style={{ fontSize: 18, fontWeight: 900, color: theme.ink, marginTop: 6 }}>
-                                            Winning streaks, recovery, discipline — from real data
+                                            Winning streaks, recovery, discipline - from real data
                                         </div>
                                     </div>
                                     <div style={{
@@ -503,7 +492,7 @@ export default function IndianMarketDashboard() {
                                     />
                                     <MetricBar
                                         label="LOSS RECOVERY"
-                                        value={`${recoveryFactor.toFixed(2)}×`}
+                                        value={`${recoveryFactor.toFixed(2)}x`}
                                         sub="Recovery factor (profit / max DD)"
                                         percent={Math.min(100, (recoveryFactor / 2) * 100)}
                                         color={theme.gold}
@@ -519,8 +508,8 @@ export default function IndianMarketDashboard() {
                                         label="PROFIT FACTOR"
                                         value={`${profitFactor}`}
                                         sub="Gross profit / gross loss"
-                                        percent={perf?.profitFactor === "∞" ? 100 : Math.min(100, (parseFloat(profitFactor || 0) / 2) * 100)}
-                                        color={(perf?.profitFactor === "∞" || parseFloat(profitFactor || 0) >= 1.2) ? theme.bull : theme.bear}
+                                        percent={perf?.profitFactor === "Infinity" ? 100 : Math.min(100, (parseFloat(profitFactor || 0) / 2) * 100)}
+                                        color={(perf?.profitFactor === "Infinity" || parseFloat(profitFactor || 0) >= 1.2) ? theme.bull : theme.bear}
                                     />
                                 </div>
                             </div>

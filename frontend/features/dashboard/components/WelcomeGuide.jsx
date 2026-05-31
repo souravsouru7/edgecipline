@@ -213,21 +213,6 @@ export default function WelcomeGuide({ onClose }) {
               {step + 1} / {STEPS.length}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            title="Skip guide"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#94A3B8", cursor: "pointer",
-              width: 28, height: 28, borderRadius: 8,
-              fontSize: 14, lineHeight: 1,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "#CBD5E0"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "#94A3B8"; }}
-          >✕</button>
         </div>
 
         {/* ── Progress bar ── */}
@@ -395,35 +380,6 @@ export default function WelcomeGuide({ onClose }) {
             </button>
           </div>
 
-          {/* "Don't show again" hint — visible on last step */}
-          {isLast && (
-            <p style={{
-              textAlign: "center", fontSize: 11, color: "#94A3B8",
-              margin: "12px 0 0", lineHeight: 1.5,
-            }}>
-              ✓ This guide won't appear again after you close it
-            </p>
-          )}
-
-          {/* Skip link — visible on all non-last steps */}
-          {!isLast && (
-            <p style={{ textAlign: "center", margin: "11px 0 0" }}>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "none", border: "none",
-                  fontSize: 11, color: "#94A3B8",
-                  cursor: "pointer", padding: 0,
-                  textDecoration: "underline",
-                  transition: "color 0.2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = "#64748B"}
-                onMouseLeave={e => e.currentTarget.style.color = "#94A3B8"}
-              >
-                Skip guide — don't show again
-              </button>
-            </p>
-          )}
         </div>
       </div>
 

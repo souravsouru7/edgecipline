@@ -11,7 +11,8 @@ exports.getNotifications = asyncHandler(async (req, res) => {
   const notifications = await Notification.find()
     .populate("userId", "name email")
     .sort({ createdAt: -1 })
-    .limit(50);
+    .limit(50)
+    .lean();
   res.json(notifications);
 });
 

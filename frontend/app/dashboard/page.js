@@ -13,13 +13,14 @@ import { useClock }          from "@/features/shared/hooks/useClock";
 import StatCard              from "@/features/dashboard/components/StatCard";
 import EquityCurve           from "@/features/dashboard/components/EquityCurve";
 import CreateTradeButton     from "@/features/dashboard/components/CreateTradeButton";
-import WelcomeGuide          from "@/features/dashboard/components/WelcomeGuide";
+import OnboardingTour        from "@/features/dashboard/components/OnboardingTour";
 import { useDashboard }      from "@/features/dashboard/hooks/useDashboard";
 import { Skeleton }          from "@/features/shared";
 
 // ── Feature cards ─────────────────────────────────────────────────────────────
 const NAV_CARDS = [
   {
+    id: "tour-card-journal",
     href: "/trades",
     Icon: BookOpen,
     label: "Journal",
@@ -29,6 +30,7 @@ const NAV_CARDS = [
     tooltip: "Your complete trade log. View, filter, and review every trade you've entered. The foundation of all your analytics and improvement.",
   },
   {
+    id: "tour-card-analytics",
     href: "/analytics",
     Icon: BarChart2,
     label: "Analytics",
@@ -38,6 +40,7 @@ const NAV_CARDS = [
     tooltip: "Deep-dive into your trading performance — win rates, drawdowns, R:R analysis, psychology breakdowns, and AI-generated insights.",
   },
   {
+    id: "tour-card-ai",
     href: "/upload-trade",
     Icon: Cpu,
     label: "AI Extractor",
@@ -47,6 +50,7 @@ const NAV_CARDS = [
     tooltip: "Screenshot your broker's trade confirmation and let AI automatically extract and log the trade details for you.",
   },
   {
+    id: "tour-card-checklist",
     href: "/checklist",
     Icon: CheckSquare,
     label: "Checklist",
@@ -56,6 +60,7 @@ const NAV_CARDS = [
     tooltip: "Run through your personal trading rules before entering a position. Builds discipline and reduces impulsive, emotional trades.",
   },
   {
+    id: "tour-card-setups",
     href: "/setups",
     Icon: Target,
     label: "Setups",
@@ -65,6 +70,7 @@ const NAV_CARDS = [
     tooltip: "Document your trading strategies and playbooks. Tag trades with setups to track which ones are actually profitable over time.",
   },
   {
+    id: "tour-card-reports",
     href: "/weekly-reports?market=Forex",
     Icon: FileText,
     label: "AI Reports",
@@ -76,10 +82,11 @@ const NAV_CARDS = [
 ];
 
 // ── Feature card with tooltip ──────────────────────────────────────────────────
-function FeatureCard({ href, Icon, label, sub, color, bg, tooltip, delay }) {
+function FeatureCard({ id, href, Icon, label, sub, color, bg, tooltip, delay }) {
   const [showTip, setShowTip] = useState(false);
   return (
     <Link
+      id={id}
       href={href}
       className="feat-card"
       onMouseEnter={() => setShowTip(true)}
@@ -164,7 +171,7 @@ function buildStats(s) {
     },
     {
       label: "Net P&L",
-      value: `${netPnl >= 0 ? "+" : ""}$${Math.abs(Number(netPnl)).toFixed(2)}`,
+      value: `${netPnl >= 0 ? "+" : "-"}$${Math.abs(Number(netPnl)).toFixed(2)}`,
       sub: "total return",
       accentColor: netPnl >= 0 ? "#0D9E6E" : "#D63B3B",
       tooltip: "Your total profit or loss across all logged trades. Green = net profitable, red = net loss. This is your real bottom line.",
@@ -193,7 +200,7 @@ function buildStats(s) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent() {
-  const { stats, mounted, loading, showWelcome, closeWelcome } = useDashboard();
+  const { stats, mounted, loading, showWelcome, closeWelcome: finishTour } = useDashboard();
   const clock     = useClock();
   const statCards = buildStats(stats);
   const netPnl    = stats?.netPnL ?? stats?.totalProfit ?? 0;
@@ -201,17 +208,15 @@ function DashboardContent() {
 
   if (!mounted) {
     return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#F4F2EE",
-          color: "#0F1923",
-          fontFamily: "'Plus Jakarta Sans',sans-serif",
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 700 }}>Checking session...</div>
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F4F2EE" }}>
+        <div style={{ textAlign: "center" }}>
+          <img src="/mainlogo1.png" alt="Edgecipline" style={{ width: 140, height: "auto", objectFit: "contain", marginBottom: 24, opacity: 0.85 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <div style={{ width: 18, height: 18, border: "2.5px solid #E2E8F0", borderTopColor: "#0D9E6E", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.1em" }}>LOADING YOUR JOURNAL...</span>
+          </div>
+        </div>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </main>
     );
   }
@@ -266,11 +271,13 @@ function DashboardContent() {
                 Overview of your trading activity
               </p>
             </div>
-            <CreateTradeButton />
+            <div id="tour-create-trade">
+              <CreateTradeButton />
+            </div>
           </div>
 
           {/* ── KPI stat cards ───────────────────────────────────── */}
-          <div className="dash-kpi-grid" style={{
+          <div id="tour-kpi-grid" className="dash-kpi-grid" style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
             gap: 14, marginBottom: 20,
@@ -281,7 +288,7 @@ function DashboardContent() {
           </div>
 
           {/* ── Equity curve (full width) ────────────────────────── */}
-          <div style={{
+          <div id="tour-equity-curve" style={{
             background: "#FFFFFF",
             borderRadius: 14,
             border: "1px solid #E2E8F0",
@@ -349,7 +356,7 @@ function DashboardContent() {
         </main>
       </div>
 
-      {showWelcome && <WelcomeGuide onClose={closeWelcome} />}
+      {showWelcome && <OnboardingTour onFinish={finishTour} />}
 
       <style jsx global>{`
         @keyframes fadeUp {

@@ -4,19 +4,23 @@ const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 
+const ADMIN_COOKIE_NAME = "admin_sid";
+
 /**
  * Admin authentication middleware.
- * Verifies JWT token AND checks that the user has role === "admin".
- * Returns 401 for invalid/missing token, 403 for non-admin users.
+ * Accepts token from httpOnly cookie (admin_sid) OR Authorization: Bearer header.
+ * Verifies JWT, checks role === "admin", and validates tokenVersion to support revocation.
  */
 const adminAuth = asyncHandler(async (req, res, next) => {
-  let token;
+  // Prefer httpOnly cookie; fall back to Authorization header for API tooling
+  const cookieToken = req.cookies?.[ADMIN_COOKIE_NAME];
+  const headerToken =
+    req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : null;
 
-  if (!req.headers.authorization || !req.headers.authorization.startsWith("Bearer")) {
-    throw new ApiError(401, "No token provided", "AUTH_REQUIRED");
-  }
+  const token = cookieToken || headerToken;
 
-  token = req.headers.authorization.split(" ")[1];
   if (!token) {
     throw new ApiError(401, "No token provided", "AUTH_REQUIRED");
   }
@@ -33,6 +37,14 @@ const adminAuth = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "Not authorized, user not found", "AUTH_FAILED");
   }
 
+  // tokenVersion check — ensures tokens are invalidated after password reset / logout-all
+  if (
+    decoded.tokenVersion !== undefined &&
+    decoded.tokenVersion !== user.tokenVersion
+  ) {
+    throw new ApiError(401, "Session expired, please login again", "TOKEN_INVALIDATED");
+  }
+
   if (user.role !== "admin") {
     throw new ApiError(403, "Access denied. Admin privileges required.", "FORBIDDEN");
   }
@@ -41,4 +53,4 @@ const adminAuth = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = { adminAuth };
+module.exports = { adminAuth, ADMIN_COOKIE_NAME };

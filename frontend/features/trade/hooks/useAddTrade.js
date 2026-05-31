@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { getValidToken } from "@/utils/auth";
+import { silentRefresh } from "@/services/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { fetchSetups } from "@/services/setupApi";
-import { uploadTradeImage } from "@/services/uploadApi";
+import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { MARKETS } from "@/context/MarketContext";
 import { useToast } from "@/features/shared/components/ui/Toast";
 
@@ -110,9 +112,16 @@ export function useAddTrade(marketType, isIndianMarket) {
   });
 
   useEffect(() => {
-    setMounted(true);
-    const token = localStorage.getItem("token");
-    if (!token) router.push("/login");
+    let cancelled = false;
+    const checkAuth = async () => {
+      if (!getValidToken()) {
+        const token = await silentRefresh();
+        if (cancelled) return;
+        if (!token) { router.replace("/login"); return; }
+      }
+      if (!cancelled) setMounted(true);
+    };
+    checkAuth();
 
     // Session detection
     const now = new Date();
@@ -125,6 +134,7 @@ export function useAddTrade(marketType, isIndianMarket) {
       else if (hour >= 13 && hour < 21) det = "New York";
       setTrade(prev => ({ ...prev, session: det }));
     }
+    return () => { cancelled = true; };
   }, [isIndianMarket, router]);
 
   const handleChange = (e) => {
@@ -153,8 +163,8 @@ export function useAddTrade(marketType, isIndianMarket) {
     addToast("Uploading screenshot...", "loading");
 
     try {
-      const data = await uploadTradeImage({ file, marketType });
-      setTrade(prev => ({ ...prev, screenshot: data.screenshotUrl || data.url }));
+      const data = await uploadTradeScreenshot(file);
+      setTrade(prev => ({ ...prev, screenshot: data.screenshotUrl || data.imageUrl || data.url }));
       addToast("Screenshot uploaded!", "success");
     } catch (err) {
       console.error("Upload error:", err);

@@ -88,11 +88,12 @@ export function MarketProvider({ children }) {
     }
   }, []);
 
-  // Save market preference whenever it changes
+  // Save market preference whenever it changes.
+  // Returns true on success, false if the market value is invalid.
   const toggleMarket = useCallback((market) => {
     if (!Object.values(MARKETS).includes(market)) {
       console.error('Invalid market type:', market);
-      return;
+      return false;
     }
 
     setCurrentMarket(market);
@@ -100,6 +101,7 @@ export function MarketProvider({ children }) {
       localStorage.setItem(STORAGE_KEY, market);
       window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market } }));
     }
+    return true;
   }, []);
 
   // Toggle between Forex and Indian Market

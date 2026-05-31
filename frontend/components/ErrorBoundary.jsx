@@ -15,18 +15,20 @@ export default class ErrorBoundary extends Component {
     console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
+  reset = () => this.setState({ hasError: false, error: null });
+
   render() {
     if (this.state.hasError) {
-      return (
-        this.props.fallback || (
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <h2>Something went wrong.</h2>
-            <p>{this.state.error?.message}</p>
-            <button onClick={() => this.setState({ hasError: false, error: null })}>
-              Try again
-            </button>
-          </div>
-        )
+      const { fallback } = this.props;
+      if (typeof fallback === "function") {
+        return fallback(this.state.error, this.reset);
+      }
+      return fallback || (
+        <div style={{ padding: "2rem", textAlign: "center" }}>
+          <h2>Something went wrong.</h2>
+          <p>{this.state.error?.message}</p>
+          <button onClick={this.reset}>Try again</button>
+        </div>
       );
     }
     return this.props.children;

@@ -606,18 +606,16 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     let worstSession = ["0", { profit: 0, winRate: 0, total: 0 }];
 
     if (sessionEntries.length > 0) {
-      // Worst session is always the lowest profit.
-      worstSession = sessionEntries.reduce((a, b) =>
-        parseFloat(a[1].profit) < parseFloat(b[1].profit) ? a : b
+      // Best = highest profit (even if all sessions are negative)
+      bestSession = sessionEntries.reduce((a, b) =>
+        parseFloat(a[1].profit) > parseFloat(b[1].profit) ? a : b
       );
 
-      // Best session only if there is at least one positive session.
-      const positiveSessions = sessionEntries.filter(
-        ([_, s]) => parseFloat(s.profit) > 0
-      );
-      if (positiveSessions.length > 0) {
-        bestSession = positiveSessions.reduce((a, b) =>
-          parseFloat(a[1].profit) > parseFloat(b[1].profit) ? a : b
+      // Worst = lowest profit, only show if different from best
+      const otherSessions = sessionEntries.filter(([name]) => name !== bestSession[0]);
+      if (otherSessions.length > 0) {
+        worstSession = otherSessions.reduce((a, b) =>
+          parseFloat(a[1].profit) < parseFloat(b[1].profit) ? a : b
         );
       }
     }

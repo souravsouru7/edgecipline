@@ -45,6 +45,8 @@ const setupStrategySchema = new mongoose.Schema(
 );
 
 setupStrategySchema.index({ user: 1, marketType: 1, createdAt: 1 });
+// M15: Prevent duplicate strategy names per user+market
+setupStrategySchema.index({ user: 1, marketType: 1, name: 1 }, { unique: true });
 
 module.exports = mongoose.model("SetupStrategy", setupStrategySchema);
 

@@ -11,8 +11,10 @@ const { uploadTradeImage } = require("../middleware/upload.middleware");
 const {
   getUploadJobStatus,
   uploadImage,
+  uploadScreenshotImage,
 } = require("../controllers/uploadController");
 
+router.post("/image", protect, uploadRateLimiter, uploadTradeImage, uploadScreenshotImage);
 router.post("/", protect, uploadRateLimiter, uploadTradeImage, uploadImage);
 router.get("/job-status/:id", protect, statusRateLimiter, getUploadJobStatus);
 

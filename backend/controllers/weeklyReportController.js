@@ -2,10 +2,13 @@ const asyncHandler = require("../utils/asyncHandler");
 const weeklyReportService = require("../services/weeklyReport.service");
 
 exports.listWeeklyReports = asyncHandler(async (req, res) => {
+  // M18: Clamp limit to a safe range so callers can't request unbounded results
+  const rawLimit = parseInt(req.query.limit, 10);
+  const limit = Number.isFinite(rawLimit) ? Math.min(50, Math.max(1, rawLimit)) : 12;
   const reports = await weeklyReportService.listWeeklyReports(
     req.user._id,
     (req.query.marketType || "Forex").toString(),
-    req.query.limit || "12"
+    limit
   );
   res.json(reports);
 });

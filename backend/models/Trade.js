@@ -37,7 +37,7 @@ const tradeSchema = new mongoose.Schema(
 
     balance: Number,
 
-    strategy: String,
+    strategy: { type: String, maxlength: 100 },
 
     session: String,
 
@@ -46,17 +46,19 @@ const tradeSchema = new mongoose.Schema(
       default: null
     },
 
-    notes: String,
+    notes: { type: String, maxlength: 2000 },
 
     riskRewardRatio: {
       type: String,
-      enum: ["1:1", "1:2", "1:3", "1:4", "1:5", "custom", ""],
-      default: ""
+      enum: ["1:1", "1:2", "1:3", "1:4", "1:5", "custom", null],
+      default: null,
+      set: (v) => (v === "" ? null : v),
     },
 
     riskRewardCustom: {
       type: String,
-      default: ""
+      default: "",
+      maxlength: 50,
     },
 
     screenshot: {
@@ -77,8 +79,9 @@ const tradeSchema = new mongoose.Schema(
     // For Indian_Market: "OPTION" (default) or "EQUITY" (intraday stocks)
     tradeSubType: {
       type: String,
-      enum: ["OPTION", "EQUITY", ""],
-      default: ""
+      enum: ["OPTION", "EQUITY", null],
+      default: null,
+      set: (v) => (v === "" ? null : v),
     },
 
     broker: {
@@ -180,12 +183,19 @@ const tradeSchema = new mongoose.Schema(
     },
 
     // Per-trade setup checklist: rules and how many were followed
-    setupRules: [
-      {
-        label: { type: String, trim: true },
-        followed: { type: Boolean, default: false }
-      }
-    ],
+    setupRules: {
+      type: [
+        {
+          label: { type: String, trim: true, maxlength: 100 },
+          followed: { type: Boolean, default: false },
+        },
+      ],
+      validate: {
+        validator(arr) { return arr.length <= 20; },
+        message: "setupRules cannot have more than 20 items",
+      },
+      default: [],
+    },
 
     setupScore: {
       // 0–100 percentage of rules followed for this trade
@@ -202,7 +212,8 @@ const tradeSchema = new mongoose.Schema(
 
     entryBasisCustom: {
       type: String,
-      default: ""
+      default: "",
+      maxlength: 200,
     },
 
     mood: {
@@ -221,7 +232,13 @@ const tradeSchema = new mongoose.Schema(
 
     emotionalTags: {
       type: [String],
-      default: []
+      default: [],
+      validate: {
+        validator(arr) {
+          return arr.length <= 10 && arr.every(tag => typeof tag === "string" && tag.length <= 50);
+        },
+        message: "emotionalTags must have at most 10 items, each at most 50 characters",
+      },
     },
 
     mistakeTag: {
@@ -231,14 +248,20 @@ const tradeSchema = new mongoose.Schema(
 
     lesson: {
       type: String,
-      default: ""
+      default: "",
+      maxlength: 2000,
     },
 
     wouldRetake: {
       type: String,
       enum: ["Yes", "No", ""],
       default: ""
-    }
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
 
   },
   { timestamps: true }
@@ -254,5 +277,6 @@ tradeSchema.index({ user: 1, marketType: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, status: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, status: 1, createdAt: -1 });
+tradeSchema.index({ deletedAt: 1 }, { sparse: true });
 
 module.exports = mongoose.model("Trade", tradeSchema);

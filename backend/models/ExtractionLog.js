@@ -36,4 +36,7 @@ const extractionLogSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+extractionLogSchema.index({ user: 1, createdAt: -1 });
+extractionLogSchema.index({ isSuccess: 1, createdAt: -1 });
+
 module.exports = mongoose.model("ExtractionLog", extractionLogSchema);

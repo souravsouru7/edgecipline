@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import Link from "next/link";
 import {
   getSummary,
@@ -42,6 +43,12 @@ const theme = {
   bg: "#F0EEE9",
   card: "#FFFFFF"
 };
+
+const cleanPsychText = (value = "") =>
+  String(value ?? "")
+    .replace(/(?:ðŸ|ï¸|Ã|Â|â)[^\s]*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 function StatCard({ label, value, sub, color, delay = 0, tooltip }) {
   const [showTip, setShowTip] = useState(false);
@@ -176,7 +183,7 @@ function DistList({ title, data, currency = "₹", maxItems = 6 }) {
             <span style={{ fontSize: 12, fontWeight: 600 }}>{name}</span>
             <span style={{ fontSize: 11, color: theme.muted, marginRight: 8 }}>{v.winRate}% WR</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: parseFloat(v.profit) >= 0 ? theme.bull : theme.bear }}>
-              {parseFloat(v.profit) >= 0 ? "+" : ""}{currency}{parseFloat(v.profit).toFixed(0)}
+              {parseFloat(v.profit) >= 0 ? "+" : "-"}{currency}{parseFloat(v.profit).toFixed(0)}
             </span>
           </div>
         ))}
@@ -193,39 +200,39 @@ function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysi
     const best = sorted[0];
     const worst = sorted[sorted.length - 1];
     if (best && parseFloat(best.avgProfit) > 0)
-      insights.push({ type: "success", icon: "🧠", title: `Trade best when ${best.label}`, body: `${best.winRate}% win rate · avg +${currency}${parseFloat(best.avgProfit).toFixed(2)} per trade. Prioritize setups in this mental state.` });
+      insights.push({ type: "success", icon: "PSY", title: `Trade best when ${cleanPsychText(best.label)}`, body: `${best.winRate}% win rate · avg +${currency}${parseFloat(best.avgProfit).toFixed(2)} per trade. Prioritize setups in this mental state.` });
     if (worst && parseFloat(worst.avgProfit) < 0 && worst.trades >= 2)
-      insights.push({ type: "danger", icon: "⚠️", title: `Avoid trading when ${worst.label}`, body: `${worst.winRate}% win rate · avg ${currency}${parseFloat(worst.avgProfit).toFixed(2)} per trade across ${worst.trades} trades. Step away or reduce size.` });
+      insights.push({ type: "danger", icon: "!", title: `Avoid trading when ${cleanPsychText(worst.label)}`, body: `${worst.winRate}% win rate · avg ${currency}${parseFloat(worst.avgProfit).toFixed(2)} per trade across ${worst.trades} trades. Step away or reduce size.` });
   }
   const highConf = confRows.find(c => c.level === "High" || c.level === "Overconfident");
   const lowConf  = confRows.find(c => c.level === "Low");
   if (highConf && parseFloat(highConf.avgProfit) < 0 && highConf.trades >= 2)
-    insights.push({ type: "warning", icon: "🚨", title: "High confidence → losing trades", body: `Your "High" confidence trades average ${currency}${parseFloat(highConf.avgProfit).toFixed(2)}. Overconfidence may be causing oversizing or skipping confirmation.` });
+    insights.push({ type: "warning", icon: "!", title: "High confidence -> losing trades", body: `Your "High" confidence trades average ${currency}${parseFloat(highConf.avgProfit).toFixed(2)}. Overconfidence may be causing oversizing or skipping confirmation.` });
   if (lowConf && parseFloat(lowConf.avgProfit) > 0 && lowConf.trades >= 2)
-    insights.push({ type: "success", icon: "💡", title: "Low confidence trades are profitable", body: `Cautious entries average +${currency}${parseFloat(lowConf.avgProfit).toFixed(2)}. Your hesitation signals good instincts — trust them.` });
+    insights.push({ type: "success", icon: "IDEA", title: "Low confidence trades are profitable", body: `Cautious entries average +${currency}${parseFloat(lowConf.avgProfit).toFixed(2)}. Your hesitation signals good instincts - trust them.` });
   const dangerTags = ["FOMO", "Revenge", "Fear", "Greed", "Rushed", "Frustrated"];
   tagRows.forEach(t => {
     if (dangerTags.includes(t.tag) && parseFloat(t.avgProfit) < 0 && t.trades >= 1)
-      insights.push({ type: "danger", icon: t.emoji || "❌", title: `${t.tag} trades cost you money`, body: `${t.trades} trade${t.trades > 1 ? "s" : ""} · ${t.winRate}% WR · avg ${currency}${parseFloat(t.avgProfit).toFixed(2)}. Rule: when you feel ${t.tag.toLowerCase()}, close the platform.` });
+      insights.push({ type: "danger", icon: "X", title: `${t.tag} trades cost you money`, body: `${t.trades} trade${t.trades > 1 ? "s" : ""} · ${t.winRate}% WR · avg ${currency}${parseFloat(t.avgProfit).toFixed(2)}. Rule: when you feel ${t.tag.toLowerCase()}, close the platform.` });
   });
   tagRows.forEach(t => {
     if (!dangerTags.includes(t.tag) && parseFloat(t.avgProfit) > 5 && parseFloat(t.winRate) >= 70 && t.trades >= 2)
-      insights.push({ type: "success", icon: t.emoji || "✅", title: `${t.tag} state is your edge`, body: `${t.trades} trades · ${t.winRate}% WR · avg +${currency}${parseFloat(t.avgProfit).toFixed(2)}. Seek more trades in this mindset.` });
+      insights.push({ type: "success", icon: "OK", title: `${t.tag} state is your edge`, body: `${t.trades} trades · ${t.winRate}% WR · avg +${currency}${parseFloat(t.avgProfit).toFixed(2)}. Seek more trades in this mindset.` });
   });
   const yes = wouldRetakeAnalysis?.yes;
   const no  = wouldRetakeAnalysis?.no;
   if (yes && no && yes.trades >= 2 && no.trades >= 2) {
     const yesPnl = parseFloat(yes.avgProfit), noPnl = parseFloat(no.avgProfit);
     if (yesPnl > 0 && noPnl < 0)
-      insights.push({ type: "success", icon: "🔁", title: "Your trade instincts are calibrated", body: `Trades you'd retake avg +${currency}${yesPnl.toFixed(2)} vs trades you'd skip avg ${currency}${noPnl.toFixed(2)}. Your gut is telling you the right thing — listen to it before entry.` });
+      insights.push({ type: "success", icon: "NOTE", title: "Your trade instincts are calibrated", body: `Trades you'd retake avg +${currency}${yesPnl.toFixed(2)} vs trades you'd skip avg ${currency}${noPnl.toFixed(2)}. Your gut is telling you the right thing - listen to it before entry.` });
     else if (yesPnl < 0)
-      insights.push({ type: "warning", icon: "🔁", title: "Retake instinct may need recalibration", body: `Even trades you'd retake are losing (avg ${currency}${yesPnl.toFixed(2)}). Review your entry criteria — the setups themselves may be flawed.` });
+      insights.push({ type: "warning", icon: "NOTE", title: "Retake instinct may need recalibration", body: `Even trades you'd retake are losing (avg ${currency}${yesPnl.toFixed(2)}). Review your entry criteria - the setups themselves may be flawed.` });
   }
   if (typeof disciplineScore === "number" && disciplineScore > 0) {
     if (disciplineScore >= 80)
-      insights.push({ type: "success", icon: "🏆", title: `Strong discipline score: ${disciplineScore}%`, body: "You're following your rules consistently. Keep protecting this score — it's your moat against emotional trading." });
+      insights.push({ type: "success", icon: "WIN", title: `Strong discipline score: ${disciplineScore}%`, body: "You're following your rules consistently. Keep protecting this score - it's your moat against emotional trading." });
     else if (disciplineScore < 50)
-      insights.push({ type: "danger", icon: "📉", title: `Discipline score at ${disciplineScore}%`, body: "Less than half your trades follow your plan. Focus on process over outcome: one disciplined loss beats one undisciplined win." });
+      insights.push({ type: "danger", icon: "DOWN", title: `Discipline score at ${disciplineScore}%`, body: "Less than half your trades follow your plan. Focus on process over outcome: one disciplined loss beats one undisciplined win." });
   }
   return insights.slice(0, 6);
 }
@@ -321,10 +328,10 @@ function PathToAdvanced({ summary, ai, perf, quality, psychology, currency }) {
       </div>
       {isAdvanced && (
         <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(22,163,74,0.15)", borderRadius: 10, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 20 }}>🏆</span>
+          <span style={{ fontSize: 13, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace" }}>WIN</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: theme.bull }}>Advanced level unlocked</div>
-            <div style={{ fontSize: 11, color: theme.secondary }}>You’re building a data-driven edge. Keep journaling and reviewing analytics to stay profitable.</div>
+            <div style={{ fontSize: 11, color: theme.secondary }}>You're building a data-driven edge. Keep journaling and reviewing analytics to stay profitable.</div>
           </div>
         </div>
       )}
@@ -400,6 +407,7 @@ function ListItem({ label, value, color = theme.primary, sub }) {
 
 export default function IndianAnalyticsPage() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const { currentMarket } = useMarket();
   const [loading, setLoading] = useState(true);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -428,13 +436,9 @@ export default function IndianAnalyticsPage() {
   const [timeFilter, setTimeFilter] = useState("daily"); // daily, weekly, monthly
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     fetchData(instrumentType);
-  }, [router]);
+  }, [ready, router]);
 
   const switchInstrumentType = (type) => {
     if (type === instrumentType) return;
@@ -684,7 +688,7 @@ export default function IndianAnalyticsPage() {
                             >
                               <div style={{ fontSize: 10, color: theme.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
                               <div style={{ fontSize: 22, fontWeight: 900, color: val >= 0 ? theme.bull : theme.bear }}>
-                                {val >= 0 ? "+" : ""}₹{Math.abs(val).toLocaleString("en-IN")}
+                                {val >= 0 ? "+" : "-"}₹{Math.abs(val).toLocaleString("en-IN")}
                               </div>
                               <div style={{ fontSize: 9, color: theme.muted, fontStyle: "italic" }}>Model-verified performance</div>
                             </div>
@@ -755,7 +759,7 @@ export default function IndianAnalyticsPage() {
                             return (
                               <div style={{ background: "#0F1923", color: "#fff", padding: "10px 14px", borderRadius: 10, fontSize: 12 }}>
                                 <div style={{ fontSize: 10, color: "#94A3B8", marginBottom: 4 }}>Cumulative P&L</div>
-                                <div style={{ fontWeight: 900, color: val >= 0 ? theme.bull : theme.bear }}>{val >= 0 ? "+" : ""}₹{Math.abs(val).toLocaleString("en-IN")}</div>
+                                <div style={{ fontWeight: 900, color: val >= 0 ? theme.bull : theme.bear }}>{val >= 0 ? "+" : "-"}₹{Math.abs(val).toLocaleString("en-IN")}</div>
                               </div>
                             );
                           }
@@ -1023,7 +1027,7 @@ export default function IndianAnalyticsPage() {
                         key={idx}
                         text={txt}
                         type={
-                          txt.includes("⚠️") || txt.toLowerCase().includes("drawdown")
+                          txt.includes("!") || txt.toLowerCase().includes("drawdown")
                             ? "warning"
                             : txt.includes("Excellent") || txt.includes("Great")
                             ? "success"
@@ -1070,7 +1074,7 @@ export default function IndianAnalyticsPage() {
                         <InsightTag
                           key={i}
                           text={rec}
-                          type={rec.includes("⚠️") || rec.toLowerCase().includes("avoid") ? "warning" : "success"}
+                          type={rec.includes("!") || rec.toLowerCase().includes("avoid") ? "warning" : "success"}
                         />
                       ))}
                     </div>
@@ -1114,7 +1118,7 @@ export default function IndianAnalyticsPage() {
                             <div style={{ fontSize: 10, color: theme.muted }}>{s.trades} trades · {s.winRate}% WR</div>
                           </div>
                           <div style={{ fontSize: 12, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>
-                            {profit >= 0 ? "+" : ""}₹{Math.abs(profit).toLocaleString("en-IN")}
+                            {profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toLocaleString("en-IN")}
                           </div>
                         </div>
                       );
@@ -1134,7 +1138,7 @@ export default function IndianAnalyticsPage() {
                         <div key={s.session} style={{ padding: "8px 0", borderBottom: `1px solid ${theme.border}` }}>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                             <span style={{ fontSize: 12, fontWeight: 700 }}>{s.session}</span>
-                            <span style={{ fontSize: 12, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : ""}₹{Math.abs(profit).toLocaleString("en-IN")}</span>
+                            <span style={{ fontSize: 12, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toLocaleString("en-IN")}</span>
                           </div>
                           <div style={{ fontSize: 10, color: theme.muted }}>{s.trades} trades · {s.winRate}% WR · avg ₹{parseFloat(s.avgProfit).toFixed(0)}</div>
                         </div>
@@ -1233,7 +1237,7 @@ export default function IndianAnalyticsPage() {
                                 <span style={{ fontSize: 11, fontWeight: 700 }}>{d.name}</span>
                                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                                   <span style={{ fontSize: 10, color: theme.muted }}>{d.total}T · {wr}%WR</span>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : ""}₹{Math.abs(profit).toFixed(0)}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toFixed(0)}</span>
                                 </div>
                               </div>
                               <div style={{ height: 6, background: "#F0EEE9", borderRadius: 3, overflow: "hidden" }}>
@@ -1275,7 +1279,7 @@ export default function IndianAnalyticsPage() {
                                   <td style={{ padding: "6px 6px", color: theme.muted }}>{v.total}</td>
                                   <td style={{ padding: "6px 6px", color: theme.muted }}>{v.wins}/{v.losses}</td>
                                   <td style={{ padding: "6px 6px", color: parseFloat(v.winRate) >= 50 ? theme.bull : theme.bear, fontWeight: 700 }}>{v.winRate}%</td>
-                                  <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : ""}₹{Math.abs(profit).toLocaleString("en-IN")}</td>
+                                  <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toLocaleString("en-IN")}</td>
                                 </tr>
                               );
                             })}
@@ -1391,7 +1395,7 @@ export default function IndianAnalyticsPage() {
                       <div style={{ display: "flex", gap: 16 }}>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit) >= 0 ? theme.bull : theme.bear }}>
-                            {parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit) >= 0 ? "+" : ""}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit)).toFixed(0)}
+                            {parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit) >= 0 ? "+" : "-"}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit)).toFixed(0)}
                           </div>
                           <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
                         </div>
@@ -1404,7 +1408,7 @@ export default function IndianAnalyticsPage() {
                       </div>
                       <div style={{ marginTop: 10, fontSize: 10, color: theme.muted, lineHeight: 1.5 }}>
                         {parseFloat(data.ai.psychologicalPatterns.afterBigWin.winRate) < 45
-                          ? "⚠️ You tend to overtrade or oversize after a big win. Take a breath."
+                          ? "! You tend to overtrade or oversize after a big win. Take a breath."
                           : "✓ Good — you stay disciplined after strong wins."}
                       </div>
                     </div>
@@ -1417,7 +1421,7 @@ export default function IndianAnalyticsPage() {
                       <div style={{ display: "flex", gap: 16 }}>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit) >= 0 ? theme.bull : theme.bear }}>
-                            {parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit) >= 0 ? "+" : ""}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit)).toFixed(0)}
+                            {parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit) >= 0 ? "+" : "-"}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit)).toFixed(0)}
                           </div>
                           <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
                         </div>
@@ -1430,7 +1434,7 @@ export default function IndianAnalyticsPage() {
                       </div>
                       <div style={{ marginTop: 10, fontSize: 10, color: theme.muted, lineHeight: 1.5 }}>
                         {parseFloat(data.ai.psychologicalPatterns.afterBigLoss.winRate) < 45
-                          ? "⚠️ You likely revenge trade after big losses. Consider stopping for the day."
+                          ? "! You likely revenge trade after big losses. Consider stopping for the day."
                           : "✓ You stay composed after losses — strong mental resilience."}
                       </div>
                     </div>
@@ -1530,7 +1534,7 @@ export default function IndianAnalyticsPage() {
                           return (
                             <div key={m.level} style={{ marginBottom: 10 }}>
                               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                                <div style={{ fontSize: 12, fontWeight: 900, color: theme.secondary }}>{m.label}</div>
+                                <div style={{ fontSize: 12, fontWeight: 900, color: theme.secondary }}>{cleanPsychText(m.label)}</div>
                                 <div style={{ fontSize: 11, fontWeight: 900, color: c, fontFamily: "'JetBrains Mono',monospace" }}>
                                   {currency}{parseFloat(m.avgProfit || 0).toFixed(2)} avg
                                 </div>
@@ -1581,7 +1585,7 @@ export default function IndianAnalyticsPage() {
                             return (
                               <ListItem
                                 key={t.tag}
-                                label={`${t.emoji || ""} ${t.tag}`}
+                                label={cleanPsychText(t.tag)}
                                 value={`${winRate}%`}
                                 color={c}
                                 sub={`${t.trades} trades • Avg: ${currency}${parseFloat(t.avgProfit || 0).toFixed(2)}`}
@@ -1599,7 +1603,7 @@ export default function IndianAnalyticsPage() {
 
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                     <div style={{ flex: "1 1 320px", background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 20 }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 10 }}>Would Retake (✅)</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 10 }}>Would Retake (OK)</div>
                       {data.psychology.wouldRetakeAnalysis?.yes ? (
                         <div style={{ background: `${theme.bull}08`, border: `1px solid ${theme.bull}44`, borderRadius: 12, padding: 14 }}>
                           <div style={{ fontSize: 12, fontWeight: 900, color: theme.bull, marginBottom: 8 }}>Would Retake</div>
@@ -1624,7 +1628,7 @@ export default function IndianAnalyticsPage() {
                     </div>
 
                     <div style={{ flex: "1 1 320px", background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 20 }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 10 }}>Would NOT Retake (❌)</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 10 }}>Would NOT Retake (X)</div>
                       {data.psychology.wouldRetakeAnalysis?.no ? (
                         <div style={{ background: `${theme.bear}08`, border: `1px solid ${theme.bear}44`, borderRadius: 12, padding: 14 }}>
                           <div style={{ fontSize: 12, fontWeight: 900, color: theme.bear, marginBottom: 8 }}>Would NOT Retake</div>
@@ -1748,7 +1752,7 @@ export default function IndianAnalyticsPage() {
                           </div>
                           <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
                           <div style={{ fontSize: 9, color: trendColor, width: 12 }}>{trend}</div>
-                          <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? theme.bull : theme.bear, width: 60, textAlign: "right" }}>{w.pnl >= 0 ? "+" : ""}₹{Math.abs(w.pnl).toFixed(0)}</div>
+                          <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? theme.bull : theme.bear, width: 60, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}₹{Math.abs(w.pnl).toFixed(0)}</div>
                         </div>
                       );
                     })}

@@ -44,6 +44,7 @@ export default function MarketSwitcher() {
       {/* Toggle Container */}
       <button
         onClick={handleSwitch}
+        suppressHydrationWarning
         style={{
           position: 'relative',
           display: 'flex',

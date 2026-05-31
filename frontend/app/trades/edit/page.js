@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { getTrade, updateTrade } from "@/services/tradeApi";
-import { uploadTradeImage } from "@/services/uploadApi";
+import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -191,6 +191,17 @@ function getTodayInputValue() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 }
 
+const MAX_SCREENSHOT_SIZE_BYTES = 2 * 1024 * 1024;
+const formatFileSizeMb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
+const MOOD_OPTIONS = [
+  { value: 1, label: "Stressed" },
+  { value: 2, label: "Anxious" },
+  { value: 3, label: "Neutral" },
+  { value: 4, label: "Confident" },
+  { value: 5, label: "Peak" },
+];
+const EMOTIONAL_TAGS = ["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused", "Frustrated", "Disciplined", "Rushed"];
+
 /* ─────────────────────────────────────────
    MAIN PAGE
 ───────────────────────────────────────── */
@@ -205,6 +216,8 @@ function EditTradePageContent() {
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [dateError, setDateError] = useState("");
+  const [screenshotError, setScreenshotError] = useState("");
+  const [screenshotUploading, setScreenshotUploading] = useState(false);
 
   const fetchTrade = useCallback(async () => {
     if (resolvedParams?.id) {
@@ -227,6 +240,16 @@ function EditTradePageContent() {
     const { name, value } = e.target;
     if (name === "tradeDate") setDateError("");
     setFormData({ ...formData, [name]: value });
+  };
+
+  const toggleEmotionalTag = (tag) => {
+    setFormData((prev) => {
+      const current = Array.isArray(prev.emotionalTags) ? prev.emotionalTags : [];
+      const next = current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : [...current, tag].slice(0, 10);
+      return { ...prev, emotionalTags: next };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -419,6 +442,104 @@ function EditTradePageContent() {
                   onChange={handleChange}
                 />
 
+                <div style={{ marginBottom: 18, border: "1px solid rgba(124,58,237,0.22)", borderRadius: 10, overflow: "hidden", background: "rgba(124,58,237,0.04)" }}>
+                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(124,58,237,0.14)", color: "#7C3AED", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
+                    PSYCHOLOGY
+                  </div>
+                  <div style={{ padding: 14 }}>
+                    <InputField
+                      label="ENTRY BASIS"
+                      name="entryBasis"
+                      value={formData.entryBasis}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select..." },
+                        { value: "Plan", label: "Plan" },
+                        { value: "Emotion", label: "Emotion" },
+                        { value: "Impulsive", label: "Impulsive" },
+                        { value: "Custom", label: "Custom" },
+                      ]}
+                    />
+                    {formData.entryBasis === "Custom" && (
+                      <InputField
+                        label="ENTRY BASIS CUSTOM"
+                        name="entryBasisCustom"
+                        value={formData.entryBasisCustom}
+                        onChange={handleChange}
+                      />
+                    )}
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                        MOOD
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8 }}>
+                        {MOOD_OPTIONS.map((mood) => {
+                          const active = Number(formData.mood) === mood.value;
+                          return (
+                            <button
+                              key={mood.value}
+                              type="button"
+                              onClick={() => setFormData((prev) => ({ ...prev, mood: active ? null : mood.value }))}
+                              style={{ minHeight: 62, padding: "8px 4px", borderRadius: 8, border: active ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: active ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: active ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: 10, fontWeight: 800 }}
+                            >
+                              <div style={{ fontSize: 13, marginBottom: 4 }}>{mood.value}</div>
+                              <div>{mood.label}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <InputField
+                      label="CONFIDENCE"
+                      name="confidence"
+                      value={formData.confidence}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select..." },
+                        { value: "Low", label: "Low" },
+                        { value: "Medium", label: "Medium" },
+                        { value: "High", label: "High" },
+                        { value: "Overconfident", label: "Overconfident" },
+                      ]}
+                    />
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                        EMOTIONAL TAGS
+                      </label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {EMOTIONAL_TAGS.map((tag) => {
+                          const selected = Array.isArray(formData.emotionalTags) && formData.emotionalTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => toggleEmotionalTag(tag)}
+                              style={{ padding: "7px 12px", borderRadius: 999, border: selected ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: selected ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: selected ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: 11, fontWeight: 800 }}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <InputField
+                      label="WOULD RETAKE?"
+                      name="wouldRetake"
+                      value={formData.wouldRetake}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select..." },
+                        { value: "Yes", label: "Yes" },
+                        { value: "No", label: "No" },
+                      ]}
+                    />
+                  </div>
+                </div>
+
                 {/* Risk-Reward Ratio */}
                 <div style={{ marginBottom: 16 }}>
                   <label style={{
@@ -490,6 +611,19 @@ function EditTradePageContent() {
                     onChange={async (e) => {
                       const file = e.target.files[0];
                       if (!file) return;
+                      setScreenshotError("");
+
+                      if (!file.type?.startsWith("image/")) {
+                        setScreenshotError("Please choose a JPEG, PNG, or WEBP image.");
+                        e.target.value = "";
+                        return;
+                      }
+
+                      if (file.size > MAX_SCREENSHOT_SIZE_BYTES) {
+                        setScreenshotError(`This image is ${formatFileSizeMb(file.size)} MB. Maximum allowed size is 2 MB. Please upload a smaller image.`);
+                        e.target.value = "";
+                        return;
+                      }
 
                       // Create preview
                       const reader = new FileReader();
@@ -499,11 +633,22 @@ function EditTradePageContent() {
                       reader.readAsDataURL(file);
 
                       // Upload to server
+                      setScreenshotUploading(true);
                       try {
-                        const data = await uploadTradeImage({ file, marketType: "Forex" });
-                        setFormData(prev => ({ ...prev, screenshot: data.screenshotUrl || data.url }));
+                        const data = await uploadTradeScreenshot(file);
+                        const imageUrl = data.screenshotUrl || data.imageUrl || data.url;
+                        if (!imageUrl) {
+                          throw new Error("Screenshot upload finished without an image URL. Please try another image.");
+                        }
+                        setFormData(prev => ({
+                          ...prev,
+                          screenshot: imageUrl,
+                          imageUrl,
+                        }));
                       } catch (err) {
-                        console.error("Upload error:", err);
+                        setScreenshotError(err?.message || "Screenshot upload failed. Please choose another image and try again.");
+                      } finally {
+                        setScreenshotUploading(false);
                       }
                     }}
                     style={{
@@ -519,6 +664,16 @@ function EditTradePageContent() {
                       outline: "none",
                     }}
                   />
+                  {screenshotUploading && (
+                    <div style={{ fontSize: 11, color: "#4A5568", marginTop: 8, fontFamily: "'JetBrains Mono',monospace" }}>
+                      Uploading screenshot...
+                    </div>
+                  )}
+                  {screenshotError && (
+                    <div style={{ fontSize: 11, color: "#D63B3B", marginTop: 8, lineHeight: 1.5, fontFamily: "'JetBrains Mono',monospace" }}>
+                      {screenshotError}
+                    </div>
+                  )}
                   {(formData.screenshot || formData.screenshotPreview) && (
                     <div style={{ marginTop: 10 }}>
                       {formData.screenshotPreview ? (
@@ -595,23 +750,23 @@ function EditTradePageContent() {
                   </button>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || screenshotUploading}
                     style={{
                       flex: 1,
                       padding: "14px",
-                      background: saving ? "#F8F6F2" : "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
+                      background: (saving || screenshotUploading) ? "#F8F6F2" : "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
                       border: "none",
                       borderRadius: 10,
-                      color: saving ? "#94A3B8" : "#22C78E",
+                      color: (saving || screenshotUploading) ? "#94A3B8" : "#22C78E",
                       fontSize: 11,
                       fontFamily: "'JetBrains Mono',monospace",
                       fontWeight: 700,
                       letterSpacing: "0.12em",
-                      cursor: saving ? "not-allowed" : "pointer",
-                      boxShadow: saving ? "none" : "0 4px 16px rgba(15,25,35,0.2)",
+                      cursor: (saving || screenshotUploading) ? "not-allowed" : "pointer",
+                      boxShadow: (saving || screenshotUploading) ? "none" : "0 4px 16px rgba(15,25,35,0.2)",
                     }}
                   >
-                    {saving ? "SAVING..." : "SAVE CHANGES"}
+                    {saving ? "SAVING..." : screenshotUploading ? "UPLOADING..." : "SAVE CHANGES"}
                   </button>
                 </div>
               </form>

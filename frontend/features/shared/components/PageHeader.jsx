@@ -57,11 +57,12 @@ export default function PageHeader({
 
         {/* Desktop nav */}
         <div className="hdr-desktop" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <nav style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 8 }}>
+          <nav id="tour-nav" style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 8 }}>
             {NAV_LINKS.map(n => {
               const active = isActive(n.href);
+              const tourId = `tour-nav-${n.label.toLowerCase()}`;
               return (
-                <Link key={n.href} href={n.href} className="hdr-link"
+                <Link key={n.href} href={n.href} id={tourId} className="hdr-link"
                   style={{
                     fontSize: 13, fontWeight: active ? 700 : 500,
                     color: active ? "#0D9E6E" : "#4A5568",
@@ -79,7 +80,7 @@ export default function PageHeader({
 
           <div style={{ width: 1, height: 20, background: "#E2E8F0", margin: "0 8px" }} />
 
-          {showMarketSwitcher && <MarketSwitcher />}
+          {showMarketSwitcher && <span id="tour-market-switcher"><MarketSwitcher /></span>}
 
           {showClock && clock && (
             <div style={{

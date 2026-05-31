@@ -10,16 +10,28 @@ import { useState, useRef } from "react";
  * @param {File|null} selectedFile - Currently selected file (to show preview)
  * @param {Function} onClear       - Called when user clicks REMOVE
  */
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // Backend upload limit
+
 export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [sizeError, setSizeError] = useState(null);
   const fileInputRef = useRef(null);
+
+  const validateAndSelect = (f) => {
+    if (!f || !f.type.startsWith("image/")) return;
+    if (f.size > MAX_FILE_SIZE) {
+      setSizeError(`File too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Max 2 MB.`);
+      return;
+    }
+    setSizeError(null);
+    onFileSelect(f);
+  };
 
   const handleDragOver  = e => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
   const handleDrop = e => {
     e.preventDefault(); setIsDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f && f.type.startsWith("image/")) onFileSelect(f);
+    validateAndSelect(e.dataTransfer.files[0]);
   };
 
   return (
@@ -43,9 +55,15 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        onChange={e => e.target.files[0] && onFileSelect(e.target.files[0])}
+        onChange={e => validateAndSelect(e.target.files[0])}
         style={{ display: "none" }}
       />
+
+      {sizeError && (
+        <div style={{ color: "#D63B3B", fontSize: 12, fontWeight: 600, marginBottom: 8, fontFamily: "'JetBrains Mono',monospace" }}>
+          {sizeError}
+        </div>
+      )}
 
       {selectedFile ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>

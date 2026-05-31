@@ -31,6 +31,10 @@ export const resetPassword = async (email, otp, password) => {
   return await apiClient.post(`/auth/reset-password`, { email, otp, password });
 };
 
+export const logoutUser = async () => {
+  return await apiClient.post('/auth/logout');
+};
+
 export const submitFeedback = async (data) => {
   const isFormData = data instanceof FormData;
   // If FormData, we don't need to wrap it in a string and we shouldn't explicitly set Content-Type.
@@ -53,7 +57,7 @@ export const testConnection = async () => {
   return await apiClient.get('/');
 };
 
-// ── Welcome guide preference ──────────────────────────────────────────────────
+// ── Onboarding / welcome guide preference ────────────────────────────────────
 export const getWelcomeGuideSeen = async () => {
   if (!welcomeGuideSeenRequest) {
     welcomeGuideSeenRequest = apiClient
@@ -67,7 +71,19 @@ export const getWelcomeGuideSeen = async () => {
 };
 
 export const markWelcomeGuideSeen = async () => {
-  return await apiClient.patch('/auth/me/preferences', { hasSeenWelcomeGuide: true }, { skipRateLimitRetry: true });
+  return await apiClient.patch(
+    '/auth/me/preferences',
+    { hasSeenWelcomeGuide: true, isOnboardingCompleted: true },
+    { skipRateLimitRetry: true }
+  );
+};
+
+export const resetOnboarding = async () => {
+  return await apiClient.patch(
+    '/auth/me/preferences',
+    { isOnboardingCompleted: false },
+    { skipRateLimitRetry: true }
+  );
 };
 
 // ── Terms & Privacy Policy acceptance ────────────────────────────────────────

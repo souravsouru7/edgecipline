@@ -57,6 +57,8 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
+// M13: Enable efficient lookup by razorpay order ID during webhook processing
+paymentSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 paymentSchema.index(
   { razorpayPaymentId: 1 },
   {

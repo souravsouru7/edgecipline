@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import Link from "next/link";
-import { getProfile } from "@/services/api";
+import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 
 const C = {
@@ -74,7 +75,7 @@ function InfoRow({ label, value, mono }) {
           fontFamily: mono ? "'JetBrains Mono', monospace" : undefined,
         }}
       >
-        {value || "—"}
+        {value || "â€”"}
       </span>
     </div>
   );
@@ -104,12 +105,13 @@ function StatCard({ label, value, sub, accent }) {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
+  const [replayingTutorial, setReplayingTutorial] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) { router.push("/login"); return; }
+    if (!ready) return;
 
     (async () => {
       try {
@@ -122,7 +124,7 @@ export default function ProfilePage() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [router, ready]);
 
   const initials = profile?.name
     ? profile.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -130,11 +132,11 @@ export default function ProfilePage() {
 
   const joinedDate = profile?.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "—";
+    : "â€”";
 
   const lastLogin = profile?.lastLogin
     ? new Date(profile.lastLogin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "—";
+    : "â€”";
 
   const expiryDate = profile?.subscriptionExpiry
     ? new Date(profile.subscriptionExpiry).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -144,6 +146,17 @@ export default function ProfilePage() {
   const statusCfg = STATUS_CONFIG[profile?.subscriptionStatus] || STATUS_CONFIG.inactive;
 
   const authProvider = profile?.authProvider === "google" ? "Google" : "Email & Password";
+
+  const handleReplayTutorial = async () => {
+    setReplayingTutorial(true);
+    try {
+      await resetOnboarding();
+    } catch {
+      // Even if the API call fails, navigate to dashboard so the tutorial shows
+    } finally {
+      router.push("/dashboard");
+    }
+  };
 
   return (
     <div
@@ -207,7 +220,7 @@ export default function ProfilePage() {
                 boxShadow: `0 0 0 3px rgba(34,199,142,0.3), 0 4px 16px rgba(13,158,110,0.4)`,
               }}
             >
-              {loading ? "…" : initials}
+              {loading ? "â€¦" : initials}
             </div>
 
             <div style={{ flex: 1 }}>
@@ -346,12 +359,12 @@ export default function ProfilePage() {
                         boxShadow: "0 2px 8px rgba(13,158,110,0.3)",
                       }}
                     >
-                      Upgrade Plan →
+                      Upgrade Plan â†’
                     </Link>
                   )}
                   {profile?.subscriptionStatus === "active" && (
                     <div style={{ fontSize: 12, color: "#15803D", fontWeight: 600 }}>
-                      ✓ Full access enabled
+                      âœ“ Full access enabled
                     </div>
                   )}
                 </div>
@@ -374,10 +387,10 @@ export default function ProfilePage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { href: "/analytics", label: "View Analytics", icon: "📊" },
-                { href: "/upload-trade", label: "Upload Trade", icon: "⬆" },
-                { href: "/weekly-reports", label: "Weekly Reports", icon: "📋" },
-                { href: "/indian-market/dashboard", label: "Indian Market", icon: "🇮🇳" },
+                { href: "/analytics", label: "View Analytics", icon: "ðŸ“Š" },
+                { href: "/upload-trade", label: "Upload Trade", icon: "â¬†" },
+                { href: "/weekly-reports", label: "Weekly Reports", icon: "ðŸ“‹" },
+                { href: "/indian-market/dashboard", label: "Indian Market", icon: "ðŸ‡®ðŸ‡³" },
               ].map(({ href, label, icon }) => (
                 <Link
                   key={href}
@@ -399,9 +412,35 @@ export default function ProfilePage() {
                 >
                   <span style={{ fontSize: 14 }}>{icon}</span>
                   {label}
-                  <span style={{ marginLeft: "auto", color: C.muted, fontSize: 11 }}>→</span>
+                  <span style={{ marginLeft: "auto", color: C.muted, fontSize: 11 }}>â†’</span>
                 </Link>
               ))}
+              <button
+                onClick={handleReplayTutorial}
+                disabled={replayingTutorial}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "9px 12px",
+                  borderRadius: 9,
+                  border: `1px solid ${C.green}`,
+                  textDecoration: "none",
+                  color: C.green,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  transition: "all 0.15s",
+                  background: "rgba(13,158,110,0.04)",
+                  cursor: replayingTutorial ? "not-allowed" : "pointer",
+                  opacity: replayingTutorial ? 0.6 : 1,
+                  width: "100%",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ fontSize: 14 }}>ðŸŽ“</span>
+                {replayingTutorial ? "Starting tutorial..." : "Replay App Tutorial"}
+                <span style={{ marginLeft: "auto", color: C.green, fontSize: 11 }}>â†’</span>
+              </button>
             </div>
           </div>
         </div>

@@ -73,7 +73,15 @@ const NotificationHistorySchema = new mongoose.Schema(
     delivery: {
       successCount: { type: Number, default: 0 },
       failureCount: { type: Number, default: 0 },
-      invalidTokens: { type: [String], default: [] },
+      // M14: Cap at 100 to prevent unbounded array growth per notification record
+      invalidTokens: {
+        type: [String],
+        default: [],
+        validate: {
+          validator: (arr) => arr.length <= 100,
+          message: "invalidTokens may not exceed 100 entries",
+        },
+      },
       error: { type: String, default: "" },
     },
   },

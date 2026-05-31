@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const tradeService = require("../services/trade.service");
+const tradeRepository = require("../repositories/trade.repository");
 
 exports.createTrade = asyncHandler(async (req, res) => {
   const trade = await tradeService.createTrade(req.user._id, req.body, {
@@ -33,4 +34,9 @@ exports.updateTrade = asyncHandler(async (req, res) => {
 exports.deleteTrade = asyncHandler(async (req, res) => {
   const result = await tradeService.deleteTrade(req.user._id, req.params.id);
   res.json(result);
+});
+
+exports.debugTrades = asyncHandler(async (req, res) => {
+  const counts = await tradeRepository.countTradesDebug(req.user._id);
+  res.json(counts);
 });

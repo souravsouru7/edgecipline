@@ -6,6 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getSummary } from "@/services/analyticsApi";
 import { getProfile, getWelcomeGuideSeen, markWelcomeGuideSeen } from "@/services/api";
 import { clearAuthToken, hasValidAuthToken } from "@/utils/auth";
+import { silentRefresh } from "@/services/apiClient";
+
+const TOUR_SEEN_KEY = "hasSeenWelcomeGuide";
 
 /**
  * useDashboard
@@ -32,29 +35,58 @@ export function useDashboard() {
 
     const verifyAuth = async () => {
       if (!hasValidAuthToken()) {
-        router.replace("/login");
-        return;
+        // No local token — attempt silent refresh via httpOnly cookie before giving up
+        const newToken = await silentRefresh();
+        if (!newToken) {
+          if (!cancelled) router.replace("/login");
+          return;
+        }
       }
 
       try {
         await getProfile();
         if (cancelled) return;
         setMounted(true);
-      } catch {
-        clearAuthToken();
-        if (!cancelled) router.replace("/login");
-        return;
+      } catch (err) {
+        if (cancelled) return;
+        const status = err?.status;
+        if (err?.data?.errorCode === "TERMS_NOT_ACCEPTED") {
+          router.replace("/accept-terms");
+          return;
+        }
+        if (status === 401 || status === 403) {
+          // Token is definitively rejected by the server — clear and redirect
+          clearAuthToken();
+          router.replace("/login");
+          return;
+        }
+        // 429, 5xx, or network error: the token is still valid.
+        // Mount in degraded state so the user can see the dashboard
+        // and React Query will retry the data fetches automatically.
+        setMounted(true);
       }
 
+      // Only fetch welcome guide if still mounted — avoids a pointless request on unmount
+      if (cancelled) return;
       getWelcomeGuideSeen()
-      .then((res) => {
-        if (!cancelled && !res?.hasSeenWelcomeGuide) setShowWelcome(true);
-      })
-      .catch(() => {
-        // If the endpoint doesn't exist yet, fall back to localStorage
-        const hasSeen = localStorage.getItem("hasSeenWelcomeGuide");
-        if (!cancelled && !hasSeen) setShowWelcome(true);
-      });
+        .then((res) => {
+          if (cancelled || res?.isOnboardingCompleted) return;
+
+          const hasSeenLocally = localStorage.getItem(TOUR_SEEN_KEY);
+          if (hasSeenLocally) return;
+
+          localStorage.setItem(TOUR_SEEN_KEY, "true");
+          setShowWelcome(true);
+          markWelcomeGuideSeen().catch(() => {});
+        })
+        .catch(() => {
+          // If the endpoint doesn't exist yet, fall back to localStorage
+          const hasSeen = localStorage.getItem(TOUR_SEEN_KEY);
+          if (!cancelled && !hasSeen) {
+            localStorage.setItem(TOUR_SEEN_KEY, "true");
+            setShowWelcome(true);
+          }
+        });
     };
 
     verifyAuth();
@@ -67,9 +99,10 @@ export function useDashboard() {
   // 3. Dismiss — saves to backend DB
   const closeWelcome = () => {
     setShowWelcome(false);
+    localStorage.setItem(TOUR_SEEN_KEY, "true");
     markWelcomeGuideSeen().catch(() => {
       // Fallback: keep localStorage in sync too
-      localStorage.setItem("hasSeenWelcomeGuide", "true");
+      localStorage.setItem(TOUR_SEEN_KEY, "true");
     });
   };
 

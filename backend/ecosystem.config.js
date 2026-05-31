@@ -15,7 +15,11 @@ module.exports = {
       out_file: "./logs/pm2-out.log",
       log_file: "./logs/pm2-combined.log",
       time: true,
-      merge_logs: true
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      // pm2-logrotate handles rotation; these caps prevent runaway growth if logrotate is not installed
+      max_size: "100M",
+      retain: 10,
     },
     {
       name: "stratedge-ocr-worker",
@@ -31,7 +35,10 @@ module.exports = {
       out_file: "./logs/pm2-worker-out.log",
       log_file: "./logs/pm2-worker-combined.log",
       time: true,
-      merge_logs: true
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      max_size: "100M",
+      retain: 10,
     }
   ]
 };

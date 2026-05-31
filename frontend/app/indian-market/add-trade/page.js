@@ -1,18 +1,52 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createTrade } from "@/services/tradeApi";
-import Link from "next/link";
 import { MARKETS } from "@/context/MarketContext";
-import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { fetchSetups } from "@/services/setupApi";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
+import { useToast } from "@/features/shared/components/ui/Toast";
 
 const getTodayInputValue = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
+
+const INTEGER_NUMBER_FIELDS = new Set(["strikePrice", "quantity", "sharesQty"]);
+const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes"]);
+
+const blockInvalidNumberKeys = (e) => {
+  const fieldName = e.currentTarget?.name;
+  const isIntegerField = INTEGER_NUMBER_FIELDS.has(fieldName);
+  const allowsNegative = fieldName === "profit";
+  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
+  if (!allowsNegative && e.key === "-") e.preventDefault();
+  if (isIntegerField && e.key === ".") e.preventDefault();
+};
+
+const sanitizeNumericInput = (value, { allowNegative = false, integer = false } = {}) => {
+  const raw = String(value ?? "");
+  let cleaned = raw.replace(/[^\d.-]/g, "");
+
+  if (!allowNegative) {
+    cleaned = cleaned.replace(/-/g, "");
+  } else {
+    const isNegative = cleaned.startsWith("-");
+    cleaned = cleaned.replace(/-/g, "");
+    if (isNegative) cleaned = `-${cleaned}`;
+  }
+
+  if (integer) {
+    return cleaned.replace(/\./g, "");
+  }
+
+  const sign = cleaned.startsWith("-") ? "-" : "";
+  const unsigned = sign ? cleaned.slice(1) : cleaned;
+  const [firstPart, ...rest] = unsigned.split(".");
+  return `${sign}${firstPart}${rest.length ? `.${rest.join("")}` : ""}`;
 };
 
 const theme = {
@@ -31,6 +65,8 @@ const LOT_SIZES = { "NIFTY": 25, "BANK NIFTY": 15, "FIN NIFTY": 25, "MIDCPNIFTY"
 
 function IndianOptionsAddTradeContent() {
   const router = useRouter();
+  useRequireAuth();
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const submitLockRef = useRef(false);
   const { accountCreatedDate } = useUserProfile();
@@ -65,6 +101,7 @@ function IndianOptionsAddTradeContent() {
     mood: null,
     confidence: "",
     emotionalTags: [],
+    wouldRetake: "",
     stockSymbol: "",
     exchange: "NSE",
     sharesQty: "",
@@ -76,10 +113,6 @@ function IndianOptionsAddTradeContent() {
   const [setupsLoading, setSetupsLoading] = useState(false);
   const [setupRules, setSetupRules] = useState([]);
 
-  useEffect(() => {
-    const t = localStorage.getItem("token");
-    if (!t) router.push("/login");
-  }, [router]);
 
   // Load saved trading setups for Indian market
   useEffect(() => {
@@ -120,7 +153,13 @@ function IndianOptionsAddTradeContent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setTrade((prev) => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (INTEGER_NUMBER_FIELDS.has(name)) {
+      nextValue = sanitizeNumericInput(value, { integer: true });
+    } else if (DECIMAL_NUMBER_FIELDS.has(name)) {
+      nextValue = sanitizeNumericInput(value, { allowNegative: name === "profit" });
+    }
+    setTrade((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const handleStrategyChange = (e) => {
@@ -155,66 +194,83 @@ function IndianOptionsAddTradeContent() {
     if (submitLockRef.current || loading) {
       return;
     }
+    const showValidation = (message) => {
+      addToast(message, "info");
+    };
 
     if (isEquity) {
       if (!trade.stockSymbol?.trim()) {
-        alert("Enter stock symbol (e.g. RELIANCE).");
+        showValidation("Enter stock symbol (e.g. RELIANCE).");
         return;
       }
       const sq = String(trade.sharesQty).trim();
       if (!sq || isNaN(parseFloat(sq)) || parseFloat(sq) <= 0) {
-        alert("Enter shares quantity.");
+        showValidation("Enter shares quantity.");
         return;
       }
     } else {
       const underlyingLabel = getUnderlyingLabel();
       if (!underlyingLabel?.trim()) {
-        alert("Select or enter underlying (e.g. NIFTY).");
+        showValidation("Select or enter underlying (e.g. NIFTY).");
         return;
       }
       const strike = trade.strikePrice?.trim();
       if (!strike || isNaN(parseFloat(strike))) {
-        alert("Enter strike price.");
+        showValidation("Enter strike price.");
         return;
       }
       const qty = trade.quantity?.trim();
       if (!qty || isNaN(parseFloat(qty)) || parseFloat(qty) <= 0) {
-        alert("Enter quantity (lots).");
+        showValidation("Enter quantity (lots).");
         return;
       }
     }
 
     const pnl = String(trade.profit).trim();
-    if (pnl === "" || pnl === undefined) {
-      alert("Enter profit or loss (₹).");
+    if (pnl === "" || isNaN(parseFloat(pnl))) {
+      showValidation("Enter profit or loss.");
+      return;
+    }
+    const ep = String(trade.entryPrice).trim();
+    if (!ep || isNaN(parseFloat(ep)) || parseFloat(ep) <= 0) {
+      showValidation(isEquity ? "Enter avg buy price." : "Enter entry premium.");
+      return;
+    }
+    const xp = String(trade.exitPrice).trim();
+    if (!xp || isNaN(parseFloat(xp)) || parseFloat(xp) <= 0) {
+      showValidation(isEquity ? "Enter avg sell price." : "Enter exit premium.");
       return;
     }
     if (!trade.tradeDate) {
-      alert("Select trade date.");
+      showValidation("Select trade date.");
       return;
     }
     if (accountCreatedDate && trade.tradeDate < accountCreatedDate) {
-      alert(`Trade date cannot be before your account creation date (${accountCreatedDate}). You can only log trades from the day you joined.`);
+      showValidation(`Trade date cannot be before your account creation date (${accountCreatedDate}).`);
+      return;
+    }
+    if (trade.tradeDate > getTodayInputValue()) {
+      showValidation("Trade date cannot be in the future.");
       return;
     }
     if (!trade.riskRewardRatio) {
-      alert("Select planned risk : reward ratio.");
+      showValidation("Select planned risk : reward ratio.");
       return;
     }
     if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
-      alert("Enter your custom risk : reward ratio.");
+      showValidation("Enter your custom risk : reward ratio.");
       return;
     }
     if (!trade.mood) {
-      alert("Select how you're feeling (mood).");
+      showValidation("Select how you're feeling.");
       return;
     }
     if (!trade.confidence) {
-      alert("Select your confidence level.");
+      showValidation("Select your confidence level.");
       return;
     }
     if (!trade.emotionalTags || trade.emotionalTags.length === 0) {
-      alert("Select at least one emotional tag.");
+      showValidation("Select at least one emotional tag.");
       return;
     }
 
@@ -238,7 +294,8 @@ function IndianOptionsAddTradeContent() {
       sttTaxes: trade.sttTaxes ? parseFloat(trade.sttTaxes) : undefined,
       mood: trade.mood ?? undefined,
       confidence: trade.confidence || undefined,
-      emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined
+      emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
+      wouldRetake: trade.wouldRetake || undefined
     };
 
     let tradeData;
@@ -285,13 +342,13 @@ function IndianOptionsAddTradeContent() {
     try {
       const result = await createTrade(tradeData, MARKETS.INDIAN_MARKET);
       if (result?._id) {
-        alert("Trade saved!");
+        addToast("Trade saved to your journal!", "success");
         router.push("/indian-market/dashboard");
       } else {
         throw new Error(result?.message || "Failed to save");
       }
     } catch (err) {
-      alert(err.message || "Failed to save.");
+      addToast(err.message || "Failed to save trade.", "error");
     } finally {
       submitLockRef.current = false;
       setLoading(false);
@@ -364,7 +421,7 @@ function IndianOptionsAddTradeContent() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Shares Qty</label>
-                    <input name="sharesQty" type="number" min="1" placeholder="e.g. 100" value={trade.sharesQty} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                    <input name="sharesQty" type="number" min="1" placeholder="e.g. 100" value={trade.sharesQty} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Sector</label>
@@ -403,7 +460,7 @@ function IndianOptionsAddTradeContent() {
                 )}
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Strike (₹)</label>
-                  <input name="strikePrice" placeholder="e.g. 26100" value={trade.strikePrice} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                  <input name="strikePrice" type="number" min="1" step="1" placeholder="e.g. 26100" value={trade.strikePrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -423,24 +480,24 @@ function IndianOptionsAddTradeContent() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Qty (lots)</label>
-                  <input name="quantity" type="number" min="1" placeholder="e.g. 3" value={trade.quantity} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                  <input name="quantity" type="number" min="1" placeholder="e.g. 3" value={trade.quantity} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
                 </div>
               </>
             )}
 
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Profit / Loss (₹)</label>
-              <input name="profit" type="number" placeholder="e.g. 1500 or -500" value={trade.profit} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontWeight: 600 }} />
+              <input name="profit" type="number" placeholder="e.g. 1500 or -500" value={trade.profit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontWeight: 600 }} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>{isEquity ? "Avg buy price (₹)" : "Entry premium (₹)"}</label>
-                <input name="entryPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2450.50" : "e.g. 85.50"} value={trade.entryPrice} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                <input name="entryPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2450.50" : "e.g. 85.50"} value={trade.entryPrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>{isEquity ? "Avg sell price (₹)" : "Exit premium (₹)"}</label>
-                <input name="exitPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2510" : "e.g. 120"} value={trade.exitPrice} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                <input name="exitPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2510" : "e.g. 120"} value={trade.exitPrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
             </div>
 
@@ -658,18 +715,18 @@ function IndianOptionsAddTradeContent() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Brokerage (₹)</label>
-                <input name="brokerage" type="number" step="0.01" placeholder="0" value={trade.brokerage} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                <input name="brokerage" type="number" step="0.01" placeholder="0" value={trade.brokerage} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>STT / Taxes (₹)</label>
-                <input name="sttTaxes" type="number" step="0.01" placeholder="0" value={trade.sttTaxes} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                <input name="sttTaxes" type="number" step="0.01" placeholder="0" value={trade.sttTaxes} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
             </div>
 
             {/* Psychology Section */}
             <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, border: "1px solid #E2E8F0" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                <span>🧠</span> TRADE PSYCHOLOGY
+                <span>PSY</span> TRADE PSYCHOLOGY
                 <span style={{ fontSize: 9, color: "#D63B3B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
               </div>
 
@@ -677,11 +734,11 @@ function IndianOptionsAddTradeContent() {
                 <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>HOW ARE YOU FEELING? <span style={{ color: "#D63B3B" }}>*</span></label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {[
-                    { emoji: "😰", val: 1, label: "Stressed" },
-                    { emoji: "😟", val: 2, label: "Anxious" },
-                    { emoji: "😐", val: 3, label: "Neutral" },
-                    { emoji: "😊", val: 4, label: "Good" },
-                    { emoji: "🔥", val: 5, label: "Peak" }
+                    { score: "1", val: 1, label: "Stressed" },
+                    { score: "2", val: 2, label: "Anxious" },
+                    { score: "3", val: 3, label: "Neutral" },
+                    { score: "4", val: 4, label: "Good" },
+                    { score: "5", val: 5, label: "Peak" }
                   ].map(m => (
                     <button
                       key={m.val}
@@ -699,7 +756,7 @@ function IndianOptionsAddTradeContent() {
                         transform: trade.mood === m.val ? "scale(1.04)" : "scale(1)"
                       }}
                     >
-                      <div style={{ fontSize: 20 }}>{m.emoji}</div>
+                      <div style={{ fontSize: 20, fontWeight: 800 }}>{m.score}</div>
                       <div style={{ fontSize: 10, color: trade.mood === m.val ? "#0D9E6E" : "#64748B", fontWeight: 700, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{m.label}</div>
                     </button>
                   ))}
@@ -715,10 +772,10 @@ function IndianOptionsAddTradeContent() {
                   style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }}
                 >
                   <option value="">Select confidence...</option>
-                  <option value="Low">Low — Unsure about this setup</option>
-                  <option value="Medium">Medium — Decent setup</option>
-                  <option value="High">High — Strong conviction</option>
-                  <option value="Overconfident">Overconfident — Can't lose 🚩</option>
+                  <option value="Low">Low - Unsure about this setup</option>
+                  <option value="Medium">Medium - Decent setup</option>
+                  <option value="High">High - Strong conviction</option>
+                  <option value="Overconfident">Overconfident - Cannot lose</option>
                 </select>
               </div>
 
@@ -750,24 +807,21 @@ function IndianOptionsAddTradeContent() {
                           color: selected ? "#0D9E6E" : "#64748B"
                         }}
                       >
-                        {tag === "FOMO" ? "😨" : tag === "Revenge" ? "😡" : tag === "Fear" ? "😰" : tag === "Greed" ? "🤑" : tag === "Calm" ? "🧘" : tag === "Bored" ? "😴" : tag === "Focused" ? "🎯" : "😤"} {tag}
+                        {tag}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              <div style={{ display: "none" }}>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>WOULD YOU TAKE THIS TRADE AGAIN?</label>
+              <div>
+                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>WOULD YOU RETAKE THIS TRADE?</label>
                 <div style={{ display: "flex", gap: 10 }}>
-                  {[
-                    { val: "Yes", icon: "✅", label: "Yes" },
-                    { val: "No", icon: "❌", label: "No" }
-                  ].map(option => (
+                  {["Yes", "No"].map(option => (
                     <button
-                      key={option.val}
+                      key={option}
                       type="button"
-                      onClick={() => setTrade(prev => ({ ...prev, wouldRetake: prev.wouldRetake === option.val ? "" : option.val }))}
+                      onClick={() => setTrade(prev => ({ ...prev, wouldRetake: prev.wouldRetake === option ? "" : option }))}
                       style={{
                         flex: 1,
                         padding: "10px",
@@ -777,12 +831,12 @@ function IndianOptionsAddTradeContent() {
                         fontWeight: 700,
                         transition: "all 0.2s",
                         fontFamily: "'Plus Jakarta Sans',sans-serif",
-                        border: trade.wouldRetake === option.val ? `1.5px solid ${option.val === "Yes" ? "#0D9E6E" : "#D63B3B"}` : "1px solid #E2E8F0",
-                        background: trade.wouldRetake === option.val ? (option.val === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "#F8FAFC",
-                        color: trade.wouldRetake === option.val ? (option.val === "Yes" ? "#0D9E6E" : "#D63B3B") : "#64748B"
+                        border: trade.wouldRetake === option ? `1.5px solid ${option === "Yes" ? "#0D9E6E" : "#D63B3B"}` : "1px solid #E2E8F0",
+                        background: trade.wouldRetake === option ? (option === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "#F8FAFC",
+                        color: trade.wouldRetake === option ? (option === "Yes" ? "#0D9E6E" : "#D63B3B") : "#64748B"
                       }}
                     >
-                      {option.icon} {option.label}
+                      {option}
                     </button>
                   ))}
                 </div>
@@ -803,7 +857,7 @@ function IndianOptionsAddTradeContent() {
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.8 : 1
           }}>
-            {loading ? "Saving…" : "Save"}
+            {loading ? "Saving..." : "Save"}
           </button>
         </form>
       </main>

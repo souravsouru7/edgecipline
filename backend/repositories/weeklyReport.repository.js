@@ -4,7 +4,7 @@ async function findWeeklyReportsByUser(userId, marketType, limit) {
   return WeeklyReport.find({ user: userId, marketType })
     .sort({ weekStart: -1 })
     .limit(limit)
-    .select("user marketType periodType weekStart weekEnd snapshot aiFeedback aiModel promptVersion createdAt updatedAt")
+    .select("user marketType periodType weekStart weekEnd aiFeedback aiModel promptVersion createdAt updatedAt")
     .lean();
 }
 

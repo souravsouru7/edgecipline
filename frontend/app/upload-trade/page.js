@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 // useEffect + useRef used in UploadTradeContent for auto-scroll to psychology after extraction
 import { useRouter } from "next/navigation";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Link from "next/link";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
@@ -713,6 +714,18 @@ function UploadTradeContent() {
     ? trades.reduce((s, t) => s + parseProfitValue(t?.profit), 0)
     : parseProfitValue(trade?.profit);
 
+  if (!mounted) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 32, height: 32, margin: "0 auto 12px", border: "2.5px solid #E2E8F0", borderTopColor: "#B8860B", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}>LOADING AI EXTRACTOR...</div>
+        </div>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </main>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -722,7 +735,7 @@ function UploadTradeContent() {
         <PageHeader showMarketSwitcher showClock clock={clock} />
         <TickerTape />
 
-        <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box", opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "all 0.55s cubic-bezier(0.22,1,0.36,1)" }}>
+        <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box", animation: "fadeUp 0.45s ease both" }}>
           {/* Page heading */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -899,6 +912,47 @@ function UploadTradeContent() {
   );
 }
 
+function UploadErrorFallback({ error, resetError }) {
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans',sans-serif", padding: 24 }}>
+      <div style={{ maxWidth: 420, width: "100%", background: "#FFFFFF", borderRadius: 14, border: "1px solid #FCA5A5", overflow: "hidden", boxShadow: "0 4px 24px rgba(15,25,35,0.08)" }}>
+        <div style={{ height: 3, background: "linear-gradient(90deg,#D63B3B,#FCA5A5)" }} />
+        <div style={{ padding: "24px 24px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#9B1C1C", marginBottom: 8 }}>Something went wrong</div>
+          <p style={{ fontSize: 12, color: "#7F1D1D", lineHeight: 1.6, margin: "0 0 16px" }}>
+            The upload form encountered an error. Your unsaved data may be lost, but your previously saved trades are safe in your journal.
+          </p>
+          {error?.message && (
+            <pre style={{ fontSize: 10, color: "#94A3B8", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px", overflowX: "auto", marginBottom: 16 }}>
+              {error.message}
+            </pre>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={resetError}
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#B8860B", color: "#FFF", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+            >
+              TRY AGAIN
+            </button>
+            <a
+              href="/trades"
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#FFF", color: "#4A5568", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+            >
+              MY JOURNAL
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UploadTradePage() {
-  return <Suspense><UploadTradeContent /></Suspense>;
+  return (
+    <ErrorBoundary fallback={(error, reset) => <UploadErrorFallback error={error} resetError={reset} />}>
+      <Suspense>
+        <UploadTradeContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
 }

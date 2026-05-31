@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { googleLogin, registerUser, acceptTerms as acceptTermsApi, testConnection as apiTestConnection } from "@/services/api";
 import { signInWithFirebaseGoogle, handleGoogleRedirectResult } from "@/services/firebaseAuth";
+import { setAuthToken, getValidToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -192,15 +193,15 @@ export default function RegisterPage() {
 
   useEffect(() => {
     setMounted(true);
-    const token = localStorage.getItem("token");
-    if (token) { router.push("/dashboard"); return; }
+    // Use getValidToken() to check both in-memory and legacy localStorage tokens
+    if (getValidToken()) { router.push("/dashboard"); return; }
 
     // Pick up idToken after mobile redirect Google sign-in on register page
     handleGoogleRedirectResult()
       .then(idToken => { if (idToken) return googleLogin(idToken); })
       .then(data => {
-        if (!data) return;
-        localStorage.setItem("token", data.token);
+        if (!data?.token) return;
+        setAuthToken(data.token);
         router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
       })
       .catch(err => alert("Google login failed: " + (err?.message || err)));
@@ -235,7 +236,7 @@ export default function RegisterPage() {
         acceptedPrivacy: true,
       });
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {
@@ -272,7 +273,7 @@ export default function RegisterPage() {
       if (!idToken) return;
       const data = await googleLogin(idToken);
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {

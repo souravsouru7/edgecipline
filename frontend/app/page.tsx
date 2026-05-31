@@ -18,9 +18,14 @@ export default function RootPage() {
           return;
         }
 
-        await getProfile();
-        if (!cancelled) router.replace("/dashboard");
-      } catch {
+        const profile = await getProfile();
+        if (!cancelled) router.replace(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+      } catch (err: unknown) {
+        const apiError = err as { data?: { errorCode?: string } };
+        if (apiError.data?.errorCode === "TERMS_NOT_ACCEPTED") {
+          if (!cancelled) router.replace("/accept-terms");
+          return;
+        }
         clearAuthToken();
         if (!cancelled) router.replace("/login");
       }

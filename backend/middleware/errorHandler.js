@@ -51,16 +51,25 @@ function errorHandler(err, req, res, next) {
     ? "Something went wrong"
     : normalizedError?.message || "Request failed";
 
-  logger[isServerError ? "error" : "warn"](`Error in ${req.method} ${req.originalUrl}`, {
-    statusCode,
-    errorCode,
-    message: normalizedError?.message,
-    stack: normalizedError?.stack,
-    route: req.originalUrl,
-    method: req.method,
-    userAgent: req.get("user-agent"),
-    ip: req.ip,
-  });
+  // Suppress noisy but expected 401s on /auth/refresh — no cookie = expected client probe,
+  // not a real error worth logging every page load.
+  const isSilentRefreshProbe =
+    statusCode === 401 &&
+    req.originalUrl.includes("/auth/refresh") &&
+    (errorCode === "AUTH_REQUIRED" || errorCode === "REFRESH_TOKEN_EXPIRED");
+
+  if (!isSilentRefreshProbe) {
+    logger[isServerError ? "error" : "warn"](`Error in ${req.method} ${req.originalUrl}`, {
+      statusCode,
+      errorCode,
+      message: normalizedError?.message,
+      stack: normalizedError?.stack,
+      route: req.originalUrl,
+      method: req.method,
+      userAgent: req.get("user-agent"),
+      ip: req.ip,
+    });
+  }
 
   const payload = {
     status: "error",

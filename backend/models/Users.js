@@ -75,6 +75,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    isOnboardingCompleted: {
+      type: Boolean,
+      default: false
+    },
     termsAcceptance: {
       acceptedTerms: { type: Boolean, default: false },
       acceptedPrivacy: { type: Boolean, default: false },
@@ -85,12 +89,23 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    loginLockedUntil: {
+      type: Date,
+      select: false,
+    },
   },
   { timestamps: true }
 );
 
 userSchema.index({ role: 1, subscriptionExpiry: -1 });
 userSchema.index({ role: 1, subscriptionStatus: 1, subscriptionExpiry: -1 });
+// M16: Supports expiry-notification cron and subscription-gate queries
+userSchema.index({ subscriptionStatus: 1, subscriptionExpiry: -1 });
 userSchema.index(
   { googleId: 1 },
   {

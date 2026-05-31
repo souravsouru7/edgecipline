@@ -550,6 +550,101 @@ function TradeDetailContent() {
               </div>
             </div>
 
+            {/* Psychology Section */}
+            {(trade.mood || trade.confidence || trade.entryBasis || (trade.emotionalTags?.length > 0) || trade.mistakeTag || trade.lesson || trade.setupScore != null) && (
+              <div style={{
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                borderRadius: 14,
+                overflow: "hidden",
+                boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
+                marginTop: 16,
+                animation: "fadeUp 0.5s ease 0.3s both",
+              }}>
+                <div style={{ height: 3, background: "linear-gradient(90deg,#6366F1,#6366F122)" }}/>
+                <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>🧠</span>
+                  <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ PSYCHOLOGY & REVIEW</div>
+                </div>
+                <div style={{ padding: "6px 20px 18px" }}>
+                  {trade.entryBasis && (
+                    <InfoRow
+                      label="ENTRY BASIS"
+                      value={trade.entryBasis === "Custom" ? (trade.entryBasisCustom || trade.entryBasis) : trade.entryBasis}
+                      delay={0.32}
+                    />
+                  )}
+                  {trade.mood && (
+                    <InfoRow
+                      label="MOOD (1–5)"
+                      value={"★".repeat(trade.mood) + "☆".repeat(5 - trade.mood) + `  (${trade.mood}/5)`}
+                      valueColor="#6366F1"
+                      delay={0.34}
+                    />
+                  )}
+                  {trade.confidence && (
+                    <InfoRow
+                      label="CONFIDENCE"
+                      value={trade.confidence}
+                      valueColor={trade.confidence === "High" ? "#0D9E6E" : trade.confidence === "Overconfident" ? "#D63B3B" : trade.confidence === "Low" ? "#94A3B8" : "#B8860B"}
+                      delay={0.36}
+                    />
+                  )}
+                  {trade.wouldRetake && (
+                    <InfoRow
+                      label="WOULD RETAKE?"
+                      value={trade.wouldRetake}
+                      valueColor={trade.wouldRetake === "Yes" ? "#0D9E6E" : "#D63B3B"}
+                      delay={0.38}
+                    />
+                  )}
+                  {trade.emotionalTags?.length > 0 && (
+                    <div style={{ padding: "14px 0", borderBottom: "1px solid #E2E8F0" }}>
+                      <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "#4A5568", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>EMOTIONAL TAGS</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {trade.emotionalTags.map((tag, i) => (
+                          <span key={i} style={{
+                            fontSize: 10,
+                            fontFamily: "'JetBrains Mono',monospace",
+                            color: "#6366F1",
+                            background: "rgba(99,102,241,0.08)",
+                            border: "1px solid rgba(99,102,241,0.2)",
+                            borderRadius: 20,
+                            padding: "3px 10px",
+                          }}>{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {trade.mistakeTag && (
+                    <InfoRow label="MISTAKE TAG" value={trade.mistakeTag} valueColor="#D63B3B" delay={0.40}/>
+                  )}
+                  {trade.setupScore != null && (
+                    <InfoRow
+                      label="SETUP SCORE"
+                      value={`${trade.setupScore}%`}
+                      valueColor={trade.setupScore >= 70 ? "#0D9E6E" : trade.setupScore >= 40 ? "#B8860B" : "#D63B3B"}
+                      delay={0.42}
+                    />
+                  )}
+                  {trade.lesson && (
+                    <div style={{ paddingTop: 14 }}>
+                      <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "#4A5568", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>LESSON LEARNED</div>
+                      <p style={{
+                        fontSize: 13,
+                        color: "#4A5568",
+                        fontFamily: "'Plus Jakarta Sans',sans-serif",
+                        lineHeight: 1.8,
+                        margin: 0,
+                        borderLeft: "3px solid #6366F1",
+                        paddingLeft: 14,
+                      }}>{trade.lesson}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Bottom actions */}
             <div style={{
               display: "flex",

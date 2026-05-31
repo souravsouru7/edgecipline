@@ -138,23 +138,14 @@ export default function AdminLoginPage() {
     const restoreAdminSession = async () => {
       setMounted(true);
 
-      const token = localStorage.getItem("adminToken");
-      const role = localStorage.getItem("adminRole");
-
-      if (!token || role !== "admin") {
-        clearAdminSession();
-        return;
-      }
-
+      // Check if an active admin session cookie exists by calling the profile endpoint
       try {
         const profile = await getAdminProfile();
         if (isActive && profile?.role === "admin") {
           router.replace("/admin/dashboard");
         }
       } catch {
-        if (isActive) {
-          clearAdminSession();
-        }
+        // No valid session — stay on login page
       }
     };
 
@@ -177,10 +168,9 @@ export default function AdminLoginPage() {
     try {
       clearAdminSession();
       const data = await adminLogin(form);
-      if (data.token) {
-        localStorage.setItem("adminToken", data.token);
-        localStorage.setItem("adminRole", data.role);
-        localStorage.setItem("adminName", data.name);
+      // Server sets the httpOnly admin_sid cookie — we store only the display name (non-sensitive)
+      if (data?._id) {
+        if (data.name) localStorage.setItem("adminName", data.name);
         router.replace("/admin/dashboard");
       } else {
         setShake(true);

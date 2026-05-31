@@ -13,6 +13,23 @@ exports.uploadImage = asyncHandler(async (req, res) => {
   res.status(202).json(result);
 });
 
+exports.uploadScreenshotImage = asyncHandler(async (req, res) => {
+  if (!req.uploadedImage?.imageUrl) {
+    res.status(400).json({
+      status: "error",
+      message: "Image file is required.",
+    });
+    return;
+  }
+
+  res.status(201).json({
+    imageUrl: req.uploadedImage.imageUrl,
+    screenshotUrl: req.uploadedImage.imageUrl,
+    url: req.uploadedImage.imageUrl,
+    publicId: req.uploadedImage.publicId,
+  });
+});
+
 exports.getUploadJobStatus = asyncHandler(async (req, res) => {
   const jobStatus = await uploadService.getUploadJobStatus(req.user._id, req.params.id);
   res.json(jobStatus);

@@ -101,12 +101,18 @@ export function useLogin() {
       try {
         let idToken = await handleGoogleRedirectResult();
         if (!idToken) {
-          const recovered = await recoverFirebaseSessionIdToken();
-          if (!recovered && wasPending) {
-            clearRedirectPending();
-            alert("Google Sign-In was interrupted or failed. Please try again or use a different browser.");
+          if (wasPending) {
+            // Only recover a persisted Firebase session when the user explicitly
+            // initiated a Google OAuth redirect. Without a pending redirect flag,
+            // silently recovering a stale Firebase session would auto-login the user
+            // and redirect them away from the login form without their intent.
+            const recovered = await recoverFirebaseSessionIdToken();
+            if (!recovered) {
+              clearRedirectPending();
+              alert("Google Sign-In was interrupted or failed. Please try again or use a different browser.");
+            }
+            idToken = recovered;
           }
-          idToken = recovered;
         }
         if (idToken) {
           const data = await googleLogin(idToken);
@@ -123,23 +129,39 @@ export function useLogin() {
     };
 
     const restoreSession = async () => {
-      // Step 1: valid access token in localStorage
+      // Step 1: valid access token in memory
       const token = getValidToken();
       if (token) {
         try {
-          await getProfile();
-          if (!cancelled) router.push("/dashboard");
+          const profile = await getProfile();
+          if (!cancelled) router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
           return;
-        } catch {
-          clearAuthToken();
+        } catch (err) {
+          const status = err?.status;
+          if (status === 401 || status === 403) {
+            // Server explicitly rejected the token — safe to clear it
+            if (!cancelled) clearAuthToken();
+          } else if (status !== 429 && status != null) {
+            // Unexpected server error with a valid token — don't clear.
+            // Fall through: silentRefresh will confirm session is still alive.
+          }
+          // For 429: token is still valid, fall through to silentRefresh
+          // which will obtain a fresh access token without clearing state.
         }
       }
 
+      if (cancelled) return;
+
       // Step 2: try silent refresh — the httpOnly refresh cookie may still be valid
-      // even though the 15-minute access token has expired.
+      // even though the access token has expired or was cleared above.
       const newToken = await silentRefresh();
       if (newToken && !cancelled) {
-        router.push("/dashboard");
+        try {
+          const profile = await getProfile();
+          router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+        } catch {
+          router.push("/dashboard");
+        }
         return;
       }
 

@@ -1,9 +1,12 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
+import { getValidToken } from "@/utils/auth";
+import { silentRefresh } from "@/services/apiClient";
 
 /**
  * useTrades
@@ -15,7 +18,7 @@ export function useTrades() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingId, setDeletingId]     = useState(null);
   const [filter, setFilter]             = useState("ALL");
-  const [period, setPeriod]             = useState("1m");
+  const [period, setPeriod]             = useState("all");
   const [search, setSearch]             = useState("");
   const [mounted, setMounted]           = useState(false);
   const [hasToken, setHasToken]         = useState(false);
@@ -55,13 +58,20 @@ export function useTrades() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    setHasToken(true);
-    setMounted(true);
+    let cancelled = false;
+    const checkAuth = async () => {
+      if (!getValidToken()) {
+        const token = await silentRefresh();
+        if (cancelled) return;
+        if (!token) { router.replace("/login"); return; }
+      }
+      if (!cancelled) {
+        setHasToken(true);
+        setMounted(true);
+      }
+    };
+    checkAuth();
+    return () => { cancelled = true; };
   }, [router]);
 
   const confirmDelete = () => {
@@ -73,13 +83,17 @@ export function useTrades() {
 
   const cancelDelete = () => setDeleteTarget(null);
 
-  // Client-side filtering logic (preserved from original)
+  // Client-side filtering logic
   const filtered = trades.filter((t) => {
-    if (!t.pair || !String(t.pair).trim()) return false;
-    const matchFilter = filter === "ALL" || t.type?.toUpperCase() === filter;
+    // Map BUY/SELL (backend values) to LONG/SHORT (UI labels)
+    const direction = t.type?.toUpperCase() === "BUY" ? "LONG"
+                    : t.type?.toUpperCase() === "SELL" ? "SHORT"
+                    : t.type?.toUpperCase();
+    const matchFilter = filter === "ALL" || direction === filter;
     const q = search.toLowerCase();
+    const pairText = (t.pair || "").toLowerCase();
     const dateText = new Date(t.tradeDate || t.createdAt).toLocaleDateString().toLowerCase();
-    const matchSearch = t.pair?.toLowerCase().includes(q) || dateText.includes(q);
+    const matchSearch = !q || pairText.includes(q) || dateText.includes(q);
     return matchFilter && matchSearch;
   });
 
@@ -92,7 +106,7 @@ export function useTrades() {
   const summaryStats = [
     { label: "TOTAL TRADES", val: trades.length,                                               bull: true       },
     { label: "WIN RATE",      val: `${winRate}%`,                                              bull: parseFloat(winRate) >= 50 },
-    { label: "TOTAL P&L",     val: `${totalBull ? "+" : ""}$${Math.abs(totalPnl).toFixed(2)}`, bull: totalBull  },
+    { label: "TOTAL P&L",     val: `${totalBull ? "+" : "-"}$${Math.abs(totalPnl).toFixed(2)}`, bull: totalBull  },
   ];
 
   return {

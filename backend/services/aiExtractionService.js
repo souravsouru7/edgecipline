@@ -5,8 +5,12 @@ const { appConfig } = require("../config");
 
 const GEMINI_EXTRACTION_TIMEOUT_MS = Math.max(TIMEOUT_CONFIG.aiTimeout, 90_000);
 
-const FOREX_VISION_PROMPT = `You are a trading data extraction specialist analyzing a broker screenshot.
+const FOREX_VISION_PROMPT = `You are a trading data extraction specialist analyzing a Forex/CFD broker screenshot.
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
+
+MARKET TYPE CHECK — DO THIS FIRST:
+If the screenshot is clearly from an Indian stock broker (Zerodha, Upstox, Angel One, Groww, Dhan, Fyers, ICICI Direct, Kotak, Paytm Money, Sharekhan, 5paisa) OR shows Indian F&O/options (CE/PE, strike prices, NIFTY/BANKNIFTY options) OR shows Indian equities (NSE/BSE stock names), return ONLY this JSON and nothing else:
+{"error":"WRONG_MARKET_TYPE","detectedMarket":"Indian_Market","message":"This appears to be an Indian market screenshot. Please use the Indian Market upload page."}
 
 FIELD EXTRACTION RULES:
 - pair: currency/instrument symbol (e.g. EURUSD, XAUUSD, US30, BTCUSD). Normalize: remove spaces, slashes.
@@ -31,6 +35,10 @@ JSON: {"pair":"GBPUSD","type":"BUY","quantity":0.90,"entryPrice":1.35949,"exitPr
 
 const INDIAN_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker screenshot (Zerodha, Upstox, Angel One, Groww, Dhan, Fyers, 5paisa, ICICI Direct, Kotak Neo, Paytm Money, Motilal Oswal, Sharekhan).
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
+
+MARKET TYPE CHECK — DO THIS FIRST:
+If the screenshot is clearly from a Forex/CFD broker (MetaTrader 4, MetaTrader 5, cTrader, TradingView) OR shows Forex currency pairs (EURUSD, XAUUSD, GBPJPY, USDJPY etc.) OR shows lot sizes / pip values instead of Indian quantities, return ONLY this JSON and nothing else:
+{"error":"WRONG_MARKET_TYPE","detectedMarket":"Forex","message":"This appears to be a Forex/MT5 screenshot. Please use the Forex upload page."}
 
 CRITICAL RULES:
 1. If this is a POSITIONS / F&O / OPEN POSITIONS screen, IGNORE "TOTAL P&L", index quotes/cards, tabs, and summary widgets. Extract only the individual option rows.
@@ -74,30 +82,94 @@ Extract ALL rows into "trades" array. Set top-level fields to the first trade.
 
 JSON: {"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":520.00,"productType":"DELIVERY","broker":"Fyers","trades":[{"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":520.00,"productType":"DELIVERY"},{"pair":"NIFTY 24200 CE","optionType":"CE","strikePrice":24200,"underlying":"NIFTY","quantity":0,"entryPrice":null,"exitPrice":null,"profit":338.00,"productType":"INTRADAY"}]}`;
 
-const INDIAN_EQUITY_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker app screenshot showing INTRADAY EQUITY (stock) trades — NOT options/F&O.
+const INDIAN_EQUITY_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker app screenshot showing EQUITY (stock) trades — both INTRADAY and DELIVERY/CNC — NOT options/F&O.
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
 
+MARKET TYPE CHECK — DO THIS FIRST:
+If the screenshot is clearly from a Forex/CFD broker (MetaTrader 4, MetaTrader 5, cTrader, TradingView) OR shows Forex currency pairs (EURUSD, XAUUSD, GBPJPY etc.) OR shows lot sizes / pip values, return ONLY this JSON and nothing else:
+{"error":"WRONG_MARKET_TYPE","detectedMarket":"Forex","message":"This appears to be a Forex/MT5 screenshot. Please use the Forex upload page."}
+
 CRITICAL RULES — READ CAREFULLY:
-1. IGNORE any "TOTAL RETURNS", "Total P&L", "Total Returns", or any aggregate/summary row at the top. These are NOT stock names.
-2. Only extract individual stock/company rows (e.g. "Vedanta", "HDFC Bank", "Reliance", "TCS").
-3. This may be a Positions / Holdings / Closed Trades page. Each stock row has: stock name, P&L value (right side), and optionally Qty, Avg price, Mkt price.
-4. If Qty shows "0" and Avg shows "₹0.00", the intraday position is fully closed — entryPrice and exitPrice will be null. The P&L shown IS the realized profit/loss.
+1. IGNORE any "Today's P&L", "TOTAL RETURNS", "Total P&L", "Overall P&L", or any aggregate/summary row at the top or bottom. These are NOT stock names.
+2. Only extract individual stock/company rows (e.g. "POWERGRID", "Vedanta", "HDFC Bank", "Reliance", "TCS").
+3. This may be a Positions / Holdings / Closed Trades page. Each stock row has: stock name, P&L value (right side), and optionally Qty, Avg price, LTP/Mkt price.
+4. CLOSED POSITION: If Qty shows "0" and Avg shows "0.00" or "₹0.00" — the position is fully closed. Set entryPrice=null and exitPrice=null. The P&L shown in GREEN/RED for THAT ROW is the realized profit/loss — extract it.
 5. The P&L is GREEN/positive (+₹) or RED/negative (-₹). Extract the exact number with correct sign.
+6. LTP (Last Traded Price) is the CURRENT MARKET PRICE — NEVER put LTP into entryPrice or exitPrice.
+7. productType: "Delivery"/"CNC"/"DELIVERY" => "DELIVERY". "Intraday"/"MIS"/"BO"/"CO" => "INTRADAY". Default "INTRADAY".
+8. Ignore market index rows and header values such as NIFTY 50, NIFTY BANK, BANKNIFTY, SENSEX, market index P&L, time, battery, network, navigation, and portfolio summary widgets.
+9. For each stock row, find the stock symbol first, then use the nearest P&L and nearest LTP inside that same row/card. Never assign a NIFTY/BANKNIFTY/SENSEX value to a stock.
+
+STOCK SYMBOL RULES — VERY IMPORTANT:
+- If the stock name IS already a known NSE ticker (all caps, no spaces), keep it EXACTLY as shown. Do NOT strip or abbreviate it.
+- Examples: "POWERGRID"→POWERGRID, "RELIANCE"→RELIANCE, "TCS"→TCS, "NTPC"→NTPC, "ONGC"→ONGC, "SBIN"→SBIN.
+- Convert full company names: "Vedanta"→VEDL, "HDFC Bank"→HDFCBANK, "Voltas"→VOLTAS, "Shipping Corporation"→SCI, "Infosys"→INFY, "Wipro"→WIPRO, "ICICI Bank"→ICICIBANK, "Power Grid"→POWERGRID, "Power Grid Corporation"→POWERGRID, "Coforge"→COFORGE, "NIIT Technologies"→COFORGE.
+- Never extract "LT" from UI labels like "LTP" or "Total P&L". Use LT only when the stock row itself visibly says "LT" or "L&T".
+- If unsure, use the name in UPPERCASE with spaces removed. NEVER invent a short abbreviation not visible in the image.
 
 FIELD EXTRACTION RULES:
-- stockSymbol: Company name converted to NSE ticker. Examples: "Vedanta"→VEDL, "HDFC Bank"→HDFCBANK, "Voltas"→VOLTAS, "Shipping Corporation"→SCI, "Reliance"→RELIANCE, "TCS"→TCS, "Infosys"→INFY, "Wipro"→WIPRO, "ICICI Bank"→ICICIBANK, "SBI"→SBIN. If unsure, use the name in UPPERCASE with spaces removed.
-- exchange: "NSE" or "BSE". Default "NSE".
-- sharesQty: integer shares quantity. Use the displayed Qty number. If Qty=0 for closed position, still use the original qty if visible, otherwise null.
-- type: "BUY" for long/buy intraday, "SELL" for short/sell intraday. Default "BUY" if direction not clear.
-- entryPrice: avg buy price per share in ₹. null if not shown or "₹0.00".
-- exitPrice: avg sell price per share in ₹. null if not shown or "₹0.00".
-- profit: net realized P&L in ₹. Green/+ = positive number. Red/- = negative number. Strip ₹ and commas. Indian format: "1,23,456" = 123456.
+- stockSymbol: NSE ticker as described above.
+- exchange: "NSE" or "BSE". If row shows "NSE EQ" or "NSE" → "NSE". If "BSE EQ" or "BSE" → "BSE". Default "NSE".
+- sharesQty: integer shares quantity from the Qty field. null if Qty=0 or not shown.
+- type: "BUY" for long/buy, "SELL" for short/sell. Default "BUY" if direction not shown.
+- entryPrice: avg buy price per share in ₹. null if Avg=0/0.00 or not shown.
+- exitPrice: avg sell price per share in ₹. null if not explicitly shown as Sell Avg / Close price.
+- profit: net realized P&L in ₹ from THAT SPECIFIC STOCK ROW (not the summary total). Green/+ = positive. Red/- = negative. Strip ₹ and commas. Indian format: "1,23,456" = 123456. "+1,554.60" = 1554.60.
+- productType: "DELIVERY" or "INTRADAY" as per rule 7 above.
 - broker: app/platform name visible (Zerodha/Upstox/Angel One/Groww/Dhan/Fyers/5paisa/ICICI Direct/Kotak/Paytm Money). null if not visible.
 
 MULTI-TRADE: If MULTIPLE stock rows are visible, extract ALL of them into "trades" array. The top-level fields should contain the first trade.
 
-EXAMPLE for Zerodha Positions page with 2 stocks:
-JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"broker":"Zerodha","trades":[{"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90},{"stockSymbol":"VOLTAS","exchange":"NSE","sharesQty":null,"type":"SELL","entryPrice":null,"exitPrice":null,"profit":-2783.20}]}`;
+UPSTOX POSITIONS PAGE EXAMPLE:
+Screen shows: "Closed (1)" section, row: "POWERGRID  +1,554.60 | NSE EQ | Delivery  Qty. 0 | 0.00 Avg. | 296.55 (-3.04%) LTP"
+Correct output:
+JSON: {"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox","trades":[{"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox"}]}
+
+ZERODHA POSITIONS PAGE EXAMPLE (2 stocks):
+JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY","broker":"Zerodha","trades":[{"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY"},{"stockSymbol":"VOLTAS","exchange":"NSE","sharesQty":null,"type":"SELL","entryPrice":null,"exitPrice":null,"profit":-2783.20,"productType":"INTRADAY"}]}`;
+
+// Forex pair patterns: 6-char currency pairs, commodity codes, index CFDs
+const FOREX_PAIR_RE = /^([A-Z]{3}[A-Z]{3}(\.[A-Z]+)?|XAU|XAG|GOLD|SILVER|OIL|BRENT|US(30|100|500)|NAS(DAQ)?100|DAX|FTSE|SP500|CRUDE)/i;
+// Indian market signals in the pair name
+const INDIAN_PAIR_RE = /(CE|PE)$|\d{4,6}\s*(CE|PE)/i;
+
+function throwIfMarketMismatch(parsed, marketType) {
+  if (!parsed || typeof parsed !== "object") return;
+
+  const isIndianMarket = marketType === "Indian_Market";
+  const pair = String(parsed.pair || parsed.stockSymbol || "").trim().toUpperCase();
+
+  if (isIndianMarket) {
+    // Signals that extracted data is actually Forex
+    const hasForexPair    = pair.length >= 6 && FOREX_PAIR_RE.test(pair);
+    const hasForexBroker  = /metatrader|mt4|mt5|ctrader|tradingview/i.test(String(parsed.broker || ""));
+    const hasLotSize      = typeof parsed.lotSize === "number" || (typeof parsed.quantity === "number" && parsed.quantity > 0 && parsed.quantity < 10 && !Number.isInteger(parsed.quantity));
+    const noIndianSignals = !INDIAN_PAIR_RE.test(pair) && parsed.strikePrice == null && parsed.underlying == null;
+
+    if ((hasForexPair || hasForexBroker) && noIndianSignals) {
+      const err = new Error("Wrong screenshot type. This looks like a Forex/MT5 screenshot. Please go back and use the Forex upload page instead.");
+      err.code = "WRONG_MARKET_TYPE";
+      throw err;
+    }
+    // Also catch lot sizes like 0.06 with no Indian signals
+    if (hasLotSize && noIndianSignals && !pair.match(/^[A-Z]{2,5}$/)) {
+      const err = new Error("Wrong screenshot type. This looks like a Forex/MT5 screenshot. Please go back and use the Forex upload page instead.");
+      err.code = "WRONG_MARKET_TYPE";
+      throw err;
+    }
+  } else {
+    // Signals that extracted data is actually Indian market
+    const hasIndianPair   = INDIAN_PAIR_RE.test(pair);
+    const hasStrikePrice  = parsed.strikePrice != null;
+    const hasIndianBroker = /zerodha|upstox|angel|groww|dhan|fyers|kite|5paisa|kotak|paytm|motilal|sharekhan/i.test(String(parsed.broker || ""));
+
+    if (hasIndianPair || hasStrikePrice || hasIndianBroker) {
+      const err = new Error("Wrong screenshot type. This looks like an Indian broker screenshot. Please go back and use the Indian Market upload page instead.");
+      err.code = "WRONG_MARKET_TYPE";
+      throw err;
+    }
+  }
+}
 
 async function extractTradeWithGeminiVision(imageUrl, options = {}) {
   const geminiKey = appConfig.ai.geminiApiKey;
@@ -155,6 +227,21 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
       parsed = JSON.parse(stripJsonEnvelope(match[0]));
     }
 
+    // Prompt-based detection (Gemini self-detected wrong market)
+    if (parsed?.error === "WRONG_MARKET_TYPE") {
+      const detected = parsed.detectedMarket || "unknown";
+      const uploadPage = detected === "Forex" ? "Forex upload page" : "Indian Market upload page";
+      const err = new Error(
+        `Wrong screenshot type. This looks like a ${detected === "Forex" ? "Forex/MT5" : "Indian broker"} screenshot. Please upload it on the ${uploadPage} instead.`
+      );
+      err.code = "WRONG_MARKET_TYPE";
+      throw err;
+    }
+
+    // Deterministic post-extraction market type validation
+    // (Gemini sometimes ignores prompt instructions — check the extracted fields directly)
+    throwIfMarketMismatch(parsed, marketType);
+
     logger.info("Gemini Vision extraction succeeded", { marketType, imageUrl });
 
     if (isEquity) {
@@ -166,6 +253,7 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
         entryPrice: toNumberOrNull(item.entryPrice),
         exitPrice: toNumberOrNull(item.exitPrice),
         profit: toNumberOrNull(item.profit),
+        productType: item.productType === "DELIVERY" ? "DELIVERY" : "INTRADAY",
         broker: item.broker ?? null,
       });
       const main = mapOne(parsed);
@@ -492,7 +580,7 @@ JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPr
 
 // Sector lookup for top liquid NSE stocks
 const STOCK_SECTOR_MAP = {
-  RELIANCE: "Oil & Gas", TCS: "IT", INFY: "IT", WIPRO: "IT", HCLTECH: "IT", TECHM: "IT",
+  RELIANCE: "Oil & Gas", TCS: "IT", INFY: "IT", WIPRO: "IT", HCLTECH: "IT", TECHM: "IT", COFORGE: "IT",
   ICICIBANK: "Banking", HDFCBANK: "Banking", SBIN: "Banking", KOTAKBANK: "Banking", AXISBANK: "Banking", BANKBARODA: "Banking", PNB: "Banking", CANBK: "Banking",
   HDFC: "Finance", BAJFINANCE: "Finance", BAJAJFINSV: "Finance", MUTHOOTFIN: "Finance",
   HINDUNILVR: "FMCG", ITC: "FMCG", BRITANNIA: "FMCG", NESTLEIND: "FMCG",
@@ -521,31 +609,41 @@ async function extractEquityIntradayWithAI(extractedText, options = {}) {
 
   const brokerHint = options.brokerHint ? `Broker: ${options.brokerHint}\n` : "";
   const ocrSlice = cleanText.slice(0, 4000);
-  const prompt = `You are extracting Indian intraday EQUITY (stock) trade data from broker app OCR text — NOT options/F&O.
+  const prompt = `You are extracting Indian EQUITY (stock) trade data from broker app OCR text — both INTRADAY and DELIVERY/CNC — NOT options/F&O.
 Return ONLY valid JSON, no markdown, no explanation.
 ${brokerHint}
-CRITICAL: IGNORE any "Total Returns", "TOTAL RETURNS", "Total P&L", or any aggregate/summary line. These are NOT stock names.
+CRITICAL: IGNORE any "Today's P&L", "Total Returns", "TOTAL RETURNS", "Total P&L", "Overall P&L", or any aggregate/summary line. These are NOT stock names.
 Only extract individual company/stock rows.
+Ignore all market index/header values such as NIFTY 50, NIFTY BANK, BANKNIFTY, SENSEX, index P&L, time, battery, network, navigation, and summary widgets.
+For each stock row, find the stock symbol first, then use the nearest row-level P&L and LTP. Never assign index values to a stock.
 
-This may be a Positions/Holdings/Closed-Trades page. Format per row: stock name, P&L, optionally Qty + Avg price + Mkt price.
-If Avg shows "0.00" or "₹0.00" with Qty=0, the intraday position is closed — set entryPrice=null, exitPrice=null, use the P&L shown.
+This may be a Positions/Holdings/Closed-Trades page. Format per row: stock name, P&L, optionally Qty + Avg price + LTP/Mkt price.
+If Avg shows "0.00" or "₹0.00" with Qty=0, the position is closed — set entryPrice=null, exitPrice=null, use the P&L shown for THAT ROW.
+LTP (Last Traded Price) is NEVER the entry or exit price.
+
+STOCK SYMBOL RULES:
+- If stock name is already a known NSE ticker (all caps), keep it exactly: POWERGRID→POWERGRID, RELIANCE→RELIANCE, TCS→TCS, NTPC→NTPC, ONGC→ONGC, SBIN→SBIN, HDFCBANK→HDFCBANK.
+- Convert full names: VEDANTA→VEDL, HDFC BANK→HDFCBANK, SHIPPING CORPORATION→SCI, VOLTAS→VOLTAS, INFOSYS→INFY, WIPRO→WIPRO, ICICI BANK→ICICIBANK, STATE BANK→SBIN, POWER GRID→POWERGRID, POWER GRID CORPORATION→POWERGRID, COFORGE→COFORGE, NIIT TECHNOLOGIES→COFORGE.
+- Never extract "LT" from UI labels like "LTP" or "Total P&L". Use LT only when the stock row itself visibly says "LT" or "L&T".
+- If unsure, uppercase the name with spaces removed. NEVER invent a short abbreviation.
 
 EXTRACTION RULES:
-- stockSymbol: Convert company name to NSE ticker (VEDANTA→VEDL, HDFC BANK→HDFCBANK, SHIPPING CORPORATION→SCI, VOLTAS→VOLTAS, RELIANCE→RELIANCE, TCS→TCS, INFOSYS→INFY, WIPRO→WIPRO, ICICI BANK→ICICIBANK, STATE BANK→SBIN). If unsure, uppercase the name with spaces removed.
-- exchange: "NSE" or "BSE". Default "NSE".
+- stockSymbol: NSE ticker as above.
+- exchange: "NSE" or "BSE". "NSE EQ" → "NSE". Default "NSE".
 - sharesQty: integer shares. null if Qty=0 or not shown.
 - type: "BUY" for long/buy, "SELL" for short/sell. Default "BUY".
 - entryPrice: avg buy price ₹. null if "₹0.00" or not shown.
-- exitPrice: avg sell price ₹. null if "₹0.00" or not shown.
-- profit: realized P&L signed number in ₹. Green/+ = positive, Red/- = negative. Indian lakh: "1,23,456"=123456. Strip ₹.
-- broker: app name. null if not found.
+- exitPrice: avg sell price ₹. null if not shown as explicit sell/close price.
+- profit: realized P&L signed number in ₹ for THAT SPECIFIC STOCK ROW. Green/+ = positive, Red/- = negative. Indian lakh: "1,23,456"=123456. Strip ₹. "+1,554.60"=1554.60.
+- productType: "Delivery"/"CNC" → "DELIVERY". "Intraday"/"MIS" → "INTRADAY". Default "INTRADAY".
+- broker: app name (Upstox/Zerodha/Angel One/Groww/Dhan/Fyers). null if not found.
 
 Return ALL stock rows in "trades" array (top-level = first trade). Use null for missing fields.
 
 OCR text:
 ${ocrSlice}
 
-JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"broker":"Zerodha","trades":[{"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90},{"stockSymbol":"VOLTAS","exchange":"NSE","sharesQty":null,"type":"SELL","entryPrice":null,"exitPrice":null,"profit":-2783.20}]}`;
+JSON: {"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox","trades":[{"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY"}]}`;
 
   const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true });
   const content = data?.choices?.[0]?.message?.content?.trim();
@@ -559,6 +657,7 @@ JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entr
     entryPrice: toNumberOrNull(item.entryPrice),
     exitPrice: toNumberOrNull(item.exitPrice),
     profit: toNumberOrNull(item.profit),
+    productType: item.productType === "DELIVERY" ? "DELIVERY" : "INTRADAY",
     broker: item.broker ?? null,
   });
 

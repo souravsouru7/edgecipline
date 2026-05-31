@@ -11,7 +11,8 @@ const RETENTION_POLICY = {
   rawOCRTextDays: appConfig.cleanup.rawOCRTextDays,
   aiRawResponseDays: appConfig.cleanup.aiRawResponseDays,
   imageCleanupDays: appConfig.cleanup.imageCleanupDays,
-  batchSize: appConfig.cleanup.batchSize,
+  // M8: Cap batch size to prevent a misconfigured env var from overwhelming the DB
+  batchSize: Math.min(500, appConfig.cleanup.batchSize),
 };
 
 /**
@@ -144,10 +145,19 @@ async function cleanOldTradeData(stats) {
 
       // Execute batch updates if any
       if (updateOperations.length > 0) {
-        await Trade.bulkWrite(updateOperations);
+        // M12: ordered:false so a single doc error doesn't abort the whole batch
+        const bulkResult = await Trade.bulkWrite(updateOperations, { ordered: false });
+        if (bulkResult.hasWriteErrors && bulkResult.hasWriteErrors()) {
+          bulkResult.getWriteErrors().forEach((e) => {
+            const msg = `bulkWrite error for op ${e.index}: ${e.errmsg}`;
+            logger.error(msg, { index: e.index, code: e.code });
+            stats.errors.push(msg);
+          });
+        }
         logger.info(`Cleaned batch of ${updateOperations.length} trades`, {
           batchNumber: stats.batchesProcessed,
           operationsCount: updateOperations.length,
+          writeErrors: bulkResult.hasWriteErrors ? bulkResult.hasWriteErrors() : false,
         });
       }
 
@@ -354,8 +364,7 @@ function startDataCleanupCron() {
   const schedule = appConfig.cleanup.schedule;
 
   if (!require("node-cron").validate(schedule)) {
-    logger.warn("Invalid cleanup cron schedule, skipping", { schedule });
-    return;
+    throw new Error(`Invalid cleanup cron schedule: "${schedule}". Fix DATA_CLEANUP_CRON_SCHEDULE env var.`);
   }
 
   require("node-cron").schedule(schedule, () => {

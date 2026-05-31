@@ -43,4 +43,7 @@ const checklistTrackingSchema = new mongoose.Schema(
   }
 );
 
+checklistTrackingSchema.index({ user: 1, createdAt: -1 });
+checklistTrackingSchema.index({ user: 1, market: 1, createdAt: -1 });
+
 module.exports = mongoose.model("ChecklistTracking", checklistTrackingSchema);

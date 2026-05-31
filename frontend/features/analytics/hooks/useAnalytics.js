@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useQueries } from "@tanstack/react-query";
 import {
   getSummary,
@@ -28,6 +29,7 @@ import {
  */
 export function useAnalytics() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const didAutoSetCalendarMonth = useRef(false);
   const didUserNavigateCalendar = useRef(false);
@@ -42,9 +44,9 @@ export function useAnalytics() {
   // SEQUENTIAL: Core analytics first (immediate KPIs)
   const coreResults = useQueries({
     queries: [
-      { queryKey: ["analytics", "summary"],      queryFn: () => getSummary(),           staleTime: 5 * 60 * 1000 },
-      { queryKey: ["analytics", "performance"],  queryFn: () => getPerformanceMetrics(), staleTime: 5 * 60 * 1000 },
-      { queryKey: ["analytics", "distribution"], queryFn: () => getTradeDistribution(),  staleTime: 5 * 60 * 1000 },
+      { queryKey: ["analytics", "summary"],      queryFn: ({ signal }) => getSummary('Forex', '', signal),           staleTime: 5 * 60 * 1000, enabled: ready },
+      { queryKey: ["analytics", "performance"],  queryFn: ({ signal }) => getPerformanceMetrics('Forex', '', signal), staleTime: 5 * 60 * 1000, enabled: ready },
+      { queryKey: ["analytics", "distribution"], queryFn: ({ signal }) => getTradeDistribution('Forex', '', signal),  staleTime: 5 * 60 * 1000, enabled: ready },
     ],
   });
 
@@ -61,14 +63,14 @@ export function useAnalytics() {
   // DEEP: Optional analytics (progressive loading, rate-limit safe)
   const deepResults = useQueries({
     queries: hasCoreData ? [  // Only if core succeeded
-      { queryKey: ["analytics", "riskReward"],   queryFn: () => getRiskRewardAnalysis(), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "timeAnalysis"], queryFn: () => getTimeAnalysis(),       staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "drawdown"],     queryFn: () => getDrawdownAnalysis(),   staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "aiInsights"],   queryFn: () => getAIInsights(),         staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
-      { queryKey: ["analytics", "psychology"],   queryFn: async () => {
-          try { return await getPsychologyAnalytics(); } catch (e) { return null; }
-        }, 
-        staleTime: 5 * 60 * 1000 
+      { queryKey: ["analytics", "riskReward"],   queryFn: ({ signal }) => getRiskRewardAnalysis('Forex', '', signal), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "timeAnalysis"], queryFn: ({ signal }) => getTimeAnalysis('Forex', 'all', '', signal), staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "drawdown"],     queryFn: ({ signal }) => getDrawdownAnalysis('Forex', '', signal),   staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "aiInsights"],   queryFn: ({ signal }) => getAIInsights('Forex', '', signal),         staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      { queryKey: ["analytics", "psychology"],   queryFn: async ({ signal }) => {
+          try { return await getPsychologyAnalytics('Forex', '', signal); } catch (e) { return null; }
+        },
+        staleTime: 5 * 60 * 1000
       },
     ] : []
   });
@@ -89,13 +91,6 @@ export function useAnalytics() {
     psychology: deepResults[4]?.data,
   };
 
-  useEffect(() => {
-    const token = typeof window !== "undefined" && localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-  }, [router]);
 
   // Auto-navigate calendar to the most recent month with trades
   const timeAnalysis = data.timeAnalysis;
@@ -114,7 +109,7 @@ export function useAnalytics() {
 
   const shiftMonth = (amount) => {
     const now = Date.now();
-    if (now - lastMonthNavAtRef.current < 220) return;
+    if (now - lastMonthNavAtRef.current < 500) return;
     lastMonthNavAtRef.current = now;
     didUserNavigateCalendar.current = true;
     setCalendarMonth((prev) => shiftMonthSafe(prev, amount));

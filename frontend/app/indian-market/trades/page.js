@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 
-// ─── Tokens ──────────────────────────────────────────────────────────────────
+// Section
 const C = {
   bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", blue: "#2563EB",
   purple: "#7C3AED", bg: "#F0EEE9", card: "#FFFFFF", border: "#E2E8F0",
@@ -16,15 +17,15 @@ const C = {
   mono: "'JetBrains Mono',monospace", sans: "'Plus Jakarta Sans',sans-serif",
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmtINR = (v) => v != null ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+// Section
+const fmtINR = (v) => v != null ? `?${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-";
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
 const fmtTime = (d) => new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 const getTradeDisplayDate = (trade) => trade.tradeDate || trade.createdAt;
 const fmtTradeDateLine = (trade) => {
   const dateValue = getTradeDisplayDate(trade);
   const dateText = fmtDate(dateValue);
-  return trade.tradeDate ? dateText : `${dateText} · ${fmtTime(dateValue)}`;
+  return trade.tradeDate ? dateText : `${dateText} - ${fmtTime(dateValue)}`;
 };
 const isEquityTrade = (trade) => {
   const instrumentType = String(trade?.instrumentType || "").toUpperCase();
@@ -41,7 +42,7 @@ const isEquityTrade = (trade) => {
   );
 };
 
-// ─── Ticker ──────────────────────────────────────────────────────────────────
+// Section
 const TICKERS = [
   { sym: "NIFTY CE", val: "+2.1%", bull: true }, { sym: "NIFTY PE", val: "-1.4%", bull: false },
   { sym: "BANK NIFTY CE", val: "+1.8%", bull: true }, { sym: "BANK NIFTY PE", val: "+0.6%", bull: true },
@@ -56,7 +57,7 @@ function TickerTape() {
         {items.map((t, i) => (
           <span key={i} style={{ fontSize: 11, fontFamily: C.mono, letterSpacing: "0.04em" }}>
             <span style={{ color: "rgba(255,255,255,0.55)", marginRight: 6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#6EE7B7" : "#FCA5A5" }}>{t.bull ? "▲" : "▼"} {t.val}</span>
+            <span style={{ color: t.bull ? "#6EE7B7" : "#FCA5A5" }}>{t.bull ? "UP" : "DOWN"} {t.val}</span>
           </span>
         ))}
       </div>
@@ -64,7 +65,7 @@ function TickerTape() {
   );
 }
 
-// ─── Summary stat bar ─────────────────────────────────────────────────────────
+// Section
 function StatBar({ trades }) {
   const total = trades.length;
   const wins  = trades.filter(t => (t.profit || 0) > 0).length;
@@ -96,7 +97,7 @@ function StatBar({ trades }) {
   );
 }
 
-// ─── Delete confirm modal ─────────────────────────────────────────────────────
+// Section
 function DeleteModal({ trade, onConfirm, onCancel }) {
   if (!trade) return null;
   return (
@@ -110,7 +111,7 @@ function DeleteModal({ trade, onConfirm, onCancel }) {
         boxShadow: "0 20px 60px rgba(15,25,35,0.3)",
         animation: "fadeUp 0.2s ease both",
       }}>
-        <div style={{ fontSize: 28, marginBottom: 12, textAlign: "center" }}>🗑️</div>
+        <div style={{ fontSize: 18, marginBottom: 12, textAlign: "center", fontWeight: 800 }}>DELETE</div>
         <div style={{ fontSize: 16, fontWeight: 800, color: C.ink, textAlign: "center", marginBottom: 8 }}>
           Delete Trade?
         </div>
@@ -135,7 +136,7 @@ function DeleteModal({ trade, onConfirm, onCancel }) {
   );
 }
 
-// ─── Trade Card ───────────────────────────────────────────────────────────────
+// Section
 function TradeCard({ trade, onDelete, style: extraStyle }) {
   const profit  = parseFloat(trade.profit) || 0;
   const bull    = profit >= 0;
@@ -188,7 +189,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
                 </div>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
                   {fmtTradeDateLine(trade)}
-                  {equityTrade && trade.sector ? ` · ${trade.sector}` : ""}
+                  {equityTrade && trade.sector ? ` - ${trade.sector}` : ""}
                 </div>
               </div>
             </div>
@@ -197,18 +198,18 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* P&L */}
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: bull ? C.bull : C.bear, fontFamily: C.mono, letterSpacing: "-0.02em" }}>
-              {bull ? "+" : ""}₹{Math.abs(profit).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              {bull ? "+" : ""}?{Math.abs(profit).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
             {equityTrade ? (
               trade.sharesQty > 0 && (
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
-                  {trade.sharesQty} shares · {trade.exchange || "NSE"}
+                  {trade.sharesQty} shares - {trade.exchange || "NSE"}
                 </div>
               )
             ) : (
               lots > 0 && (
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
-                  {lots}L × {lotSize}
+                  {lots}L x {lotSize}
                 </div>
               )
             )}
@@ -225,7 +226,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             border: `1px solid ${isLong ? C.bull : C.bear}40`,
             borderRadius: 5, padding: "3px 8px",
           }}>
-            {isLong ? "▲ BUY" : "▼ SELL"}
+            {isLong ? "UP BUY" : "DOWN SELL"}
           </span>
 
           {/* CE/PE badge (options) or EQUITY badge (stock) */}
@@ -289,11 +290,11 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {(equityTrade ? [
             { label: "Buy Price", val: fmtINR(trade.entryPrice) },
             { label: "Sell Price", val: fmtINR(trade.exitPrice) },
-            { label: "Shares", val: trade.sharesQty != null ? String(trade.sharesQty) : "—" },
+            { label: "Shares", val: trade.sharesQty != null ? String(trade.sharesQty) : "-" },
           ] : [
             { label: "Entry", val: fmtINR(trade.entryPrice) },
             { label: "Exit",  val: fmtINR(trade.exitPrice)  },
-            { label: "Strike", val: trade.strikePrice != null ? `₹${Number(trade.strikePrice).toLocaleString("en-IN")}` : "—" },
+            { label: "Strike", val: trade.strikePrice != null ? `?${Number(trade.strikePrice).toLocaleString("en-IN")}` : "-" },
           ]).map(p => (
             <div key={p.label} style={{ background: C.bg, borderRadius: 7, padding: "7px 10px" }}>
               <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, marginBottom: 2 }}>{p.label}</div>
@@ -344,7 +345,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             onMouseEnter={e => { e.currentTarget.style.background = C.bull; e.currentTarget.style.color = "#fff"; }}
             onMouseLeave={e => { e.currentTarget.style.background = `${C.bull}15`; e.currentTarget.style.color = C.bull; }}
           >
-            VIEW →
+            VIEW {">"}
           </Link>
           <Link
             href={`/indian-market/trades/edit?id=${trade._id}`}
@@ -370,7 +371,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             onMouseEnter={e => { e.currentTarget.style.background = C.bear; e.currentTarget.style.color = "#fff"; }}
             onMouseLeave={e => { e.currentTarget.style.background = `${C.bear}12`; e.currentTarget.style.color = C.bear; }}
           >
-            🗑
+            DELETE
           </button>
         </div>
       </div>
@@ -378,7 +379,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
   );
 }
 
-// ─── Filter bar ───────────────────────────────────────────────────────────────
+// Section
 function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, instrumentType, setInstrumentType }) {
   const filters = [
     { key: "all",  label: "All" },
@@ -423,7 +424,7 @@ function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, in
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search symbol, trading setup, date…"
+          placeholder="Search symbol, trading setup, date..."
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "9px 12px 9px 32px", borderRadius: 8,
@@ -476,14 +477,14 @@ function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, in
   );
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
+// Section
 function EmptyState() {
   return (
     <div style={{
       textAlign: "center", padding: "60px 20px",
       background: C.card, borderRadius: 14, border: `1px dashed ${C.border}`,
     }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+      <div style={{ fontSize: 18, marginBottom: 16, fontWeight: 800 }}>TRADES</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: C.ink, marginBottom: 8 }}>No trades yet</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>Log your first options trade to start tracking</div>
       <Link href="/indian-market/add-trade" style={{
@@ -500,9 +501,10 @@ function EmptyState() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// Section
 export default function IndianTradesPage() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const { currentMarket } = useMarket();
   const [trades, setTrades]           = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -515,9 +517,9 @@ export default function IndianTradesPage() {
   const [instrumentType, setInstrumentType] = useState("OPTION");
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) { router.push("/login"); return; }
+    if (!ready) return;
     fetchTrades();
-  }, [period]);
+  }, [ready, period]);
 
   const fetchTrades = async () => {
     setLoading(true);
@@ -541,12 +543,16 @@ export default function IndianTradesPage() {
     }
   };
 
-  const filtered = useMemo(() => {
-    let list = trades.filter(t =>
+  const instrumentTrades = useMemo(() => (
+    trades.filter(t =>
       instrumentType === "EQUITY"
         ? isEquityTrade(t)
         : !isEquityTrade(t)
-    );
+    )
+  ), [trades, instrumentType]);
+
+  const filtered = useMemo(() => {
+    let list = instrumentTrades;
     if (filter === "win")  list = list.filter(t => (t.profit || 0) > 0);
     if (filter === "loss") list = list.filter(t => (t.profit || 0) < 0);
     if (filter === "CE")   list = list.filter(t => (t.optionType || "CE") === "CE");
@@ -563,7 +569,7 @@ export default function IndianTradesPage() {
       );
     }
     return list;
-  }, [trades, filter, search, instrumentType]);
+  }, [instrumentTrades, filter, search]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: C.sans, color: C.ink }}>
@@ -582,7 +588,7 @@ export default function IndianTradesPage() {
               {instrumentType === "EQUITY" ? "Stocks Journal" : "Options Journal"}
             </h1>
             <p style={{ fontSize: 12, color: C.muted, margin: "4px 0 0", fontFamily: C.mono }}>
-              NSE / BSE · {instrumentType === "EQUITY" ? "Intraday Equities" : "Options"}
+              NSE / BSE - {instrumentType === "EQUITY" ? "Intraday Equities" : "Options"}
             </p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -593,7 +599,7 @@ export default function IndianTradesPage() {
               background: `${C.bull}10`, textDecoration: "none",
               fontSize: 12, fontWeight: 700, fontFamily: C.mono,
             }}>
-              ↑ Upload
+              Upload
             </Link>
             <Link href="/indian-market/add-trade" style={{
               display: "inline-flex", alignItems: "center", gap: 6,
@@ -610,7 +616,7 @@ export default function IndianTradesPage() {
         </div>
 
         {/* Stats bar */}
-        {!loading && trades.length > 0 && <StatBar trades={trades} />}
+        {!loading && trades.length > 0 && <StatBar trades={instrumentTrades} />}
 
         {/* Filters */}
         {!loading && trades.length > 0 && (
@@ -621,7 +627,7 @@ export default function IndianTradesPage() {
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 14 }}>
             <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.bull}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <span style={{ color: C.muted, fontSize: 13, fontFamily: C.mono }}>Loading trades…</span>
+            <span style={{ color: C.muted, fontSize: 13, fontFamily: C.mono }}>Loading trades...</span>
           </div>
         ) : filtered.length === 0 && trades.length === 0 ? (
           <EmptyState />
@@ -635,7 +641,7 @@ export default function IndianTradesPage() {
         ) : (
           <>
             <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, marginBottom: 14 }}>
-              Showing {filtered.length} of {trades.length} trades · {period.toUpperCase()} window
+              Showing {filtered.length} of {trades.length} trades - {period.toUpperCase()} window
             </div>
             <div className="trade-grid" style={{ display: "grid", gap: 14 }}>
               {filtered.map((trade, idx) => (
@@ -671,7 +677,7 @@ export default function IndianTradesPage() {
         * { box-sizing: border-box; }
         input::placeholder { color: #CBD5E1; }
 
-        /* ── Default (desktop) ── */
+/* Section */
         .stat-bar        { grid-template-columns: repeat(5, 1fr); }
         .trade-grid      { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
         .card-price-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -679,7 +685,7 @@ export default function IndianTradesPage() {
         .page-header     { flex-direction: row; }
         .filter-bar-row  { flex-direction: row; }
 
-        /* ── Tablet ≤ 768px ── */
+/* Section */
         @media (max-width: 768px) {
           .stat-bar        { grid-template-columns: repeat(3, 1fr); }
           .trade-grid      { grid-template-columns: repeat(2, 1fr); }
@@ -687,7 +693,7 @@ export default function IndianTradesPage() {
           .header-nav      { display: none; }
         }
 
-        /* ── Mobile ≤ 480px ── */
+/* Section */
         @media (max-width: 480px) {
           .stat-bar           { grid-template-columns: repeat(2, 1fr); }
           .trade-grid         { grid-template-columns: 1fr; }

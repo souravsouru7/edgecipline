@@ -46,8 +46,9 @@ function normalizeTradeDate(tradeDate, { accountCreatedAt } = {}) {
     }
   }
 
-  // Upper bound: no future dates.
-  if (parsed > new Date()) {
+  // Upper bound: no future calendar dates. Date-only inputs are stored at noon
+  // UTC, so comparing full timestamps can reject "today" before 12:00 UTC.
+  if (toUtcDayStart(parsed) > toUtcDayStart(new Date())) {
     throw new ApiError(400, "Trade date cannot be in the future", "VALIDATION_ERROR");
   }
 

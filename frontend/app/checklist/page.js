@@ -1,17 +1,57 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups } from "@/services/setupApi";
 import { logChecklistEvent } from "@/services/checklistApi";
 import { useMarket } from "@/context/MarketContext";
 import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import { Brain, ClipboardList } from "lucide-react";
+
+function ReferenceImageThumb({ image, alt, onOpen }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="checklist-reference-thumb"
+      onClick={onOpen}
+      aria-label={alt}
+    >
+      {!loaded && !failed && (
+        <span className="checklist-image-loading" aria-hidden="true">
+          <span className="checklist-spinner" />
+        </span>
+      )}
+      {failed && (
+        <span className="checklist-image-error">
+          Image unavailable
+        </span>
+      )}
+      <img
+        src={image.url}
+        alt={alt}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setFailed(true);
+          setLoaded(false);
+        }}
+        style={{
+          opacity: loaded ? 1 : 0,
+        }}
+      />
+    </button>
+  );
+}
 
 export default function PreTradeChecklistPage() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const { currentMarket, getMarketLabel } = useMarket();
   const [mounted, setMounted] = useState(false);
   const [strategies, setStrategies] = useState([]);
@@ -23,10 +63,10 @@ export default function PreTradeChecklistPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState("");
+  const [previewImageLoaded, setPreviewImageLoaded] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) { router.push("/login"); return; }
+    if (!ready) return;
     setMounted(true);
 
     const load = async () => {
@@ -47,7 +87,7 @@ export default function PreTradeChecklistPage() {
       }
     };
     load();
-  }, [router, currentMarket]);
+  }, [ready, router, currentMarket]);
 
   const selected = strategies[selectedIdx] || null;
   const rules = useMemo(() => {
@@ -61,11 +101,30 @@ export default function PreTradeChecklistPage() {
 
   const level = score >= 80 ? "high" : score >= 50 ? "moderate" : "low";
   const levelConfig = {
-    high: { label: "A+ SETUP", sub: "All systems go — execute with confidence", color: "#0D9E6E", bg: "rgba(13,158,110,0.08)", border: "rgba(13,158,110,0.3)", icon: "✓" },
-    moderate: { label: "MODERATE", sub: "Some rules not met — proceed with caution", color: "#B8860B", bg: "rgba(184,134,11,0.08)", border: "rgba(184,134,11,0.3)", icon: "◐" },
-    low: { label: "LOW CONFIDENCE", sub: "Most rules not met — consider skipping this trade", color: "#D63B3B", bg: "rgba(214,59,59,0.08)", border: "rgba(214,59,59,0.3)", icon: "✕" },
+    high: { label: "A+ SETUP", sub: "All systems go - execute with confidence", color: "#0D9E6E", bg: "rgba(13,158,110,0.08)", border: "rgba(13,158,110,0.3)", icon: "check" },
+    moderate: { label: "MODERATE", sub: "Some rules not met - proceed with caution", color: "#B8860B", bg: "rgba(184,134,11,0.08)", border: "rgba(184,134,11,0.3)", icon: "dot" },
+    low: { label: "LOW CONFIDENCE", sub: "Most rules not met - consider skipping this trade", color: "#D63B3B", bg: "rgba(214,59,59,0.08)", border: "rgba(214,59,59,0.3)", icon: "x" },
   };
   const lc = levelConfig[level];
+
+  const confidenceIcon = {
+    check: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    ),
+    dot: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="12" r="5" />
+      </svg>
+    ),
+    x: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    ),
+  }[lc.icon];
 
   const toggleRule = (idx) => {
     setChecked(prev => ({ ...prev, [idx]: !prev[idx] }));
@@ -82,6 +141,17 @@ export default function PreTradeChecklistPage() {
     setChecked({});
     setSetupSimilarity("");
     setPreviewImageUrl("");
+    setPreviewImageLoaded(false);
+  };
+
+  const openPreviewImage = (url) => {
+    setPreviewImageLoaded(false);
+    setPreviewImageUrl(url);
+  };
+
+  const closePreviewImage = () => {
+    setPreviewImageUrl("");
+    setPreviewImageLoaded(false);
   };
 
   const handleTakeTrade = async () => {
@@ -105,12 +175,12 @@ export default function PreTradeChecklistPage() {
       
       // Navigate after delay
       setTimeout(() => {
-        router.push(currentMarket === "Indian_Market" ? "/indian-market/add-trade" : "/add-trade");
+        router.push("/upload-trade");
       }, 2000);
     } catch (err) {
       setError(err.message || "Failed to log checklist. You can still proceed.");
       // Even if tracking fails, let them trade
-      router.push(currentMarket === "Indian_Market" ? "/indian-market/add-trade" : "/add-trade");
+      router.push("/upload-trade");
     } finally {
       setIsSubmitting(false);
     }
@@ -140,7 +210,7 @@ export default function PreTradeChecklistPage() {
                 Pre-Trade <span style={{ color: "#0D9E6E" }}>Checklist</span>
               </h1>
               <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
-                TRADE WITH PLAN · NOT WITH EMOTION — {getMarketLabel()}
+                TRADE WITH PLAN - NOT WITH EMOTION - {getMarketLabel()}
               </p>
             </div>
             <Link
@@ -162,7 +232,8 @@ export default function PreTradeChecklistPage() {
                 flexShrink: 0,
               }}
             >
-              🧠 PSYCHOLOGY GUIDE
+              <Brain size={13} strokeWidth={2.4} />
+              PSYCHOLOGY GUIDE
             </Link>
           </div>
         </div>
@@ -218,7 +289,9 @@ export default function PreTradeChecklistPage() {
             padding: "40px 20px", textAlign: "center",
             boxShadow: "0 2px 10px rgba(15,25,35,0.04)",
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+            <div style={{ width: 48, height: 48, margin: "0 auto 12px", borderRadius: 14, background: "#ECFDF5", color: "#0D9E6E", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ClipboardList size={24} strokeWidth={2.2} />
+            </div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No Strategies Found</div>
             <div style={{ fontSize: 12, color: "#64748B", marginBottom: 16 }}>
               Create your strategies and rules first, then come back here before each trade.
@@ -234,7 +307,7 @@ export default function PreTradeChecklistPage() {
                 color: "#FFFFFF", textDecoration: "none", fontWeight: 700,
               }}
             >
-              CREATE SETUPS →
+              CREATE SETUPS -&gt;
             </Link>
           </div>
         ) : (
@@ -252,7 +325,7 @@ export default function PreTradeChecklistPage() {
                   boxShadow: isExpanded ? "0 4px 20px rgba(13,158,110,0.08)" : "0 2px 10px rgba(15,25,35,0.04)",
                   transition: "border 0.2s, box-shadow 0.2s",
                 }}>
-                  {/* Collapsed header — always visible */}
+                  {/* Collapsed header - always visible */}
                   <div
                     onClick={() => handleSelectStrategy(idx)}
                     style={{
@@ -267,7 +340,7 @@ export default function PreTradeChecklistPage() {
                       </div>
                       <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", marginTop: 3 }}>
                         {totalRulesForCard} RULE{totalRulesForCard !== 1 ? "S" : ""}
-                        {isExpanded && totalRulesForCard > 0 ? ` · ${checkedCount}/${totalRulesForCard} CHECKED` : ""}
+                        {isExpanded && totalRulesForCard > 0 ? ` - ${checkedCount}/${totalRulesForCard} CHECKED` : ""}
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -316,17 +389,11 @@ export default function PreTradeChecklistPage() {
                           }}>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxWidth: "100%" }}>
                               {s.referenceImages.slice(0, 5).map((image, imgIdx) => (
-                                <img
+                                <ReferenceImageThumb
                                   key={`${s._id || s.name}-${imgIdx}`}
-                                  src={image.url}
                                   alt={`${s.name} reference ${imgIdx + 1}`}
-                                  onClick={() => setPreviewImageUrl(image.url)}
-                                  style={{
-                                    width: "clamp(110px, 28vw, 160px)", height: "auto",
-                                    aspectRatio: "16/10", objectFit: "cover",
-                                    borderRadius: 10, border: "1px solid #E2E8F0",
-                                    cursor: "zoom-in", flexShrink: 0,
-                                  }}
+                                  image={image}
+                                  onOpen={() => openPreviewImage(image.url)}
                                 />
                               ))}
                             </div>
@@ -377,7 +444,7 @@ export default function PreTradeChecklistPage() {
                         {/* Rules */}
                         {rules.length === 0 ? (
                           <div style={{ fontSize: 12, color: "#94A3B8", padding: "20px 0", textAlign: "center" }}>
-                            No rules defined for this strategy. <Link href="/setups" style={{ color: "#0D9E6E", fontWeight: 700 }}>Add rules →</Link>
+                            No rules defined for this strategy. <Link href="/setups" style={{ color: "#0D9E6E", fontWeight: 700 }}>Add rules -&gt;</Link>
                           </div>
                         ) : (
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
@@ -454,7 +521,7 @@ export default function PreTradeChecklistPage() {
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 fontSize: 16, fontWeight: 900, color: lc.color,
                               }}>
-                                {lc.icon}
+                                {confidenceIcon}
                               </div>
                               <div>
                                 <div style={{ fontSize: 12, fontWeight: 800, color: lc.color, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
@@ -483,7 +550,7 @@ export default function PreTradeChecklistPage() {
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                   <polyline points="20 6 9 17 4 12" />
                                 </svg>
-                                {isSubmitting ? "LOGGING..." : "TAKE TRADE →"}
+                                {isSubmitting ? "LOGGING..." : "TAKE TRADE ->"}
                               </button>
                             ) : (
                               <div style={{
@@ -553,7 +620,7 @@ export default function PreTradeChecklistPage() {
               </div>
               <h2 style={{ fontSize: 24, fontWeight: 800, color: "#0F1923", marginBottom: 8 }}>Incredible Discipline!</h2>
               <p style={{ fontSize: 14, color: "#64748B", lineHeight: 1.5, marginBottom: 24 }}>
-                You've identified an <strong>A+ Setup</strong>. Trading your plan is the ultimate edge.
+                You&apos;ve identified an <strong>A+ Setup</strong>. Trading your plan is the ultimate edge.
               </p>
               <div style={{ display: "inline-block", background: "#F8FAFC", padding: "8px 16px", borderRadius: 999 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", letterSpacing: "0.05em" }}>
@@ -566,7 +633,7 @@ export default function PreTradeChecklistPage() {
 
         {previewImageUrl && (
           <div
-            onClick={() => setPreviewImageUrl("")}
+            onClick={closePreviewImage}
             style={{
               position: "fixed",
               inset: 0,
@@ -593,7 +660,7 @@ export default function PreTradeChecklistPage() {
             >
               <button
                 type="button"
-                onClick={() => setPreviewImageUrl("")}
+                onClick={closePreviewImage}
                 style={{
                   alignSelf: "flex-end",
                   width: 38,
@@ -609,19 +676,30 @@ export default function PreTradeChecklistPage() {
               >
                 x
               </button>
-              <img
-                src={previewImageUrl}
-                alt="Setup reference preview"
-                style={{
-                  width: "100%",
-                  maxHeight: "calc(90vh - 56px)",
-                  objectFit: "contain",
-                  borderRadius: 18,
-                  background: "#FFFFFF",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
-                }}
-              />
+              <div className="checklist-preview-frame">
+                {!previewImageLoaded && (
+                  <div className="checklist-preview-loading">
+                    <span className="checklist-spinner checklist-spinner-lg" />
+                  </div>
+                )}
+                <img
+                  src={previewImageUrl}
+                  alt="Setup reference preview"
+                  onLoad={() => setPreviewImageLoaded(true)}
+                  onError={() => setPreviewImageLoaded(true)}
+                  style={{
+                    width: "100%",
+                    maxHeight: "calc(90vh - 56px)",
+                    objectFit: "contain",
+                    borderRadius: 18,
+                    background: "#FFFFFF",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+                    opacity: previewImageLoaded ? 1 : 0,
+                    display: "block",
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -639,6 +717,74 @@ export default function PreTradeChecklistPage() {
         @keyframes popIn {
           from { opacity: 0; transform: scale(0.9) translateY(10px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes checklistSpin {
+          to { transform: rotate(360deg); }
+        }
+        .checklist-reference-thumb {
+          width: clamp(110px, 28vw, 160px);
+          aspect-ratio: 16 / 10;
+          border: 1px solid #E2E8F0;
+          border-radius: 10px;
+          background: #EEF2F6;
+          cursor: zoom-in;
+          flex-shrink: 0;
+          overflow: hidden;
+          padding: 0;
+          position: relative;
+          display: block;
+        }
+        .checklist-reference-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition: opacity 0.18s ease;
+        }
+        .checklist-image-loading,
+        .checklist-preview-loading {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #F8FAFC, #EEF2F6);
+          z-index: 1;
+        }
+        .checklist-preview-frame {
+          position: relative;
+          min-height: min(420px, calc(90vh - 56px));
+          border-radius: 18px;
+        }
+        .checklist-preview-loading {
+          border-radius: 18px;
+        }
+        .checklist-spinner {
+          width: 22px;
+          height: 22px;
+          border-radius: 999px;
+          border: 3px solid rgba(13, 158, 110, 0.18);
+          border-top-color: #0D9E6E;
+          animation: checklistSpin 0.75s linear infinite;
+        }
+        .checklist-spinner-lg {
+          width: 34px;
+          height: 34px;
+          border-width: 4px;
+        }
+        .checklist-image-error {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px;
+          color: #D63B3B;
+          background: #FEF2F2;
+          font-size: 10px;
+          font-family: 'JetBrains Mono', monospace;
+          font-weight: 700;
+          text-align: center;
         }
       `}</style>
     </div>

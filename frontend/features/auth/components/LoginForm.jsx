@@ -75,6 +75,7 @@ export default function LoginForm({
             <div style={{ position: "relative" }}>
               <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: focused === field.name ? "#0D9E6E" : "#CBD5E1", transition: "color 0.2s", pointerEvents: "none" }}>{field.icon}</div>
               <input
+                suppressHydrationWarning
                 type={field.type} name={field.name}
                 placeholder={field.placeholder}
                 value={form[field.name]}
@@ -84,7 +85,7 @@ export default function LoginForm({
                 style={{ width: "100%", boxSizing: "border-box", background: focused === field.name ? "#F0FDF9" : "#F8FAFC", border: `1.5px solid ${focused === field.name ? "#0D9E6E" : "#E2E8F0"}`, borderRadius: 8, padding: "12px 40px 12px 38px", color: "#0F1923", fontSize: 13, fontFamily: "'JetBrains Mono',monospace", outline: "none", transition: "all 0.2s", boxShadow: focused === field.name ? "0 0 0 3px rgba(13,158,110,0.1)" : "none" }}
               />
               {field.name === "password" && (
-                <button type="button" onClick={() => setShowPass(p => !p)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: showPass ? "#0D9E6E" : "#CBD5E1" }}>
+                <button suppressHydrationWarning type="button" onClick={() => setShowPass(p => !p)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: showPass ? "#0D9E6E" : "#CBD5E1" }}>
                   {showPass ? (
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                   ) : (
@@ -118,7 +119,7 @@ export default function LoginForm({
           )}
 
           {process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? (
-            <button type="button" onClick={handleGoogleSignIn}
+            <button suppressHydrationWarning type="button" onClick={handleGoogleSignIn}
               disabled={isAnyLoading || inAppBrowser}
               style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "11px 16px", border: "1.5px solid #E2E8F0", borderRadius: 8, background: "#fff", cursor: isAnyLoading ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif", opacity: isAnyLoading ? 0.7 : 1, boxShadow: "0 1px 6px rgba(15,25,35,0.08)", transition: "all 0.2s" }}
             >
@@ -140,7 +141,7 @@ export default function LoginForm({
         <div style={{ height: 1, background: "#F1F5F9", marginBottom: 16 }} />
 
         {/* Submit */}
-        <button type="submit" disabled={loading}
+        <button suppressHydrationWarning type="submit" disabled={loading}
           style={{ width: "100%", padding: "13px 0", background: loading ? "#F0FDF9" : "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)", border: loading ? "1.5px solid #A7F3D0" : "none", borderRadius: 8, color: loading ? "#0D9E6E" : "#FFFFFF", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "0.15em", cursor: loading ? "not-allowed" : "pointer", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, boxShadow: loading ? "none" : "0 4px 20px rgba(13,158,110,0.35)", position: "relative", overflow: "hidden" }}
           onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = "translateY(-1px)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}

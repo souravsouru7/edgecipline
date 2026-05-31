@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, createContext, useContext, useCallback } from "react";
+import React, { useState, createContext, useContext, useCallback } from "react";
 import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-react";
 
 const ToastContext = createContext();
@@ -11,18 +11,38 @@ const ToastContext = createContext();
  */
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
-
-  const addToast = useCallback((message, type = "info", duration = 5000) => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
-    if (duration !== Infinity) {
-      setTimeout(() => removeToast(id), duration);
-    }
-    return id;
-  }, []);
+  // M24: Track timer IDs so they can be cleared on removeToast/unmount
+  const timersRef = React.useRef({});
+  const nextToastIdRef = React.useRef(0);
 
   const removeToast = useCallback((id) => {
+    clearTimeout(timersRef.current[id]);
+    delete timersRef.current[id];
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addToast = useCallback((message, type = "info", duration = 5000) => {
+    const id = `${Date.now()}-${nextToastIdRef.current++}`;
+    let timerId = id;
+    setToasts((prev) => {
+      const duplicate = prev.find((t) => t.message === message && t.type === type);
+      if (duplicate) {
+        timerId = duplicate.id;
+        clearTimeout(timersRef.current[duplicate.id]);
+        delete timersRef.current[duplicate.id];
+        return prev.map((t) => t.id === duplicate.id ? { ...t, duration } : t);
+      }
+      return [...prev, { id, message, type, duration }];
+    });
+    if (duration !== Infinity) {
+      timersRef.current[timerId] = setTimeout(() => removeToast(timerId), duration);
+    }
+    return timerId;
+  }, [removeToast]);
+
+  React.useEffect(() => {
+    const timers = timersRef.current;
+    return () => { Object.values(timers).forEach(clearTimeout); };
   }, []);
 
   return (
@@ -64,12 +84,6 @@ export const useToast = () => {
 };
 
 const ToastItem = ({ message, type, onRemove }) => {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const icons = {
     success: <CheckCircle size={18} color="#0D9E6E" />,
     error: <AlertCircle size={18} color="#D63B3B" />,
@@ -93,7 +107,7 @@ const ToastItem = ({ message, type, onRemove }) => {
 
   return (
     <div 
-      className={`toast-item ${mounted ? "visible" : ""}`}
+      className="toast-item visible"
       style={{
         background: bgColors[type],
         border: `1px solid ${borderColors[type]}`,
@@ -103,8 +117,8 @@ const ToastItem = ({ message, type, onRemove }) => {
         padding: "12px 16px",
         borderRadius: 12,
         boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-        transform: mounted ? "translateX(0)" : "translateX(32px)",
-        opacity: mounted ? 1 : 0,
+        transform: "translateX(0)",
+        opacity: 1,
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >

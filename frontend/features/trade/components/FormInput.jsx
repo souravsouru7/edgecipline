@@ -25,6 +25,12 @@ export const onBlurReset = e => {
   e.currentTarget.style.background  = "#F8FAFC";
 };
 
+// Block e/E/+ in number inputs — browsers allow these for scientific notation
+// but they're nonsensical for trade values.
+const blockInvalidNumberKeys = (e) => {
+  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
+};
+
 /**
  * FormInput — labelled text/number/date input field.
  */
@@ -40,6 +46,7 @@ export function FormInput({ label, name, value, onChange, placeholder, type = "t
         style={{ ...inputBase, ...style }}
         onFocus={onFocusGreen}
         onBlur={onBlurReset}
+        onKeyDown={type === "number" ? blockInvalidNumberKeys : undefined}
         {...props}
       />
     </div>

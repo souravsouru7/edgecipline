@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups, saveSetups, uploadSetupReferenceImage } from "@/services/setupApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import { Trash2 } from "lucide-react";
 
 export default function IndianSetupStrategiesPage() {
   const router = useRouter();
+  const { ready } = useRequireAuth();
   const [mounted, setMounted] = useState(false);
   const [strategies, setStrategies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,17 +25,17 @@ export default function IndianSetupStrategiesPage() {
   const toggleExpand = (id) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     setMounted(true);
 
     const load = async () => {
@@ -63,7 +66,7 @@ export default function IndianSetupStrategiesPage() {
     };
 
     load();
-  }, [router]);
+  }, [ready, router]);
 
   const addStrategy = () => {
     setError("");
@@ -212,8 +215,9 @@ export default function IndianSetupStrategiesPage() {
       setUploadingByStrategy(prev => {
         const nextCount = Math.max((prev[strategyId] || 0) - selectedFiles.length, 0);
         if (nextCount === 0) {
-          const { [strategyId]: _removed, ...rest } = prev;
-          return rest;
+          const next = { ...prev };
+          delete next[strategyId];
+          return next;
         }
         return { ...prev, [strategyId]: nextCount };
       });
@@ -257,7 +261,7 @@ export default function IndianSetupStrategiesPage() {
         gap: 10,
       }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1923" }}>
-          NSE / BSE TRADING SETUPS · RULE CHECKLISTS
+          NSE / BSE TRADING SETUPS - RULE CHECKLISTS
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
@@ -384,7 +388,7 @@ export default function IndianSetupStrategiesPage() {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Collapsed header — always visible, click to expand */}
+                  {/* Section */}
                   <div
                     onClick={() => toggleExpand(strategy.id)}
                     style={{
@@ -636,26 +640,30 @@ export default function IndianSetupStrategiesPage() {
                         />
                         <button
                           type="button"
+                          aria-label="Delete rule"
+                          title="Delete rule"
                           onClick={() => deleteRule(strategy.id, rule.id)}
                           style={{
-                            fontSize: 9,
-                            fontFamily: "'JetBrains Mono',monospace",
-                            padding: "3px 6px",
+                            width: 26,
+                            height: 26,
                             borderRadius: 999,
                             border: "1px solid #FCA5A5",
                             background: "#FEF2F2",
                             color: "#B91C1C",
                             cursor: "pointer",
                             flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
                         >
-                          ✕
+                          <Trash2 size={13} strokeWidth={2.4} />
                         </button>
                       </div>
                     ))}
                     {strategy.rules.length === 0 && (
                       <div style={{ fontSize: 11, color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 4 }}>
-                        No rules yet — add your first rule for this trading setup.
+                        No rules yet - add your first rule for this trading setup.
                       </div>
                     )}
                   </div>

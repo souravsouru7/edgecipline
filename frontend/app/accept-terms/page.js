@@ -1,16 +1,18 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { clearAuthToken, getValidToken } from "@/utils/auth";
 import Link from "next/link";
-import { acceptTerms } from "@/services/api";
+import { acceptTerms, logoutUser } from "@/services/api";
+import { silentRefresh } from "@/services/apiClient";
 
 /**
  * /accept-terms
  *
  * Shown when an authenticated user (existing or new Google sign-in) has not yet
  * accepted the current version of the Terms & Conditions / Privacy Policy.
- * The backend already issued a valid JWT — the user cannot reach the dashboard
+ * The backend already issued a valid JWT â€” the user cannot reach the dashboard
  * until this step is completed.
  */
 export default function AcceptTermsPage() {
@@ -23,10 +25,23 @@ export default function AcceptTermsPage() {
   const [success, setSuccess]         = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     setMounted(true);
-    // If there is no token at all, the user has no business being here — send to login.
-    const token = typeof window !== "undefined" && localStorage.getItem("token");
-    if (!token) router.replace("/login");
+    const ensureSession = async () => {
+      // If there is no access token, try the httpOnly refresh cookie before sending to login.
+      const token = getValidToken();
+      if (token) return;
+
+      const refreshed = await silentRefresh();
+      if (!refreshed && !cancelled) router.replace("/login");
+    };
+
+    ensureSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const handleAccept = async () => {
@@ -151,7 +166,7 @@ export default function AcceptTermsPage() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 4 }}>{card.title}</div>
                   <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>{card.desc}</div>
                   <div style={{ marginTop: 8, fontSize: 10, color: "#0D9E6E", fontFamily: "'JetBrains Mono'", fontWeight: 700, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 4 }}>
-                    READ →
+                    READ â†’
                   </div>
                 </div>
               </Link>
@@ -241,7 +256,7 @@ export default function AcceptTermsPage() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              ACCEPTED — REDIRECTING...
+              ACCEPTED â€” REDIRECTING...
             </div>
           ) : (
             <button
@@ -289,9 +304,15 @@ export default function AcceptTermsPage() {
           <div style={{ textAlign: "center", marginTop: 16 }}>
             <button
               type="button"
-              onClick={() => {
-                localStorage.removeItem("token");
-                router.push("/login");
+              onClick={async () => {
+                try {
+                  await logoutUser();
+                } catch {
+                  // Still clear client state and leave the gate if the network is unavailable.
+                } finally {
+                  clearAuthToken();
+                  router.replace("/login");
+                }
               }}
               style={{
                 background: "none", border: "none", cursor: "pointer",
@@ -313,7 +334,7 @@ export default function AcceptTermsPage() {
           textAlign: "center",
         }}>
           <span style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
-            EDGE DISCIPLINE · TERMS VERSION v1.0 · 2026
+            EDGE DISCIPLINE Â· TERMS VERSION v1.0 Â· 2026
           </span>
         </div>
       </div>

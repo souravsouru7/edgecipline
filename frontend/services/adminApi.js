@@ -1,36 +1,61 @@
 import { API_URL as BASE_URL } from "@/config/api";
 
-export const clearAdminSession = () => {
+/**
+ * adminApi.js — Admin API client
+ *
+ * Authentication: uses the httpOnly admin_sid cookie set by POST /api/admin/auth/login.
+ * credentials: "include" ensures the browser sends the cookie automatically.
+ * No tokens are read from or written to localStorage by this module.
+ */
+
+export const clearAdminSession = async () => {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("adminToken");
-  localStorage.removeItem("adminRole");
+  // Clear display-only values stored in localStorage (non-sensitive)
   localStorage.removeItem("adminName");
+  // Ask the server to clear the httpOnly admin_sid cookie
+  try {
+    await fetch(`${BASE_URL}/admin/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    // Best-effort — cookie will expire on its own (8h)
+  }
 };
 
 const handleResponse = async (res) => {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
-      clearAdminSession();
+      // Clear display name and redirect to admin login
+      localStorage.removeItem("adminName");
     }
     throw new Error(data.message || `Request failed with status ${res.status}`);
   }
   return res.json();
 };
 
+/** Shared fetch wrapper that always sends credentials (cookie). */
+const adminFetch = (url, options = {}) =>
+  fetch(`${BASE_URL}${url}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
 /**
  * Admin Login
  * POST /api/admin/auth/login
+ * Server sets admin_sid httpOnly cookie on success.
  */
 export const adminLogin = async ({ email, password }) => {
-  const res = await fetch(`${BASE_URL}/admin/auth/login`, {
+  const res = await adminFetch("/admin/auth/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password }),
   });
-
   return handleResponse(res);
 };
 
@@ -39,267 +64,121 @@ export const adminLogin = async ({ email, password }) => {
  * GET /api/admin/auth/me
  */
 export const getAdminProfile = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-
-  const res = await fetch(`${BASE_URL}/admin/auth/me`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
-
+  const res = await adminFetch("/admin/auth/me");
   return handleResponse(res);
 };
 
 export const getAdminStats = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/analytics/stats`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/analytics/stats");
   return handleResponse(res);
 };
 
 export const getAdminGrowth = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/analytics/growth`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/analytics/growth");
   return handleResponse(res);
 };
 
 export const getAllAdminUsers = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/users");
   return handleResponse(res);
 };
 
 export const deleteAdminUser = async (id) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch(`/admin/users/${id}`, { method: "DELETE" });
   return handleResponse(res);
 };
 
 export const toggleAdminUserStatus = async (id) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users/${id}/status`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch(`/admin/users/${id}/status`, { method: "PATCH" });
   return handleResponse(res);
 };
 
 export const extendAdminUserPlan = async (id, days) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users/${id}/extend`, {
+  const res = await adminFetch(`/admin/users/${id}/extend`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify({ days })
+    body: JSON.stringify({ days }),
   });
   return handleResponse(res);
 };
 
 export const getAdminPayments = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/payments`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/payments");
   return handleResponse(res);
 };
 
 export const updateAdminPaymentStatus = async (id, status) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/payments/${id}/status`, {
+  const res = await adminFetch(`/admin/payments/${id}/status`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify({ status })
+    body: JSON.stringify({ status }),
   });
   return handleResponse(res);
 };
 
 export const addManualPayment = async (paymentData) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/payments/manual`, {
+  const res = await adminFetch("/admin/payments/manual", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify(paymentData)
+    body: JSON.stringify(paymentData),
   });
   return handleResponse(res);
 };
 
 export const getExpiredAdminUsers = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users/expired`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/users/expired");
   return handleResponse(res);
 };
 
 export const sendAdminRenewalReminder = async (id) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/users/${id}/remind`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch(`/admin/users/${id}/remind`, { method: "POST" });
   return handleResponse(res);
 };
 
 export const getAdminAllTrades = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/trades`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/trades");
   return handleResponse(res);
 };
 
 export const getAdminExtractionLogs = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/trades/logs`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/trades/logs");
   return handleResponse(res);
 };
 
 export const getAdminFeedback = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/feedback`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/feedback");
   return handleResponse(res);
 };
 
 export const updateAdminFeedbackStatus = async (id, updateData) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/feedback/${id}`, {
+  const res = await adminFetch(`/admin/feedback/${id}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify(updateData)
+    body: JSON.stringify(updateData),
   });
   return handleResponse(res);
 };
 
 export const deleteAdminFeedback = async (id) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/feedback/${id}`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch(`/admin/feedback/${id}`, { method: "DELETE" });
   return handleResponse(res);
 };
 
-// --- Notifications ---
-
 export const getAdminNotifications = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/notifications`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/notifications");
   return handleResponse(res);
 };
 
 export const markAdminNotificationAsRead = async (id) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/notifications/${id}/read`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch(`/admin/notifications/${id}/read`, { method: "PATCH" });
   return handleResponse(res);
 };
 
 export const markAllAdminNotificationsAsRead = async () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/notifications/read-all`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
+  const res = await adminFetch("/admin/notifications/read-all", { method: "POST" });
   return handleResponse(res);
 };
 
 export const sendAdminCustomNotification = async (payload) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
-  const res = await fetch(`${BASE_URL}/admin/notifications/custom`, {
+  const res = await adminFetch("/admin/notifications/custom", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   return handleResponse(res);
 };
-
-
-
-
-

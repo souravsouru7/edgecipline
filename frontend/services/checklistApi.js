@@ -1,7 +1,8 @@
 import { API_URL } from "@/config/api";
+import { getValidToken } from "@/utils/auth";
 
 export const logChecklistEvent = async (data) => {
-  const token = localStorage.getItem("token");
+  const token = getValidToken();
   if (!token) throw new Error("No token found");
 
   const response = await fetch(`${API_URL}/checklists/track`, {
@@ -22,7 +23,7 @@ export const logChecklistEvent = async (data) => {
 };
 
 export const getChecklistStats = async (market) => {
-  const token = localStorage.getItem("token");
+  const token = getValidToken();
   if (!token) throw new Error("No token found");
 
   const response = await fetch(`${API_URL}/checklists/track${market ? `?market=${market}` : ''}`, {

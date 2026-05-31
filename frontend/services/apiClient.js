@@ -4,6 +4,44 @@ import { clearAuthToken, getValidToken, setAuthToken } from '@/utils/auth';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ---------------------------------------------------------------------------
+// L14: Client-side sliding-window rate limiter
+// Prevents the UI from hammering the server and triggering server-side 429s.
+// ---------------------------------------------------------------------------
+const CLIENT_RATE_LIMITS = [
+  // Auth credential endpoints — tight limit matching backend authRateLimiter (5/60s → 10 client-side)
+  { pattern: /\/(auth\/login|auth\/register|auth\/google|auth\/forgot-password|auth\/verify-otp|auth\/reset-password)/, max: 10, windowMs: 60_000 },
+  // All other endpoints — generous ceiling; server's global limiter fires well below this
+  { pattern: /.*/, max: 120, windowMs: 60_000 },
+];
+
+class SlidingWindowLimiter {
+  constructor() {
+    this._buckets = new Map(); // key → number[]  (timestamps)
+  }
+
+  check(url) {
+    const rule = CLIENT_RATE_LIMITS.find((r) => r.pattern.test(url));
+    if (!rule) return;
+
+    const key   = `${rule.max}:${rule.windowMs}:${url.split('?')[0]}`;
+    const now   = Date.now();
+    const times = (this._buckets.get(key) || []).filter((t) => now - t < rule.windowMs);
+
+    if (times.length >= rule.max) {
+      const err   = new Error(`Too many requests — please slow down and try again shortly.`);
+      err.status  = 429;
+      err.isClientRateLimit = true;
+      throw err;
+    }
+
+    times.push(now);
+    this._buckets.set(key, times);
+  }
+}
+
+const clientRateLimiter = new SlidingWindowLimiter();
+
 // Credential-submitting routes that must NOT be silently retried on 401
 // (they are the auth entry points — a 401 there means bad creds, not expired session).
 const AUTH_ENTRY_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/auth/refresh'];
@@ -35,10 +73,24 @@ const refreshClient = axios.create({
 });
 
 // ---------------------------------------------------------------------------
-// Request interceptor — attach access token from localStorage
+// Request interceptor — client-side rate limit check + attach access token
 // ---------------------------------------------------------------------------
 apiClient.interceptors.request.use(
   (config) => {
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (typeof config.headers?.delete === 'function') {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+        delete config.headers['content-type'];
+      }
+    }
+
+    // Skip rate-limit check for retried requests (already counted on first attempt)
+    if (!config._retried && !config._retryCount && config.skipRateLimitRetry !== true) {
+      clientRateLimiter.check(config.url || '');
+    }
+
     if (typeof window !== 'undefined') {
       const token = getValidToken();
       if (token) {
@@ -61,11 +113,18 @@ apiClient.interceptors.response.use(
     const config = error.config;
 
     if (!error.response) {
-      // Network error / timeout — no server response
-      return Promise.reject(new Error('Network error. Please check your connection.'));
+      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+      return Promise.reject(
+        new Error(isTimeout ? 'Request timed out. Please try again.' : 'Network error. Please check your connection.')
+      );
     }
 
     const { status } = error.response;
+
+    if (status === 403 && error.response.data?.errorCode === 'TERMS_NOT_ACCEPTED') {
+      handleTermsRequired();
+      return Promise.reject(buildError(error));
+    }
 
     // ------------------------------------------------------------------
     // 429 Too Many Requests — respect Retry-After, exponential backoff
@@ -156,30 +215,50 @@ function buildError(axiosError) {
   return err;
 }
 
+// Module-level flag prevents multiple concurrent 401s from each triggering
+// their own redirect, which would cause a redirect loop in some browsers.
+let _redirectingToLogin = false;
+
 function handleUnauthenticated() {
   if (typeof window === 'undefined') return;
+  if (_redirectingToLogin) return;
   const { pathname } = window.location;
-  if (pathname !== '/login' && pathname !== '/register') {
-    window.location.href = '/login';
-  }
+  if (pathname === '/login' || pathname === '/register') return;
+  _redirectingToLogin = true;
+  window.location.href = '/login';
 }
+
+function handleTermsRequired() {
+  if (typeof window === 'undefined') return;
+  const { pathname } = window.location;
+  if (pathname === '/accept-terms' || pathname === '/login' || pathname === '/register') return;
+  window.location.href = '/accept-terms';
+}
+
+// Singleton in-flight promise — prevents React StrictMode's double-mount from
+// sending two concurrent /auth/refresh requests with the same cookie, which
+// the backend correctly detects as a replay attack and revokes the token family.
+let _refreshInFlight = null;
 
 /**
  * Perform a silent refresh from outside the interceptor (e.g. on page load).
  * Returns the new access token string or null if no valid session exists.
+ * Concurrent callers share the same in-flight request rather than racing.
  */
-export async function silentRefresh() {
-  try {
-    const res = await refreshClient.post('/auth/refresh');
-    const token = res.data?.token;
-    if (token) {
-      setAuthToken(token);
-      return token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+export function silentRefresh() {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = refreshClient.post('/auth/refresh')
+    .then(res => {
+      const token = res.data?.token;
+      if (token) {
+        setAuthToken(token);
+        return token;
+      }
+      return null;
+    })
+    .catch(() => null)
+    .finally(() => { _refreshInFlight = null; });
+  return _refreshInFlight;
 }
 
 export default apiClient;

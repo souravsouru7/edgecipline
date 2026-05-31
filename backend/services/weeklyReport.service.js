@@ -1,5 +1,6 @@
 const ApiError = require("../utils/ApiError");
 const { appConfig } = require("../config");
+const { logger } = require("../utils/logger");
 const { generateWeeklyFeedback } = require("./geminiService");
 const tradeRepository = require("../repositories/trade.repository");
 const indianTradeRepository = require("../repositories/indianTrade.repository");
@@ -14,8 +15,10 @@ function getLocalShiftMs() {
 function getRolling7dUtcRange() {
   const shiftMs = getLocalShiftMs();
   const nowUtc = new Date();
-  const weekEndUtc = nowUtc;
-  const weekStartUtc = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // End at 23:59:59.999 today so trades logged any time today are included
+  const weekEndUtc = new Date(nowUtc);
+  weekEndUtc.setUTCHours(23, 59, 59, 999);
+  const weekStartUtc = new Date(weekEndUtc.getTime() - 7 * 24 * 60 * 60 * 1000);
   const weekStartLocal = new Date(weekStartUtc.getTime() + shiftMs);
   const weekEndLocal = new Date(weekEndUtc.getTime() + shiftMs);
   return { weekStartUtc, weekEndUtc, weekStartLocal, weekEndLocal };
@@ -372,11 +375,24 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
     return report;
   }
 
-  const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel });
-  return weeklyReportRepository.updateWeeklyReportById(report._id, {
-    aiFeedback: feedback,
-    aiModel: model,
-  });
+  try {
+    const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel });
+    return weeklyReportRepository.updateWeeklyReportById(report._id, {
+      aiFeedback: feedback,
+      aiModel: model,
+    });
+  } catch (aiError) {
+    logger.warn("[WeeklyReport] AI generation failed, saving report without AI feedback", { error: aiError.message });
+    return weeklyReportRepository.updateWeeklyReportById(report._id, {
+      aiFeedback: {
+        summary: "AI coaching is temporarily unavailable. Your trade data has been saved — please try regenerating in a few minutes.",
+        focusAreas: [],
+        nextWeekChecklist: ["Log every trade", "Use your checklist before saving"],
+        psychologyFeedback: null,
+      },
+      aiModel: "unavailable",
+    });
+  }
 }
 
 async function generateNowOnce(userId, marketType = "Forex") {

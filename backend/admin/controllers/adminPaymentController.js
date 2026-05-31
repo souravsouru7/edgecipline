@@ -9,10 +9,13 @@ const asyncHandler = require("../../utils/asyncHandler");
  * @access  Private/Admin
  */
 exports.getAllPayments = asyncHandler(async (req, res) => {
-  const payments = await Payment.find()
-    .populate("user", "name email")
-    .sort({ createdAt: -1 });
-  res.json(payments);
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const [payments, total] = await Promise.all([
+    Payment.find().populate("user", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+    Payment.countDocuments(),
+  ]);
+  res.json({ payments, total, page, limit });
 });
 
 /**
@@ -33,37 +36,38 @@ exports.updatePaymentStatus = asyncHandler(async (req, res) => {
 
     // Handle side effects on User profile if status changed to completed or refunded
     if (status === "completed" && previousStatus !== "completed") {
-      const user = await User.findById(payment.user);
-      if (user) {
-        let newExpiry;
-        const now = new Date();
-        
-        // Extend from current expiry if valid, else from now
-        if (user.subscriptionExpiry && user.subscriptionExpiry > now) {
-          newExpiry = new Date(user.subscriptionExpiry);
-        } else {
-          newExpiry = now;
+      const daysToAdd = payment.planType === "3_months" ? 90 : 0;
+      if (daysToAdd > 0) {
+        const updatedUser = await User.findByIdAndUpdate(
+          payment.user,
+          [
+            {
+              $set: {
+                subscriptionExpiry: {
+                  $add: [
+                    { $max: [{ $ifNull: ["$subscriptionExpiry", "$$NOW"] }, "$$NOW"] },
+                    daysToAdd * 24 * 60 * 60 * 1000,
+                  ],
+                },
+                subscriptionStatus: "active",
+                totalPaid: { $add: [{ $ifNull: ["$totalPaid", 0] }, payment.amount] },
+              },
+            },
+          ],
+          { new: true, select: "subscriptionExpiry" }
+        );
+        if (updatedUser) {
+          payment.expiryDate = updatedUser.subscriptionExpiry;
         }
-
-        // Add 90 days for 3 months plan
-        const daysToAdd = payment.planType === "3_months" ? 90 : 0;
-        newExpiry.setDate(newExpiry.getDate() + daysToAdd);
-
-        user.subscriptionExpiry = newExpiry;
-        user.subscriptionStatus = "active";
-        user.totalPaid = (user.totalPaid || 0) + payment.amount;
-        await user.save();
-        
-        payment.expiryDate = newExpiry;
       }
     } else if (status === "refunded" && previousStatus === "completed") {
-        const user = await User.findById(payment.user);
-        if (user) {
-            user.totalPaid = Math.max(0, (user.totalPaid || 0) - payment.amount);
-            // We don't necessarily revoke expiry immediately on refund unless requested
-            // But we mark status as inactive if they have no other active plans (logic can be complex)
-            await user.save();
-        }
+      await User.findByIdAndUpdate(payment.user, [
+        {
+          $set: {
+            totalPaid: { $max: [0, { $subtract: [{ $ifNull: ["$totalPaid", 0] }, payment.amount] }] },
+          },
+        },
+      ]);
     }
 
   await payment.save();

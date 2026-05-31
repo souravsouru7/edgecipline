@@ -8,6 +8,11 @@ const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 
+// Server-side source of truth for plan pricing.
+// Amount is NEVER trusted from the client — always derived from this map.
+const PLAN_AMOUNTS = { "3_months": 150 };
+const PLAN_DAYS   = { "3_months": 90 };
+
 const getRazorpayClient = () => {
   const keyId = String(appConfig.razorpay.keyId || "").trim();
   const keySecret = String(appConfig.razorpay.keySecret || "").trim();
@@ -23,18 +28,26 @@ const getRazorpayClient = () => {
 };
 
 exports.createOrder = asyncHandler(async (req, res) => {
+  const { planType = "3_months" } = req.body;
+
+  const amount = PLAN_AMOUNTS[planType];
+  if (!amount) {
+    throw new ApiError(400, "Invalid plan type", "VALIDATION_ERROR");
+  }
+
   const razorpay = getRazorpayClient();
   const order = await razorpay.orders.create({
-    amount: 150 * 100,
+    amount: amount * 100,
     currency: "INR",
-    receipt: `receipt_order_${Date.now()}`,
+    receipt: `rcpt_${Date.now()}`,
+    notes: { planType },
   });
 
   if (!order) {
     throw new ApiError(500, "Failed to create payment order", "PAYMENT_ORDER_FAILED");
   }
 
-  res.json(order);
+  res.json({ ...order, planType });
 });
 
 exports.verifyPayment = asyncHandler(async (req, res) => {
@@ -46,6 +59,13 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     razorpay_signature,
     planType = "3_months",
   } = req.body;
+
+  // Derive amount from server-side map — never accept amount from client
+  const amount = PLAN_AMOUNTS[planType];
+  if (!amount) {
+    throw new ApiError(400, "Invalid plan type", "VALIDATION_ERROR");
+  }
+  const days = PLAN_DAYS[planType];
 
   const expectedSignature = crypto
     .createHmac("sha256", appConfig.razorpay.keySecret)
@@ -67,11 +87,6 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
   }
 
   const userId = req.user._id;
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new ApiError(404, "User not found", "NOT_FOUND");
-  }
-  const amount = 150;
 
   const existingPayment = await Payment.findOne({
     $or: [{ transactionId: razorpay_payment_id }, { razorpayPaymentId: razorpay_payment_id }],
@@ -102,7 +117,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     ) {
       expiryDate = new Date(userInTxn.subscriptionExpiry);
     }
-    expiryDate.setDate(expiryDate.getDate() + 90);
+    expiryDate.setDate(expiryDate.getDate() + days);
 
     await Payment.create(
       [
@@ -135,20 +150,19 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       { session }
     );
 
-    await Notification.create(
-      [
-        {
-          title: "New Payment Received",
-          message: `User ${userInTxn.name} paid Rs ${amount} for a 3-month plan.`,
-          type: "payment",
-          userId,
-          metadata: { paymentId: razorpay_payment_id, amount },
-        },
-      ],
-      { session }
-    );
-
     await session.commitTransaction();
+
+    // Notification created AFTER commit so a notification failure never rolls back a real payment
+    Notification.create([
+      {
+        title: "New Payment Received",
+        message: `User ${userInTxn.name} paid Rs ${amount} for a ${planType.replace("_", " ")} plan.`,
+        type: "payment",
+        userId,
+        metadata: { paymentId: razorpay_payment_id, amount },
+      },
+    ]).catch(() => {}); // Best-effort — don't fail the response if notification fails
+
     res.json({
       success: true,
       message: "Payment verified and subscription extended successfully",

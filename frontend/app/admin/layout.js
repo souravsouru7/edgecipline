@@ -25,27 +25,15 @@ export default function AdminLayout({ children }) {
 
     const verifyAdmin = async () => {
       try {
-        const token = localStorage.getItem("adminToken");
-        const role = localStorage.getItem("adminRole");
-
-        if (!token || role !== "admin") {
-          clearAdminSession();
-          router.replace("/admin/login");
-          return;
-        }
-
-        // Verify token with backend
+        // Verify admin session via the httpOnly cookie — no localStorage token needed
         const profile = await getAdminProfile();
         if (profile && profile.role === "admin") {
           setIsVerified(true);
         } else {
-          // Token invalid or not admin
-          clearAdminSession();
           router.replace("/admin/login");
         }
-      } catch (error) {
-        // Token expired or invalid
-        clearAdminSession();
+      } catch {
+        // Cookie missing, expired, or user is not admin
         router.replace("/admin/login");
       } finally {
         setIsLoading(false);

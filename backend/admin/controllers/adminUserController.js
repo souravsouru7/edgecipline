@@ -3,6 +3,7 @@ const Trade = require("../../models/Trade");
 const IndianTrade = require("../../models/IndianTrade");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logger } = require("../../utils/logger");
 
 /**
  * @desc    Get all users with their statistics
@@ -10,25 +11,33 @@ const asyncHandler = require("../../utils/asyncHandler");
  * @access  Private/Admin
  */
 exports.getAllUsers = asyncHandler(async (req, res) => {
-  const users = await User.find({ role: { $ne: "admin" } }).select("-password").lean();
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const skip = (page - 1) * limit;
 
-    const enrichedUsers = await Promise.all(
-      users.map(async (user) => {
-        const [forexCount, indianCount] = await Promise.all([
-          Trade.countDocuments({ user: user._id }),
-          IndianTrade.countDocuments({ user: user._id }),
-        ]);
+  const filter = { role: { $ne: "admin" } };
+  const [users, total] = await Promise.all([
+    User.find(filter).select("-password").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    User.countDocuments(filter),
+  ]);
 
-        return {
-          ...user,
-          tradeCount: forexCount + indianCount,
-          forexTradeCount: forexCount,
-          indianTradeCount: indianCount,
-        };
-      })
-    );
+  const userIds = users.map(u => u._id);
+  const [forexCounts, indianCounts] = await Promise.all([
+    Trade.aggregate([{ $match: { user: { $in: userIds } } }, { $group: { _id: "$user", count: { $sum: 1 } } }]),
+    IndianTrade.aggregate([{ $match: { user: { $in: userIds } } }, { $group: { _id: "$user", count: { $sum: 1 } } }]),
+  ]);
 
-  res.json(enrichedUsers);
+  const forexMap = Object.fromEntries(forexCounts.map(r => [String(r._id), r.count]));
+  const indianMap = Object.fromEntries(indianCounts.map(r => [String(r._id), r.count]));
+
+  const enrichedUsers = users.map(user => ({
+    ...user,
+    tradeCount: (forexMap[String(user._id)] || 0) + (indianMap[String(user._id)] || 0),
+    forexTradeCount: forexMap[String(user._id)] || 0,
+    indianTradeCount: indianMap[String(user._id)] || 0,
+  }));
+
+  res.json({ users: enrichedUsers, total, page, limit });
 });
 
 /**
@@ -52,6 +61,14 @@ exports.deleteUser = asyncHandler(async (req, res) => {
       IndianTrade.deleteMany({ user: user._id }),
       User.findByIdAndDelete(user._id)
     ]);
+
+  // M17: Structured audit log for destructive admin action
+  logger.warn("Admin deleted user", {
+    adminId: req.user?._id,
+    adminEmail: req.user?.email,
+    deletedUserId: user._id,
+    deletedUserEmail: user.email,
+  });
 
   res.json({ message: "User and all associated data deleted successfully" });
 });

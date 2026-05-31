@@ -52,5 +52,7 @@ const DeviceTokenSchema = new mongoose.Schema(
 
 DeviceTokenSchema.index({ user: 1, enabled: 1 });
 DeviceTokenSchema.index({ lastSeenAt: -1 });
+// M11: Auto-expire device tokens not seen in 90 days
+DeviceTokenSchema.index({ lastSeenAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 module.exports = mongoose.model("DeviceToken", DeviceTokenSchema);

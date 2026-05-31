@@ -21,13 +21,13 @@ const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", purple: "#8B5CF6"
 // ── helpers ────────────────────────────────────────────────────────────────────
 function fmt(n, prefix = "$") {
   const v = parseFloat(n || 0);
-  return `${v >= 0 ? "+" : ""}${prefix}${Math.abs(v).toFixed(2)}`;
+  return `${v >= 0 ? "+" : "-"}${prefix}${Math.abs(v).toFixed(2)}`;
 }
 
 function sessionFmt(s) {
   if (!s || !s.trades) return null;
   const p = parseFloat(s.profit || 0);
-  return { profit: `${p >= 0 ? "+" : ""}$${Math.abs(p).toFixed(2)}`, winRate: s.winRate, trades: s.trades, name: s.name };
+  return { profit: `${p >= 0 ? "+" : "-"}$${Math.abs(p).toFixed(2)}`, winRate: s.winRate, trades: s.trades, name: s.name };
 }
 
 function classifyInsight(text) {
@@ -63,7 +63,7 @@ function PairRow({ name, count, winRate, profit }) {
         <div style={{ fontSize: 10, color: C.muted }}>{count} trades · {winRate}% WR</div>
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: p >= 0 ? C.bull : C.bear }}>
-        {p >= 0 ? "+" : ""}${Math.abs(p).toFixed(2)}
+        {p >= 0 ? "+" : "-"}${Math.abs(p).toFixed(2)}
       </div>
     </div>
   );
@@ -284,7 +284,7 @@ function AnalyticsContent() {
             {[
               { label: "Total Trades",  value: has ? String(summary.totalTrades)  : "—", sub: "trades logged",        color: C.primary, tooltip: "Total number of trades you've logged. More trades = more accurate analytics and better AI pattern detection." },
               { label: "Win Rate",      value: has ? `${summary.winRate}%`          : "—", sub: "of trades profitable", color: summary?.winRate >= 50 ? C.bull : C.bear, tooltip: "Percentage of trades that closed in profit. Above 50% is green. Win rate alone doesn't guarantee profitability — your R:R matters equally." },
-              { label: "Net P&L",       value: has ? `${bullPnl ? "+" : ""}$${Math.abs(pnl).toFixed(2)}` : "—", sub: "total return", color: bullPnl ? C.bull : C.bear, tooltip: "Your total profit or loss across all logged trades. Green = net profitable, red = net loss. This is your real bottom line." },
+              { label: "Net P&L",       value: has ? `${bullPnl ? "+" : "-"}$${Math.abs(pnl).toFixed(2)}` : "—", sub: "total return", color: bullPnl ? C.bull : C.bear, tooltip: "Your total profit or loss across all logged trades. Green = net profitable, red = net loss. This is your real bottom line." },
               { label: "Avg Win",       value: has ? `$${parseFloat(summary.avgWin  || 0).toFixed(2)}` : "—", sub: "avg winner",     color: C.bull, tooltip: "Average profit per winning trade. Compare with Avg Loss — ideally your wins should be at least 1.5× your losses for a positive edge." },
               { label: "Avg Loss",      value: has ? `$${parseFloat(summary.avgLoss || 0).toFixed(2)}` : "—", sub: "avg loser",      color: C.bear, tooltip: "Average loss per losing trade. Lower is better. If this is much larger than Avg Win, tighten your stop losses and risk management." },
             ].map((s, i) => <StatCard key={s.label} {...s} loading={loading} delay={i * 0.05} />)}
@@ -368,8 +368,8 @@ function AnalyticsContent() {
                         <ProgressBar label={`Long Win Rate  ${longWR}%`}  value={parseFloat(longWR)}  showPercent={false} color={C.bull} />
                         <ProgressBar label={`Short Win Rate ${shortWR}%`} value={parseFloat(shortWR)} showPercent={false} color={C.bear} />
                         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-                          <span style={{ fontSize: 10, color: C.bull, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : ""}${Math.abs(longP).toFixed(2)}</span>
-                          <span style={{ fontSize: 10, color: C.bear, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : ""}${Math.abs(shortP).toFixed(2)}</span>
+                          <span style={{ fontSize: 10, color: C.bull, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : "-"}${Math.abs(longP).toFixed(2)}</span>
+                          <span style={{ fontSize: 10, color: C.bear, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : "-"}${Math.abs(shortP).toFixed(2)}</span>
                         </div>
                       </div>
                     ) : <p style={{ color: C.muted, fontSize: 12 }}>No trade direction data yet.</p>;
@@ -410,7 +410,7 @@ function AnalyticsContent() {
                         { label: "Avg RR — Wins",   value: `${parseFloat(riskReward.avgWinRR  || 0).toFixed(2)}:1`, color: C.bull },
                         { label: "Avg RR — Losses", value: `${parseFloat(riskReward.avgLossRR || 0).toFixed(2)}:1`, color: C.bear },
                         { label: "Largest Win",     value: `$${parseFloat(performance?.largestWin  || 0).toFixed(2)}`, color: C.bull },
-                        { label: "Largest Loss",    value: `$${Math.abs(parseFloat(performance?.largestLoss || 0)).toFixed(2)}`, color: C.bear },
+                        { label: "Largest Loss",    value: `-$${Math.abs(parseFloat(performance?.largestLoss || 0)).toFixed(2)}`, color: C.bear },
                       ].map(r => (
                         <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #F4F2EE" }}>
                           <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
@@ -631,7 +631,7 @@ function AnalyticsContent() {
                               </div>
                               <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
                               <div style={{ fontSize: 9, color: trendColor, width: 12 }}>{trend}</div>
-                              <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : ""}${Math.abs(w.pnl).toFixed(0)}</div>
+                              <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toFixed(0)}</div>
                             </div>
                           );
                         })}

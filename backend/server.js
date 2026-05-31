@@ -14,6 +14,21 @@ if (process.env.SENTRY_DSN) {
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
     // Don't send events in test/development unless DSN is explicitly set.
     enabled: !!process.env.SENTRY_DSN,
+    // M3: Scrub auth cookies and Authorization headers before sending to Sentry
+    beforeSend(event) {
+      if (event.request) {
+        if (event.request.cookies) {
+          event.request.cookies = "[Filtered]";
+        }
+        if (event.request.headers) {
+          const h = { ...event.request.headers };
+          if (h.authorization) h.authorization = "[Filtered]";
+          if (h.cookie) h.cookie = "[Filtered]";
+          event.request.headers = h;
+        }
+      }
+      return event;
+    },
   });
 }
 
@@ -135,13 +150,11 @@ const corsOptions = {
       console.log(`CORS Check | Origin: ${origin} | Normalized: ${normalizedOrigin} | AllowedList: ${allowedOrigins.join(", ")}`);
     }
 
-    // Allow requests with no origin (mobile apps, curl, Capacitor)
+    // Allow requests with no origin (mobile apps, curl) and Capacitor Android app
     if (
       !origin ||
       isAllowedProductionOrigin(origin) ||
       allowedOrigins.includes(normalizedOrigin) ||
-      normalizedOrigin.startsWith("http://localhost") ||
-      normalizedOrigin.startsWith("https://localhost") ||
       String(origin).startsWith("capacitor://localhost")
     ) {
       callback(null, true);
@@ -155,6 +168,16 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
+// HTTPS redirect — must come before CORS so redirects are not blocked
+if (appConfig.env === "production") {
+  app.use((req, res, next) => {
+    if (req.headers["x-forwarded-proto"] && req.headers["x-forwarded-proto"] !== "https") {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 // Handle OPTIONS preflight requests explicitly before any other middleware.
 // Express/path-to-regexp in this stack rejects "*" as a route path.
 app.options(/.*/, cors(corsOptions));
@@ -165,6 +188,18 @@ app.use(cors(corsOptions));
 // can call window.closed across origins without being blocked.
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  // M2: Strict CSP — API server serves no HTML pages, so lock down everything
+  contentSecurityPolicy: appConfig.env === "production" ? {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  } : false,
+  // M2: HSTS — enforce HTTPS for 1 year (only in production behind TLS)
+  strictTransportSecurity: appConfig.env === "production" ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+  } : false,
 }));
 
 // Global timeout middleware (apply early)
@@ -203,7 +238,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 // Parse cookies — required for httpOnly refresh-token cookie
 app.use(cookieParser());
@@ -258,7 +293,16 @@ app.use("/api/indian/trades", require("./routes/indianMarketRoutes"));
 app.use("/api/indian/analytics", require("./routes/indianAnalyticsRoutes"));
 
 app.get("/", (_req, res) => {
-  res.send("Trading Journal API Running - Forex & Indian Markets");
+  res.json({ status: "ok", service: "stratedge-api", env: appConfig.env });
+});
+
+app.get("/health", (_req, res) => {
+  const mongoose = require("mongoose");
+  const dbState = mongoose.connection.readyState; // 1 = connected
+  if (dbState !== 1) {
+    return res.status(503).json({ status: "unhealthy", db: "disconnected" });
+  }
+  res.json({ status: "ok", db: "connected", uptime: process.uptime() });
 });
 
 

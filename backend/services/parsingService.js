@@ -1271,13 +1271,40 @@ const EQUITY_OCR_CORRECTIONS = [
   [/SB[Il]N\b/gi, "SBIN"],
   [/HDFCBAN[KX]/gi, "HDFCBANK"],
   [/BAJF[Il]N/gi, "BAJFINANCE"],
+  [/\bPOWER\s*GRID\b/gi, "POWERGRID"],
 ];
+
+const KNOWN_EQUITY_SYMBOLS = [
+  "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "BHARTIARTL",
+  "ITC", "LT", "AXISBANK", "KOTAKBANK", "BAJFINANCE", "HINDUNILVR",
+  "MARUTI", "SUNPHARMA", "TATAMOTORS", "WIPRO", "HCLTECH", "NTPC",
+  "ONGC", "POWERGRID", "TATAPOWER", "ADANIENT", "ADANIPORTS", "VEDL",
+  "VOLTAS", "SCI", "JSWSTEEL", "TATASTEEL", "HINDALCO", "ULTRACEMCO",
+  "ASIANPAINT", "NESTLEIND", "BRITANNIA", "M_M", "TECHM", "COALINDIA",
+  "COFORGE", "PERSISTENT", "MPHASIS", "LTIM", "LTTS",
+  "HINDZINC", "PNBHOUSING", "SAMMAANCAP",
+];
+
+const EQUITY_NAME_TO_SYMBOL = new Map([
+  ["VEDANTA", "VEDL"],
+  ["HDFCBANKLTD", "HDFCBANK"],
+  ["ICICIBANKLTD", "ICICIBANK"],
+  ["STATEBANK", "SBIN"],
+  ["STATEBANKOFINDIA", "SBIN"],
+  ["POWERGRID", "POWERGRID"],
+  ["POWERGRIDCORPORATION", "POWERGRID"],
+  ["POWERGRIDCORPORATIONOFINDIA", "POWERGRID"],
+  ["SHIPPINGCORPORATION", "SCI"],
+  ["SHIPPINGCORPORATIONOFINDIA", "SCI"],
+  ["INFOSYS", "INFY"],
+]);
 
 function correctEquitySymbol(raw) {
   let s = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
   for (const [pattern, replacement] of EQUITY_OCR_CORRECTIONS) {
     s = s.replace(pattern, replacement);
   }
+  if (EQUITY_NAME_TO_SYMBOL.has(s)) return EQUITY_NAME_TO_SYMBOL.get(s);
   return s || null;
 }
 
@@ -1286,14 +1313,119 @@ function parseIndianRupee(raw) {
   let s = String(raw).replace(/[₹$€£]|Rs\.|INR/gi, "").trim();
   const bracketNeg = s.match(/^\(([^)]+)\)$/);
   if (bracketNeg) s = "-" + bracketNeg[1];
+  s = s.replace(/[^\d,.\-+]/g, "");
   s = s.replace(/,/g, "");
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
+function findKnownEquitySymbol(text) {
+  const upper = String(text || "").toUpperCase();
+  const compact = upper.replace(/[^A-Z0-9&]/g, "");
+  for (const [name, symbol] of EQUITY_NAME_TO_SYMBOL.entries()) {
+    if (compact.includes(name)) return symbol;
+  }
+
+  const sortedSymbols = [...KNOWN_EQUITY_SYMBOLS].sort((a, b) => b.length - a.length);
+  for (const symbol of sortedSymbols) {
+    if (symbol.length <= 3) {
+      const boundaryRe = new RegExp(`(^|[^A-Z0-9])${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Z0-9]|$)`);
+      if (boundaryRe.test(upper)) return symbol;
+      continue;
+    }
+    if (compact.includes(symbol)) return symbol;
+  }
+
+  return null;
+}
+
+function getEquityTradeType(text) {
+  if (/\b(MIS|INTRADAY|BO|CO)\b/i.test(text)) return "INTRADAY";
+  if (/\b(DELIVERY|CNC)\b/i.test(text)) return "DELIVERY";
+  return "INTRADAY";
+}
+
+function getEquityProductType(text) {
+  const match = String(text || "").match(/\b(MIS|CNC|NRML|DELIVERY|INTRADAY|BO|CO)\b/i);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function parseEquityLtp(text) {
+  const match = String(text || "").match(/\bLTP\s*([\d,]+(?:\.\d+)?)/i);
+  return match ? parseIndianRupee(match[1]) : null;
+}
+
+function parseEquityRowPnl(text) {
+  const lines = String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (/\b(TOTAL|NIFTY|SENSEX|BANKNIFTY|BANK\s*NIFTY|LTP)\b/i.test(line)) continue;
+    const match = line.match(/([+-]\s*(?:Rs\.?|INR|[^\d\s+-]{1,4})?\s*[\d,]+(?:\.\d+)?)(?!\s*%)/i);
+    if (match) return parseIndianRupee(match[1]);
+  }
+  return null;
+}
+
+function normalizeEquityPosition({ symbol, block, broker }) {
+  const sharesMatch = String(block || "").match(/\bQty\.?\s*([0-9,]+)/i);
+  const avgMatch = String(block || "").match(/(?:^|\s)([\d,]+(?:\.\d+)?)\s+Avg\.?\b/i);
+  const sharesQty = sharesMatch ? parseIndianRupee(sharesMatch[1]) : null;
+  const avgPrice = avgMatch ? parseIndianRupee(avgMatch[1]) : null;
+  const productType = getEquityProductType(block);
+  const tradeType = getEquityTradeType(block);
+
+  return {
+    stockSymbol: correctEquitySymbol(symbol),
+    exchange: /\bBSE\b/i.test(block) ? "BSE" : "NSE",
+    sharesQty: sharesQty && sharesQty > 0 ? sharesQty : null,
+    type: "BUY",
+    entryPrice: avgPrice && avgPrice > 0 ? avgPrice : null,
+    exitPrice: null,
+    profit: parseEquityRowPnl(block),
+    productType,
+    ltp: parseEquityLtp(block),
+    ...(broker && { broker }),
+    instrumentType: "EQUITY",
+    segment: "EQUITY",
+    tradeType,
+  };
+}
+
+exports.parseEquityIntradayTrades = (text, opts = {}) => {
+  const broker = canonicalizeBroker(opts?.broker) || detectBroker(text);
+  const normalizedText = normalizeBrokerLabels(text);
+  const symbolMatches = [];
+  const sortedSymbols = [...KNOWN_EQUITY_SYMBOLS].sort((a, b) => b.length - a.length);
+
+  for (const symbol of sortedSymbols) {
+    const re = new RegExp(`(^|[^A-Z0-9])${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Z0-9]|$)`, "gi");
+    let match;
+    while ((match = re.exec(normalizedText)) !== null) {
+      const index = match.index + (match[1] ? match[1].length : 0);
+      symbolMatches.push({ symbol, index });
+    }
+  }
+
+  const uniqueMatches = symbolMatches
+    .sort((a, b) => a.index - b.index || b.symbol.length - a.symbol.length)
+    .filter((match, index, arr) => index === 0 || match.index !== arr[index - 1].index);
+
+  return uniqueMatches
+    .map((match, index) => {
+      const next = uniqueMatches[index + 1];
+      const block = normalizedText.slice(match.index, next ? next.index : match.index + 260);
+      return normalizeEquityPosition({ symbol: match.symbol, block, broker });
+    })
+    .filter((trade) => trade.stockSymbol && (trade.profit != null || trade.ltp != null || trade.productType));
+};
+
 exports.parseEquityIntradayTrade = (text, opts = {}) => {
   const broker = canonicalizeBroker(opts?.broker) || detectBroker(text);
   const normalizedText = normalizeBrokerLabels(text);
+  const rowTrades = exports.parseEquityIntradayTrades(normalizedText, { broker });
+  if (rowTrades.length > 0) {
+    const { productType, ltp, ...firstTrade } = rowTrades[0];
+    return firstTrade;
+  }
   const lines = normalizedText.split("\n").map((l) => l.trim()).filter(Boolean);
 
   let stockSymbol = null;
@@ -1303,6 +1435,7 @@ exports.parseEquityIntradayTrade = (text, opts = {}) => {
   let profit = null;
   let type = null;
   let exchange = "NSE";
+  let tradeType = getEquityTradeType(normalizedText);
 
   // Detect exchange
   if (/\bBSE\b/.test(normalizedText)) exchange = "BSE";
@@ -1322,12 +1455,16 @@ exports.parseEquityIntradayTrade = (text, opts = {}) => {
     if (sharesQty == null) {
       const qtyMatch = line.match(/(?:Qty|Shares|Units|Quantity)[:\s]+([\d,]+)/i);
       if (qtyMatch) sharesQty = parseIndianRupee(qtyMatch[1]);
+      const upstoxQtyMatch = line.match(/\bQty\.?\s*([0-9,]+)/i);
+      if (sharesQty == null && upstoxQtyMatch) sharesQty = parseIndianRupee(upstoxQtyMatch[1]);
     }
 
     // Entry (avg buy) price
     if (entryPrice == null) {
       const entryMatch = line.match(/(?:Avg\.?\s*Price|Buy\s*Avg|Entry|Trade\s*Price|Buy\s*Price)[:\s]+([\d,₹Rs\.]+)/i);
       if (entryMatch) entryPrice = parseIndianRupee(entryMatch[1]);
+      const upstoxAvgMatch = line.match(/(?:^|\s)([\d,]+(?:\.\d+)?)\s+Avg\.?\b/i);
+      if (entryPrice == null && upstoxAvgMatch) entryPrice = parseIndianRupee(upstoxAvgMatch[1]);
     }
 
     // Exit (avg sell) price
@@ -1340,13 +1477,26 @@ exports.parseEquityIntradayTrade = (text, opts = {}) => {
     if (profit == null) {
       const pnlMatch = line.match(/(?:P&L|Net\s*P&L|Realized|Profit)[:\s]+([-+₹Rs\.(\d,\s)]+)/i);
       if (pnlMatch) profit = parseIndianRupee(pnlMatch[1]);
+      const signedAmount = line.match(/([+-]\s*(?:Rs\.?|INR|[^\d\s+-]{1,4})?\s*[\d,]+(?:\.\d+)?)(?!\s*%)/i);
+      if (profit == null && signedAmount && !/\b(TODAY|OVERALL|TOTAL|SENSEX|NIFTY\s*50|BANKNIFTY|LTP)\b/i.test(line)) {
+        profit = parseIndianRupee(signedAmount[1]);
+      }
     }
+  }
+
+  if (!stockSymbol) {
+    stockSymbol = findKnownEquitySymbol(normalizedText);
   }
 
   // Fallback: try to pick symbol from first prominent ALLCAPS token (2-12 chars) that is not a broker name
   if (!stockSymbol) {
     const tokens = normalizedText.match(/\b([A-Z]{2,12})\b/g) || [];
-    const skipTokens = new Set(["BUY", "SELL", "NSE", "BSE", "INTRADAY", "DELIVERY", "SWING", "P&L", "QTY", "AVG", "LTP", "NET"]);
+    const skipTokens = new Set([
+      "BUY", "SELL", "NSE", "BSE", "EQ", "INTRADAY", "DELIVERY", "SWING",
+      "P", "L", "PNL", "QTY", "AVG", "LTP", "NET", "SENSEX", "NIFTY",
+      "SEARCH", "POSITIONS", "REGULAR", "MTF", "STRATEGY", "CLOSED",
+      "TODAY", "OVERALL", "FILTER", "HOME", "ORDERS", "HOLDINGS",
+    ]);
     for (const t of tokens) {
       if (!skipTokens.has(t)) {
         stockSymbol = correctEquitySymbol(t);
@@ -1355,17 +1505,24 @@ exports.parseEquityIntradayTrade = (text, opts = {}) => {
     }
   }
 
+  if (sharesQty === 0) sharesQty = null;
+  if (entryPrice === 0) entryPrice = null;
+  if (exitPrice === 0) exitPrice = null;
+  if (exitPrice != null && /\bLTP\b/i.test(normalizedText) && !/\b(Sell\s*Avg|Exit\s*Price|Close\s*Price|Sell\s*Price)\b/i.test(normalizedText)) {
+    exitPrice = null;
+  }
+
   return {
     stockSymbol,
     exchange,
     sharesQty,
-    type,
+    type: type || "BUY",
     entryPrice,
     exitPrice,
     profit,
     ...(broker && { broker }),
     instrumentType: "EQUITY",
     segment: "EQUITY",
-    tradeType: "INTRADAY",
+    tradeType,
   };
 };

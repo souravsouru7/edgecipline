@@ -87,6 +87,10 @@ const appConfig = {
   upload: {
     maxFileSizeBytes: readNumber("UPLOAD_MAX_FILE_SIZE_BYTES", 2 * 1024 * 1024),
   },
+  mongodb: {
+    maxPoolSize: readNumber("MONGO_MAX_POOL_SIZE", 50),
+    minPoolSize: readNumber("MONGO_MIN_POOL_SIZE", 5),
+  },
   cleanup: {
     enabled: readBoolean("ENABLE_DATA_CLEANUP_CRON", true),
     schedule: process.env.DATA_CLEANUP_CRON_SCHEDULE || "0 3 * * *",

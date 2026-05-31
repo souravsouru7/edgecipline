@@ -9,13 +9,14 @@ const {
   sendRenewalReminderAction
 } = require("../controllers/adminUserController");
 const { adminAuth } = require("../../middleware/adminAuth");
+const { validateObjectId } = require("../../middleware/validateObjectId");
 
 // All routes are protected by adminAuth
 router.get("/", adminAuth, getAllUsers);
 router.get("/expired", adminAuth, getExpiredUsers);
-router.post("/:id/remind", adminAuth, sendRenewalReminderAction);
-router.delete("/:id", adminAuth, deleteUser);
-router.patch("/:id/status", adminAuth, toggleUserStatus);
-router.patch("/:id/extend", adminAuth, extendUserPlan);
+router.post("/:id/remind", adminAuth, validateObjectId("id"), sendRenewalReminderAction);
+router.delete("/:id", adminAuth, validateObjectId("id"), deleteUser);
+router.patch("/:id/status", adminAuth, validateObjectId("id"), toggleUserStatus);
+router.patch("/:id/extend", adminAuth, validateObjectId("id"), extendUserPlan);
 
 module.exports = router;

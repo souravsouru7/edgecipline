@@ -51,7 +51,7 @@ const indianTradeSchema = new mongoose.Schema(
     },
     notes: String,
 
-    riskRewardRatio: { type: String, enum: ["1:1", "1:2", "1:3", "1:4", "1:5", "custom", ""], default: "" },
+    riskRewardRatio: { type: String, enum: ["1:1", "1:1.5", "1:2", "1:3", "1:4", "1:5", "custom", ""], default: "" },
     riskRewardCustom: { type: String, default: "" },
     screenshot: { type: String, default: "" },
 
