@@ -1,25 +1,23 @@
 import { API_URL as BASE_URL } from "@/config/api";
 
-/**
- * adminApi.js — Admin API client
- *
- * Authentication: uses the httpOnly admin_sid cookie set by POST /api/admin/auth/login.
- * credentials: "include" ensures the browser sends the cookie automatically.
- * No tokens are read from or written to localStorage by this module.
- */
+const ADMIN_TOKEN_KEY = "admin_token";
+
+const getAdminToken = () => {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(ADMIN_TOKEN_KEY);
+};
 
 export const clearAdminSession = async () => {
   if (typeof window === "undefined") return;
-  // Clear display-only values stored in localStorage (non-sensitive)
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem("adminName");
-  // Ask the server to clear the httpOnly admin_sid cookie
   try {
     await fetch(`${BASE_URL}/admin/auth/logout`, {
       method: "POST",
       credentials: "include",
     });
   } catch {
-    // Best-effort — cookie will expire on its own (8h)
+    // Best-effort
   }
 };
 
@@ -27,36 +25,46 @@ const handleResponse = async (res) => {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
-      // Clear display name and redirect to admin login
-      localStorage.removeItem("adminName");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+        localStorage.removeItem("adminName");
+      }
     }
     throw new Error(data.message || `Request failed with status ${res.status}`);
   }
   return res.json();
 };
 
-/** Shared fetch wrapper that always sends credentials (cookie). */
-const adminFetch = (url, options = {}) =>
-  fetch(`${BASE_URL}${url}`, {
+/** Shared fetch wrapper — sends Bearer token if available, falls back to cookie. */
+const adminFetch = (url, options = {}) => {
+  const token = getAdminToken();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  return fetch(`${BASE_URL}${url}`, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...authHeader,
       ...(options.headers || {}),
     },
   });
+};
 
 /**
  * Admin Login
  * POST /api/admin/auth/login
- * Server sets admin_sid httpOnly cookie on success.
+ * Stores the returned JWT in sessionStorage for subsequent requests.
  */
 export const adminLogin = async ({ email, password }) => {
   const res = await adminFetch("/admin/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  if (data?.token && typeof window !== "undefined") {
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+  }
+  return data;
 };
 
 /**
