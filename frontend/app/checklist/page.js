@@ -10,7 +10,11 @@ import { useMarket } from "@/context/MarketContext";
 import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
-import { Brain, ClipboardList } from "lucide-react";
+import { Brain, ClipboardList, Bell } from "lucide-react";
+import {
+  syncChecklistItems,
+  addChecklistToggleListener,
+} from "@/plugins/ChecklistNotificationPlugin";
 
 function ReferenceImageThumb({ image, alt, onOpen }) {
   const [loaded, setLoaded] = useState(false);
@@ -94,6 +98,28 @@ export default function PreTradeChecklistPage() {
     if (!selected?.rules) return [];
     return selected.rules.filter(r => r.label && r.label.trim().length > 0);
   }, [selected]);
+
+  // ── Sync checked state to live notification whenever it changes ──────────
+  useEffect(() => {
+    if (!selected) return;
+    const items = rules.map((r, i) => ({
+      id: String(i),
+      label: r.label,
+      checked: !!checked[i],
+    }));
+    syncChecklistItems(items).catch(() => {});
+  }, [checked, rules, selected]);
+
+  // ── Listen for toggles made inside the notification ───────────────────
+  useEffect(() => {
+    const listener = addChecklistToggleListener(({ itemId, checked: isChecked }) => {
+      const idx = parseInt(itemId, 10);
+      if (!isNaN(idx)) {
+        setChecked((prev) => ({ ...prev, [idx]: isChecked }));
+      }
+    });
+    return () => listener.remove();
+  }, []);
 
   const totalRules = rules.length;
   const checkedCount = rules.filter((_, i) => checked[i]).length;
@@ -213,28 +239,52 @@ export default function PreTradeChecklistPage() {
                 TRADE WITH PLAN - NOT WITH EMOTION - {getMarketLabel()}
               </p>
             </div>
-            <Link
-              href="/checklist/psychology"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 10,
-                fontFamily: "'JetBrains Mono',monospace",
-                letterSpacing: "0.08em",
-                fontWeight: 700,
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(214,59,59,0.3)",
-                background: "rgba(214,59,59,0.06)",
-                color: "#D63B3B",
-                textDecoration: "none",
-                flexShrink: 0,
-              }}
-            >
-              <Brain size={13} strokeWidth={2.4} />
-              PSYCHOLOGY GUIDE
-            </Link>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link
+                href="/checklist/notification-settings"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 10,
+                  fontFamily: "'JetBrains Mono',monospace",
+                  letterSpacing: "0.08em",
+                  fontWeight: 700,
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(13,158,110,0.3)",
+                  background: "rgba(13,158,110,0.06)",
+                  color: "#0D9E6E",
+                  textDecoration: "none",
+                  flexShrink: 0,
+                }}
+              >
+                <Bell size={13} strokeWidth={2.4} />
+                NOTIFY
+              </Link>
+              <Link
+                href="/checklist/psychology"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 10,
+                  fontFamily: "'JetBrains Mono',monospace",
+                  letterSpacing: "0.08em",
+                  fontWeight: 700,
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(214,59,59,0.3)",
+                  background: "rgba(214,59,59,0.06)",
+                  color: "#D63B3B",
+                  textDecoration: "none",
+                  flexShrink: 0,
+                }}
+              >
+                <Brain size={13} strokeWidth={2.4} />
+                PSYCHOLOGY GUIDE
+              </Link>
+            </div>
           </div>
         </div>
 

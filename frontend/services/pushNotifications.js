@@ -36,8 +36,9 @@ function routeFromNotification(data = {}) {
   );
 }
 
-// ─── 5 premium notification channels ─────────────────────────────────────────
-// Must match TYPE_CHANNEL map in backend/services/notificationService.js
+// ─── 6 notification channels ─────────────────────────────────────────────────
+// Channels 1-5 match TYPE_CHANNEL map in backend/services/notificationService.js.
+// Channel 6 (edgecipline_checklist) is used by the native ChecklistNotificationPlugin.
 const NOTIFICATION_CHANNELS = [
   {
     id:          "edgecipline_risk",
@@ -93,6 +94,17 @@ const NOTIFICATION_CHANNELS = [
     lights:      true,
     vibration:   true,
     lightColor:  "#8B5CF6",  // purple
+  },
+  {
+    id:          "edgecipline_checklist",
+    name:        "Pre-Trade Checklist",
+    description: "Daily interactive checklist in the notification shade",
+    importance:  5,          // IMPORTANCE_HIGH — must be visible and expandable
+    visibility:  1,          // VISIBILITY_PUBLIC — shown on lock screen
+    sound:       "default",
+    lights:      true,
+    vibration:   true,
+    lightColor:  "#0D9E6E",  // green (brand color)
   },
 ];
 

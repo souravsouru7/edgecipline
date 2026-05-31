@@ -44,14 +44,35 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- ── Checklist Notification: BroadcastReceiver for item toggle/reset ── -->
+        <receiver
+            android:name=".ChecklistActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.edgecpline.CHECKLIST_TOGGLE" />
+                <action android:name="com.edgecpline.CHECKLIST_RESET" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ── Checklist Notification: Reschedule WorkManager after device reboot ── -->
+        <receiver
+            android:name=".ChecklistBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- HTC / OnePlus quick-boot -->
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
-    <!-- Permissions -->
+    <!-- ── Core permissions ──────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Camera and storage for trade screenshot upload -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- Camera is optional — app works without it (gallery upload still available) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <!-- Android 13+ image picker -->
@@ -60,7 +81,19 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!-- Push notifications (Android 13+) -->
+    <!-- ── Notification permissions ─────────────────────────────────────── -->
+    <!-- FCM push notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- WorkManager: keep scheduled jobs alive after reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- WorkManager: allow exact timing on Android 12+ -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:minSdkVersion="31" />
+
+    <!-- Keep WorkManager constraint-free jobs running on battery optimization -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>
