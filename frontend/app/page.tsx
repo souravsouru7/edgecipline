@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { getProfile } from "@/services/api";
 import { clearAuthToken, getValidToken } from "@/utils/auth";
 
+type UserProfile = {
+  requiresTermsAcceptance?: boolean;
+};
+
 export default function RootPage() {
   const router = useRouter();
 
@@ -18,7 +22,7 @@ export default function RootPage() {
           return;
         }
 
-        const profile = await getProfile();
+        const profile = (await getProfile()) as UserProfile;
         if (!cancelled) router.replace(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
       } catch (err: unknown) {
         const apiError = err as { data?: { errorCode?: string } };
