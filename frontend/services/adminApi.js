@@ -4,22 +4,11 @@ const ADMIN_TOKEN_KEY = "admin_token";
 
 const getAdminToken = () => {
   if (typeof window === "undefined") return null;
-  return (
-    sessionStorage.getItem(ADMIN_TOKEN_KEY) ||
-    localStorage.getItem(ADMIN_TOKEN_KEY)
-  );
+  return sessionStorage.getItem(ADMIN_TOKEN_KEY);
 };
 
 /** True when a Bearer token is stored (required for cross-origin admin UI). */
 export const hasAdminSession = () => Boolean(getAdminToken());
-
-const setAdminToken = (token) => {
-  if (typeof window === "undefined") return;
-  if (!token) return;
-
-  sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
-};
 
 const clearStoredAdminSession = (requestToken = null) => {
   if (typeof window === "undefined") return;
@@ -31,7 +20,6 @@ const clearStoredAdminSession = (requestToken = null) => {
   }
 
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem("adminName");
 };
 
@@ -89,7 +77,7 @@ export const adminLogin = async ({ email, password }) => {
   });
   const data = await handleResponse(res);
   if (data?.token && typeof window !== "undefined") {
-    setAdminToken(data.token);
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
   }
   return data;
 };
