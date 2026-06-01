@@ -48,8 +48,10 @@ export default function PaymentsPage() {
         getAdminPayments(),
         getAllAdminUsers()
       ]);
-      if (Array.isArray(paymentsData)) setPayments(paymentsData);
-      if (Array.isArray(usersData)) setUsers(usersData);
+      const fetchedPayments = Array.isArray(paymentsData) ? paymentsData : paymentsData?.payments;
+      const fetchedUsers = Array.isArray(usersData) ? usersData : usersData?.users;
+      if (Array.isArray(fetchedPayments)) setPayments(fetchedPayments);
+      if (Array.isArray(fetchedUsers)) setUsers(fetchedUsers);
     } catch (err) {
       setError(err.message || "An error occurred fetching data");
     } finally {

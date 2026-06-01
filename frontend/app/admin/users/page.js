@@ -75,8 +75,10 @@ export default function UserManagementPage() {
     try {
       setLoading(true);
       const data = await getAllAdminUsers();
-      if (Array.isArray(data)) {
-        setUsers(data);
+      const fetchedUsers = Array.isArray(data) ? data : data?.users;
+      if (Array.isArray(fetchedUsers)) {
+        setUsers(fetchedUsers);
+        setError("");
       } else {
         setError("Failed to fetch users");
       }

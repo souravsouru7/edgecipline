@@ -24,8 +24,9 @@ export default function TradesMonitoringPage() {
     try {
       setLoading(true);
       const data = await getAdminAllTrades();
-      if (Array.isArray(data)) {
-        setTrades(data);
+      const fetchedTrades = Array.isArray(data) ? data : data?.trades;
+      if (Array.isArray(fetchedTrades)) {
+        setTrades(fetchedTrades);
       } else {
         setError("Failed to fetch trades");
       }
