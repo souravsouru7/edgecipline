@@ -11,6 +11,7 @@ import {
   saveChecklistNotificationSettings,
 } from "@/services/checklistNotificationApi";
 import {
+  requestChecklistNotificationPermission,
   configureChecklistNotification,
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
@@ -126,6 +127,14 @@ export default function ChecklistNotificationSettingsPage() {
       // 2. Configure native plugin (Android only)
       if (isNative()) {
         if (enabled) {
+          // Request POST_NOTIFICATIONS permission first (Android 13+)
+          const { granted } = await requestChecklistNotificationPermission();
+          if (!granted) {
+            setError("Notification permission denied. Please enable it in phone Settings → Apps → Edgecipline → Notifications.");
+            setSaving(false);
+            return;
+          }
+          // This will show the notification immediately AND schedule daily
           await configureChecklistNotification({
             ...payload,
             items,

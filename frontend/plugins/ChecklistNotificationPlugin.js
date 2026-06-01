@@ -2,18 +2,12 @@
 
 import { registerPlugin } from "@capacitor/core";
 
-/**
- * JS bridge to the native Android ChecklistNotificationPlugin.
- *
- * On non-native platforms (web/desktop) all methods are no-ops so the
- * checklist page renders without errors in the Next.js dev server.
- */
-
 const WebFallback = {
   configure: async () => {},
   syncItems: async () => {},
   cancel: async () => {},
   getState: async () => ({ enabled: false, items: [] }),
+  requestPermission: async () => ({ granted: true }),
   addListener: () => ({ remove: () => {} }),
 };
 
@@ -37,19 +31,17 @@ function getPlugin() {
 }
 
 /**
- * Configure and schedule the checklist notification.
- * Call this whenever the user saves their settings.
- *
- * @param {object} config
- * @param {boolean} config.enabled
- * @param {string}  config.notificationTime  "HH:mm"
- * @param {string}  config.repeatMode        "daily"|"weekdays"|"custom"
- * @param {number[]}config.customDays        [1..7], 1=Mon 7=Sun
- * @param {boolean} config.persistent
- * @param {boolean} config.resetEnabled
- * @param {string}  config.resetTime         "HH:mm"
- * @param {string}  config.strategyName
- * @param {{id:string, label:string}[]} config.items  max 8
+ * Request POST_NOTIFICATIONS permission (Android 13+).
+ * Call this before configureChecklistNotification.
+ * @returns {{ granted: boolean }}
+ */
+export async function requestChecklistNotificationPermission() {
+  return getPlugin().requestPermission();
+}
+
+/**
+ * Configure, show immediately, and schedule the daily checklist notification.
+ * The notification appears right away AND fires daily at notificationTime.
  */
 export async function configureChecklistNotification(config) {
   return getPlugin().configure(config);
@@ -57,9 +49,7 @@ export async function configureChecklistNotification(config) {
 
 /**
  * Push the latest checked-state of items to the live notification.
- * Call this whenever the user checks/unchecks a rule inside the app.
- *
- * @param {{id:string, label:string, checked:boolean}[]} items
+ * Call whenever the user checks/unchecks a rule inside the app.
  */
 export async function syncChecklistItems(items) {
   return getPlugin().syncItems({ items });
@@ -79,10 +69,7 @@ export async function getChecklistNotificationState() {
 }
 
 /**
- * Listen for item toggles that happen directly inside the notification
- * (while the app is foregrounded).
- *
- * @param {function({ itemId: string, checked: boolean }): void} handler
+ * Listen for item toggles made inside the notification (app foregrounded).
  * @returns {{ remove(): void }}
  */
 export function addChecklistToggleListener(handler) {
