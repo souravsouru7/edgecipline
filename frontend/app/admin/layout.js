@@ -25,7 +25,6 @@ export default function AdminLayout({ children }) {
 
     const verifyAdmin = async () => {
       try {
-        // Verify admin session via the httpOnly cookie — no localStorage token needed
         const profile = await getAdminProfile();
         if (profile && profile.role === "admin") {
           setIsVerified(true);

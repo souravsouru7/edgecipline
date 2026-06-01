@@ -166,9 +166,8 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError("");
     try {
-      clearAdminSession();
+      await clearAdminSession();
       const data = await adminLogin(form);
-      // Server sets the httpOnly admin_sid cookie — we store only the display name (non-sensitive)
       if (data?._id) {
         if (data.name) localStorage.setItem("adminName", data.name);
         router.replace("/admin/dashboard");
@@ -178,7 +177,7 @@ export default function AdminLoginPage() {
         setError(data.message || "Login failed");
       }
     } catch (err) {
-      clearAdminSession();
+      await clearAdminSession();
       setShake(true);
       setTimeout(() => setShake(false), 600);
       setError(err.message || "Login failed. Please try again.");
