@@ -7,10 +7,24 @@ const getAdminToken = () => {
   return sessionStorage.getItem(ADMIN_TOKEN_KEY);
 };
 
-export const clearAdminSession = async () => {
+const clearStoredAdminSession = (requestToken = null) => {
   if (typeof window === "undefined") return;
+
+  const currentToken = getAdminToken();
+  if (requestToken && currentToken && currentToken !== requestToken) {
+    return;
+  }
+  if (!requestToken && currentToken) {
+    return;
+  }
+
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem("adminName");
+};
+
+export const clearAdminSession = async () => {
+  if (typeof window === "undefined") return;
+  clearStoredAdminSession(getAdminToken());
   try {
     await fetch(`${BASE_URL}/admin/auth/logout`, {
       method: "POST",
@@ -25,10 +39,7 @@ const handleResponse = async (res) => {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-        localStorage.removeItem("adminName");
-      }
+      clearStoredAdminSession(res.adminRequestToken || null);
     }
     throw new Error(data.message || `Request failed with status ${res.status}`);
   }
@@ -47,6 +58,9 @@ const adminFetch = (url, options = {}) => {
       ...authHeader,
       ...(options.headers || {}),
     },
+  }).then((res) => {
+    res.adminRequestToken = token;
+    return res;
   });
 };
 
