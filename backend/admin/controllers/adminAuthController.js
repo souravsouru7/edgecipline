@@ -21,23 +21,19 @@ function generateAdminToken(user) {
 
 function getAdminCookieOptions() {
   const isProduction = appConfig.env === "production";
+  // Cross-origin admin UI (e.g. Vercel) cannot use SameSite=strict cookies; Bearer token is primary.
+  const crossSite = process.env.ADMIN_COOKIE_CROSS_SITE === "true";
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
+    secure: isProduction || crossSite,
+    sameSite: crossSite ? "none" : isProduction ? "strict" : "lax",
     maxAge: ADMIN_COOKIE_MAX_AGE,
     path: "/api/admin",
   };
 }
 
 function getClearAdminCookieOptions() {
-  const isProduction = appConfig.env === "production";
-  return {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
-    path: "/api/admin",
-  };
+  return { ...getAdminCookieOptions(), maxAge: 0 };
 }
 
 /**

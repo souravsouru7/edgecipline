@@ -14,6 +14,9 @@ const getAdminToken = () => {
   );
 };
 
+/** True when a Bearer token is stored (required for cross-origin admin UI). */
+export const hasAdminSession = () => Boolean(getAdminToken());
+
 const setAdminToken = (token) => {
   if (typeof window === "undefined") return;
   if (!token) return;
@@ -29,10 +32,8 @@ const clearStoredAdminSession = (requestToken = null) => {
   if (typeof window === "undefined") return;
 
   const currentToken = getAdminToken();
+  // Only skip clearing when a different session's token was rejected.
   if (requestToken && currentToken && currentToken !== requestToken) {
-    return;
-  }
-  if (!requestToken && currentToken) {
     return;
   }
 
@@ -108,6 +109,9 @@ export const adminLogin = async ({ email, password }) => {
  * GET /api/admin/auth/me
  */
 export const getAdminProfile = async () => {
+  if (!getAdminToken()) {
+    throw new Error("No admin session");
+  }
   const res = await adminFetch("/admin/auth/me");
   return handleResponse(res);
 };

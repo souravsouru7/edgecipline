@@ -133,7 +133,12 @@ const isAllowedProductionOrigin = (origin) => {
   }
 
   // Allow known Stratedge subdomains used for production web/app clients.
-  return /^https:\/\/([a-z0-9-]+\.)?stratedge\.live$/i.test(normalizedOrigin);
+  if (/^https:\/\/([a-z0-9-]+\.)?stratedge\.live$/i.test(normalizedOrigin)) {
+    return true;
+  }
+
+  // Staging / preview frontends (Vercel, etc.)
+  return /^https:\/\/[a-z0-9-]+([.-][a-z0-9-]+)*\.vercel\.app$/i.test(normalizedOrigin);
 };
 
 const corsOptions = {

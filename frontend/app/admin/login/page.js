@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { adminLogin, clearAdminSession, getAdminProfile } from "@/services/adminApi";
+import { adminLogin, clearAdminSession, getAdminProfile, hasAdminSession } from "@/services/adminApi";
 import { useRouter } from "next/navigation";
 
 /* ─────────────────────────────────────────
@@ -138,7 +138,8 @@ export default function AdminLoginPage() {
     const restoreAdminSession = async () => {
       setMounted(true);
 
-      // Check if an active admin session cookie exists by calling the profile endpoint
+      if (!hasAdminSession()) return;
+
       try {
         const profile = await getAdminProfile();
         if (isActive && profile?.role === "admin") {
@@ -168,9 +169,15 @@ export default function AdminLoginPage() {
     try {
       await clearAdminSession();
       const data = await adminLogin(form);
-      if (data?._id) {
+      if (data?._id && data?.token) {
         if (data.name) localStorage.setItem("adminName", data.name);
         router.replace("/admin/dashboard");
+      } else if (data?._id && !data?.token) {
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+        setError(
+          "Login succeeded but no session token was returned. Redeploy the staging API, then try again."
+        );
       } else {
         setShake(true);
         setTimeout(() => setShake(false), 600);

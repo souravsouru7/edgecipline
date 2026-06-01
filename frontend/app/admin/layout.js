@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { clearAdminSession, getAdminProfile } from "@/services/adminApi";
+import { clearAdminSession, getAdminProfile, hasAdminSession } from "@/services/adminApi";
 
 /**
  * Admin Layout – Route Protection
@@ -24,6 +24,12 @@ export default function AdminLayout({ children }) {
     }
 
     const verifyAdmin = async () => {
+      if (!hasAdminSession()) {
+        router.replace("/admin/login");
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const profile = await getAdminProfile();
         if (profile && profile.role === "admin") {
