@@ -1,16 +1,12 @@
 import { API_URL as BASE_URL } from "@/config/api";
 
 const ADMIN_TOKEN_KEY = "admin_token";
-const LEGACY_ADMIN_TOKEN_KEY = "adminToken";
-const ADMIN_ROLE_KEY = "adminRole";
 
 const getAdminToken = () => {
   if (typeof window === "undefined") return null;
   return (
     sessionStorage.getItem(ADMIN_TOKEN_KEY) ||
-    sessionStorage.getItem(LEGACY_ADMIN_TOKEN_KEY) ||
-    localStorage.getItem(ADMIN_TOKEN_KEY) ||
-    localStorage.getItem(LEGACY_ADMIN_TOKEN_KEY)
+    localStorage.getItem(ADMIN_TOKEN_KEY)
   );
 };
 
@@ -22,10 +18,7 @@ const setAdminToken = (token) => {
   if (!token) return;
 
   sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
-  sessionStorage.setItem(LEGACY_ADMIN_TOKEN_KEY, token);
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
-  localStorage.setItem(LEGACY_ADMIN_TOKEN_KEY, token);
-  localStorage.setItem(ADMIN_ROLE_KEY, "admin");
 };
 
 const clearStoredAdminSession = (requestToken = null) => {
@@ -38,10 +31,7 @@ const clearStoredAdminSession = (requestToken = null) => {
   }
 
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-  sessionStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
   localStorage.removeItem(ADMIN_TOKEN_KEY);
-  localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
-  localStorage.removeItem(ADMIN_ROLE_KEY);
   localStorage.removeItem("adminName");
 };
 
