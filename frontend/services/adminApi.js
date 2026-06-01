@@ -9,23 +9,10 @@ const getAdminToken = () => {
 
 /** True when a Bearer token is stored (required for cross-origin admin UI). */
 export const hasAdminSession = () => Boolean(getAdminToken());
-
-const clearStoredAdminSession = (requestToken = null) => {
-  if (typeof window === "undefined") return;
-
-  const currentToken = getAdminToken();
-  // Only skip clearing when a different session's token was rejected.
-  if (requestToken && currentToken && currentToken !== requestToken) {
-    return;
-  }
-
-  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-  localStorage.removeItem("adminName");
-};
-
 export const clearAdminSession = async () => {
   if (typeof window === "undefined") return;
-  clearStoredAdminSession(getAdminToken());
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem("adminName");
   try {
     await fetch(`${BASE_URL}/admin/auth/logout`, {
       method: "POST",
@@ -40,7 +27,10 @@ const handleResponse = async (res) => {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
-      clearStoredAdminSession(res.adminRequestToken || null);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+        localStorage.removeItem("adminName");
+      }
     }
     throw new Error(data.message || `Request failed with status ${res.status}`);
   }
@@ -59,9 +49,6 @@ const adminFetch = (url, options = {}) => {
       ...authHeader,
       ...(options.headers || {}),
     },
-  }).then((res) => {
-    res.adminRequestToken = token;
-    return res;
   });
 };
 
