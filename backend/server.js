@@ -137,8 +137,17 @@ const isAllowedProductionOrigin = (origin) => {
     return true;
   }
 
-  // Staging / preview frontends (Vercel, etc.)
-  return /^https:\/\/[a-z0-9-]+([.-][a-z0-9-]+)*\.vercel\.app$/i.test(normalizedOrigin);
+  // Staging / preview frontends — explicit whitelist only.
+  // A wildcard *.vercel.app regex was previously used here, but it would allow
+  // any random Vercel deployment to make authenticated cross-origin requests.
+  // Add your specific Vercel preview URLs to the ALLOWED_ORIGINS env var instead,
+  // or list them here as absolute string matches.
+  const allowedVercelPreviews = (process.env.ALLOWED_VERCEL_PREVIEWS || "")
+    .split(",")
+    .map((u) => normalizeOrigin(u.trim()))
+    .filter(Boolean);
+
+  return allowedVercelPreviews.includes(normalizedOrigin);
 };
 
 const corsOptions = {
