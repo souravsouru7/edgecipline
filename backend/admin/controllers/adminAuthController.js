@@ -11,6 +11,10 @@ const { ADMIN_COOKIE_NAME } = require("../../middleware/adminAuth");
 const ADMIN_TOKEN_EXPIRY = "8h";
 const ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
 
+// Account lockout thresholds for admin login brute-force protection.
+const MAX_ADMIN_LOGIN_ATTEMPTS = 3;
+const ADMIN_LOCK_DURATION_MS   = 60 * 60 * 1000; // 1 hour
+
 function generateAdminToken(user) {
   return jwt.sign(
     { id: String(user._id), role: user.role, tokenVersion: user.tokenVersion ?? 0 },
@@ -48,9 +52,19 @@ exports.adminLogin = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email and password are required", "VALIDATION_ERROR");
   }
 
-  const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email })
+    .select("+password +loginAttempts +loginLockedUntil");
 
-  // L1: Always run bcrypt compare to prevent timing attacks that reveal whether
+  // Check lockout BEFORE bcrypt to avoid burning CPU on locked accounts.
+  if (user && user.loginLockedUntil && user.loginLockedUntil > Date.now()) {
+    throw new ApiError(
+      429,
+      "Admin account temporarily locked due to too many failed attempts. Please try again later.",
+      "ACCOUNT_LOCKED"
+    );
+  }
+
+  // Always run bcrypt compare to prevent timing attacks that reveal whether
   // the email exists. Use a dummy hash when the user is not found.
   const DUMMY_HASH = "$2b$10$invalidsaltinvalidsaltinvalidsal" + "tXXXXXXXXXXXXXXXXXXXX";
   const candidateHash = (user?.password && user.authProvider !== "google" && user.role === "admin")
@@ -58,8 +72,27 @@ exports.adminLogin = asyncHandler(async (req, res) => {
     : DUMMY_HASH;
   const isMatch = await bcrypt.compare(password, candidateHash);
 
-  if (!user || user.authProvider === "google" || !user.password || user.role !== "admin" || !isMatch) {
+  const isValidAdmin = user && user.role === "admin" && user.authProvider !== "google"
+    && user.password && isMatch;
+
+  if (!isValidAdmin) {
+    // Track failed attempts only for real admin accounts to avoid leaking
+    // whether a non-admin email exists.
+    if (user && user.role === "admin") {
+      const attempts = (user.loginAttempts || 0) + 1;
+      const update = { loginAttempts: attempts };
+      if (attempts >= MAX_ADMIN_LOGIN_ATTEMPTS) {
+        update.loginLockedUntil = new Date(Date.now() + ADMIN_LOCK_DURATION_MS);
+        update.loginAttempts = 0;
+      }
+      await User.updateOne({ _id: user._id }, update);
+    }
     throw new ApiError(401, "Invalid credentials", "INVALID_CREDENTIALS");
+  }
+
+  // Successful login — reset attempt counter.
+  if (user.loginAttempts || user.loginLockedUntil) {
+    await User.updateOne({ _id: user._id }, { loginAttempts: 0, loginLockedUntil: null });
   }
 
   const token = generateAdminToken(user);
