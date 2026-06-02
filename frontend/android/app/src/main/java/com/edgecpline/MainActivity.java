@@ -7,12 +7,13 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.CookieManager;
+import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
-import com.google.firebase.FirebaseApp;
 
 public class MainActivity extends BridgeActivity {
 
@@ -23,31 +24,46 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ChecklistNotificationPlugin.class);
         super.onCreate(savedInstanceState);
-        validateFirebaseInitialized();
+        enableWebViewCookies();
         requestNotificationPermissionIfNeeded();
         handleNotificationIntent(getIntent());
     }
 
     /**
-     * Verifies Firebase initialized correctly. A missing or misconfigured
-     * google-services.json causes silent push notification failures.
-     *
-     * IMPORTANT — before shipping to Play Store, restrict the Firebase API key
-     * in Google Cloud Console → APIs & Services → Credentials:
-     *   1. Application restrictions: "Android apps"
-     *      → add package "com.edgecpline" with your release keystore SHA-1
-     *   2. API restrictions: "Restrict key"
-     *      → allow only: Firebase Cloud Messaging API, Identity Toolkit API
-     *   3. Set a daily quota cap (e.g. 1 000 000 requests/day)
-     *   4. Re-download google-services.json and replace frontend/android/app/google-services.json
+     * Ensures the Capacitor WebView accepts and sends cookies for cross-origin
+     * requests (capacitor://localhost → https://api.stratedge.live).
+     * Without this, the httpOnly refresh-token cookie (SameSite=None) is not
+     * transmitted on silent refresh POST requests, logging users out on every
+     * app kill/reopen.
      */
-    private void validateFirebaseInitialized() {
+    private void enableWebViewCookies() {
         try {
-            FirebaseApp.getInstance();
-            Log.d(TAG, "Firebase initialized successfully");
-        } catch (IllegalStateException e) {
-            Log.e(TAG, "Firebase NOT initialized — push notifications will not work. "
-                    + "Check that google-services.json is present and valid.", e);
+            CookieManager cookieManager = CookieManager.getInstance();
+            cookieManager.setAcceptCookie(true);
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                cookieManager.setAcceptThirdPartyCookies(webView, true);
+                Log.d(TAG, "WebView third-party cookies enabled");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not configure WebView cookies: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Capacitor calls load() after the bridge and WebView are fully initialised.
+     * We re-apply the third-party cookie flag here to cover the case where
+     * getBridge() was null during onCreate().
+     */
+    @Override
+    public void load() {
+        super.load();
+        try {
+            WebView webView = getBridge().getWebView();
+            CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+            Log.d(TAG, "WebView third-party cookies confirmed via load()");
+        } catch (Exception e) {
+            Log.w(TAG, "Could not configure WebView cookies in load(): " + e.getMessage());
         }
     }
 
