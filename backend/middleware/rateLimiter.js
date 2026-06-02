@@ -183,6 +183,16 @@ const statusRateLimiter = createRedisRateLimiter({
   message: "Too many status requests. Please try again later.",
 });
 
+// Strict limiter for destructive admin operations (delete, status toggle, plan extension).
+// Keyed per admin user (falls back to IP). 10 destructive ops per minute is enough for
+// any legitimate admin workflow; protects against accidental bulk loops or compromised sessions.
+const adminDestructiveRateLimiter = createRedisRateLimiter({
+  scope: "admin-destructive",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.ADMIN_DESTRUCTIVE_RATE_LIMIT_MAX_REQUESTS) || 10,
+  message: "Too many admin operations. Please wait before performing more destructive actions.",
+});
+
 module.exports = {
   createRedisRateLimiter,
   globalRateLimiter,
@@ -191,4 +201,5 @@ module.exports = {
   refreshRateLimiter,
   uploadRateLimiter,
   statusRateLimiter,
+  adminDestructiveRateLimiter,
 };
