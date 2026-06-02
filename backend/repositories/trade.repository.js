@@ -92,7 +92,7 @@ async function createTrade(data) {
 }
 
 async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
-  const query = { user: userId, marketType: "Forex", "parsedData.multiTradeGhost": { $ne: true }, deletedAt: null };
+  const query = { user: userId, marketType: { $ne: "Indian_Market" }, "parsedData.multiTradeGhost": { $ne: true }, deletedAt: null };
 
   if (dateFrom instanceof Date) {
     query.$or = [
@@ -108,16 +108,16 @@ async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
         : rows),
     Promise.all([
       Trade.countDocuments({ user: userId }),
-      Trade.countDocuments({ user: userId, marketType: "Forex" }),
-      Trade.countDocuments({ user: userId, marketType: "Forex", deletedAt: null }),
-      Trade.countDocuments({ user: userId, marketType: "Forex", deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } }),
+      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" } }),
+      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null }),
+      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } }),
       Trade.distinct("marketType", { user: userId }),
     ]),
   ]);
 
-  const [total, forexOnly, forexNotDeleted, forexVisible, marketTypes] = debugCounts;
-  if (forexVisible === 0 && total > 0) {
-    console.warn(`[TradeRepo] User ${userId} has ${total} trades but 0 visible in journal. Breakdown: forex=${forexOnly}, notDeleted=${forexNotDeleted}, notGhost=${forexVisible}. MarketTypes: ${JSON.stringify(marketTypes)}`);
+  const [total, nonIndianOnly, nonIndianNotDeleted, nonIndianVisible, marketTypes] = debugCounts;
+  if (nonIndianVisible === 0 && total > 0) {
+    console.warn(`[TradeRepo] User ${userId} has ${total} trades but 0 visible in journal. Breakdown: nonIndian=${nonIndianOnly}, notDeleted=${nonIndianNotDeleted}, notGhost=${nonIndianVisible}. MarketTypes: ${JSON.stringify(marketTypes)}`);
   }
 
   return cursor;

@@ -18,7 +18,9 @@ const forexQuery = (req) => {
 
   return {
     user: req.user._id,
-    marketType: { $ne: "Indian_Market" }
+    marketType: { $ne: "Indian_Market" },
+    deletedAt: null,
+    "parsedData.multiTradeGhost": { $ne: true },
   };
 };
 
