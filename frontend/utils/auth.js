@@ -2,14 +2,12 @@
  * auth.js — client-side access-token management
  *
  * Storage model:
- *  - Access token (15 min JWT)  → module-level memory variable (never written to localStorage).
- *    XSS scripts cannot read memory variables — they can only access DOM-visible storage.
+ *  - Web: access token lives in memory only. XSS cannot read module-level variables.
+ *  - Android (Capacitor): access token is also written to localStorage so it survives
+ *    app restarts (process kills clear JS memory). The risk is lower in a native WebView
+ *    because there is no address bar and no way to navigate to attacker-controlled URLs.
  *  - Refresh token (30 day opaque) → httpOnly cookie set by the backend.
  *    This file has no knowledge of the refresh token; the backend owns it entirely.
- *
- * Migration: on first access after deploy, existing tokens are migrated OUT of localStorage
- * into memory and localStorage is immediately cleared. After 15 minutes the old token expires
- * and all subsequent auth flows use memory + httpOnly cookie exclusively.
  *
  * When the access token expires or is missing, apiClient.js silently calls POST /api/auth/refresh
  * (cookie is sent automatically) and replaces the access token here via setAuthToken().
@@ -19,6 +17,15 @@ const TOKEN_KEY = 'token';
 
 // Primary storage — lives only for the lifetime of this JS module (page session).
 let _memoryToken = null;
+
+function isNativeAndroid() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return Boolean(window.Capacitor?.isNativePlatform?.());
+  } catch {
+    return false;
+  }
+}
 
 function decodeJwtPayload(token) {
   if (!token || typeof token !== 'string') return null;
@@ -45,13 +52,16 @@ export function clearAuthToken() {
 }
 
 /**
- * Store the access token in memory only — never in localStorage.
- * Also evicts any old token from localStorage so the migration is complete.
+ * Store the access token in memory. On Android/Capacitor also persist to
+ * localStorage so the token survives app restarts (JS module state is lost
+ * when the OS kills the process, but localStorage persists on disk).
  */
 export function setAuthToken(token) {
   _memoryToken = token || null;
-  // Evict legacy localStorage token on every write
-  if (typeof window !== 'undefined') {
+  if (typeof window === 'undefined') return;
+  if (token && isNativeAndroid()) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
     localStorage.removeItem(TOKEN_KEY);
   }
 }
@@ -59,9 +69,12 @@ export function setAuthToken(token) {
 /**
  * Returns the stored access token if present and not expired, otherwise null.
  *
- * Migration path: if memory is empty, checks localStorage for a token left over
- * from a previous session (pre-deploy). If found and valid, it is moved into memory
- * and removed from localStorage immediately so it never persists there again.
+ * On Android/Capacitor: localStorage is the intentional persistence layer across
+ * app restarts, so a valid token found there is promoted to memory and kept in
+ * localStorage (not evicted) so subsequent restarts also restore instantly.
+ *
+ * On Web: localStorage is only checked for the old migration path; a valid token
+ * is promoted to memory and evicted so it never persists past this session.
  */
 export function getValidToken() {
   // 1. Check in-memory token (primary)
@@ -70,15 +83,18 @@ export function getValidToken() {
     _memoryToken = null; // Expired — discard
   }
 
-  // 2. Migration fallback: check localStorage for legacy token
+  // 2. Check localStorage (Android persistence path / web migration fallback)
   if (typeof window === 'undefined') return null;
-  const legacy = localStorage.getItem(TOKEN_KEY);
-  if (legacy && isTokenValid(legacy)) {
-    _memoryToken = legacy;            // Promote to memory
-    localStorage.removeItem(TOKEN_KEY); // Evict from localStorage immediately
-    return legacy;
+  const stored = localStorage.getItem(TOKEN_KEY);
+  if (stored && isTokenValid(stored)) {
+    _memoryToken = stored;
+    if (!isNativeAndroid()) {
+      // Web: evict immediately — localStorage is not meant for persistent storage here
+      localStorage.removeItem(TOKEN_KEY);
+    }
+    return stored;
   }
-  if (legacy) localStorage.removeItem(TOKEN_KEY); // Clean up expired legacy token
+  if (stored) localStorage.removeItem(TOKEN_KEY); // Clean up expired token
   return null;
 }
 

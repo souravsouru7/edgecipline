@@ -63,6 +63,12 @@ function needsTermsAcceptance(user) {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Returns true when the request comes from the Capacitor Android app. */
+function isCapacitorRequest(req) {
+  const origin = req.headers.origin || "";
+  return origin.startsWith("capacitor://");
+}
+
 /**
  * Issues an access token + refresh token pair for a user.
  * - Access token: short-lived JWT returned in the response body (backward compat).
@@ -80,7 +86,7 @@ async function issueTokenPair(user, req, res) {
   const accessToken = generateAccessToken(user._id, user.role, user.tokenVersion);
   const rawRefresh = await createRefreshToken(user._id, deviceInfo);
 
-  res.cookie(REFRESH_COOKIE_NAME, rawRefresh, getCookieOptions());
+  res.cookie(REFRESH_COOKIE_NAME, rawRefresh, getCookieOptions(isCapacitorRequest(req)));
   return accessToken;
 }
 
@@ -351,12 +357,14 @@ exports.refreshToken = asyncHandler(async (req, res) => {
     ip: req.ip || "",
   };
 
+  const isCapacitor = isCapacitorRequest(req);
+
   let rotated;
   try {
     rotated = await rotateRefreshToken(rawToken, deviceInfo);
   } catch (err) {
     // On any token error, clear the stale cookie so the browser stops sending it
-    res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+    res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitor));
     throw err;
   }
 
@@ -366,7 +374,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
     rotated.tokenVersion
   );
 
-  res.cookie(REFRESH_COOKIE_NAME, rotated.newRawToken, getCookieOptions());
+  res.cookie(REFRESH_COOKIE_NAME, rotated.newRawToken, getCookieOptions(isCapacitor));
   res.json({ token: newAccessToken });
 });
 
@@ -386,7 +394,7 @@ exports.logoutUser = asyncHandler(async (req, res) => {
     revokeRefreshToken(rawToken).catch(() => {});
   }
 
-  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitorRequest(req)));
   res.json({ success: true, message: "Logged out successfully" });
 });
 
@@ -404,7 +412,7 @@ exports.logoutAll = asyncHandler(async (req, res) => {
     User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } }),
   ]);
 
-  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitorRequest(req)));
   res.json({ success: true, message: "All sessions revoked. Please login again." });
 });
 

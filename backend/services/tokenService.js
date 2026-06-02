@@ -50,22 +50,28 @@ function hashToken(raw) {
 // path: '/api/auth' ensures the cookie is ONLY sent to auth endpoints,
 // not to every /api/trades, /api/analytics, etc. request.
 // ---------------------------------------------------------------------------
-function getCookieOptions() {
+/**
+ * @param {boolean} isCapacitor - true when the request originates from the Android
+ * Capacitor app (Origin: capacitor://localhost). Capacitor makes cross-site requests
+ * so the cookie must use SameSite=None; the web app stays on SameSite=Strict.
+ */
+function getCookieOptions(isCapacitor = false) {
   const isProduction = appConfig.env === "production";
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
+    sameSite: isProduction ? (isCapacitor ? "none" : "strict") : "lax",
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
     path: "/api/auth",
   };
 }
 
-function getClearCookieOptions() {
+function getClearCookieOptions(isCapacitor = false) {
+  const isProduction = appConfig.env === "production";
   return {
     httpOnly: true,
-    secure: appConfig.env === "production",
-    sameSite: appConfig.env === "production" ? "strict" : "lax",
+    secure: isProduction,
+    sameSite: isProduction ? (isCapacitor ? "none" : "strict") : "lax",
     path: "/api/auth",
   };
 }
