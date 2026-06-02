@@ -35,6 +35,13 @@ export function useRequireAuth() {
       if (newToken) {
         setReady(true);
       } else {
+        // Save intended destination so login can redirect back after auth
+        if (typeof window !== "undefined") {
+          const dest = window.location.pathname + window.location.search;
+          if (dest && dest !== "/login") {
+            sessionStorage.setItem("auth_redirect", dest);
+          }
+        }
         router.replace("/login");
       }
     };

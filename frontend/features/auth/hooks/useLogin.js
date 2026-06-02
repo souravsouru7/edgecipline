@@ -156,11 +156,22 @@ export function useLogin() {
       // even though the access token has expired or was cleared above.
       const newToken = await silentRefresh();
       if (newToken && !cancelled) {
+        const savedRedirect = typeof window !== "undefined"
+          ? sessionStorage.getItem("auth_redirect")
+          : null;
         try {
           const profile = await getProfile();
-          router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+          if (profile?.requiresTermsAcceptance) {
+            router.push("/accept-terms");
+          } else if (savedRedirect) {
+            sessionStorage.removeItem("auth_redirect");
+            router.push(savedRedirect);
+          } else {
+            router.push("/dashboard");
+          }
         } catch {
-          router.push("/dashboard");
+          router.push(savedRedirect || "/dashboard");
+          if (savedRedirect) sessionStorage.removeItem("auth_redirect");
         }
         return;
       }
@@ -191,7 +202,22 @@ export function useLogin() {
     setAuthToken(data.token);
     initializePushNotifications().catch(() => {});
     queryClient.clear();
-    router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+
+    if (data.requiresTermsAcceptance) {
+      router.push("/accept-terms");
+      return;
+    }
+
+    // Restore destination saved by useRequireAuth (e.g. notification deep-link)
+    const savedRedirect = typeof window !== "undefined"
+      ? sessionStorage.getItem("auth_redirect")
+      : null;
+    if (savedRedirect) {
+      sessionStorage.removeItem("auth_redirect");
+      router.push(savedRedirect);
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   // Email/password login

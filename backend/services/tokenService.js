@@ -53,14 +53,26 @@ function hashToken(raw) {
 /**
  * @param {boolean} isCapacitor - true when the request originates from the Android
  * Capacitor app (Origin: capacitor://localhost). Capacitor makes cross-site requests
- * so the cookie must use SameSite=None; the web app stays on SameSite=Strict.
+ * from a different origin (capacitor://localhost → https://api.stratedge.live), so
+ * SameSite=None; Secure=true is REQUIRED regardless of NODE_ENV — without it,
+ * Android WebView won't send the cookie and silent token refresh silently fails,
+ * logging the user out every time they kill and reopen the app.
  */
 function getCookieOptions(isCapacitor = false) {
   const isProduction = appConfig.env === "production";
+  if (isCapacitor) {
+    return {
+      httpOnly: true,
+      secure: true,      // SameSite=None requires Secure=true; staging is always HTTPS
+      sameSite: "none",
+      maxAge: REFRESH_TOKEN_EXPIRY_MS,
+      path: "/api/auth",
+    };
+  }
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? (isCapacitor ? "none" : "strict") : "lax",
+    sameSite: isProduction ? "strict" : "lax",
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
     path: "/api/auth",
   };
@@ -68,10 +80,18 @@ function getCookieOptions(isCapacitor = false) {
 
 function getClearCookieOptions(isCapacitor = false) {
   const isProduction = appConfig.env === "production";
+  if (isCapacitor) {
+    return {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/api/auth",
+    };
+  }
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? (isCapacitor ? "none" : "strict") : "lax",
+    sameSite: isProduction ? "strict" : "lax",
     path: "/api/auth",
   };
 }
