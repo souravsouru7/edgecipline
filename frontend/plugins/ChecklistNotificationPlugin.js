@@ -51,13 +51,13 @@ export async function configureChecklistNotification(config) {
  * Push the latest checked-state of items to the live notification.
  * Call whenever the user checks/unchecks a rule inside the app.
  */
-export async function syncChecklistItems(items) {
-  return getPlugin().syncItems({ items });
+export async function syncChecklistItems(items, market = "Forex") {
+  return getPlugin().syncItems({ items, market });
 }
 
-/** Cancel the notification and remove all scheduled jobs. */
-export async function cancelChecklistNotification() {
-  return getPlugin().cancel();
+/** Cancel the notification and remove all scheduled jobs for the given market. */
+export async function cancelChecklistNotification(market = "Forex") {
+  return getPlugin().cancel({ market });
 }
 
 /**

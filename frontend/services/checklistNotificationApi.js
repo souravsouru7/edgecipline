@@ -19,8 +19,8 @@ async function authFetch(path, options = {}) {
   return res.json();
 }
 
-export const getChecklistNotificationSettings = () =>
-  authFetch("/checklists/notification-settings");
+export const getChecklistNotificationSettings = (market = "Forex") =>
+  authFetch(`/checklists/notification-settings?market=${encodeURIComponent(market)}`);
 
 export const saveChecklistNotificationSettings = (data) =>
   authFetch("/checklists/notification-settings", {

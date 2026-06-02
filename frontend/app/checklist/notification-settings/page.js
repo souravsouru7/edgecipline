@@ -54,7 +54,7 @@ export default function ChecklistNotificationSettingsPage() {
       try {
         const [setupsData, settings] = await Promise.all([
           fetchSetups(currentMarket),
-          getChecklistNotificationSettings(),
+          getChecklistNotificationSettings(currentMarket),
         ]);
 
         if (Array.isArray(setupsData)) setStrategies(setupsData);
@@ -140,7 +140,7 @@ export default function ChecklistNotificationSettingsPage() {
             items,
           });
         } else {
-          await cancelChecklistNotification();
+          await cancelChecklistNotification(currentMarket);
         }
       }
 

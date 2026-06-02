@@ -107,7 +107,7 @@ export default function PreTradeChecklistPage() {
       label: r.label,
       checked: !!checked[i],
     }));
-    syncChecklistItems(items).catch(() => {});
+    syncChecklistItems(items, currentMarket).catch(() => {});
   }, [checked, rules, selected]);
 
   // ── Listen for toggles made inside the notification ───────────────────

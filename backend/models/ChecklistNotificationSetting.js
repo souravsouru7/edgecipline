@@ -6,7 +6,6 @@ const ChecklistNotificationSettingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
       index: true,
     },
     enabled: { type: Boolean, default: false },
@@ -35,6 +34,8 @@ const ChecklistNotificationSettingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+ChecklistNotificationSettingSchema.index({ user: 1, market: 1 }, { unique: true });
 
 module.exports = mongoose.model(
   "ChecklistNotificationSetting",

@@ -3,10 +3,13 @@ const ApiError = require("../utils/ApiError");
 const ChecklistNotificationSetting = require("../models/ChecklistNotificationSetting");
 const SetupStrategy = require("../models/SetupStrategy");
 
-// GET /api/checklists/notification-settings
+// GET /api/checklists/notification-settings?market=Forex
 const getNotificationSettings = asyncHandler(async (req, res) => {
+  const market = req.query.market || "Forex";
+
   const setting = await ChecklistNotificationSetting.findOne({
     user: req.user._id,
+    market,
   }).lean();
 
   if (!setting) {
@@ -14,7 +17,7 @@ const getNotificationSettings = asyncHandler(async (req, res) => {
       enabled: false,
       strategyId: null,
       strategyName: "",
-      market: "Forex",
+      market,
       notificationTime: "09:00",
       repeatMode: "daily",
       customDays: [1, 2, 3, 4, 5],
@@ -78,8 +81,11 @@ const saveNotificationSettings = asyncHandler(async (req, res) => {
   if (resetEnabled !== undefined) update.resetEnabled = Boolean(resetEnabled);
   if (resetTime !== undefined) update.resetTime = resetTime;
 
+  const docMarket = market || "Forex";
+  update.market = docMarket;
+
   const setting = await ChecklistNotificationSetting.findOneAndUpdate(
-    { user: req.user._id },
+    { user: req.user._id, market: docMarket },
     { $set: update },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
