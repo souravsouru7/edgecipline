@@ -88,22 +88,29 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 
   const userId = req.user._id;
 
-  const existingPayment = await Payment.findOne({
-    $or: [{ transactionId: razorpay_payment_id }, { razorpayPaymentId: razorpay_payment_id }],
-  })
-    .select("_id expiryDate")
-    .lean();
-  if (existingPayment) {
-    return res.json({
-      success: true,
-      message: "Payment already verified",
-      idempotent: true,
-    });
-  }
-
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
+
+    // Duplicate check inside the transaction so the read and write are
+    // in the same atomic unit — eliminates the TOCTOU window of checking
+    // before the session starts.
+    const existingPayment = await Payment.findOne({
+      $or: [{ transactionId: razorpay_payment_id }, { razorpayPaymentId: razorpay_payment_id }],
+    })
+      .select("_id")
+      .session(session)
+      .lean();
+
+    if (existingPayment) {
+      await session.abortTransaction();
+      return res.json({
+        success: true,
+        message: "Payment already verified",
+        idempotent: true,
+      });
+    }
+
     const userInTxn = await User.findById(userId).session(session);
     if (!userInTxn) {
       throw new ApiError(404, "User not found", "NOT_FOUND");
