@@ -1,21 +1,62 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ─── Capacitor ────────────────────────────────────────────────────────────────
+-keep class com.getcapacitor.** { *; }
+-keepclassmembers class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keep @com.getcapacitor.annotation.PluginMethod class * { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ─── App-specific Capacitor plugins ───────────────────────────────────────────
+-keep class com.edgecpline.** { *; }
+-keepclassmembers class com.edgecpline.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ─── Firebase ─────────────────────────────────────────────────────────────────
+-keep class com.google.firebase.** { *; }
+-keepclassmembers class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keepclassmembers class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ─── WorkManager ──────────────────────────────────────────────────────────────
+-keep class androidx.work.** { *; }
+-keepclassmembers class androidx.work.** { *; }
+# Keep Worker subclasses so WorkManager can instantiate them by class name
+-keep class * extends androidx.work.Worker { *; }
+-keep class * extends androidx.work.ListenableWorker { *; }
+
+# ─── AndroidX / Jetpack ───────────────────────────────────────────────────────
+-keep class androidx.core.app.** { *; }
+-keep class androidx.appcompat.** { *; }
+
+# ─── Coroutines / Kotlin (if used transitively) ───────────────────────────────
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-dontwarn kotlinx.coroutines.**
+
+# ─── Gson / JSON (used by Capacitor internals) ────────────────────────────────
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory { *; }
+-keep class * implements com.google.gson.JsonSerializer { *; }
+-keep class * implements com.google.gson.JsonDeserializer { *; }
+-dontwarn sun.misc.**
+
+# ─── WebView / JavaScript bridge ──────────────────────────────────────────────
+# Capacitor's bridge uses @JavascriptInterface methods — must not be renamed
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# ─── Crash reporting (preserve stack traces) ──────────────────────────────────
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# ─── Serializable / Parcelable ────────────────────────────────────────────────
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
