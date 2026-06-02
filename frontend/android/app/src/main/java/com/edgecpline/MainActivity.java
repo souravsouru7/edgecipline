@@ -89,26 +89,35 @@ public class MainActivity extends BridgeActivity {
 
         // Market is embedded in the notification intent by showOrUpdate()
         String rawMarket = intent.getStringExtra("market");
-        final String market = (rawMarket != null) ? rawMarket : "Forex";
+        // Sanitise: fall back to Forex for null / empty / unknown markets
+        final String market = (rawMarket != null && !rawMarket.trim().isEmpty()) ? rawMarket : "Forex";
 
-        // Build destination URL — MarketContext reads the ?market= param automatically
-        String destination = "/checklist?market=" + Uri.encode(market);
+        // Uri.encode() percent-encodes all special chars (including single quotes → %27),
+        // so the JS eval below is safe against injection even without extra escaping.
+        final String destination = "/checklist?market=" + Uri.encode(market);
+
+        // Guard: bridge may be null if the activity is being destroyed.
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            Log.w(TAG, "handleNotificationIntent: bridge not ready, skipping navigation");
+            return;
+        }
 
         getBridge().getWebView().post(() -> {
-            String currentUrl = getBridge().getWebView().getUrl();
-            // Skip if already on the correct market's checklist to avoid flicker.
-            // A Forex tap on the Indian Market checklist page (or vice versa) must still navigate.
-            if (currentUrl != null && currentUrl.contains("/checklist")) {
-                boolean urlIsIndian = currentUrl.contains("market=Indian_Market");
-                boolean targetIsIndian = "Indian_Market".equals(market);
-                if (urlIsIndian == targetIsIndian) return;
+            try {
+                if (getBridge() == null || getBridge().getWebView() == null) return;
+                String currentUrl = getBridge().getWebView().getUrl();
+                // Skip if already on the correct market's checklist to avoid flicker.
+                // A Forex tap on the Indian Market checklist page (or vice versa) must still navigate.
+                if (currentUrl != null && currentUrl.contains("/checklist")) {
+                    boolean urlIsIndian = currentUrl.contains("market=Indian_Market");
+                    boolean targetIsIndian = "Indian_Market".equals(market);
+                    if (urlIsIndian == targetIsIndian) return;
+                }
+                // Use replace() so the notification tap doesn't add an extra back-stack entry
+                getBridge().eval("window.location.replace('" + destination + "')", null);
+            } catch (Exception e) {
+                Log.e(TAG, "handleNotificationIntent: WebView navigation failed: " + e.getMessage(), e);
             }
-
-            // Use replace() so the notification tap doesn't add an extra back-stack entry
-            getBridge().eval(
-                "window.location.replace('" + destination + "')",
-                null
-            );
         });
     }
 }
