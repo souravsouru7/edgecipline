@@ -45,6 +45,9 @@ const saveNotificationSettings = asyncHandler(async (req, res) => {
     resetTime,
   } = req.body;
 
+  if (market && !["Forex", "Indian_Market"].includes(market)) {
+    throw new ApiError(400, "Invalid market", "INVALID_MARKET");
+  }
   if (notificationTime && !/^\d{2}:\d{2}$/.test(notificationTime)) {
     throw new ApiError(400, "Invalid notificationTime format — use HH:mm", "INVALID_TIME");
   }

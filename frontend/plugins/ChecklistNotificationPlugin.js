@@ -64,8 +64,8 @@ export async function cancelChecklistNotification(market = "Forex") {
  * Read current state from SharedPreferences.
  * @returns {{ enabled: boolean, items: {id,label,checked}[] }}
  */
-export async function getChecklistNotificationState() {
-  return getPlugin().getState();
+export async function getChecklistNotificationState(market = "Forex") {
+  return getPlugin().getState({ market });
 }
 
 /**
