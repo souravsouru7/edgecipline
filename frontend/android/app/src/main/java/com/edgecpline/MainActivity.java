@@ -12,6 +12,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.google.firebase.FirebaseApp;
 
 public class MainActivity extends BridgeActivity {
 
@@ -22,8 +23,32 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ChecklistNotificationPlugin.class);
         super.onCreate(savedInstanceState);
+        validateFirebaseInitialized();
         requestNotificationPermissionIfNeeded();
         handleNotificationIntent(getIntent());
+    }
+
+    /**
+     * Verifies Firebase initialized correctly. A missing or misconfigured
+     * google-services.json causes silent push notification failures.
+     *
+     * IMPORTANT — before shipping to Play Store, restrict the Firebase API key
+     * in Google Cloud Console → APIs & Services → Credentials:
+     *   1. Application restrictions: "Android apps"
+     *      → add package "com.edgecpline" with your release keystore SHA-1
+     *   2. API restrictions: "Restrict key"
+     *      → allow only: Firebase Cloud Messaging API, Identity Toolkit API
+     *   3. Set a daily quota cap (e.g. 1 000 000 requests/day)
+     *   4. Re-download google-services.json and replace frontend/android/app/google-services.json
+     */
+    private void validateFirebaseInitialized() {
+        try {
+            FirebaseApp.getInstance();
+            Log.d(TAG, "Firebase initialized successfully");
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Firebase NOT initialized — push notifications will not work. "
+                    + "Check that google-services.json is present and valid.", e);
+        }
     }
 
     private void requestNotificationPermissionIfNeeded() {
