@@ -64,7 +64,7 @@ const appConfig = {
   mongoDnsServers: readList("MONGO_DNS_SERVERS"),
   jwt: {
     secret: requireEnv("JWT_SECRET"),
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    expiresIn: process.env.JWT_EXPIRES_IN || "15m",
   },
   cloudinary: {
     cloudName: requireEnv("CLOUD_NAME"),
