@@ -31,9 +31,8 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            // R8/resource shrinking can strip required Capacitor/Firebase classes — keep disabled until thoroughly tested.
-            minifyEnabled false
-            shrinkResources false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
