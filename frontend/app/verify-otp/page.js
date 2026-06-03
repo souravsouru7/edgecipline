@@ -23,13 +23,17 @@ function VerifyOTPContent() {
     setError("");
     try {
       const data = await verifyOTP(email, otp);
-      if (data.message === "OTP verified. You can now reset your password.") {
-        router.push(`/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(otp)}`);
+      // Backend returns { message, resetToken } on success.
+      // resetToken is a short-lived opaque token that resetPassword validates.
+      if (data?.resetToken) {
+        router.push(
+          `/reset-password?email=${encodeURIComponent(email)}&resetToken=${encodeURIComponent(data.resetToken)}`
+        );
       } else {
-        setError(data.message || "Invalid OTP.");
+        setError(data?.message || "Invalid OTP.");
       }
-    } catch {
-      setError("An error occurred. Please try again.");
+    } catch (err) {
+      setError(err?.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

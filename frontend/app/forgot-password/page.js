@@ -25,17 +25,15 @@ export default function ForgotPasswordPage() {
     setError("");
     setMessage("");
     try {
-      const data = await forgotPassword(email);
-      if (data.message === "OTP sent to your email") {
-        setMessage("OTP sent! Redirecting to verification...");
-        setTimeout(() => {
-          router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
-        }, 1500);
-      } else {
-        setError(data.message || "Failed to send OTP.");
-      }
-    } catch {
-      setError("An error occurred. Please try again.");
+      await forgotPassword(email);
+      // Backend always returns 200 with the same message (anti-enumeration).
+      // Any 2xx response means the request was accepted — redirect regardless.
+      setMessage("If this email is registered, an OTP has been sent. Redirecting...");
+      setTimeout(() => {
+        router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+      }, 1500);
+    } catch (err) {
+      setError(err?.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema(
     resetPasswordOTPExpires: {
       type: Date
     },
+    // Short-lived opaque token issued by verifyOTP; consumed by resetPassword.
+    resetPasswordToken: {
+      type: String
+    },
+    resetPasswordTokenExpires: {
+      type: Date
+    },
     otpAttempts: {
       type: Number,
       default: 0,

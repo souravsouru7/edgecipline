@@ -6,6 +6,10 @@ const asyncHandler = require("../utils/asyncHandler");
 
 const ADMIN_COOKIE_NAME = "admin_sid";
 
+// Must match the secret used in adminAuthController — dedicated secret prevents
+// user tokens from being accepted by admin middleware even if role check is bypassed.
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret || appConfig.jwt.secret;
+
 /**
  * Admin authentication middleware.
  * Accepts token from httpOnly cookie (admin_sid) OR Authorization: Bearer header.
@@ -27,7 +31,7 @@ const adminAuth = asyncHandler(async (req, res, next) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, appConfig.jwt.secret);
+    decoded = jwt.verify(token, ADMIN_JWT_SECRET);
   } catch (error) {
     throw new ApiError(401, "Not authorized, token failed", "INVALID_TOKEN");
   }

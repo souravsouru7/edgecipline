@@ -315,19 +315,20 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 
     // By Session (determine from time)
     const bySession = {
-      "Asia Session": { total: 0, wins: 0, losses: 0, profit: 0 },
-      "London Session": { total: 0, wins: 0, losses: 0, profit: 0 },
-      "NY Session": { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Other": { total: 0, wins: 0, losses: 0, profit: 0 }
+      "Asia Session":    { total: 0, wins: 0, losses: 0, profit: 0 },
+      "London Session":  { total: 0, wins: 0, losses: 0, profit: 0 },
+      "Overlap Session": { total: 0, wins: 0, losses: 0, profit: 0 },
+      "NY Session":      { total: 0, wins: 0, losses: 0, profit: 0 },
+      "Other":           { total: 0, wins: 0, losses: 0, profit: 0 },
     };
 
     trades.forEach(t => {
-      const hour = new Date(t.createdAt).getUTCHours();
+      const hour = new Date(t.tradeDate || t.createdAt).getUTCHours();
       let session = "Other";
 
       // UTC hours for sessions
       // Asia: 0-8 (midnight to 8am UTC)
-      // London: 8-16 (8am to 4pm UTC) 
+      // London: 8-16 (8am to 4pm UTC)
       // NY: 13-21 (1pm to 9pm UTC) - overlaps with London
 
       if (hour >= 0 && hour < 8) session = "Asia Session";
@@ -514,7 +515,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     for (let i = 0; i < 24; i++) { byHour[i] = { total: 0, wins: 0, losses: 0, profit: 0, winRate: 0, avgProfit: 0 }; }
 
     trades.forEach(t => {
-      const hour = getAnalyticsLocalDate(t.createdAt).getHours();
+      const hour = getAnalyticsLocalDate(t.tradeDate || t.createdAt).getHours();
       byHour[hour].total++;
       if (t.profit > 0) byHour[hour].wins++;
       else if (t.profit < 0) byHour[hour].losses++;
@@ -660,7 +661,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
 exports.getTradeQuality = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
-    const trades = await Trade.find(query).lean()
+    const trades = await Trade.find(query)
       .select("profit commission swap stopLoss takeProfit entryPrice riskRewardRatio riskRewardCustom setupScore")
       .lean()
       .limit(10000);

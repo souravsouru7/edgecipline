@@ -197,16 +197,23 @@ export function useAddTrade(marketType, isIndianMarket) {
       return;
     }
 
+    // parseNumericField preserves 0 — unlike `parseFloat(x) || undefined`
+    // which silently drops legitimate zero values (e.g. breakeven P&L).
+    const parseNumericField = (val) => {
+      const n = parseFloat(val);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
     const tradeData = {
       ...trade,
       type: trade.type.toUpperCase(),
-      entryPrice: parseFloat(trade.entryPrice) || undefined,
-      exitPrice: parseFloat(trade.exitPrice) || undefined,
-      stopLoss: parseFloat(trade.stopLoss) || undefined,
-      takeProfit: parseFloat(trade.takeProfit) || undefined,
-      profit: parseFloat(trade.profit) || undefined,
-      lotSize: !isIndianMarket ? parseFloat(trade.lotSize) : undefined,
-      quantity: isIndianMarket ? parseFloat(trade.quantity) : undefined,
+      entryPrice: parseNumericField(trade.entryPrice),
+      exitPrice:  parseNumericField(trade.exitPrice),
+      stopLoss:   parseNumericField(trade.stopLoss),
+      takeProfit: parseNumericField(trade.takeProfit),
+      profit:     parseNumericField(trade.profit),
+      lotSize: !isIndianMarket ? parseNumericField(trade.lotSize) : undefined,
+      quantity: isIndianMarket ? parseNumericField(trade.quantity) : undefined,
       strategy: trade.strategy === "Custom" ? trade.strategyCustom : trade.strategy,
       tradeDate: trade.tradeDate,
       riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),

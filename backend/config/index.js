@@ -65,6 +65,10 @@ const appConfig = {
   jwt: {
     secret: requireEnv("JWT_SECRET"),
     expiresIn: process.env.JWT_EXPIRES_IN || "15m",
+    // Separate secret for admin tokens. Falls back to JWT_SECRET if not set so
+    // existing deployments don't break — set ADMIN_JWT_SECRET in production for
+    // true secret separation between user and admin token domains.
+    adminSecret: process.env.ADMIN_JWT_SECRET || null,
   },
   cloudinary: {
     cloudName: requireEnv("CLOUD_NAME"),
@@ -145,6 +149,10 @@ const appConfig = {
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID || "",
     keySecret: process.env.RAZORPAY_KEY_SECRET || "",
+  },
+  resend: {
+    apiKey: process.env.RESEND_API_KEY || "",
+    from: process.env.RESEND_FROM || "Stratedge <noreply@stratedge.live>",
   },
   rateLimit: {
     globalWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),

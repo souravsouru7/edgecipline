@@ -9,7 +9,7 @@ function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
-  const otp = searchParams.get("otp") || "";
+  const resetToken = searchParams.get("resetToken") || "";
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,25 +26,19 @@ function ResetPasswordContent() {
       setError("Passwords do not match");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
 
     setLoading(true);
     setError("");
     try {
-      const data = await resetPassword(email, otp, password);
-      if (data.message === "Password reset successful. Please login with your new password.") {
-        setMessage("Password reset successful! Redirecting to login...");
-        setTimeout(() => {
-          router.push("/login");
-        }, 2000);
-      } else {
-        setError(data.message || "Failed to reset password.");
-      }
-    } catch {
-      setError("An error occurred. Please try again.");
+      await resetPassword(email, resetToken, password);
+      setMessage("Password reset successful! Redirecting to login...");
+      setTimeout(() => router.push("/login"), 2000);
+    } catch (err) {
+      setError(err?.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

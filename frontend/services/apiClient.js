@@ -174,12 +174,15 @@ apiClient.interceptors.response.use(
       config._retried = true;
 
       try {
-        const refreshRes = await refreshClient.post('/auth/refresh');
-        const newToken = refreshRes.data?.token;
+        // Use the singleton silentRefresh() so that multiple simultaneous 401s
+        // (e.g. parallel page data fetches when the access token just expired)
+        // all share one refresh request instead of each firing independently.
+        // Without this, concurrent refreshes trigger replay-attack detection on
+        // the backend and the entire token family gets revoked, logging the user out.
+        const newToken = await silentRefresh();
 
         if (!newToken) throw new Error('No token in refresh response');
 
-        setAuthToken(newToken);
         config.headers.Authorization = `Bearer ${newToken}`;
 
         // Retry the original request with the new access token
@@ -225,6 +228,9 @@ function handleUnauthenticated() {
   const { pathname } = window.location;
   if (pathname === '/login' || pathname === '/register') return;
   _redirectingToLogin = true;
+  // Reset after 5s in case the framework router intercepts the navigation and
+  // the module is not reloaded — prevents subsequent 401s being silently swallowed.
+  setTimeout(() => { _redirectingToLogin = false; }, 5000);
   window.location.href = '/login';
 }
 

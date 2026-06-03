@@ -21,6 +21,16 @@ const {
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
+// Dummy bcrypt hash used to keep login response time constant even when the
+// email doesn't exist — prevents timing-based user enumeration.
+const DUMMY_BCRYPT_HASH = "$2b$10$invalidsaltinvalidsaltinvalidsal" + "tXXXXXXXXXXXXXXXXXXXX";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function normalizeEmail(email) {
+  return (email || "").toLowerCase().trim();
+}
+
 // ---------------------------------------------------------------------------
 // Password validation
 // ---------------------------------------------------------------------------
@@ -160,13 +170,16 @@ exports.registerUser = asyncHandler(async (req, res) => {
   if (!name || !email || !password) {
     throw new ApiError(400, "All fields are required (name, email, password)", "VALIDATION_ERROR");
   }
+  if (!EMAIL_REGEX.test(email)) {
+    throw new ApiError(400, "Invalid email address", "VALIDATION_ERROR");
+  }
   if (!acceptedTerms || !acceptedPrivacy) {
     throw new ApiError(400, "You must accept the Terms & Privacy Policy to continue", "TERMS_NOT_ACCEPTED");
   }
 
   validatePasswordStrength(password);
 
-  const userExists = await User.findOne({ email });
+  const userExists = await User.findOne({ email: normalizeEmail(email) });
   if (userExists) {
     throw new ApiError(400, "User already exists", "VALIDATION_ERROR");
   }
@@ -200,7 +213,7 @@ exports.registerUser = asyncHandler(async (req, res) => {
 
 exports.loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email }).select("+password +loginAttempts +loginLockedUntil");
+  const user = await User.findOne({ email: normalizeEmail(email) }).select("+password +loginAttempts +loginLockedUntil");
 
   // Account lockout check before expensive bcrypt comparison
   if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) {
@@ -212,7 +225,10 @@ exports.loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(401, "This account uses Google sign-in. Please continue with Google.", "AUTH_PROVIDER_MISMATCH");
   }
 
-  const isPasswordValid = Boolean(user?.password && await bcrypt.compare(password, user.password));
+  // Always run bcrypt even for unknown emails so response time is constant,
+  // preventing an attacker from enumerating registered addresses via timing.
+  const candidateHash = user?.password || DUMMY_BCRYPT_HASH;
+  const isPasswordValid = await bcrypt.compare(password, candidateHash);
 
   if (!user || !isPasswordValid) {
     if (user) {
@@ -287,6 +303,18 @@ exports.googleLogin = asyncHandler(async (req, res) => {
       : "Trader");
   const avatar = decodedToken.picture || null;
 
+  // Block Google sign-in for accounts that were registered with a password.
+  // Without this check, Google login silently overwrites authProvider to "google"
+  // and permanently locks the user out of their password login.
+  const existingUser = await User.findOne({ email: normalizeEmail(email) });
+  if (existingUser && existingUser.authProvider === "local") {
+    throw new ApiError(
+      409,
+      "This email is already registered with a password. Please sign in with your password instead.",
+      "AUTH_PROVIDER_CONFLICT"
+    );
+  }
+
   const now = new Date();
   const setPayload = {
     name,
@@ -299,11 +327,11 @@ exports.googleLogin = asyncHandler(async (req, res) => {
   let user;
   try {
     user = await User.findOneAndUpdate(
-      { email },
+      { email: normalizeEmail(email) },
       {
         $set: setPayload,
         $setOnInsert: {
-          email,
+          email: normalizeEmail(email),
           termsAcceptance: {
             acceptedTerms: false,
             acceptedPrivacy: false,
@@ -317,7 +345,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
   } catch (error) {
     if (error?.code !== 11000) throw error;
     user = await User.findOneAndUpdate(
-      { email },
+      { email: normalizeEmail(email) },
       { $set: setPayload },
       { new: true, runValidators: true }
     );
@@ -504,7 +532,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
   if (!email) throw new ApiError(400, "Email is required", "VALIDATION_ERROR");
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizeEmail(email) });
 
   // Always return the same response to prevent user enumeration
   if (!user || user.authProvider === "google") {
@@ -512,26 +540,31 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
   }
 
   const otp = String(crypto.randomInt(100000, 1000000));
-  user.resetPasswordOTP = otp;
+  user.resetPasswordOTP = hashOtp(otp); // store hash, never the raw OTP
   user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000;
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
   await user.save();
 
-  await sendOTPEmail(email, otp);
+  await sendOTPEmail(email, otp); // raw OTP sent in email only
   res.json({ message: "If that email is registered, an OTP has been sent." });
 });
 
 const OTP_MAX_ATTEMPTS = 3;
 const OTP_LOCK_DURATION_MS = 30 * 60 * 1000;
-const OTP_DIGITS = 6;
 
-function timingSafeOtpEquals(expectedOtp, providedOtp) {
-  const expected = String(expectedOtp || "");
-  const provided = String(providedOtp || "");
-  if (expected.length !== OTP_DIGITS || provided.length !== OTP_DIGITS) return false;
+// Hash OTP with SHA-256 before storing — same pattern as refresh tokens.
+// If DB is breached, raw OTPs are not exposed.
+function hashOtp(otp) {
+  return crypto.createHash("sha256").update(String(otp || "")).digest("hex");
+}
+
+// Timing-safe comparison of two SHA-256 hex digests (both 64 chars).
+function timingSafeHashEquals(storedHash, candidateHash) {
+  if (!storedHash || !candidateHash) return false;
+  if (storedHash.length !== candidateHash.length) return false;
   try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+    return crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(candidateHash));
   } catch {
     return false;
   }
@@ -541,7 +574,7 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) throw new ApiError(400, "Email and OTP are required", "VALIDATION_ERROR");
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizeEmail(email) });
   if (!user || user.authProvider === "google") {
     throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
   }
@@ -552,7 +585,7 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
   }
 
   const isValid =
-    timingSafeOtpEquals(user.resetPasswordOTP, otp) &&
+    timingSafeHashEquals(user.resetPasswordOTP, hashOtp(otp)) &&
     user.resetPasswordOTPExpires &&
     user.resetPasswordOTPExpires > new Date();
 
@@ -566,34 +599,52 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
   }
 
+  // OTP is valid — clear it immediately so it cannot be reused.
+  // Issue a short-lived opaque reset token (valid 10 min) that resetPassword
+  // validates instead of requiring the OTP a second time.
+  const resetToken = crypto.randomBytes(32).toString("hex");
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
+  user.resetPasswordOTP = undefined;
+  user.resetPasswordOTPExpires = undefined;
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
   await user.save();
 
-  res.json({ message: "OTP verified. You can now reset your password." });
+  res.json({ message: "OTP verified. You can now reset your password.", resetToken });
 });
 
 exports.resetPassword = asyncHandler(async (req, res) => {
-  const { email, otp, password } = req.body;
-  if (!email || !otp || !password) {
-    throw new ApiError(400, "All fields are required", "VALIDATION_ERROR");
+  const { email, resetToken, password } = req.body;
+  if (!email || !resetToken || !password) {
+    throw new ApiError(400, "All fields are required (email, resetToken, password)", "VALIDATION_ERROR");
   }
 
   validatePasswordStrength(password);
 
-  const user = await User.findOne({
-    email,
-    resetPasswordOTP: otp,
-    resetPasswordOTPExpires: { $gt: Date.now() },
-  });
-  if (!user) {
-    throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
+  const user = await User.findOne({ email: normalizeEmail(email) });
+  if (!user || user.authProvider === "google") {
+    throw new ApiError(400, "Invalid or expired reset token", "VALIDATION_ERROR");
+  }
+
+  // Validate the short-lived reset token issued by verifyOTP
+  const isValid =
+    user.resetPasswordToken &&
+    user.resetPasswordTokenExpires &&
+    user.resetPasswordTokenExpires > new Date() &&
+    crypto.timingSafeEqual(
+      Buffer.from(user.resetPasswordToken),
+      Buffer.from(resetToken)
+    );
+
+  if (!isValid) {
+    throw new ApiError(400, "Invalid or expired reset token. Please request a new OTP.", "VALIDATION_ERROR");
   }
 
   const salt = await bcrypt.genSalt(10);
   user.password = await bcrypt.hash(password, salt);
-  user.resetPasswordOTP = undefined;
-  user.resetPasswordOTPExpires = undefined;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordTokenExpires = undefined;
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
   // Bump tokenVersion — invalidates all existing JWT access tokens immediately.

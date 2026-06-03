@@ -1,3 +1,5 @@
+
+
 import apiClient from "./apiClient";
 
 let welcomeGuideSeenRequest = null;
@@ -27,8 +29,8 @@ export const verifyOTP = async (email, otp) => {
   return await apiClient.post(`/auth/verify-otp`, { email, otp });
 };
 
-export const resetPassword = async (email, otp, password) => {
-  return await apiClient.post(`/auth/reset-password`, { email, otp, password });
+export const resetPassword = async (email, resetToken, password) => {
+  return await apiClient.post(`/auth/reset-password`, { email, resetToken, password });
 };
 
 export const logoutUser = async () => {

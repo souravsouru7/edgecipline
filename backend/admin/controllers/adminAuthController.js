@@ -11,6 +11,10 @@ const { ADMIN_COOKIE_NAME } = require("../../middleware/adminAuth");
 const ADMIN_TOKEN_EXPIRY = "8h";
 const ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
 
+// Use a dedicated secret so admin tokens cannot be confused with user tokens.
+// Falls back to JWT_SECRET if ADMIN_JWT_SECRET is not configured.
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret || appConfig.jwt.secret;
+
 // Account lockout thresholds for admin login brute-force protection.
 const MAX_ADMIN_LOGIN_ATTEMPTS = 3;
 const ADMIN_LOCK_DURATION_MS   = 60 * 60 * 1000; // 1 hour
@@ -18,7 +22,7 @@ const ADMIN_LOCK_DURATION_MS   = 60 * 60 * 1000; // 1 hour
 function generateAdminToken(user) {
   return jwt.sign(
     { id: String(user._id), role: user.role, tokenVersion: user.tokenVersion ?? 0 },
-    appConfig.jwt.secret,
+    ADMIN_JWT_SECRET,
     { expiresIn: ADMIN_TOKEN_EXPIRY }
   );
 }
@@ -115,6 +119,21 @@ exports.adminLogin = asyncHandler(async (req, res) => {
 exports.adminLogout = asyncHandler(async (req, res) => {
   res.clearCookie(ADMIN_COOKIE_NAME, getClearAdminCookieOptions());
   res.json({ success: true, message: "Logged out successfully" });
+});
+
+/**
+ * Admin Logout-All
+ * POST /api/admin/auth/logout-all
+ * Increments tokenVersion, invalidating all outstanding admin JWTs for this account.
+ * Clears the current session cookie. Requires an active admin session.
+ */
+exports.logoutAllAdmin = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+
+  await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+
+  res.clearCookie(ADMIN_COOKIE_NAME, getClearAdminCookieOptions());
+  res.json({ success: true, message: "All admin sessions revoked. Please login again." });
 });
 
 /**

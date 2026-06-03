@@ -16,6 +16,16 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# ─── @capacitor-firebase/authentication — optional providers not in this build ─
+# The plugin bundles handlers for Apple, Facebook, Twitter, GitHub, etc.
+# We only use Google sign-in, so suppress R8 errors for the unused SDK references.
+-dontwarn com.facebook.**
+-dontwarn com.twitter.**
+-dontwarn com.apple.**
+-dontwarn io.capawesome.capacitorjs.plugins.firebase.authentication.handlers.FacebookAuthProviderHandler
+-dontwarn io.capawesome.capacitorjs.plugins.firebase.authentication.handlers.AppleAuthProviderHandler
+-dontwarn io.capawesome.capacitorjs.plugins.firebase.authentication.handlers.TwitterAuthProviderHandler
+
 # ─── WorkManager ──────────────────────────────────────────────────────────────
 -keep class androidx.work.** { *; }
 -keepclassmembers class androidx.work.** { *; }

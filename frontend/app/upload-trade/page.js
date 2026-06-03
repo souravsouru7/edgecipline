@@ -446,7 +446,15 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
           <div>
             <FormInput label="TRADE DATE" name="tradeDate" value={trade?.tradeDate} onChange={onChange} type="date" required min={accountCreatedDate || undefined} max={todayInputMax || undefined} />
-            {accountCreatedDate && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>Earliest: {accountCreatedDate}</div>}
+            {trade?._dateAutoFilled && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, padding: "4px 8px", background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#B45309" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span style={{ fontSize: 10, color: "#B45309", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
+                  DATE NOT EXTRACTED — set to today. Please verify.
+                </span>
+              </div>
+            )}
+            {accountCreatedDate && !trade?._dateAutoFilled && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>Earliest: {accountCreatedDate}</div>}
           </div>
           <div />
         </div>

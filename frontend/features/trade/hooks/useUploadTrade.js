@@ -43,8 +43,11 @@ function buildIndianTradeTemplate(imageUrl, t = {}) {
   const strike = t.strike ? String(t.strike) : "";
   const ot = (t.optionType || "CE").toUpperCase();
   const pairBuilt = sym && strike ? `${sym} ${strike} ${ot}` : sym;
+  const resolvedDate   = normalizeDateForInput(t.tradeDate);
+  const dateAutoFilled = !resolvedDate;
   return {
     pair: pairBuilt || t.pair || "",
+    _dateAutoFilled: dateAutoFilled,
     action: "buy",
     quantity: t.quantity != null ? String(t.quantity) : "",
     profit: t.pnl != null ? String(t.pnl) : (t.profit != null ? String(t.profit) : ""),
@@ -57,7 +60,7 @@ function buildIndianTradeTemplate(imageUrl, t = {}) {
     strikePrice: strike,
     tradeType: "INTRADAY",
     strategy: "", strategyCustom: "",
-    tradeDate: normalizeDateForInput(t.tradeDate) || getTodayInputValue(),
+    tradeDate: resolvedDate || getTodayInputValue(),
     expiryDate: t.expiryDate || "",
     riskRewardRatio: "", riskRewardCustom: "",
     entryBasis: "Plan", entryBasisCustom: "",
@@ -194,8 +197,11 @@ function buildEquityTradeTemplate(imageUrl, t = {}) {
 }
 
 function buildForexTradeTemplate(imageUrl, t = {}) {
+  const resolvedDate  = normalizeDateForInput(t.tradeDate);
+  const dateAutoFilled = !resolvedDate; // true when AI gave no usable date
   return {
     pair: t.pair || t.symbol || "",
+    _dateAutoFilled: dateAutoFilled,
     action: (t.action || t.type || "buy").toString().toLowerCase(),
     lotSize: t.lotSize != null ? String(t.lotSize) : "",
     entryPrice: t.entryPrice != null ? String(t.entryPrice) : "",
@@ -208,7 +214,7 @@ function buildForexTradeTemplate(imageUrl, t = {}) {
     balance: t.balance != null ? String(t.balance) : "",
     session: t.session || detectSessionFromNow(),
     strategy: "", strategyCustom: "",
-    tradeDate: normalizeDateForInput(t.tradeDate) || getTodayInputValue(),
+    tradeDate: resolvedDate || getTodayInputValue(),
     notes: "", screenshot: imageUrl,
     segment: t.segment || "Major FX",
     instrumentType: t.instrumentType || "Spot",
@@ -347,6 +353,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [activeToastId, setActiveToastId]     = useState(null);
   const [preExtractDate, setPreExtractDate]   = useState(getTodayInputValue());
   const processedTradeIdRef                   = useRef(null);
+  const saveAllLockRef                        = useRef(false);
 
   // Clamp preExtractDate to [accountCreatedDate, today] whenever accountCreatedDate
   // arrives late (profile query resolves after mount) or preExtractDate drifts out of range.
@@ -670,7 +677,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       // endpoint looks in the IndianTrade collection and gets a 404. Always createTrade
       // for Indian market so the doc lands in the correct IndianTrade collection.
       if (!forceCreate && !isMultiTrade && idx === null && uploadedTradeId && !isInd) {
-        return updateTrade(uploadedTradeId, tradeData, marketType);
+        // Also clear parsedData so the ghost flag (multiTradeGhost: true) is removed.
+        // Without this, the updated document stays hidden in the journal because the
+        // trade list query filters: "parsedData.multiTradeGhost": { $ne: true }.
+        return updateTrade(uploadedTradeId, {
+          ...tradeData,
+          parsedData: null,
+          status: "completed",
+        }, marketType);
       }
 
       return createTrade(tradeData, marketType);
@@ -717,7 +731,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   const handleChange = (e) => {
     userEditedFormRef.current = true;
-    setTrade(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const update = { [e.target.name]: e.target.value };
+    if (e.target.name === "tradeDate") update._dateAutoFilled = false;
+    setTrade(prev => ({ ...prev, ...update }));
   };
   const handleStrategyChange = (e) => {
     const value = e.target.value;
@@ -728,9 +744,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   const handleTradeChange = (idx, e) => {
     userEditedFormRef.current = true;
+    const fieldUpdate = { [e.target.name]: e.target.value };
+    if (e.target.name === "tradeDate") fieldUpdate._dateAutoFilled = false;
     setTrades(prev => {
       const copy = [...prev];
-      copy[idx] = { ...copy[idx], [e.target.name]: e.target.value };
+      copy[idx] = { ...copy[idx], ...fieldUpdate };
       return copy;
     });
   };
@@ -889,18 +907,73 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     preExtractDate, handlePreExtractDateChange,
     todayInputMax: getTodayInputValue(),
     saveAllTrades: async () => {
-      // Delete the ghost trade first so it never appears in the journal,
-      // regardless of which individual trades the user chose to keep.
-      if (uploadedTradeId) {
-        try {
-          // Ghost trade is always in the Forex Trade collection regardless of marketType.
-          await deleteTrade(uploadedTradeId, "Forex");
-        } catch {
-          // Ghost may already be gone — not a blocking error
+      // Edge #1: prevent double-tap from creating duplicate trades
+      if (saveAllLockRef.current || saveTradeMutation.isPending) return;
+      saveAllLockRef.current = true;
+
+      try {
+        // Edge #2: guard against saving when every trade was removed
+        const unsaved = trades.filter((_, i) => !savedTrades[i]);
+        if (unsaved.length === 0) {
+          addToast("No trades to save — all entries have been removed.", "info");
+          return;
         }
-      }
-      for (let i = 0; i < trades.length; i++) {
-        if (!savedTrades[i] && canSaveTrade(trades[i])) {
+
+        // Edge #4: validate all trades first and report a single grouped summary
+        // instead of firing one toast per failing trade.
+        const failingIndices = [];
+        const validIndices   = [];
+        for (let i = 0; i < trades.length; i++) {
+          if (savedTrades[i]) continue;
+          // canSaveTrade fires individual toasts — suppress them during batch check
+          // by running a silent version then showing one summary.
+          const t = trades[i];
+          const missingFields = [];
+          if (!t?.pair || !String(t.pair).trim())                                          missingFields.push("Pair");
+          if (!t?.tradeDate)                                                                missingFields.push("Trade Date");
+          if (!isInd) {
+            if (!hasNumericValue(t?.entryPrice))                                           missingFields.push("Entry Price");
+            if (!hasNumericValue(t?.exitPrice))                                            missingFields.push("Exit Price");
+            if (!hasNumericValue(t?.lotSize))                                              missingFields.push("Lot Size");
+            if (!hasNumericValue(t?.profit))                                               missingFields.push("P&L");
+            if (!hasNumericValue(t?.stopLoss))                                             missingFields.push("Stop Loss");
+            if (!hasNumericValue(t?.takeProfit))                                           missingFields.push("Take Profit");
+            if (!hasValue(t?.riskRewardRatio))                                             missingFields.push("R:R Ratio");
+            if (!hasValue(t?.session))                                                     missingFields.push("Session");
+            if (!hasValue(t?.notes))                                                       missingFields.push("Notes");
+            if (!hasNumericValue(t?.mood))                                                 missingFields.push("Mood");
+            if (!hasValue(t?.confidence))                                                  missingFields.push("Confidence");
+            if (!Array.isArray(t?.emotionalTags) || t.emotionalTags.length === 0)         missingFields.push("Emotional Tags");
+            if (!hasValue(t?.wouldRetake))                                                 missingFields.push("Would Retake");
+          }
+          if (missingFields.length > 0) {
+            failingIndices.push({ i, missingFields });
+          } else {
+            validIndices.push(i);
+          }
+        }
+
+        if (failingIndices.length > 0) {
+          const tradeLabels = failingIndices
+            .map(({ i, missingFields }) => `Trade #${i + 1}: ${missingFields.join(", ")}`)
+            .join(" · ");
+          addToast(`Cannot save — missing fields: ${tradeLabels}`, "error");
+          // Only block if ALL unsaved trades have errors; otherwise save the valid ones
+          if (validIndices.length === 0) return;
+        }
+
+        // Delete the ghost trade first so it never appears in the journal,
+        // regardless of which individual trades the user chose to keep.
+        if (uploadedTradeId) {
+          try {
+            await deleteTrade(uploadedTradeId, "Forex");
+          } catch {
+            // Ghost may already be gone — not a blocking error
+          }
+        }
+
+        // Save only the trades that passed validation
+        for (const i of validIndices) {
           try {
             await saveTradeMutation.mutateAsync({
               idx: i,
@@ -908,9 +981,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
               tradeDate: trades[i]?.tradeDate,
             });
           } catch (err) {
-            addToast(`Trade ${i + 1} failed to save: ${err?.message || "Unknown error"}`, "error");
+            addToast(`Trade #${i + 1} failed: ${err?.message || "Unknown error"}`, "error");
           }
         }
+      } finally {
+        saveAllLockRef.current = false;
       }
     },
     toggleSetupRule: id => setSetupRules(p => p.map(r => r.id === id ? { ...r, followed: !r.followed } : r)),
@@ -922,21 +997,23 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     addSetupRuleMulti: (tIdx) => setTrades(p => p.map((t, i) => i !== tIdx ? t : { ...t, setupRules: [...(t.setupRules || []), { id: Date.now(), label: "", followed: false }] })),
     clearSetupRulesMulti: (tIdx) => setTrades(p => p.map((t, i) => i !== tIdx ? t : { ...t, setupRules: t.setupRules.map(r => ({ ...r, followed: false })) })),
     deleteTrade: (idx) => {
-      setTrades(prevTrades => {
-        const nextTrades = prevTrades.filter((_, i) => i !== idx);
-        setSavedTrades(prev => prev.filter((_, i) => i !== idx));
+      // Edge #3: compute next arrays from the current closure values and call
+      // each setter independently — calling setSavedTrades inside a setTrades
+      // updater is a side-effect that React does not guarantee will be batched
+      // atomically, which can leave the two arrays briefly out of sync.
+      const nextTrades = trades.filter((_, i) => i !== idx);
+      const nextSaved  = savedTrades.filter((_, i) => i !== idx);
+      setTrades(nextTrades);
+      setSavedTrades(nextSaved);
 
-        // When multi-entry drops to a single remaining trade, hydrate single-trade mode
-        // from that remaining row so calculations/UI stay aligned.
-        if (nextTrades.length <= 1) {
-          const remainingTrade = nextTrades[0] || null;
-          setTrade(remainingTrade);
-          setSaved(false);
-          setSetupRules(remainingTrade?.setupRules || DEFAULT_SETUP_RULES);
-        }
-
-        return nextTrades;
-      });
+      // When multi-entry drops to a single remaining trade, hydrate single-trade mode
+      // from that remaining row so calculations/UI stay aligned.
+      if (nextTrades.length <= 1) {
+        const remainingTrade = nextTrades[0] || null;
+        setTrade(remainingTrade);
+        setSaved(false);
+        setSetupRules(remainingTrade?.setupRules || DEFAULT_SETUP_RULES);
+      }
     },
   };
 }

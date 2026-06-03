@@ -252,6 +252,11 @@ function EditTradePageContent() {
     });
   };
 
+  const parseNumericField = (val) => {
+    const n = parseFloat(val);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData?.tradeDate) {
@@ -270,7 +275,36 @@ function EditTradePageContent() {
     setDateError("");
     setSaving(true);
     try {
-      const result = await updateTrade(resolvedParams.id, formData);
+      // Send only editable fields — strip MongoDB internals (_id, __v, user,
+      // createdAt, updatedAt) and the local screenshotPreview blob which can
+      // be several MB and has no meaning on the server.
+      const payload = {
+        pair:              formData.pair,
+        type:              formData.type,
+        tradeDate:         formData.tradeDate,
+        lotSize:           parseNumericField(formData.lotSize),
+        entryPrice:        parseNumericField(formData.entryPrice),
+        exitPrice:         parseNumericField(formData.exitPrice),
+        stopLoss:          parseNumericField(formData.stopLoss),
+        takeProfit:        parseNumericField(formData.takeProfit),
+        profit:            parseNumericField(formData.profit),
+        strategy:          formData.strategy,
+        session:           formData.session,
+        notes:             formData.notes,
+        riskRewardRatio:   formData.riskRewardRatio,
+        riskRewardCustom:  formData.riskRewardCustom,
+        screenshot:        formData.screenshot,
+        imageUrl:          formData.imageUrl,
+        entryBasis:        formData.entryBasis,
+        entryBasisCustom:  formData.entryBasisCustom,
+        mood:              formData.mood,
+        confidence:        formData.confidence,
+        emotionalTags:     formData.emotionalTags,
+        wouldRetake:       formData.wouldRetake,
+        mistakeTag:        formData.mistakeTag,
+        lesson:            formData.lesson,
+      };
+      const result = await updateTrade(resolvedParams.id, payload);
       if (result) {
         router.push(`/trades/view?id=${resolvedParams.id}`);
       }
@@ -280,8 +314,8 @@ function EditTradePageContent() {
   };
 
   const typeOptions = [
-    { value: "LONG", label: "LONG" },
-    { value: "SHORT", label: "SHORT" },
+    { value: "BUY",  label: "LONG (BUY)"  },
+    { value: "SELL", label: "SHORT (SELL)" },
   ];
 
   return (
@@ -710,6 +744,7 @@ function EditTradePageContent() {
                     value={formData.notes || ""}
                     onChange={handleChange}
                     rows={4}
+                    maxLength={2000}
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
@@ -724,6 +759,9 @@ function EditTradePageContent() {
                       resize: "vertical",
                     }}
                   />
+                  <div style={{ fontSize: 10, color: "#94A3B8", textAlign: "right", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+                    {(formData.notes || "").length}/2000
+                  </div>
                 </div>
 
                 {/* Buttons */}

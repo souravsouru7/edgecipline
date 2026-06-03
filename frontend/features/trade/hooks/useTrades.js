@@ -99,7 +99,7 @@ export function useTrades() {
 
   // Summary stats (computed from trades)
   const totalPnl   = trades.reduce((s, t) => s + (parseFloat(t.profit) || 0), 0);
-  const winners    = trades.filter((t) => parseFloat(t.profit) >= 0).length;
+  const winners    = trades.filter((t) => parseFloat(t.profit) > 0).length;
   const winRate    = trades.length ? ((winners / trades.length) * 100).toFixed(1) : "0.0";
   const totalBull  = totalPnl >= 0;
 
