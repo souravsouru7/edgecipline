@@ -17,6 +17,7 @@ const WEEKLY_INDIAN_TRADE_PROJECTION = [
 async function findIndianTradesForWeeklyWindow(userId, startDate, endDate) {
   return IndianTrade.find({
     user: userId,
+    deletedAt: null,
     $or: [
       { tradeDate: { $gte: startDate, $lt: endDate } },
       { tradeDate: null, createdAt: { $gte: startDate, $lt: endDate } },

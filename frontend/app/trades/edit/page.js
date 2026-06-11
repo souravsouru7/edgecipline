@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
+import { fetchSetups } from "@/services/setupApi";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
+import SetupChecklist from "@/features/trade/components/SetupChecklist";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS — Light Trading Theme
@@ -202,6 +206,16 @@ const MOOD_OPTIONS = [
 ];
 const EMOTIONAL_TAGS = ["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused", "Frustrated", "Disciplined", "Rushed"];
 
+function normalizeSetupRules(rules = []) {
+  return Array.isArray(rules)
+    ? rules.map((rule, index) => ({
+        id: rule.id ?? index + 1,
+        label: rule.label || "",
+        followed: Boolean(rule.followed),
+      }))
+    : [];
+}
+
 /* ─────────────────────────────────────────
    MAIN PAGE
 ───────────────────────────────────────── */
@@ -209,6 +223,7 @@ function EditTradePageContent() {
   const searchParams = useSearchParams();
   const resolvedParams = useMemo(() => ({ id: searchParams.get('id') }), [searchParams]);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { accountCreatedDate } = useUserProfile();
   const [trade, setTrade] = useState(null);
   const [formData, setFormData] = useState({});
@@ -218,6 +233,9 @@ function EditTradePageContent() {
   const [dateError, setDateError] = useState("");
   const [screenshotError, setScreenshotError] = useState("");
   const [screenshotUploading, setScreenshotUploading] = useState(false);
+  const [strategies, setStrategies] = useState([]);
+  const [setupsLoading, setSetupsLoading] = useState(false);
+  const [setupRules, setSetupRules] = useState([]);
 
   const fetchTrade = useCallback(async () => {
     if (resolvedParams?.id) {
@@ -226,7 +244,9 @@ function EditTradePageContent() {
       setFormData({
         ...data,
         tradeDate: normalizeDateInput(data.tradeDate || data.createdAt),
+        strategyCustom: "",
       });
+      setSetupRules(normalizeSetupRules(data.setupRules));
       setLoading(false);
     }
   }, [resolvedParams]);
@@ -236,10 +256,67 @@ function EditTradePageContent() {
     setMounted(true);
   }, [fetchTrade]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadSetups = async () => {
+      setSetupsLoading(true);
+      try {
+        const serverStrategies = await fetchSetups("Forex");
+        if (cancelled) return;
+        setStrategies(
+          Array.isArray(serverStrategies)
+            ? serverStrategies.map((strategy, index) => ({
+                id: strategy.id ?? index + 1,
+                name: strategy.name || "",
+                rules: normalizeSetupRules(strategy.rules),
+              }))
+            : []
+        );
+      } catch {
+        if (!cancelled) setStrategies([]);
+      } finally {
+        if (!cancelled) setSetupsLoading(false);
+      }
+    };
+    loadSetups();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "tradeDate") setDateError("");
     setFormData({ ...formData, [name]: value });
+  };
+
+  const handleStrategyChange = (e) => {
+    const value = e.target.value;
+    const selected = strategies.find((strategy) => strategy.name === value);
+    setFormData((prev) => ({
+      ...prev,
+      strategy: value,
+      strategyCustom: value === "Custom" ? prev.strategyCustom || "" : "",
+    }));
+    if (selected?.rules?.length) {
+      setSetupRules(selected.rules.map((rule, index) => ({ ...rule, id: rule.id ?? index + 1, followed: false })));
+    } else if (value && value !== "Custom") {
+      setSetupRules([]);
+    }
+  };
+
+  const toggleSetupRule = (id) => {
+    setSetupRules((prev) => prev.map((rule) => rule.id === id ? { ...rule, followed: !rule.followed } : rule));
+  };
+
+  const updateSetupRuleLabel = (id, value) => {
+    setSetupRules((prev) => prev.map((rule) => rule.id === id ? { ...rule, label: value } : rule));
+  };
+
+  const addSetupRule = () => {
+    setSetupRules((prev) => [...prev, { id: Date.now(), label: "", followed: false }]);
+  };
+
+  const clearSetupRules = () => {
+    setSetupRules((prev) => prev.map((rule) => ({ ...rule, followed: false })));
   };
 
   const toggleEmotionalTag = (tag) => {
@@ -288,7 +365,7 @@ function EditTradePageContent() {
         stopLoss:          parseNumericField(formData.stopLoss),
         takeProfit:        parseNumericField(formData.takeProfit),
         profit:            parseNumericField(formData.profit),
-        strategy:          formData.strategy,
+        strategy:          formData.strategy === "Custom" ? (formData.strategyCustom?.trim() || "Custom") : formData.strategy,
         session:           formData.session,
         notes:             formData.notes,
         riskRewardRatio:   formData.riskRewardRatio,
@@ -303,9 +380,16 @@ function EditTradePageContent() {
         wouldRetake:       formData.wouldRetake,
         mistakeTag:        formData.mistakeTag,
         lesson:            formData.lesson,
+        tradeQuality:      formData.tradeQuality || "",
       };
+      const activeRules = setupRules.filter((rule) => rule.label && String(rule.label).trim());
+      payload.setupRules = activeRules.map((rule) => ({ label: String(rule.label).trim(), followed: Boolean(rule.followed) }));
+      payload.setupScore = activeRules.length
+        ? Math.round((activeRules.filter((rule) => rule.followed).length / activeRules.length) * 100)
+        : null;
       const result = await updateTrade(resolvedParams.id, payload);
       if (result) {
+        invalidateTradeDependentQueries(queryClient);
         router.push(`/trades/view?id=${resolvedParams.id}`);
       }
     } finally {
@@ -462,12 +546,42 @@ function EditTradePageContent() {
                   onChange={handleChange}
                 />
 
-                <InputField
-                  label="STRATEGY"
-                  name="strategy"
-                  value={formData.strategy}
-                  onChange={handleChange}
-                />
+                <div style={{ marginBottom: 18, border: "1px solid rgba(13,158,110,0.22)", borderRadius: 10, overflow: "hidden", background: "rgba(13,158,110,0.04)" }}>
+                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(13,158,110,0.14)", color: "#0D9E6E", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
+                    SETUP {setupsLoading ? "(LOADING...)" : ""}
+                  </div>
+                  <div style={{ padding: 14 }}>
+                    <InputField
+                      label="SETUP"
+                      name="strategy"
+                      value={formData.strategy}
+                      onChange={handleStrategyChange}
+                      options={[
+                        { value: "", label: "Select..." },
+                        ...(formData.strategy && formData.strategy !== "Custom" && !strategies.some((strategy) => strategy.name === formData.strategy)
+                          ? [{ value: formData.strategy, label: formData.strategy }]
+                          : []),
+                        ...strategies.map((strategy) => ({ value: strategy.name, label: strategy.name })),
+                        { value: "Custom", label: "Custom" },
+                      ]}
+                    />
+                    {formData.strategy === "Custom" && (
+                      <InputField
+                        label="CUSTOM SETUP"
+                        name="strategyCustom"
+                        value={formData.strategyCustom}
+                        onChange={handleChange}
+                      />
+                    )}
+                    <SetupChecklist
+                      rules={setupRules}
+                      onToggle={toggleSetupRule}
+                      onUpdateLabel={updateSetupRuleLabel}
+                      onAdd={addSetupRule}
+                      onClear={clearSetupRules}
+                    />
+                  </div>
+                </div>
 
                 <InputField
                   label="SESSION"
@@ -571,6 +685,31 @@ function EditTradePageContent() {
                         { value: "No", label: "No" },
                       ]}
                     />
+
+                    <div style={{ marginTop: 16 }}>
+                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                        TRADE QUALITY (EXECUTION)
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {[
+                          { val: "Great", color: "#0D9E6E", desc: "Followed plan" },
+                          { val: "Average", color: "#F59E0B", desc: "Partial exec." },
+                          { val: "Poor", color: "#D63B3B", desc: "Broke rules" },
+                        ].map(q => (
+                          <button key={q.val} type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, tradeQuality: prev.tradeQuality === q.val ? "" : q.val }))}
+                            style={{
+                              padding: "10px 4px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                              border: formData.tradeQuality === q.val ? `2px solid ${q.color}` : "1px solid #E2E8F0",
+                              background: formData.tradeQuality === q.val ? `${q.color}14` : "#F8F6F2",
+                              transition: "all 0.2s",
+                            }}>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'JetBrains Mono',monospace" }}>{q.val}</div>
+                            <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2 }}>{q.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

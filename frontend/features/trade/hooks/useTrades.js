@@ -1,12 +1,14 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import { getValidToken } from "@/utils/auth";
 import { silentRefresh } from "@/services/apiClient";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { calculatePerformanceMetrics } from "@/utils/metricEngine";
 
 /**
  * useTrades
@@ -22,6 +24,7 @@ export function useTrades() {
   const [search, setSearch]             = useState("");
   const [mounted, setMounted]           = useState(false);
   const [hasToken, setHasToken]         = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // 1. Data Fetching via useQuery
   const { data: trades = [], isLoading: loading, error } = useQuery({
@@ -51,11 +54,12 @@ export function useTrades() {
       setDeletingId(null);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["trades"] });
+      invalidateTradeDependentQueries(queryClient);
       setDeleteTarget(null);
       setDeletingId(null);
     },
   });
+  const deleteMutate = deleteMutation.mutate;
 
   useEffect(() => {
     let cancelled = false;
@@ -74,40 +78,59 @@ export function useTrades() {
     return () => { cancelled = true; };
   }, [router]);
 
-  const confirmDelete = () => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim().toLowerCase());
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const confirmDelete = useCallback(() => {
     if (!deleteTarget) return;
     const id = deleteTarget._id;
     setDeletingId(id);
-    setTimeout(() => deleteMutation.mutate(id), 280);
-  };
+    setTimeout(() => deleteMutate(id), 280);
+  }, [deleteMutate, deleteTarget]);
 
-  const cancelDelete = () => setDeleteTarget(null);
+  const cancelDelete = useCallback(() => setDeleteTarget(null), []);
 
-  // Client-side filtering logic
-  const filtered = trades.filter((t) => {
-    // Map BUY/SELL (backend values) to LONG/SHORT (UI labels)
-    const direction = t.type?.toUpperCase() === "BUY" ? "LONG"
-                    : t.type?.toUpperCase() === "SELL" ? "SHORT"
-                    : t.type?.toUpperCase();
-    const matchFilter = filter === "ALL" || direction === filter;
-    const q = search.toLowerCase();
-    const pairText = (t.pair || "").toLowerCase();
-    const dateText = new Date(t.tradeDate || t.createdAt).toLocaleDateString().toLowerCase();
-    const matchSearch = !q || pairText.includes(q) || dateText.includes(q);
-    return matchFilter && matchSearch;
-  });
+  const filtered = useMemo(() => {
+    return trades.filter((t) => {
+      const direction = t.type?.toUpperCase() === "BUY" ? "LONG"
+                      : t.type?.toUpperCase() === "SELL" ? "SHORT"
+                      : t.type?.toUpperCase();
+      if (filter !== "ALL" && direction !== filter) return false;
+      if (!debouncedSearch) return true;
 
-  // Summary stats (computed from trades)
-  const totalPnl   = trades.reduce((s, t) => s + (parseFloat(t.profit) || 0), 0);
-  const winners    = trades.filter((t) => parseFloat(t.profit) > 0).length;
-  const winRate    = trades.length ? ((winners / trades.length) * 100).toFixed(1) : "0.0";
-  const totalBull  = totalPnl >= 0;
+      const pairText = (t.pair || "").toLowerCase();
+      if (pairText.includes(debouncedSearch)) return true;
 
-  const summaryStats = [
-    { label: "TOTAL TRADES", val: trades.length,                                               bull: true       },
-    { label: "WIN RATE",      val: `${winRate}%`,                                              bull: parseFloat(winRate) >= 50 },
-    { label: "TOTAL P&L",     val: `${totalBull ? "+" : "-"}$${Math.abs(totalPnl).toFixed(2)}`, bull: totalBull  },
-  ];
+      const dateText = new Date(t.tradeDate || t.createdAt).toLocaleDateString().toLowerCase();
+      return dateText.includes(debouncedSearch);
+    });
+  }, [trades, filter, debouncedSearch]);
+
+  const performance = useMemo(() => calculatePerformanceMetrics(trades), [trades]);
+
+  const summaryStats = useMemo(() => {
+    const totalPnl = performance.grossPnL;
+    const winRate = performance.winRate.toFixed(1);
+    const totalBull = totalPnl >= 0;
+    return [
+      { label: "TOTAL TRADES", val: performance.totalTrades, bull: true },
+      { label: "WIN RATE", val: `${winRate}%`, bull: parseFloat(winRate) >= 50 },
+      { label: "TOTAL P&L", val: `${totalBull ? "+" : "-"}$${Math.abs(totalPnl).toFixed(2)}`, bull: totalBull },
+    ];
+  }, [performance]);
+
+  const handlers = useMemo(() => ({
+    setFilter,
+    setPeriod,
+    setSearch,
+    setDeleteTarget,
+    confirmDelete,
+    cancelDelete,
+  }), [confirmDelete, cancelDelete]);
 
   return {
     trades,
@@ -121,6 +144,6 @@ export function useTrades() {
     summaryStats,
     mounted,
     error,
-    handlers: { setFilter, setPeriod, setSearch, setDeleteTarget, confirmDelete, cancelDelete },
+    handlers,
   };
 }

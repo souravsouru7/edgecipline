@@ -3,10 +3,12 @@ const router = express.Router();
 
 const {
   createTrade,
+  createTradesBatch,
   getTrades,
   getTrade,
   updateTrade,
-  deleteTrade
+  deleteTrade,
+  restoreTrade
 } = require("../controllers/indianTradeController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -15,6 +17,7 @@ const { validateNumbers } = require("../middleware/validateNumbers");
 
 // Indian Market only — uses IndianTrade model, no shared Forex logic
 router.post("/", protect, validateNumbers, createTrade);
+router.post("/batch", protect, validateNumbers, createTradesBatch);
 router.get(
   "/",
   protect,
@@ -27,6 +30,7 @@ router.get(
 );
 router.get("/:id", protect, getTrade);
 router.put("/:id", protect, validateNumbers, updateTrade);
+router.post("/:id/restore", protect, restoreTrade);
 router.delete("/:id", protect, deleteTrade);
 
 module.exports = router;

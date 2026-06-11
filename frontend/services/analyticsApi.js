@@ -1,5 +1,5 @@
 import { API_URL as BASE_URL } from "@/config/api";
-import { getValidToken } from "@/utils/auth";
+import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
 const DEFAULT_MARKET = "Forex";
 const VALID_MARKETS = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks", "Indian_Market"]);
@@ -23,12 +23,16 @@ const getBaseUrl = (marketType) => {
   return BASE_URL;
 };
 
-const getAuthHeaders = (signal) => {
-  const token = getValidToken();
+const getAuthHeaders = async (signal) => {
+  const token = getValidToken() || await hydrateAuthToken();
   return {
     headers: { Authorization: token ? `Bearer ${token}` : "" },
     ...(signal ? { signal } : {}),
   };
+};
+
+const authFetchWithRateLimitRetry = async (url, signal) => {
+  return fetchWithRateLimitRetry(url, await getAuthHeaders(signal));
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -61,7 +65,7 @@ const handleResponse = async (res) => {
     try {
       const errorJson = JSON.parse(errorText);
       errorMessage = errorJson.message || errorMessage;
-    } catch (e) {
+    } catch {
       console.error("Non-JSON error response received:", errorText.substring(0, 100));
     }
 
@@ -118,52 +122,112 @@ const buildAnalyticsUrl = (marketType, path, params = {}) => {
 };
 
 // Basic Analytics
+export const getAnalyticsSnapshot = async (marketType = 'Forex', instrumentType = '', options = {}, signal) => {
+  const params = {
+    instrumentType,
+    ...(options?.days ? { days: String(options.days) } : {}),
+    ...(options?.period ? { period: String(options.period) } : {}),
+  };
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/snapshot", params), signal);
+};
+
 export const getSummary = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/summary", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/summary", { instrumentType }), signal);
 };
 
 export const getWeeklyStats = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/weekly", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/weekly", { instrumentType }), signal);
 };
 
 // Advanced Analytics
 export const getRiskRewardAnalysis = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/risk-reward", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/risk-reward", { instrumentType }), signal);
 };
 
 export const getTradeDistribution = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/distribution", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/distribution", { instrumentType }), signal);
 };
 
 export const getPerformanceMetrics = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/performance", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/performance", { instrumentType }), signal);
 };
 
 export const getTimeAnalysis = async (marketType = 'Forex', range = 'all', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/time-analysis", { range: normalizeTextParam(range, "all"), instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/time-analysis", { range: normalizeTextParam(range, "all"), instrumentType }), signal);
 };
 
 export const getTradeQuality = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/quality", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/quality", { instrumentType }), signal);
 };
 
 export const getDrawdownAnalysis = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/drawdown", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/drawdown", { instrumentType }), signal);
 };
 
 export const getAIInsights = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/ai-insights", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/ai-insights", { instrumentType }), signal);
 };
 
 // All-in-one advanced analytics
 export const getAdvancedAnalytics = async (marketType = 'Forex', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/advanced"), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/advanced"), signal);
 };
 
 export const getPnLBreakdown = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/pnl-breakdown", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/pnl-breakdown", { instrumentType }), signal);
 };
 
 export const getPsychologyAnalytics = async (marketType = 'Forex', instrumentType = '', signal) => {
-  return fetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/psychology", { instrumentType }), getAuthHeaders(signal));
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/psychology", { instrumentType }), signal);
+};
+
+export const getTradeQualityAnalysis = async (marketType = 'Forex', instrumentType = '', signal) => {
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/trade-quality-analysis", { instrumentType }), signal);
+};
+
+export const getSelfAwarenessScore = async (marketType = 'Forex', instrumentType = '', signal) => {
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/self-awareness", { instrumentType }), signal);
+};
+
+export const getPsychologyCost = async (marketType = 'Forex', instrumentType = '', days = '', signal) => {
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/psychology-cost", { instrumentType, ...(days ? { days: String(days) } : {}) }), signal);
+};
+
+export const getTradingDNA = async (marketType = 'Forex', instrumentType = '', signal) => {
+  return authFetchWithRateLimitRetry(buildAnalyticsUrl(marketType, "/analytics/trading-dna", { instrumentType }), signal);
+};
+
+export const getPatterns = async (marketType = 'Forex', days = '', signal) => {
+  return authFetchWithRateLimitRetry(
+    buildAnalyticsUrl(marketType, "/analytics/patterns", { ...(days ? { days: String(days) } : {}) }),
+    signal
+  );
+};
+
+export const getCoachFeed = async (marketType = 'Forex', days = '', signal) => {
+  return authFetchWithRateLimitRetry(
+    buildAnalyticsUrl(marketType, "/analytics/ai-coach-feed", { ...(days ? { days: String(days) } : {}) }),
+    signal
+  );
+};
+
+export const getPsychologyTimeline = async (marketType = 'Forex', period = 'weekly', days = '', signal) => {
+  return authFetchWithRateLimitRetry(
+    buildAnalyticsUrl(marketType, "/analytics/psychology-timeline", {
+      period: normalizeTextParam(period, "weekly"),
+      ...(days ? { days: String(days) } : {}),
+    }),
+    signal
+  );
+};
+
+export const getDisciplineAnalytics = async (marketType = 'Forex', period = 'monthly', days = '', setup = '', signal) => {
+  return authFetchWithRateLimitRetry(
+    buildAnalyticsUrl(marketType, "/analytics/discipline", {
+      period: normalizeTextParam(period, "monthly"),
+      ...(days ? { days: String(days) } : {}),
+      ...(setup ? { setup: normalizeTextParam(setup) } : {}),
+    }),
+    signal
+  );
 };

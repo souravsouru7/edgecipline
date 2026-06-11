@@ -5,6 +5,10 @@ const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 
 const RISK_TAGS = new Set(["fomo", "revenge", "fear", "frustrated", "stressed"]);
+const ASYNC_QUEUE_CONCURRENCY = Math.max(1, parseInt(process.env.SMART_NOTIFICATION_QUEUE_CONCURRENCY || "2", 10));
+const ASYNC_QUEUE_MAX_SIZE = Math.max(100, parseInt(process.env.SMART_NOTIFICATION_QUEUE_MAX_SIZE || "5000", 10));
+const asyncNotificationQueue = [];
+let activeAsyncJobs = 0;
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function asDate(value) {
@@ -55,8 +59,8 @@ function getTradeModel(collection) {
 }
 
 function baseTradeQuery(userId, collection, marketType) {
-  if (collection === "indian") return { user: userId };
-  return { user: userId, marketType: marketType || "Forex", "parsedData.multiTradeGhost": { $ne: true } };
+  if (collection === "indian") return { user: userId, deletedAt: null };
+  return { user: userId, marketType: marketType || "Forex", deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } };
 }
 
 function getDeepLinks(trade, collection) {
@@ -88,6 +92,46 @@ async function safeNotify(userId, payload) {
     });
     return null;
   }
+}
+
+function runSoon(callback) {
+  if (typeof setImmediate === "function") {
+    setImmediate(callback);
+  } else {
+    setTimeout(callback, 0);
+  }
+}
+
+function drainAsyncNotificationQueue() {
+  while (activeAsyncJobs < ASYNC_QUEUE_CONCURRENCY && asyncNotificationQueue.length > 0) {
+    const job = asyncNotificationQueue.shift();
+    activeAsyncJobs += 1;
+
+    Promise.allSettled(job.checks.map((check) => check(job.payload)))
+      .catch((error) => {
+        logger.warn("Smart notification async queue job failed", {
+          userId: job.payload.userId?.toString?.(),
+          tradeId: job.payload.trade?._id?.toString?.(),
+          error: error.message,
+        });
+      })
+      .finally(() => {
+        activeAsyncJobs -= 1;
+        if (asyncNotificationQueue.length > 0) runSoon(drainAsyncNotificationQueue);
+      });
+  }
+}
+
+function enqueueAsyncNotificationChecks(payload, checks) {
+  if (asyncNotificationQueue.length >= ASYNC_QUEUE_MAX_SIZE) {
+    logger.warn("Smart notification async queue is full; dropping oldest job", {
+      maxSize: ASYNC_QUEUE_MAX_SIZE,
+    });
+    asyncNotificationQueue.shift();
+  }
+
+  asyncNotificationQueue.push({ payload, checks });
+  runSoon(drainAsyncNotificationQueue);
 }
 
 // ─── 1. No Stop Loss ──────────────────────────────────────────────────────────
@@ -380,16 +424,20 @@ async function checkConfidenceReminder({ userId, trade, collection, marketType }
 async function evaluateSmartNotifications({ userId, trade, marketType = "Forex", collection = "forex" }) {
   if (!userId || !trade || !trade._id) return;
   const plainTrade = typeof trade.toObject === "function" ? trade.toObject() : trade;
+  const payload = { userId, trade: plainTrade, collection, marketType };
 
   await Promise.allSettled([
-    checkNoStopLoss          ({ userId, trade: plainTrade, collection, marketType }),
-    checkSetupDisciplineDrop ({ userId, trade: plainTrade, collection, marketType }),
-    checkMoodBasedRisk       ({ userId, trade: plainTrade, collection, marketType }),
-    checkRevengeTrading      ({ userId, trade: plainTrade, collection, marketType }),
-    checkOvertrading         ({ userId, trade: plainTrade, collection, marketType }),
-    checkRepeatedMistake     ({ userId, trade: plainTrade, collection, marketType }),
-    checkDailyLossWarning    ({ userId, trade: plainTrade, collection, marketType }),
-    checkConfidenceReminder  ({ userId, trade: plainTrade, collection, marketType }),
+    checkNoStopLoss(payload),
+    checkSetupDisciplineDrop(payload),
+    checkMoodBasedRisk(payload),
+  ]);
+
+  enqueueAsyncNotificationChecks(payload, [
+    checkRevengeTrading,
+    checkOvertrading,
+    checkRepeatedMistake,
+    checkDailyLossWarning,
+    checkConfidenceReminder,
   ]);
 }
 
@@ -427,5 +475,6 @@ async function notifyWeeklyInsight({ userId, report, marketType = "Forex" }) {
 
 module.exports = {
   evaluateSmartNotifications,
+  enqueueAsyncNotificationChecks,
   notifyWeeklyInsight,
 };

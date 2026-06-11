@@ -5,10 +5,12 @@ export const dynamic = "force-dynamic";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 const C = {
   bull: "#0D9E6E",
@@ -102,6 +104,7 @@ function toOptionalNumber(value) {
 
 function IndianEditTradeContent() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { accountCreatedDate } = useUserProfile();
   const id = searchParams.get("id");
@@ -247,11 +250,13 @@ function IndianEditTradeContent() {
           sttTaxes: toOptionalNumber(formData.sttTaxes),
           mood: toOptionalNumber(formData.mood),
           emotionalTags: String(formData.emotionalTags || "").split(",").map((tag) => tag.trim()).filter(Boolean),
+          tradeQuality: formData.tradeQuality || "",
           setupRules: activeSetupRules,
           setupScore: calculateSetupScore(activeSetupRules),
         },
         MARKETS.INDIAN_MARKET
       );
+      invalidateTradeDependentQueries(queryClient);
       router.push(`/indian-market/trades/view?id=${id}`);
     } catch (err) {
       alert(err?.message || "Failed to update trade.");
@@ -512,6 +517,29 @@ function IndianEditTradeContent() {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Trade Quality */}
+                <div>
+                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>TRADE QUALITY (EXECUTION)</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    {[
+                      { val: "Great", color: C.bull },
+                      { val: "Average", color: "#F59E0B" },
+                      { val: "Poor", color: C.bear },
+                    ].map(q => (
+                      <button key={q.val} type="button"
+                        onClick={() => setFormData(p => ({ ...p, tradeQuality: p.tradeQuality === q.val ? "" : q.val }))}
+                        style={{
+                          padding: "10px 4px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                          border: formData.tradeQuality === q.val ? `1.5px solid ${q.color}` : `1px solid ${C.border}`,
+                          background: formData.tradeQuality === q.val ? `${q.color}14` : "#FFF",
+                          transition: "all 0.15s",
+                        }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : C.ink, fontFamily: C.mono }}>{q.val}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 

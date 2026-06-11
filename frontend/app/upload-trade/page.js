@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 // useEffect + useRef used in UploadTradeContent for auto-scroll to psychology after extraction
 import { useRouter } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -66,7 +66,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
   const isEquityMode = isInd && tradeSubType === "EQUITY";
   const [showSample, setShowSample] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmImageUrl, setConfirmImageUrl] = useState("");
+  const confirmImageUrl = useMemo(
+    () => (showConfirmModal && file ? URL.createObjectURL(file) : ""),
+    [showConfirmModal, file]
+  );
   const normalizedError = String(error || "").toLowerCase();
   const isSubscriptionError =
     normalizedError.includes("subscription required") ||
@@ -80,14 +83,11 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
     normalizedError.includes("upload a screenshot from your broker");
 
   useEffect(() => {
-    if (!showConfirmModal || !file) return;
-    const url = URL.createObjectURL(file);
-    setConfirmImageUrl(url);
+    if (!confirmImageUrl) return;
     return () => {
-      URL.revokeObjectURL(url);
-      setConfirmImageUrl("");
+      URL.revokeObjectURL(confirmImageUrl);
     };
-  }, [showConfirmModal, file]);
+  }, [confirmImageUrl]);
 
   const steps = [
     { label: "Upload",  done: !!file   },
@@ -260,7 +260,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
       >
         {loading ? (
           <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" style={{ animation: "spin 0.9s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            {processingStatus === "uploading" ? "UPLOADING SCREENSHOT..." : processingStatus === "pending" ? "QUEUED FOR EXTRACTION..." : "EXTRACTING TRADE DATA..."}</>
+            {processingStatus === "cancelling" ? "CANCELLING UPLOAD..." : processingStatus === "uploading" ? "UPLOADING SCREENSHOT..." : processingStatus === "pending" ? "QUEUED FOR EXTRACTION..." : "EXTRACTING TRADE DATA..."}</>
         ) : (
           <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>EXTRACT TRADE DATA</>
         )}
@@ -630,7 +630,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         </div>
 
         {/* Would retake */}
-        <div style={{ marginBottom: isInd ? 20 : 0 }}>
+        <div style={{ marginBottom: 20 }}>
           <label style={labelSt}>WOULD YOU RETAKE THIS TRADE?</label>
           <div style={{ display: "flex", gap: 10 }}>
             {["Yes", "No"].map(v => (
@@ -640,6 +640,28 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
                 {v}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Trade Quality */}
+        <div style={{ marginBottom: isInd ? 20 : 0 }}>
+          <label style={labelSt}>TRADE QUALITY</label>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[
+              { val: "Great", color: "#0D9E6E", bg: "rgba(13,158,110,0.1)", desc: "Followed the plan" },
+              { val: "Average", color: "#F59E0B", bg: "rgba(245,158,11,0.1)", desc: "Partial execution" },
+              { val: "Poor", color: "#D63B3B", bg: "rgba(214,59,59,0.1)", desc: "Broke the rules" },
+            ].map(q => {
+              const sel = trade?.tradeQuality === q.val;
+              return (
+                <button key={q.val} type="button"
+                  onClick={() => onChange({ target: { name: "tradeQuality", value: sel ? "" : q.val } })}
+                  style={{ flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: "pointer", border: sel ? `2px solid ${q.color}` : "1.5px solid #E2E8F0", background: sel ? q.bg : "#FFF", color: sel ? q.color : "#94A3B8", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  <span>{q.val}</span>
+                  <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.8 }}>{q.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -702,6 +724,7 @@ function UploadTradeContent() {
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
   const extractionStepMap = {
     uploading: { label: "Uploading screenshot", hint: "Securely sending image to server", progress: 25 },
+    cancelling: { label: "Cancelling upload", hint: "Stopping OCR and cleaning up resources", progress: 10 },
     pending: { label: "Queued for extraction", hint: "Preparing OCR and AI pipeline", progress: 45 },
     processing: { label: "Extracting trade details", hint: "Reading image, parsing fields, validating output", progress: 75 },
     completed: { label: "Extraction completed", hint: "Finalizing extracted data", progress: 100 },
@@ -792,17 +815,25 @@ function UploadTradeContent() {
                 <div style={{ fontSize: 10, color: "#94A3B8", ...monoStyle, letterSpacing: "0.06em" }}>
                   PLEASE KEEP THIS SCREEN OPEN UNTIL EXTRACTION FINISHES
                 </div>
+                <button
+                  type="button"
+                  onClick={state.clearOcrSession}
+                  disabled={processingStatus === "cancelling"}
+                  style={{ alignSelf: "flex-start", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: processingStatus === "cancelling" ? "#F1F5F9" : "#FFFFFF", color: processingStatus === "cancelling" ? "#94A3B8" : "#D63B3B", fontSize: 11, fontWeight: 800, cursor: processingStatus === "cancelling" ? "not-allowed" : "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+                >
+                  {processingStatus === "cancelling" ? "CANCELLING..." : "CANCEL UPLOAD"}
+                </button>
               </div>
             </SectionCard>
           )}
 
           {/* Trade count banner — shown after extraction */}
           {!loading && visibleTradeCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "#ECFDF5", border: "1.5px solid #A7F3D0", borderRadius: 10, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "#ECFDF5", border: "1.5px solid #A7F3D0", borderRadius: 10, marginBottom: 4, flexWrap: "wrap" }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0D9E6E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", ...monoStyle }}>{visibleTradeCount}</span>
               </div>
-              <div>
+              <div style={{ flex: 1, minWidth: 180 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#065F46" }}>
                   {visibleTradeCount === 1 ? "1 trade extracted" : `${visibleTradeCount} trades extracted`}
                 </div>
@@ -810,6 +841,13 @@ function UploadTradeContent() {
                   Review the details below and save to your journal
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={state.clearOcrSession}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#FFFFFF", color: "#047857", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+              >
+                CLEAR FORM
+              </button>
             </div>
           )}
 

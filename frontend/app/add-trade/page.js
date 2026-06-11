@@ -191,7 +191,7 @@ function AddTradeContent() {
             </div>
             
             <FormSelect label="TRADE CONFIDENCE" name="confidence" value={trade.confidence} onChange={handleChange} options={["Low", "Medium", "High", "Overconfident"].map(v=>({value:v,label:v}))} />
-            
+
             <div style={{ marginTop: 24 }}>
               <label style={labelSt}>EMOTIONAL TAGS</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -199,10 +199,10 @@ function AddTradeContent() {
                   const sel = trade.emotionalTags?.includes(tag);
                   return (
                     <button key={tag} type="button" onClick={() => setTrade(p => ({ ...p, emotionalTags: sel ? p.emotionalTags.filter(t=>t!==tag) : [...(p.emotionalTags||[]), tag] }))}
-                      style={{ 
-                        padding: "8px 18px", borderRadius: 99, fontSize: 12, fontWeight: 700, 
-                        cursor: "pointer", border: sel ? "2px solid #0D9E6E" : "1.5px solid #E2E8F0", 
-                        background: sel ? "rgba(13,158,110,0.1)" : "#FFF", 
+                      style={{
+                        padding: "8px 18px", borderRadius: 99, fontSize: 12, fontWeight: 700,
+                        cursor: "pointer", border: sel ? "2px solid #0D9E6E" : "1.5px solid #E2E8F0",
+                        background: sel ? "rgba(13,158,110,0.1)" : "#FFF",
                         color: sel ? "#0D9E6E" : "#94A3B8",
                         transition: "all 0.2s"
                       }}>
@@ -210,6 +210,29 @@ function AddTradeContent() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 24 }}>
+              <label style={labelSt}>TRADE QUALITY (HOW WELL DID YOU EXECUTE?)</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                {[
+                  { val: "Great", color: "#0D9E6E", desc: "Followed the plan" },
+                  { val: "Average", color: "#F59E0B", desc: "Partial execution" },
+                  { val: "Poor", color: "#D63B3B", desc: "Broke the rules" },
+                ].map(q => (
+                  <button key={q.val} type="button"
+                    onClick={() => setTrade(p => ({ ...p, tradeQuality: p.tradeQuality === q.val ? "" : q.val }))}
+                    style={{
+                      padding: "10px 4px", borderRadius: 12, cursor: "pointer", textAlign: "center",
+                      border: trade.tradeQuality === q.val ? `2px solid ${q.color}` : "1.5px solid #E2E8F0",
+                      background: trade.tradeQuality === q.val ? `${q.color}14` : "#FFF",
+                      transition: "all 0.2s"
+                    }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : "#0F1923" }}>{q.val}</div>
+                    <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2 }}>{q.desc}</div>
+                  </button>
+                ))}
               </div>
             </div>
           </SectionCard>

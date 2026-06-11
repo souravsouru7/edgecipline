@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ChecklistNotificationPlugin.class);
+        registerPlugin(EdgeAuthStoragePlugin.class);
         super.onCreate(savedInstanceState);
         enableWebViewCookies();
         requestNotificationPermissionIfNeeded();

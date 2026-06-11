@@ -12,8 +12,7 @@ const ADMIN_TOKEN_EXPIRY = "8h";
 const ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
 
 // Use a dedicated secret so admin tokens cannot be confused with user tokens.
-// Falls back to JWT_SECRET if ADMIN_JWT_SECRET is not configured.
-const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret || appConfig.jwt.secret;
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 // Account lockout thresholds for admin login brute-force protection.
 const MAX_ADMIN_LOGIN_ATTEMPTS = 3;

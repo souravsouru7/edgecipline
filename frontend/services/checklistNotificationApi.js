@@ -1,8 +1,8 @@
 import { API_URL } from "@/config/api";
-import { getValidToken } from "@/utils/auth";
+import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
 async function authFetch(path, options = {}) {
-  const token = getValidToken();
+  const token = getValidToken() || await hydrateAuthToken();
   if (!token) throw new Error("No token found");
   const res = await fetch(`${API_URL}${path}`, {
     ...options,

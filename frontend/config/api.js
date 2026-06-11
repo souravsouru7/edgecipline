@@ -1,4 +1,5 @@
 const DEFAULT_REMOTE_API_BASE_URL = "https://staging-api.stratedge.live";
+// const DEFAULT_REMOTE_API_BASE_URL = "http://localhost:5000";
 const isCapacitorRuntime = () => {
   return typeof window !== "undefined" && !!window.Capacitor;
 };

@@ -248,11 +248,11 @@ async function sendMorningMentor(userId) {
 
   const [forexTrades, indianTrades] = await Promise.all([
     Trade.find(
-      { user: userId, createdAt: { $gte: start, $lte: end }, "parsedData.multiTradeGhost": { $ne: true } },
+      { user: userId, deletedAt: null, createdAt: { $gte: start, $lte: end }, "parsedData.multiTradeGhost": { $ne: true } },
       FIELDS
     ).lean(),
     IndianTrade.find(
-      { user: userId, createdAt: { $gte: start, $lte: end } },
+      { user: userId, deletedAt: null, createdAt: { $gte: start, $lte: end } },
       FIELDS
     ).lean(),
   ]);

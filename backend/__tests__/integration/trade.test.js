@@ -67,6 +67,14 @@ jest.mock('../../utils/cache', () => ({
 
 jest.mock('../../utils/cacheUtils', () => ({
   clearUserCache: jest.fn().mockResolvedValue(undefined),
+  invalidateTradeCaches: jest.fn().mockResolvedValue(1),
+  TRADE_CACHE_EVENTS: {
+    CREATE: "create",
+    DELETE: "delete",
+    EDIT: "edit",
+    OCR_SAVE: "ocr_save",
+    RESTORE: "restore",
+  },
 }));
 
 // ---------------------------------------------------------------------------

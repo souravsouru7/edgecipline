@@ -1,8 +1,8 @@
 import { API_URL } from "@/config/api";
-import { getValidToken } from "@/utils/auth";
+import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
 export const logChecklistEvent = async (data) => {
-  const token = getValidToken();
+  const token = getValidToken() || await hydrateAuthToken();
   if (!token) throw new Error("No token found");
 
   const response = await fetch(`${API_URL}/checklists/track`, {
@@ -23,7 +23,7 @@ export const logChecklistEvent = async (data) => {
 };
 
 export const getChecklistStats = async (market) => {
-  const token = getValidToken();
+  const token = getValidToken() || await hydrateAuthToken();
   if (!token) throw new Error("No token found");
 
   const response = await fetch(`${API_URL}/checklists/track${market ? `?market=${market}` : ''}`, {

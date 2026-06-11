@@ -4,7 +4,7 @@ async function findWeeklyReportsByUser(userId, marketType, limit) {
   return WeeklyReport.find({ user: userId, marketType })
     .sort({ weekStart: -1 })
     .limit(limit)
-    .select("user marketType periodType weekStart weekEnd aiFeedback aiModel promptVersion createdAt updatedAt")
+    .select("user marketType periodType weekStart weekEnd snapshot aiFeedback aiModel promptVersion createdAt updatedAt")
     .lean();
 }
 
@@ -36,7 +36,7 @@ async function findRecentlyGeneratedWeeklyReport(userId, marketType, since) {
     createdAt: { $gte: since },
   })
     .sort({ createdAt: -1 })
-    .select("_id user marketType periodType createdAt");
+    .select("_id user marketType periodType aiFeedback snapshot.source createdAt");
 }
 
 module.exports = {

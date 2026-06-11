@@ -185,7 +185,7 @@ export default function SetupStrategiesPage() {
           color: #0F1923;
         }
 
-        /* â”€â”€ Header â”€â”€ */
+        /* -- Header -- */
         .sp-header {
           position: sticky;
           top: 0;
@@ -284,14 +284,14 @@ export default function SetupStrategiesPage() {
         }
         .sp-btn-save:disabled { opacity: 0.55; cursor: default; }
 
-        /* â”€â”€ Main â”€â”€ */
+        /* -- Main -- */
         .sp-main {
           max-width: 720px;
           margin: 0 auto;
           padding: 20px 16px 40px;
         }
 
-        /* â”€â”€ Alert â”€â”€ */
+        /* -- Alert -- */
         .sp-alert-error {
           padding: 10px 14px;
           border-radius: 10px;
@@ -311,7 +311,7 @@ export default function SetupStrategiesPage() {
           margin-bottom: 14px;
         }
 
-        /* â”€â”€ Section header â”€â”€ */
+        /* -- Section header -- */
         .sp-section-header {
           display: flex;
           align-items: center;
@@ -349,7 +349,7 @@ export default function SetupStrategiesPage() {
         }
         .sp-btn-add-strategy:hover { background: #EEF9F4; }
 
-        /* â”€â”€ Strategy card â”€â”€ */
+        /* -- Strategy card -- */
         .sp-card {
           background: #FFFFFF;
           border-radius: 14px;
@@ -419,7 +419,7 @@ export default function SetupStrategiesPage() {
           white-space: nowrap;
         }
 
-        /* â”€â”€ Images section â”€â”€ */
+        /* -- Images section -- */
         .sp-images-section {
           padding: 12px 16px;
           border-bottom: 1px solid #F1F4F8;
@@ -484,7 +484,7 @@ export default function SetupStrategiesPage() {
           color: #A0AEC0;
         }
 
-        /* â”€â”€ Rules section â”€â”€ */
+        /* -- Rules section -- */
         .sp-rules-section {
           padding: 12px 16px;
         }
@@ -594,7 +594,7 @@ export default function SetupStrategiesPage() {
           padding: 12px 0 4px;
         }
 
-        /* â”€â”€ Empty state â”€â”€ */
+        /* -- Empty state -- */
         .sp-empty {
           text-align: center;
           padding: 48px 20px;
@@ -636,7 +636,7 @@ export default function SetupStrategiesPage() {
           cursor: pointer;
         }
 
-        /* â”€â”€ Skeleton â”€â”€ */
+        /* -- Skeleton -- */
         .sp-skel-card {
           background: #FFFFFF;
           border-radius: 14px;
@@ -673,7 +673,7 @@ export default function SetupStrategiesPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}>
                 <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
               </svg>
-              Savingâ€¦
+              Saving...
             </>
           ) : (
             <>
@@ -743,7 +743,7 @@ export default function SetupStrategiesPage() {
                 const isExpanded = expandedIds.has(strategy.id);
                 return (
                   <div key={strategy.id} className="sp-card">
-                    {/* Card header â€“ name */}
+                    {/* Card header - name */}
                     <div className="sp-card-header" onClick={() => toggleExpand(strategy.id)}>
                       <div className="sp-card-name-wrap">
                         <div className="sp-field-label">STRATEGY NAME</div>
@@ -774,7 +774,7 @@ export default function SetupStrategiesPage() {
                         className="sp-name-input"
                         value={strategy.name}
                         onChange={e => updateStrategyName(strategy.id, e.target.value)}
-                        placeholder="e.g. London Breakout, NY Reversalâ€¦"
+                        placeholder="e.g. London Breakout, NY Reversal..."
                       />
                     </div>
 
@@ -837,7 +837,7 @@ export default function SetupStrategiesPage() {
                       </div>
 
                       {strategy.rules.length === 0 ? (
-                        <div className="sp-no-rules">No rules yet â€” click Add Rule to get started.</div>
+                        <div className="sp-no-rules">No rules yet - click Add Rule to get started.</div>
                       ) : (
                         strategy.rules.map(rule => (
                           <div key={rule.id} className="sp-rule-row">
@@ -847,7 +847,7 @@ export default function SetupStrategiesPage() {
                               className="sp-rule-input"
                               value={rule.label}
                               onChange={e => updateRuleLabel(strategy.id, rule.id, e.target.value)}
-                              placeholder="Describe this ruleâ€¦"
+                              placeholder="Describe this rule..."
                             />
                             <button
                               type="button"

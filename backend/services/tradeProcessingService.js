@@ -1,6 +1,6 @@
 const Trade = require("../models/Trade");
 const ExtractionLog = require("../models/ExtractionLog");
-const { clearUserCache } = require("../utils/cacheUtils");
+const { TRADE_CACHE_EVENTS, invalidateTradeCaches } = require("../utils/cacheUtils");
 const { buildCacheKey, setCache } = require("../utils/cache");
 const { extractText } = require("./ocrService");
 const { extractTextWithVision, isVisionAvailable } = require("./visionOcrService");
@@ -35,6 +35,20 @@ const CONFIDENCE_ZONES = {
 };
 const MAX_OCR_TEXT_LENGTH = 50_000;
 const MAX_AI_RESPONSE_LENGTH = 50_000;
+
+function createProcessingCancelledError(message = "OCR job cancelled") {
+  const error = new Error(message);
+  error.code = "OCR_JOB_CANCELLED";
+  return error;
+}
+
+async function runCancellationCheck(checkCancellation, stage) {
+  if (typeof checkCancellation !== "function") return;
+  const cancelled = await checkCancellation(stage);
+  if (cancelled) {
+    throw createProcessingCancelledError();
+  }
+}
 
 function truncateField(value, maxLength) {
   const s = String(value || "");
@@ -141,7 +155,13 @@ async function rejectNonTradeImage(tradeId, trade, userMessage) {
     errorMessage: userMessage,
   });
 
-  await clearUserCache(trade.user);
+  await invalidateTradeCaches({
+    userId: trade.user,
+    event: TRADE_CACHE_EVENTS.DELETE,
+    market: trade.marketType || "Forex",
+    tradeId,
+    source: "ocr_reject",
+  });
 
   logger.warn("Non-trade image rejected and deleted", { tradeId, publicId, userMessage });
 }
@@ -618,24 +638,42 @@ async function findTradeWithRetry(tradeId) {
   return Trade.findById(tradeId);
 }
 
-async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt = 1 }) {
-  const trade = await findTradeWithRetry(tradeId);
+async function processTradeUpload({
+  tradeId,
+  imageUrl,
+  imagePath,
+  jobId,
+  attempt = 1,
+  tradeRecord = null,
+  persistTrade = true,
+  checkCancellation = null,
+}) {
+  const trade = tradeRecord || await findTradeWithRetry(tradeId);
   if (!trade) {
-    throw new Error("Trade not found");
+    throw new Error(persistTrade ? "Trade not found" : "OCR job not found");
   }
 
-  const sourceImage = imageUrl || imagePath || trade.imageUrl || trade.screenshot;
+  const sourceImage =
+    imageUrl ||
+    imagePath ||
+    trade.imageUrl ||
+    trade.screenshot ||
+    trade.uploadedImage?.imageUrl;
   if (!sourceImage) {
     throw new Error("No image URL available for OCR processing");
   }
 
-  await Trade.findByIdAndUpdate(tradeId, {
-    status: "processing",
-    ocrJobId: jobId || trade.ocrJobId || tradeId,
-    ocrAttempts: attempt,
-    processingStartedAt: trade.processingStartedAt || new Date(),
-    error: null,
-  });
+  await runCancellationCheck(checkCancellation, "before-status-update");
+
+  if (persistTrade) {
+    await Trade.findByIdAndUpdate(tradeId, {
+      status: "processing",
+      ocrJobId: jobId || trade.ocrJobId || tradeId,
+      ocrAttempts: attempt,
+      processingStartedAt: trade.processingStartedAt || new Date(),
+      error: null,
+    });
+  }
 
   return withTimeout((async () => {
     const marketType = trade.marketType || "Forex";
@@ -646,8 +684,10 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     let ocrImageBuffer = null;
     let ocrImageMimeType = "image/jpeg";
 
+    await runCancellationCheck(checkCancellation, "before-ocr");
     try {
       const ocrResult = await runOcrWithRetry(sourceImage);
+      await runCancellationCheck(checkCancellation, "after-ocr");
       extractedText = ocrResult.text;
       ocrImageBuffer = ocrResult.buffer;
       ocrImageMimeType = ocrResult.mimeType;
@@ -665,6 +705,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     }
 
     const cleanedText = cleanOcrText(extractedText);
+    await runCancellationCheck(checkCancellation, "before-parsing");
     // Treat as weak if OCR was skipped or produced too little text
     const weakOcr = ocrSkipped || isWeakOcrText(cleanedText);
     const broker = detectBrokerPattern(cleanedText, trade.broker || undefined);
@@ -690,6 +731,11 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     // and reject immediately with a clear error.
     if (!ocrSkipped && !isTradeRelatedContent(cleanedText, marketType)) {
       logger.warn(`Non-trade image detected (no trading keywords) | tradeId=${tradeId}`, { tradeId, textLength: cleanedText.length });
+      if (!persistTrade) {
+        const err = new Error("Image does not appear to be a trade screenshot. Please upload a screenshot from your broker platform.");
+        err.code = "NOT_A_TRADE_IMAGE";
+        throw err;
+      }
       await rejectNonTradeImage(tradeId, trade, "Image does not appear to be a trade screenshot. Please upload a screenshot from your broker platform.");
       return { tradeId, status: "failed", reason: "NOT_A_TRADE_IMAGE" };
     }
@@ -707,6 +753,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     try {
       let visionData = null;
       for (let vAttempt = 1; vAttempt <= 2; vAttempt++) {
+        await runCancellationCheck(checkCancellation, "before-gemini-vision");
         try {
           visionData = await withTimeout(
             extractTradeWithGeminiVision(sourceImage, {
@@ -717,6 +764,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
             }),
             "Gemini Vision timeout"
           );
+          await runCancellationCheck(checkCancellation, "after-gemini-vision");
           if (visionData) break;
           logger.warn(`Gemini Vision returned null | tradeId=${tradeId} | attempt=${vAttempt}`, { tradeId, vAttempt });
         } catch (vErr) {
@@ -875,8 +923,10 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         !quality.validation.isValid ||
         quality.isLowConfidence);
 
+    await runCancellationCheck(checkCancellation, "before-text-ai-decision");
     if (shouldUseTextAi) {
       try {
+        await runCancellationCheck(checkCancellation, "before-text-ai");
         aiData = await runAiWithRetry({
           marketType,
           tradeSubType,
@@ -885,6 +935,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
           brokerHint: broker,
           expectedMultiple: marketType === "Indian_Market" && (isEquityIntraday ? /INTRADAY|POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText) : ((parsedTrades && parsedTrades.length > 1) || /POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText))),
         });
+        await runCancellationCheck(checkCancellation, "after-text-ai");
         aiRawResponse = aiData?.rawResponse || "";
 
         if (aiRawResponse.length < 1000) {
@@ -949,6 +1000,7 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     const finalValidation = marketType === "Indian_Market"
       ? validateIndianTrade(parsedTrade)
       : validateExtractedTrade(parsedTrade);
+    await runCancellationCheck(checkCancellation, "before-validation-save");
     if (!finalValidation.isValid) {
       logger.warn(`Validation failed after processing | tradeId=${tradeId}`, {
         tradeId,
@@ -971,6 +1023,11 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
     // Distinct from needsReview (score 10–60) which is a blurry/partial trade screenshot.
     if (quality.score <= CONFIDENCE_ZONES.rejectMax) {
       logger.warn(`Near-zero confidence after full pipeline | tradeId=${tradeId} | score=${quality.score}`, { tradeId, score: quality.score });
+      if (!persistTrade) {
+        const err = new Error("Could not extract any trade data from this image. Please upload a clear screenshot from your broker platform.");
+        err.code = "NOT_A_TRADE_IMAGE";
+        throw err;
+      }
       await rejectNonTradeImage(tradeId, trade, "Could not extract any trade data from this image. Please upload a clear screenshot from your broker platform.");
       return { tradeId, status: "failed", reason: "NOT_A_TRADE_IMAGE" };
     }
@@ -997,11 +1054,37 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
       });
     }
 
-    // When multiple trades are parsed, the ghost/placeholder trade that was created
-    // on upload must be DELETED — it was never a real trade, just a job tracker.
-    // The user will create individual trades from the frontend after reviewing.
-    // Only keep (and update) the ghost trade when there is exactly one parsed trade.
+    if (!persistTrade) {
+      await runCancellationCheck(checkCancellation, "before-result-return");
+      return {
+        tradeId,
+        status: "completed",
+        parsedTrade,
+        parsedTrades,
+        data: {
+          parsedData: { parsedTrade, parsedTrades },
+          parsedTrade,
+          parsedTrades,
+          imageUrl: sourceImage,
+          screenshot: sourceImage,
+          extractedText: cleanedText,
+          marketType,
+          tradeSubType: marketType === "Indian_Market" ? tradeSubType : trade.tradeSubType || "",
+          extractionConfidence: quality.score ?? 0,
+          needsReview,
+          validation: {
+            isValid: finalValidation.isValid,
+            failures: finalValidation.failures,
+            confidenceScore: quality.score ?? 0,
+          },
+        },
+      };
+    }
+
+    // Legacy compatibility: if an old queue item points at a temporary trade,
+    // the user will create individual trades from the frontend after reviewing.
     const isMultiTrade = Array.isArray(parsedTrades) && parsedTrades.length > 1;
+    await runCancellationCheck(checkCancellation, "before-trade-write");
 
     if (isMultiTrade) {
       const bridgePayload = {
@@ -1026,26 +1109,8 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
         bridgePayload,
         24 * 60 * 60
       );
-      await Trade.findByIdAndUpdate(
-        tradeId,
-        {
-          status: "completed",
-          extractedText: truncateField(cleanedText, MAX_OCR_TEXT_LENGTH),
-          rawOCRText: truncateField(cleanedText, MAX_OCR_TEXT_LENGTH),
-          aiRawResponse: truncateField(aiRawResponse, MAX_AI_RESPONSE_LENGTH),
-          extractionConfidence: quality.score ?? 0,
-          isValid: true,
-          needsReview: false,
-          parsedData: {
-            ...bridgePayload.data.parsedData,
-            multiTradeGhost: true,
-          },
-          error: null,
-          processedAt: new Date(),
-        },
-        { returnDocument: "after", runValidators: true }
-      );
-      logger.info(`Ghost trade preserved as bridge (multi-trade result) | tradeId=${tradeId} | count=${parsedTrades.length}`, {
+      await Trade.findByIdAndDelete(tradeId);
+      logger.info(`Temporary OCR trade removed after multi-trade extraction | tradeId=${tradeId} | count=${parsedTrades.length}`, {
         tradeId,
         parsedTradeCount: parsedTrades.length,
       });
@@ -1073,8 +1138,16 @@ async function processTradeUpload({ tradeId, imageUrl, imagePath, jobId, attempt
       }
     }
 
+    await runCancellationCheck(checkCancellation, "before-extraction-log");
     await logExtraction({ trade, extractedText: cleanedText, parsedTrade, parsedTrades, aiUsed: !!aiData });
-    await clearUserCache(trade.user);
+    await invalidateTradeCaches({
+      userId: trade.user,
+      event: TRADE_CACHE_EVENTS.IMPORT,
+      market: marketType,
+      tradeId,
+      count: Array.isArray(parsedTrades) && parsedTrades.length > 0 ? parsedTrades.length : 1,
+      source: "ocr_process",
+    });
 
     return {
       tradeId,
@@ -1097,6 +1170,9 @@ function getFriendlyProcessingError(error) {
   }
   if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("deadline")) {
     return "AI processing timed out due to high load. Please try again shortly.";
+  }
+  if (code === "OCR_JOB_CANCELLED") {
+    return "Upload cancelled.";
   }
   return error?.message || "Processing failed";
 }
@@ -1122,11 +1198,19 @@ async function failTradeProcessing(tradeId, error) {
       aiUsed: false,
       errorMessage: failureMessage,
     });
-    await clearUserCache(trade.user);
+    await invalidateTradeCaches({
+      userId: trade.user,
+      event: TRADE_CACHE_EVENTS.EDIT,
+      market: trade.marketType || "Forex",
+      tradeId,
+      source: "ocr_fail",
+    });
   }
 }
 
 module.exports = {
+  createProcessingCancelledError,
+  getFriendlyProcessingError,
   processTradeUpload,
   failTradeProcessing,
 };

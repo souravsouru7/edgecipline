@@ -5,7 +5,7 @@ const connectDB = require("../config/db");
 const { appConfig } = require("../config");
 const { connectRedis, bullmqConnection } = require("../config/redis");
 const { OCR_QUEUE_NAME } = require("../queues/ocrQueue");
-const { processTradeUpload, failTradeProcessing } = require("../services/tradeProcessingService");
+const { processOcrJob } = require("../services/ocrJob.service");
 const { logger } = require("../utils/logger");
 const { jobFailureTracker } = require("../utils/jobFailureTracker");
 
@@ -30,13 +30,13 @@ function bindShutdownHandlers() {
 
 function createProcessor() {
   return async (job) => {
-    const { tradeId, imageUrl, imagePath, userId } = job.data;
+    const ocrJobId = job.data.jobId || job.data.tradeId || job.id;
+    const userId = job.data.userId;
 
-    logger.info(`Job started | id=${job.id} | tradeId=${tradeId}`, {
+    logger.info(`OCR job started | id=${job.id} | jobId=${ocrJobId}`, {
       jobId: job.id,
-      tradeId,
+      ocrJobId,
       userId,
-      imageUrl: imageUrl || imagePath,
       attempt: job.attemptsMade + 1,
       timestamp: new Date().toISOString(),
     });
@@ -47,11 +47,8 @@ function createProcessor() {
         attempt: job.attemptsMade + 1,
       });
 
-      const result = await processTradeUpload({
-        tradeId,
-        imageUrl,
-        imagePath,
-        jobId: job.id,
+      const result = await processOcrJob(ocrJobId, {
+        queueJobId: job.id,
         attempt: job.attemptsMade + 1,
       });
 
@@ -60,39 +57,23 @@ function createProcessor() {
         attempt: job.attemptsMade + 1,
       });
 
-      logger.info(`Job completed successfully | id=${job.id} | tradeId=${tradeId}`, {
+      logger.info(`OCR job completed successfully | id=${job.id} | jobId=${ocrJobId}`, {
         jobId: job.id,
-        tradeId,
+        ocrJobId,
         timestamp: new Date().toISOString(),
       });
 
       return result;
     } catch (error) {
-      jobFailureTracker.recordFailure(job.id, error, tradeId);
+      jobFailureTracker.recordFailure(job.id, error, ocrJobId);
 
-      try {
-        await failTradeProcessing(tradeId, error);
-      } catch (updateError) {
-        logger.error(
-          `Failed to persist failed status | id=${job.id} | tradeId=${tradeId}`,
-          {
-            jobId: job.id,
-            tradeId,
-            originalError: error.message,
-            updateError: updateError.message,
-          }
-        );
-      }
-
-      logger.error(`Job failed | id=${job.id} | tradeId=${tradeId}`,
-        {
-          jobId: job.id,
-          tradeId,
-          error: error.message,
-          stack: error.stack,
-          timestamp: new Date().toISOString(),
-        }
-      );
+      logger.error(`OCR job failed | id=${job.id} | jobId=${ocrJobId}`, {
+        jobId: job.id,
+        ocrJobId,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
       throw error;
     }
   };
@@ -119,25 +100,26 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
   );
 
   workerInstance.on("completed", (job) => {
-    logger.info(`Job completed event fired | id=${job.id} | tradeId=${job.data.tradeId}`, {
+    logger.info(`OCR job completed event fired | id=${job.id} | jobId=${job.data.jobId || job.data.tradeId}`, {
       jobId: job.id,
-      tradeId: job.data.tradeId,
+      ocrJobId: job.data.jobId || job.data.tradeId,
       timestamp: new Date().toISOString(),
     });
   });
 
   workerInstance.on("failed", (job, err) => {
+    const ocrJobId = job?.data?.jobId || job?.data?.tradeId;
     if (job && job.attemptsMade >= job.opts.attempts) {
-      logger.error("OCR job permanently failed — all retries exhausted", {
-        tradeId: job?.data?.tradeId,
+      logger.error("OCR job permanently failed; all retries exhausted", {
+        ocrJobId,
         jobId: job?.id,
         attempts: job.attemptsMade,
         error: err?.message,
       });
     } else {
-      logger.error(`Job failed event fired | id=${job?.id} | tradeId=${job?.data?.tradeId}`, {
+      logger.error(`OCR job failed event fired | id=${job?.id} | jobId=${ocrJobId}`, {
         jobId: job?.id,
-        tradeId: job?.data?.tradeId,
+        ocrJobId,
         error: err?.message,
         stack: err?.stack,
         timestamp: new Date().toISOString(),

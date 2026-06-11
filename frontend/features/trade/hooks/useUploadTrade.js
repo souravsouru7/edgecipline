@@ -4,14 +4,32 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
-import { uploadTradeImage } from "@/services/uploadApi";
-import { createTrade, getTradeStatus, updateTrade, deleteTrade } from "@/services/tradeApi";
+import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/services/uploadApi";
+import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
 import { silentRefresh } from "@/services/apiClient";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 const DEFAULT_SETUP_RULES = [];
+const OCR_STORAGE_KEY_PATTERN = /(ocr|upload.*trade|trade.*upload|extracted|draft)/i;
+
+function clearOcrBrowserStorage() {
+  if (typeof window === "undefined") return;
+  [window.localStorage, window.sessionStorage].forEach((storage) => {
+    try {
+      for (let i = storage.length - 1; i >= 0; i -= 1) {
+        const key = storage.key(i);
+        if (key && OCR_STORAGE_KEY_PATTERN.test(key)) {
+          storage.removeItem(key);
+        }
+      }
+    } catch {
+      // Storage can be unavailable in restricted webviews.
+    }
+  });
+}
 const getTodayInputValue = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
@@ -66,7 +84,7 @@ function buildIndianTradeTemplate(imageUrl, t = {}) {
     entryBasis: "Plan", entryBasisCustom: "",
     notes: "", setup: "", mistakeTag: "", lesson: "",
     brokerage: "", sttTaxes: "",
-    mood: null, confidence: "", emotionalTags: [], wouldRetake: "",
+    mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
     setupRules: [],
   };
 }
@@ -191,7 +209,7 @@ function buildEquityTradeTemplate(imageUrl, t = {}) {
     brokerage: "", sttTaxes: "",
     entryBasis: "Plan", entryBasisCustom: "",
     setup: "", mistakeTag: "", lesson: "", notes: "",
-    mood: null, confidence: "", emotionalTags: [], wouldRetake: "",
+    mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
     setupRules: [],
   };
 }
@@ -223,7 +241,7 @@ function buildForexTradeTemplate(imageUrl, t = {}) {
     expiryDate: t.expiryDate || "",
     brokerage: "", sttTaxes: "",
     entryBasis: "Plan", entryBasisCustom: "",
-    mood: null, confidence: "", emotionalTags: [], wouldRetake: "",
+    mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
     setupRules: [],
   };
 }
@@ -251,6 +269,7 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
     confidence: trade.confidence || undefined,
     emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
     wouldRetake: trade.wouldRetake || undefined,
+    tradeQuality: trade.tradeQuality || undefined,
     riskRewardRatio: trade.riskRewardRatio || undefined,
     riskRewardCustom: trade.riskRewardCustom || undefined,
     setupRules: activeRules.map(({ label, followed }) => ({ label: String(label).trim(), followed })),
@@ -338,7 +357,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [file, setFile]                       = useState(null);
   const [error, setError]                     = useState(null);
   const [jobId, setJobId]                     = useState("");
-  const [uploadedTradeId, setUploadedTradeId] = useState(null); // original ghost trade ID from upload
+  const [uploadedTradeId, setUploadedTradeId] = useState(null);
   const [broker, setBroker]                   = useState("AUTO");
   const [tradeSubType, setTradeSubType]       = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
@@ -347,13 +366,19 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [trades, setTrades]                   = useState([]);
   const [savedTrades, setSavedTrades]         = useState([]);
   const [saved, setSaved]                     = useState(false);
+  const [isBatchSaving, setIsBatchSaving]     = useState(false);
   const [showCustomRR, setShowCustomRR]       = useState(false);
   const [setupRules, setSetupRules]           = useState(DEFAULT_SETUP_RULES);
   const [extractedText, setExtractedText]     = useState("");
   const [activeToastId, setActiveToastId]     = useState(null);
   const [preExtractDate, setPreExtractDate]   = useState(getTodayInputValue());
+  const [isCancellingUpload, setIsCancellingUpload] = useState(false);
   const processedTradeIdRef                   = useRef(null);
   const saveAllLockRef                        = useRef(false);
+  const uploadedTradeIdRef                    = useRef(null);
+  const savedRef                              = useRef(false);
+  const uploadSessionRef                      = useRef(0);
+  const pendingUploadCancelRef                = useRef(null);
 
   // Clamp preExtractDate to [accountCreatedDate, today] whenever accountCreatedDate
   // arrives late (profile query resolves after mount) or preExtractDate drifts out of range.
@@ -367,6 +392,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     }
   }, [accountCreatedDate]); // eslint-disable-line react-hooks/exhaustive-deps
   const userEditedFormRef                     = useRef(false);
+
+  useEffect(() => {
+    uploadedTradeIdRef.current = uploadedTradeId;
+  }, [uploadedTradeId]);
+
+  useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
 
   // 3. Authenticity check
   useEffect(() => {
@@ -397,14 +430,40 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   // 5. Initial Image Upload Mutation
   const uploadJobMutation = useMutation({
-    mutationFn: (fileObj) => uploadTradeImage({
+    mutationFn: ({ fileObj }) => uploadTradeImage({
       file: fileObj,
       marketType,
       broker: isInd ? broker : "",
       tradeSubType: isInd ? tradeSubType : undefined,
       tradeDate: preExtractDate,
     }),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
+      if (variables?.sessionId !== uploadSessionRef.current) {
+        if (res?.jobId) {
+          cancelUploadJob(res.jobId)
+            .then(() => {
+              const pendingClear = pendingUploadCancelRef.current;
+              pendingUploadCancelRef.current = null;
+              if (pendingClear) {
+                addToast("Upload cancelled.", "success");
+                clearOcrSession({ ...pendingClear, cancelJob: false });
+              }
+            })
+            .catch((cancelError) => {
+              const message = cancelError?.message || "Could not cancel upload. Please try again.";
+              pendingUploadCancelRef.current = null;
+              setError(message);
+              addToast(message, "error");
+            })
+            .finally(() => setIsCancellingUpload(false));
+        } else if (pendingUploadCancelRef.current) {
+          const pendingClear = pendingUploadCancelRef.current;
+          pendingUploadCancelRef.current = null;
+          setIsCancellingUpload(false);
+          clearOcrSession({ ...pendingClear, cancelJob: false });
+        }
+        return;
+      }
       const tradeId = String(res.jobId || "");
       processedTradeIdRef.current = null;
       userEditedFormRef.current = false;
@@ -418,12 +477,93 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       );
       setActiveToastId(tid);
     },
-    onError: (err) => {
+    onError: (err, variables) => {
+      if (variables?.sessionId !== uploadSessionRef.current && pendingUploadCancelRef.current) {
+        const pendingClear = pendingUploadCancelRef.current;
+        pendingUploadCancelRef.current = null;
+        setIsCancellingUpload(false);
+        clearOcrSession({ ...pendingClear, cancelJob: false });
+        return;
+      }
+      if (variables?.sessionId !== uploadSessionRef.current) return;
       const friendlyMessage = getFriendlyUploadError(err);
       setError(friendlyMessage);
       addToast(friendlyMessage, "error");
     }
   });
+
+  const clearOcrSession = async ({
+    nextFile = null,
+    keepFile = false,
+    clearError = true,
+    cancelJob = true,
+    resetDate = false,
+  } = {}) => {
+    const activeJobId = uploadedTradeIdRef.current || jobId;
+    if (cancelJob && !activeJobId && uploadJobMutation.isPending) {
+      pendingUploadCancelRef.current = { nextFile, keepFile, clearError, resetDate };
+      setIsCancellingUpload(true);
+      return false;
+    }
+
+    if (cancelJob && activeJobId && !savedRef.current) {
+      setIsCancellingUpload(true);
+      try {
+        await cancelUploadJob(activeJobId);
+        addToast("Upload cancelled.", "success");
+      } catch (cancelError) {
+        const message = cancelError?.message || "Could not cancel upload. Please try again.";
+        setError(message);
+        addToast(message, "error");
+        return false;
+      } finally {
+        setIsCancellingUpload(false);
+      }
+    }
+
+    if (activeToastId) {
+      removeToast(activeToastId);
+      setActiveToastId(null);
+    }
+
+    clearOcrBrowserStorage();
+    queryClient.removeQueries({ queryKey: ["uploadStatus"], exact: false });
+    uploadJobMutation.reset();
+    saveTradeMutation.reset();
+
+    processedTradeIdRef.current = null;
+    userEditedFormRef.current = false;
+    saveAllLockRef.current = false;
+    setJobId("");
+    setUploadedTradeId(null);
+    setTrade(null);
+    setTrades([]);
+    setSavedTrades([]);
+    setSaved(false);
+    setSetupRules(DEFAULT_SETUP_RULES);
+    setExtractedText("");
+    if (clearError) setError(null);
+    if (resetDate) setPreExtractDate(getTodayInputValue());
+    if (!keepFile) setFile(nextFile);
+    return true;
+  };
+
+  const handleFileSelect = async (nextFile) => {
+    uploadSessionRef.current += 1;
+    await clearOcrSession({ nextFile, cancelJob: true });
+  };
+
+  useEffect(() => {
+    return () => {
+      const activeJobId = uploadedTradeIdRef.current;
+      if (activeJobId && !savedRef.current) {
+        cancelUploadJob(activeJobId).catch(() => {});
+      }
+      clearOcrBrowserStorage();
+      queryClient.removeQueries({ queryKey: ["uploadStatus"], exact: false });
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Detects if extracted data belongs to the wrong market type
   const detectMarketMismatch = (payload) => {
@@ -465,10 +605,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     // Check for market type mismatch before populating the form
     const mismatchMessage = detectMarketMismatch(payload);
     if (mismatchMessage) {
-      if (activeToastId) { removeToast(activeToastId); setActiveToastId(null); }
+      clearOcrSession({ nextFile: null, clearError: false, cancelJob: true });
       setError(mismatchMessage);
-      setJobId("");
-      setFile(null);
       addToast(mismatchMessage, "error");
       return;
     }
@@ -556,7 +694,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // 6. Polling Query for status
   const jobStatusQuery = useQuery({
     queryKey: ["uploadStatus", jobId],
-    queryFn: () => getTradeStatus(jobId),
+    queryFn: () => getUploadJobStatus(jobId),
     enabled: !!jobId,
     // Retry transient network/server errors with exponential backoff.
     // Don't retry 404 (trade not found) — that's a definitive failure.
@@ -566,14 +704,15 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       // Stop polling on completed, failed, or persistent error
       if (query.state.error) return false;
       const status = query.state.data?.status;
-      if (status === "completed" || status === "failed") return false;
+      if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
       return 4000;
     },
   });
 
   // Effect to process data when polling finishes (once per upload id)
   useEffect(() => {
-    if (jobStatusQuery.data?.status === "completed" && jobStatusQuery.data?.data) {
+    const currentStatus = String(jobStatusQuery.data?.status || "").toUpperCase();
+    if (currentStatus === "COMPLETED" && jobStatusQuery.data?.data) {
       const sourceId = uploadedTradeId || jobId;
       if (!sourceId || processedTradeIdRef.current === sourceId) return;
 
@@ -588,7 +727,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       return;
     }
 
-    if (jobStatusQuery.data?.status === "failed") {
+    if (currentStatus === "FAILED" || currentStatus === "CANCELLED") {
       const rawError = jobStatusQuery.data.error || "Processing failed.";
       const normalizedRawError = String(rawError || "Processing failed.");
       const lc = normalizedRawError.toLowerCase();
@@ -619,13 +758,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         ? "Our AI is currently busy due to high demand. Please wait a moment and try uploading again."
         : normalizedRawError;
 
+      clearOcrSession({ nextFile: null, clearError: false, cancelJob: false });
       setError(userMessage);
-      setJobId("");
-      if (isNotTradeImage) setFile(null);
-      if (activeToastId) {
-        removeToast(activeToastId);
-        setActiveToastId(null);
-      }
       addToast(
         isWrongMarket
           ? normalizedRawError
@@ -644,76 +778,54 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   useEffect(() => {
     if (jobStatusQuery.error) {
       const msg = jobStatusQuery.error?.message || "Failed to check processing status.";
+      clearOcrSession({ nextFile: null, clearError: false, cancelJob: false });
       setError(msg);
-      setJobId("");
-      if (activeToastId) {
-        removeToast(activeToastId);
-        setActiveToastId(null);
-      }
       addToast(msg, "error");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobStatusQuery.error]);
 
-  const loading = uploadJobMutation.isPending || !!jobId;
-  const processingStatus = uploadJobMutation.isPending
+  const loading = uploadJobMutation.isPending || !!jobId || isCancellingUpload;
+  const processingStatus = isCancellingUpload
+    ? "cancelling"
+    : uploadJobMutation.isPending
     ? "uploading"
-    : (jobStatusQuery.data?.status || (jobId ? "processing" : ""));
+    : (String(jobStatusQuery.data?.status || "").toLowerCase() || (jobId ? "processing" : ""));
 
   // 7. Save Mutation
   const saveTradeMutation = useMutation({
-    mutationFn: async ({ idx = null, forceCreate = false, tradeSnapshot, setupRulesSnapshot, tradeDate }) => {
+    mutationFn: async ({ idx = null, tradeSnapshot, setupRulesSnapshot, tradeDate }) => {
       const t = tradeSnapshot ?? (idx !== null ? trades[idx] : trade);
       const rules = setupRulesSnapshot ?? (idx !== null ? (t.setupRules || []) : setupRules);
       const selectedTradeDate = normalizeDateForInput(tradeDate ?? t?.tradeDate);
       const tradeData = buildTradePayload(t, isInd, rules, selectedTradeDate);
-
-      // >1 means genuinely multi-trade; ==1 means user deleted down to a single trade
-      // and the ghost should be updated in-place rather than a new doc created.
-      const isMultiTrade = trades.length > 1;
-
-      // Indian market ghost trades are stored in the Forex Trade collection (the upload
-      // pipeline always uses the Forex model). Calling updateTrade via the Indian market
-      // endpoint looks in the IndianTrade collection and gets a 404. Always createTrade
-      // for Indian market so the doc lands in the correct IndianTrade collection.
-      if (!forceCreate && !isMultiTrade && idx === null && uploadedTradeId && !isInd) {
-        // Also clear parsedData so the ghost flag (multiTradeGhost: true) is removed.
-        // Without this, the updated document stays hidden in the journal because the
-        // trade list query filters: "parsedData.multiTradeGhost": { $ne: true }.
-        return updateTrade(uploadedTradeId, {
-          ...tradeData,
-          parsedData: null,
-          status: "completed",
-        }, marketType);
-      }
-
-      return createTrade(tradeData, marketType);
+      return createTrade({
+        ...tradeData,
+        ocrJobId: uploadedTradeId || jobId || undefined,
+      }, marketType);
     },
     onSuccess: (res, variables) => {
       const { idx } = variables;
-      queryClient.invalidateQueries({ queryKey: ["trades"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateTradeDependentQueries(queryClient);
 
       addToast("Trade saved to your journal!", "success");
-
-      // For Indian market single-trade saves the ghost trade lives in the Forex
-      // collection — delete it using the Forex endpoint so it doesn't appear in logs.
-      if (isInd && idx === null && uploadedTradeId) {
-        deleteTrade(uploadedTradeId, "Forex").catch(() => {});
-      }
 
       if (idx !== null) {
         setSavedTrades(prev => {
           const updated = [...prev];
           updated[idx] = true;
           if (updated.every(Boolean)) {
+             savedRef.current = true;
              setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
           }
           return updated;
         });
       } else {
+        savedRef.current = true;
         setSaved(true);
+        setUploadedTradeId(null);
+        processedTradeIdRef.current = null;
+        userEditedFormRef.current = false;
         setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
       }
     },
@@ -723,10 +835,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   });
 
   // 8. Actions
-  const handleUpload = () => {
+  const handleUpload = async () => {
+    if (uploadJobMutation.isPending || jobId || isCancellingUpload) return;
     if (!file) return setError("Select file");
     if (isInd && broker === "AUTO") return setError("Select broker");
-    uploadJobMutation.mutate(file);
+    const fileToUpload = file;
+    const sessionId = uploadSessionRef.current + 1;
+    uploadSessionRef.current = sessionId;
+    const cleared = await clearOcrSession({ nextFile: fileToUpload, cancelJob: true });
+    if (!cleared) return;
+    uploadJobMutation.mutate({ fileObj: fileToUpload, sessionId });
   };
 
   const handleChange = (e) => {
@@ -874,12 +992,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   };
 
   return {
-    file, setFile, trade, setTrade, trades, savedTrades, loading, error, setError,
+    file, setFile: handleFileSelect, trade, setTrade, trades, savedTrades, loading, error, setError,
     extractedText, strategies, setupsLoading, jobId, processingStatus, mounted, saved,
     showCustomRR, setShowCustomRR, broker, setBroker, setupRules, isInd, marketType,
     tradeCount, tradeSubType, setTradeSubType,
-    savingAll: saveTradeMutation.isPending,
+    savingAll: saveTradeMutation.isPending || isBatchSaving,
     handleUpload,
+    clearOcrSession: async () => {
+      uploadSessionRef.current += 1;
+      await clearOcrSession({ nextFile: null, cancelJob: true, resetDate: true });
+    },
     handleChange,
     handleStrategyChange,
     handleTradeChange,
@@ -962,27 +1084,38 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           if (validIndices.length === 0) return;
         }
 
-        // Delete the ghost trade first so it never appears in the journal,
-        // regardless of which individual trades the user chose to keep.
-        if (uploadedTradeId) {
-          try {
-            await deleteTrade(uploadedTradeId, "Forex");
-          } catch {
-            // Ghost may already be gone — not a blocking error
-          }
-        }
+        const batchPayload = validIndices.map((i) => {
+          const row = trades[i];
+          return buildTradePayload(row, isInd, row.setupRules || [], normalizeDateForInput(row.tradeDate));
+        });
 
-        // Save only the trades that passed validation
-        for (const i of validIndices) {
-          try {
-            await saveTradeMutation.mutateAsync({
-              idx: i,
-              tradeSnapshot: trades[i],
-              tradeDate: trades[i]?.tradeDate,
-            });
-          } catch (err) {
-            addToast(`Trade #${i + 1} failed: ${err?.message || "Unknown error"}`, "error");
-          }
+        setIsBatchSaving(true);
+        const toastId = addToast(`Saving ${batchPayload.length} trades...`, "loading", Infinity);
+        try {
+          await createTradesBatch({
+            trades: batchPayload,
+            ocrJobId: uploadedTradeId || jobId || undefined,
+          }, marketType);
+
+          setSavedTrades(prev => {
+            const updated = [...prev];
+            validIndices.forEach((i) => { updated[i] = true; });
+            return updated;
+          });
+          savedRef.current = true;
+          setSaved(true);
+          setUploadedTradeId(null);
+          processedTradeIdRef.current = null;
+          userEditedFormRef.current = false;
+          invalidateTradeDependentQueries(queryClient);
+          removeToast(toastId);
+          addToast(`${batchPayload.length} trades imported successfully!`, "success");
+          setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
+        } catch (err) {
+          removeToast(toastId);
+          addToast(err?.message || "Batch import failed. Please review and try again.", "error");
+        } finally {
+          setIsBatchSaving(false);
         }
       } finally {
         saveAllLockRef.current = false;

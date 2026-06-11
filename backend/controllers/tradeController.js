@@ -9,6 +9,13 @@ exports.createTrade = asyncHandler(async (req, res) => {
   res.status(201).json(trade);
 });
 
+exports.createTradesBatch = asyncHandler(async (req, res) => {
+  const result = await tradeService.createTradesBatch(req.user._id, req.body, {
+    accountCreatedAt: req.user.createdAt,
+  });
+  res.status(201).json(result);
+});
+
 exports.getTrades = asyncHandler(async (req, res) => {
   const trades = await tradeService.getTrades(req.user._id, req.query);
   res.json(trades);
@@ -33,6 +40,11 @@ exports.updateTrade = asyncHandler(async (req, res) => {
 
 exports.deleteTrade = asyncHandler(async (req, res) => {
   const result = await tradeService.deleteTrade(req.user._id, req.params.id);
+  res.json(result);
+});
+
+exports.restoreTrade = asyncHandler(async (req, res) => {
+  const result = await tradeService.restoreTrade(req.user._id, req.params.id);
   res.json(result);
 });
 

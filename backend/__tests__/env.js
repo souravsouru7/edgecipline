@@ -3,6 +3,7 @@
 process.env.NODE_ENV            = 'test';
 process.env.MONGO_URI           = 'mongodb://localhost:27017/stratedge_test';
 process.env.JWT_SECRET          = 'test-jwt-secret-at-least-32-chars-long!!';
+process.env.ADMIN_JWT_SECRET    = 'test-admin-jwt-secret-distinct-32-chars!!';
 process.env.CLOUD_NAME          = 'test_cloud';
 process.env.CLOUD_API_KEY       = 'test_cloud_api_key';
 process.env.CLOUD_API_SECRET    = 'test_cloud_api_secret';

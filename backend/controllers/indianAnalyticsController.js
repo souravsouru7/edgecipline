@@ -1,6 +1,7 @@
 ﻿const IndianTrade = require("../models/IndianTrade");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 const toNum = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -12,55 +13,79 @@ const safeDivide = (a, b) => {
 };
 const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
 
+const INDIAN_ANALYTICS_PROJECTION = [
+  "pair",
+  "underlying",
+  "type",
+  "optionType",
+  "entryPrice",
+  "exitPrice",
+  "stopLoss",
+  "takeProfit",
+  "profit",
+  "strategy",
+  "session",
+  "tradeDate",
+  "createdAt",
+  "riskRewardRatio",
+  "riskRewardCustom",
+  "segment",
+  "instrumentType",
+  "stockSymbol",
+  "exchange",
+  "sharesQty",
+  "sector",
+  "strikePrice",
+  "quantity",
+  "lotSize",
+  "tradeType",
+  "brokerage",
+  "sttTaxes",
+  "entryBasis",
+  "setup",
+  "mistakeTag",
+  "setupRules",
+  "setupScore",
+  "mood",
+  "confidence",
+  "emotionalTags",
+  "wouldRetake",
+  "tradeQuality",
+].join(" ");
+
 const userQuery = (req) => {
   const instrumentType = (req.query.instrumentType || "OPTION").toUpperCase();
   if (!["OPTION", "EQUITY"].includes(instrumentType)) {
     throw new ApiError(400, "Invalid instrumentType");
   }
-  return { user: req.user._id, instrumentType };
+  return { user: req.user._id, instrumentType, deletedAt: null };
 };
 
 // ========== BASIC ANALYTICS ==========
 
 exports.getSummary = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ createdAt: -1 });
-
-    const totalTrades = trades.length;
-    const totalProfit = trades.reduce((acc, t) => acc + toNum(t.profit), 0);
-    const wins = trades.filter(t => t.profit > 0).length;
-    const winRate = totalTrades ? (wins / totalTrades) * 100 : 0;
-
-    const winningTrades = trades.filter(t => t.profit > 0);
-    const losingTrades = trades.filter(t => t.profit < 0);
-    const avgWin = winningTrades.length
-      ? winningTrades.reduce((acc, t) => acc + toNum(t.profit), 0) / winningTrades.length
-      : 0;
-    const avgLoss = losingTrades.length
-      ? Math.abs(losingTrades.reduce((acc, t) => acc + toNum(t.profit), 0) / losingTrades.length)
-      : 0;
-
-    const totalCosts = trades.reduce((acc, t) => acc + (t.brokerage || 0) + (t.sttTaxes || 0), 0);
-    const netProfit = totalProfit - totalCosts;
-
-    // Setup Quality Stats
-    const tradesWithScore = trades.filter(t => t.setupScore !== null && t.setupScore !== undefined);
-    const avgSetupScore = tradesWithScore.length
-      ? tradesWithScore.reduce((acc, t) => acc + t.setupScore, 0) / tradesWithScore.length
-      : 0;
+    const query = userQuery(req);
+    const snapshot = await analyticsSnapshotService.getPerformanceSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
+    });
+    const performance = snapshot.performance;
+    const avgSetupScore = performance.avgSetupScore ?? 0;
 
     res.json({
-      totalTrades,
-      totalProfit: fixed(totalProfit),
-      netProfit: fixed(netProfit),
-      winRate: fixed(winRate, 1),
-      avgTrade: fixed(totalTrades ? totalProfit / totalTrades : 0),
-      avgWin: fixed(avgWin),
-      avgLoss: fixed(avgLoss),
-      totalCosts: fixed(totalCosts),
-      winningTrades: winningTrades.length,
-      losingTrades: losingTrades.length,
-      avgSetupScore: avgSetupScore.toFixed(1)
+      totalTrades: performance.totalTrades,
+      totalProfit: fixed(performance.grossPnL),
+      netProfit: fixed(performance.netPnL),
+      winRate: fixed(performance.winRate, 1),
+      avgTrade: fixed(performance.avgPnL),
+      avgWin: fixed(performance.avgWin),
+      avgLoss: fixed(performance.avgLoss),
+      totalCosts: fixed(performance.totalCosts),
+      winningTrades: performance.winningTrades,
+      losingTrades: performance.losingTrades,
+      avgSetupScore: fixed(avgSetupScore, 1)
     });
   } catch (error) {
     throw new ApiError(500, error.message);
@@ -69,23 +94,13 @@ exports.getSummary = asyncHandler(async (req, res) => {
 
 exports.getWeeklyStats = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
-    const weekly = {};
-
-    trades.forEach(trade => {
-      const date = new Date(trade.tradeDate || trade.createdAt);
-      // ISO week calculation helper
-      const d = new Date(date.getTime());
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-      const yearStart = new Date(d.getFullYear(), 0, 1);
-      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-      const week = `${d.getFullYear()}-W${weekNo}`;
-      
-      if (!weekly[week]) weekly[week] = 0;
-      weekly[week] += trade.profit || 0;
+    const query = userQuery(req);
+    const breakdown = await analyticsSnapshotService.getPnlBreakdownSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
     });
-    res.json(weekly);
+    res.json(Object.fromEntries(breakdown.weekly.map((row) => [row.week, row.profit])));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -97,41 +112,13 @@ exports.getWeeklyStats = asyncHandler(async (req, res) => {
  */
 exports.getPnLBreakdown = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
-
-    const dailyMap = {};
-    const weeklyMap = {};
-    const monthlyMap = {};
-
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-    trades.forEach(t => {
-      const date = new Date(t.tradeDate || t.createdAt);
-      const profit = t.profit || 0;
-
-      // Daily
-      const dKey = date.toISOString().split('T')[0];
-      dailyMap[dKey] = (dailyMap[dKey] || 0) + profit;
-
-      // Weekly (ISO)
-      const d = new Date(date.getTime());
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-      const yearStart = new Date(d.getFullYear(), 0, 1);
-      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-      const wKey = `${d.getFullYear()}-W${weekNo}`;
-      weeklyMap[wKey] = (weeklyMap[wKey] || 0) + profit;
-
-      // Monthly
-      const mKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-      monthlyMap[mKey] = (monthlyMap[mKey] || 0) + profit;
+    const query = userQuery(req);
+    const breakdown = await analyticsSnapshotService.getPnlBreakdownSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
     });
-
-    const daily = Object.entries(dailyMap).map(([date, profit]) => ({ date, profit: parseFloat(profit.toFixed(2)) }));
-    const weekly = Object.entries(weeklyMap).map(([week, profit]) => ({ week, profit: parseFloat(profit.toFixed(2)) }));
-    const monthly = Object.entries(monthlyMap).map(([month, profit]) => ({ month, profit: parseFloat(profit.toFixed(2)) }));
-
-    res.json({ daily, weekly, monthly });
+    res.json({ daily: breakdown.daily, weekly: breakdown.weekly, monthly: breakdown.monthly });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -141,7 +128,7 @@ exports.getPnLBreakdown = asyncHandler(async (req, res) => {
 
 exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
     const tradesWithRR = trades.filter(t => t.stopLoss && t.takeProfit && t.entryPrice);
 
     const winningTrades = trades.filter(t => t.profit > 0);
@@ -232,180 +219,13 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
 
 exports.getTradeDistribution = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean();
-
-    const byPair = {};
-    trades.forEach(t => {
-      if (!byPair[t.pair]) byPair[t.pair] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byPair[t.pair].total++;
-      if (t.profit > 0) byPair[t.pair].wins++;
-      else if (t.profit < 0) byPair[t.pair].losses++;
-      byPair[t.pair].profit += t.profit || 0;
+    const query = userQuery(req);
+    const snapshot = await analyticsSnapshotService.getTradeDistributionSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
     });
-    Object.keys(byPair).forEach(pair => (byPair[pair].winRate = ((byPair[pair].wins / byPair[pair].total) * 100).toFixed(1)));
-
-    const byType = { BUY: { total: 0, wins: 0, losses: 0, profit: 0 }, SELL: { total: 0, wins: 0, losses: 0, profit: 0 } };
-    trades.forEach(t => {
-      if (byType[t.type]) {
-        byType[t.type].total++;
-        if (t.profit > 0) byType[t.type].wins++;
-        else if (t.profit < 0) byType[t.type].losses++;
-        byType[t.type].profit += t.profit || 0;
-      }
-    });
-    Object.keys(byType).forEach(type => (byType[type].winRate = byType[type].total ? ((byType[type].wins / byType[type].total) * 100).toFixed(1) : 0));
-
-    const byStrategy = {};
-    trades.forEach(t => {
-      const strat = t.strategy || "Unspecified";
-      if (!byStrategy[strat]) byStrategy[strat] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byStrategy[strat].total++;
-      if (t.profit > 0) byStrategy[strat].wins++;
-      else if (t.profit < 0) byStrategy[strat].losses++;
-      byStrategy[strat].profit += t.profit || 0;
-    });
-    Object.keys(byStrategy).forEach(strat => (byStrategy[strat].winRate = ((byStrategy[strat].wins / byStrategy[strat].total) * 100).toFixed(1)));
-
-    // Indian market sessions in IST (UTC+5:30)
-    // Opening Bell: 9:15-11:00 IST | Mid-Session: 11:00-13:30 IST
-    // Post-Lunch:  13:30-15:00 IST | Closing:      15:00-15:30 IST
-    const bySession = {
-      "Opening Bell": { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Mid-Session":  { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Post-Lunch":   { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Closing":      { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Outside Market": { total: 0, wins: 0, losses: 0, profit: 0 },
-    };
-    trades.forEach(t => {
-      let session;
-      if (t.session && bySession[t.session]) {
-        session = t.session;
-      } else {
-        // Convert UTC timestamp to IST minute-of-day
-        const d = new Date(t.createdAt);
-        const istMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 330) % 1440;
-        if (istMinutes >= 555 && istMinutes < 660)       session = "Opening Bell"; // 9:15-11:00
-        else if (istMinutes >= 660 && istMinutes < 810)  session = "Mid-Session";  // 11:00-13:30
-        else if (istMinutes >= 810 && istMinutes < 900)  session = "Post-Lunch";   // 13:30-15:00
-        else if (istMinutes >= 900 && istMinutes < 930)  session = "Closing";      // 15:00-15:30
-        else                                              session = "Outside Market";
-      }
-      bySession[session].total++;
-      if (t.profit > 0) bySession[session].wins++;
-      else if (t.profit < 0) bySession[session].losses++;
-      bySession[session].profit += t.profit || 0;
-    });
-    Object.keys(bySession).forEach(session => {
-      bySession[session].winRate = bySession[session].total ? ((bySession[session].wins / bySession[session].total) * 100).toFixed(1) : 0;
-    });
-
-    // By trade type (INTRADAY / DELIVERY / SWING)
-    const byTradeType = {};
-    trades.forEach(t => {
-      const key = t.tradeType && t.tradeType.trim() ? t.tradeType : "Unspecified";
-      if (!byTradeType[key]) byTradeType[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byTradeType[key].total++;
-      if (t.profit > 0) byTradeType[key].wins++;
-      else if (t.profit < 0) byTradeType[key].losses++;
-      byTradeType[key].profit += t.profit || 0;
-    });
-    Object.keys(byTradeType).forEach(k => (byTradeType[k].winRate = byTradeType[k].total ? ((byTradeType[k].wins / byTradeType[k].total) * 100).toFixed(1) : 0));
-
-    // By entry basis (Plan / Emotion / Impulsive / Custom)
-    const byEntryBasis = {};
-    trades.forEach(t => {
-      const key = t.entryBasis && t.entryBasis.trim() ? t.entryBasis : "Plan";
-      if (!byEntryBasis[key]) byEntryBasis[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byEntryBasis[key].total++;
-      if (t.profit > 0) byEntryBasis[key].wins++;
-      else if (t.profit < 0) byEntryBasis[key].losses++;
-      byEntryBasis[key].profit += t.profit || 0;
-    });
-    Object.keys(byEntryBasis).forEach(k => (byEntryBasis[k].winRate = byEntryBasis[k].total ? ((byEntryBasis[k].wins / byEntryBasis[k].total) * 100).toFixed(1) : 0));
-
-    // By mistake tag (Overtraded, Held too long, etc.)
-    const byMistakeTag = {};
-    trades.forEach(t => {
-      const key = t.mistakeTag && t.mistakeTag.trim() ? t.mistakeTag : "None";
-      if (!byMistakeTag[key]) byMistakeTag[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byMistakeTag[key].total++;
-      if (t.profit > 0) byMistakeTag[key].wins++;
-      else if (t.profit < 0) byMistakeTag[key].losses++;
-      byMistakeTag[key].profit += t.profit || 0;
-    });
-    Object.keys(byMistakeTag).forEach(k => (byMistakeTag[k].winRate = byMistakeTag[k].total ? ((byMistakeTag[k].wins / byMistakeTag[k].total) * 100).toFixed(1) : 0));
-
-    // By underlying (NIFTY, BANK NIFTY, etc.)
-    const byUnderlying = {};
-    trades.forEach(t => {
-      const raw = (t.underlying && t.underlying.trim()) ? t.underlying.replace(/\s+/g, " ").trim() : (t.pair ? t.pair.replace(/\s+\d+\s*(CE|PE)$/i, "").trim() : "");
-      const key = raw || "Unspecified";
-      if (!byUnderlying[key]) byUnderlying[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byUnderlying[key].total++;
-      if (t.profit > 0) byUnderlying[key].wins++;
-      else if (t.profit < 0) byUnderlying[key].losses++;
-      byUnderlying[key].profit += t.profit || 0;
-    });
-    Object.keys(byUnderlying).forEach(k => (byUnderlying[k].winRate = byUnderlying[k].total ? ((byUnderlying[k].wins / byUnderlying[k].total) * 100).toFixed(1) : 0));
-
-    // By option type (CE / PE)
-    const byOptionType = {};
-    trades.forEach(t => {
-      const key = t.optionType && t.optionType.trim() ? t.optionType.trim().toUpperCase() : "Unspecified";
-      if (!byOptionType[key]) byOptionType[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byOptionType[key].total++;
-      if (t.profit > 0) byOptionType[key].wins++;
-      else if (t.profit < 0) byOptionType[key].losses++;
-      byOptionType[key].profit += t.profit || 0;
-    });
-    Object.keys(byOptionType).forEach(k => (byOptionType[k].winRate = byOptionType[k].total ? ((byOptionType[k].wins / byOptionType[k].total) * 100).toFixed(1) : 0));
-
-    // By direction: BUY vs SELL (from type field)
-    const byDirection = {};
-    trades.forEach(t => {
-      const key = t.type ? t.type.trim().toUpperCase() : "Unspecified";
-      if (!byDirection[key]) byDirection[key] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byDirection[key].total++;
-      if (t.profit > 0) byDirection[key].wins++;
-      else if (t.profit < 0) byDirection[key].losses++;
-      byDirection[key].profit += t.profit || 0;
-    });
-    Object.keys(byDirection).forEach(k => (byDirection[k].winRate = byDirection[k].total ? ((byDirection[k].wins / byDirection[k].total) * 100).toFixed(1) : 0));
-
-    const isEquity = (req.query.instrumentType || "").toUpperCase() === "EQUITY";
-
-    // Equity-specific: by stock symbol and by sector
-    const byStockSymbol = {};
-    const bySector = {};
-    if (isEquity) {
-      trades.forEach(t => {
-        const symKey = (t.stockSymbol && t.stockSymbol.trim()) ? t.stockSymbol.toUpperCase() : "Unspecified";
-        if (!byStockSymbol[symKey]) byStockSymbol[symKey] = { total: 0, wins: 0, losses: 0, profit: 0 };
-        byStockSymbol[symKey].total++;
-        if (t.profit > 0) byStockSymbol[symKey].wins++;
-        else if (t.profit < 0) byStockSymbol[symKey].losses++;
-        byStockSymbol[symKey].profit += t.profit || 0;
-
-        const secKey = (t.sector && t.sector.trim()) ? t.sector : "Other";
-        if (!bySector[secKey]) bySector[secKey] = { total: 0, wins: 0, losses: 0, profit: 0 };
-        bySector[secKey].total++;
-        if (t.profit > 0) bySector[secKey].wins++;
-        else if (t.profit < 0) bySector[secKey].losses++;
-        bySector[secKey].profit += t.profit || 0;
-      });
-      Object.keys(byStockSymbol).forEach(k => (byStockSymbol[k].winRate = byStockSymbol[k].total ? ((byStockSymbol[k].wins / byStockSymbol[k].total) * 100).toFixed(1) : 0));
-      Object.keys(bySector).forEach(k => (bySector[k].winRate = bySector[k].total ? ((bySector[k].wins / bySector[k].total) * 100).toFixed(1) : 0));
-    }
-
-    res.json({
-      byPair, byType, byDirection, byStrategy, bySession, byTradeType, byEntryBasis, byMistakeTag,
-      // Options-specific (empty for equity)
-      byUnderlying: isEquity ? {} : byUnderlying,
-      byOptionType: isEquity ? {} : byOptionType,
-      // Equity-specific (empty for options)
-      byStockSymbol: isEquity ? byStockSymbol : {},
-      bySector: isEquity ? bySector : {},
-    });
+    res.json(snapshot.distribution);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -413,7 +233,7 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 
 exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
@@ -472,7 +292,7 @@ exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
 
 exports.getTimeAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const byMonth = {};
@@ -633,7 +453,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
 
 exports.getTradeQuality = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
 
     const rrRanges = [
       { label: "0-0.5R", min: 0, max: 0.5, trades: [] },
@@ -698,7 +518,7 @@ exports.getTradeQuality = asyncHandler(async (req, res) => {
 
 exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({
@@ -757,7 +577,7 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
 
 exports.getAIInsights = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
 
     if (trades.length < 5) {
       return res.json({
@@ -1054,7 +874,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
 exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     const totalTrades = trades.length;
     const totalProfit = trades.reduce((acc, t) => acc + (t.profit || 0), 0);
@@ -1137,7 +957,7 @@ exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
 
 exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({
@@ -1291,3 +1111,81 @@ exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// ============================================
+// TRADE QUALITY ANALYSIS
+// ============================================
+
+exports.getTradeQualityAnalysis = asyncHandler(async (req, res) => {
+  try {
+    const query = userQuery(req);
+    const snapshot = await analyticsSnapshotService.getTradeQualitySnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
+    });
+    res.json(snapshot.quality);
+  } catch (error) {
+    throw new ApiError(500, error.message);
+  }
+});
+
+// ============================================
+// SELF AWARENESS SCORE
+// ============================================
+
+exports.getSelfAwarenessScore = asyncHandler(async (req, res) => {
+  try {
+    const query = userQuery(req);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
+    });
+    return res.json(snapshot.selfAwareness);
+  } catch (error) {
+    throw new ApiError(500, error.message);
+  }
+});
+
+// ============================================
+// TRADING DNA ENGINE
+// ============================================
+
+exports.getTradingDNA = asyncHandler(async (req, res) => {
+  try {
+    const query = userQuery(req);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: query.instrumentType,
+    });
+    return res.json(snapshot.tradingDNA);
+  } catch (error) {
+    throw new ApiError(500, error.message);
+  }
+});
+
+// ============================================
+// PSYCHOLOGY COST CALCULATOR
+// ============================================
+
+exports.getPsychologyCost = asyncHandler(async (req, res) => {
+  try {
+    const baseQuery = userQuery(req);
+
+    const daysParam = parseInt(req.query.days, 10);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Indian_Market",
+      instrumentType: baseQuery.instrumentType,
+      dateRange: daysParam > 0 && daysParam <= 3650
+        ? { from: new Date(Date.now() - daysParam * 24 * 60 * 60 * 1000) }
+        : undefined,
+    });
+    return res.json(snapshot.psychologyCost);
+  } catch (error) {
+    throw new ApiError(500, error.message);
+  }
+});
+

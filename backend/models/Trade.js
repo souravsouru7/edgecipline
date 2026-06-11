@@ -258,9 +258,30 @@ const tradeSchema = new mongoose.Schema(
       default: ""
     },
 
+    tradeQuality: {
+      type: String,
+      enum: ["Great", "Average", "Poor", ""],
+      default: ""
+    },
+
     deletedAt: {
       type: Date,
       default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    deleteReason: {
+      type: String,
+      default: "",
+      maxlength: 500,
+    },
+    deletedSource: {
+      type: String,
+      default: "",
+      maxlength: 50,
     },
 
   },
@@ -275,6 +296,15 @@ tradeSchema.index({ user: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, marketType: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, tradeDate: -1 });
+tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
+tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
+tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, status: 1, tradeDate: -1 });
+tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, createdAt: 1 });
+tradeSchema.index({ user: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });
+tradeSchema.index({ user: 1, deletedAt: 1, mistakeTag: 1, tradeDate: 1 });
+tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, profit: 1 });
+tradeSchema.index({ user: 1, deletedAt: 1, entryBasis: 1, tradeDate: 1 });
+tradeSchema.index({ user: 1, deletedAt: 1, "setupRules.followed": 1, "setupRules.label": 1 });
 tradeSchema.index({ user: 1, status: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, status: 1, createdAt: -1 });
 tradeSchema.index({ deletedAt: 1 }, { sparse: true });

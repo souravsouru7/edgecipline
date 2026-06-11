@@ -11,6 +11,14 @@ export const uploadTradeImage = async ({ file, marketType, broker, tradeSubType,
   return await apiClient.post(`/upload?marketType=${marketType}`, formData, { timeout: 120000 });
 };
 
+export const getUploadJobStatus = async (jobId) => {
+  return await apiClient.get(`/upload/job-status/${jobId}`);
+};
+
+export const cancelUploadJob = async (jobId) => {
+  return await apiClient.post(`/upload/cancel/${jobId}`);
+};
+
 export const uploadTradeScreenshot = async (file) => {
   const formData = new FormData();
   formData.append("image", file);

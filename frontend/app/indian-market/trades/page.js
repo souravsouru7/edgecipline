@@ -2,12 +2,15 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useMarket, MARKETS } from "@/context/MarketContext";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { calculatePerformanceMetrics } from "@/utils/metricEngine";
 
 // Section
 const C = {
@@ -67,10 +70,11 @@ function TickerTape() {
 
 // Section
 function StatBar({ trades }) {
-  const total = trades.length;
-  const wins  = trades.filter(t => (t.profit || 0) > 0).length;
-  const wr    = total ? ((wins / total) * 100).toFixed(0) : 0;
-  const pnl   = trades.reduce((a, t) => a + (parseFloat(t.profit) || 0), 0);
+  const performance = calculatePerformanceMetrics(trades);
+  const total = performance.totalTrades;
+  const wins  = performance.wins;
+  const wr    = performance.winRate.toFixed(0);
+  const pnl   = performance.grossPnL;
   const bull  = pnl >= 0;
 
   const stats = [
@@ -504,6 +508,7 @@ function EmptyState() {
 // Section
 export default function IndianTradesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { ready } = useRequireAuth();
   const { currentMarket } = useMarket();
   const [trades, setTrades]           = useState([]);
@@ -536,6 +541,7 @@ export default function IndianTradesPage() {
     setDeleting(true);
     try {
       await deleteTrade(id, MARKETS.INDIAN_MARKET);
+      invalidateTradeDependentQueries(queryClient);
       setTrades(t => t.filter(x => x._id !== id));
     } finally {
       setDeleting(false);

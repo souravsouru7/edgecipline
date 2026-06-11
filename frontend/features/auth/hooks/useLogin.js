@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProfile, loginUser, googleLogin } from "@/services/api";
-import { clearAuthToken, getValidToken, setAuthToken } from "@/utils/auth";
+import { clearAuthToken, getValidToken, hydrateAuthToken, setAuthToken } from "@/utils/auth";
 import { silentRefresh } from "@/services/apiClient";
 import {
   signInWithFirebaseGoogle,
@@ -130,7 +130,7 @@ export function useLogin() {
 
     const restoreSession = async () => {
       // Step 1: valid access token in memory
-      const token = getValidToken();
+      const token = getValidToken() || await hydrateAuthToken();
       if (token) {
         try {
           const profile = await getProfile();
@@ -140,7 +140,7 @@ export function useLogin() {
           const status = err?.status;
           if (status === 401 || status === 403) {
             // Server explicitly rejected the token — safe to clear it
-            if (!cancelled) clearAuthToken();
+            if (!cancelled) await clearAuthToken();
           } else if (status !== 429 && status != null) {
             // Unexpected server error with a valid token — don't clear.
             // Fall through: silentRefresh will confirm session is still alive.
@@ -199,7 +199,7 @@ export function useLogin() {
       alert(data?.message || "Login failed");
       return;
     }
-    setAuthToken(data.token);
+    await setAuthToken(data.token);
     initializePushNotifications().catch(() => {});
     queryClient.clear();
 

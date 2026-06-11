@@ -10,12 +10,15 @@ import apiClient from "@/services/apiClient";
 import { clearAuthToken } from "@/utils/auth";
 
 const NAV_LINKS = [
+  { href: "/dashboard",                    label: "Dashboard" },
   { href: "/trades",                       label: "Journal"   },
-  { href: "/analytics",                    label: "Analytics" },
+  { href: "/upload-trade",                 label: "Import"    },
   { href: "/checklist",                    label: "Checklist" },
   { href: "/setups",                       label: "Setups"    },
-  { href: "/profile",                      label: "Profile"   },
+  { href: "/intelligence",                 label: "Intelligence" },
+  { href: "/analytics",                    label: "Analytics" },
   { href: "/weekly-reports?market=Forex",  label: "Reports"   },
+  { href: "/profile",                      label: "Settings"  },
 ];
 
 export default function PageHeader({
@@ -30,7 +33,7 @@ export default function PageHeader({
 
   const handleLogout = async () => {
     try { await apiClient.post("/auth/logout"); } catch {}
-    clearAuthToken();
+    await clearAuthToken();
     await signOutFirebase();
     router.push("/login");
   };

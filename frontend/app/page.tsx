@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getProfile } from "@/services/api";
-import { clearAuthToken, getValidToken } from "@/utils/auth";
+import { clearAuthToken, getValidToken, hydrateAuthToken } from "@/utils/auth";
 
 type UserProfile = {
   requiresTermsAcceptance?: boolean;
@@ -17,7 +17,7 @@ export default function RootPage() {
 
     const routeByAuth = async () => {
       try {
-        if (!getValidToken()) {
+        if (!(getValidToken() || await hydrateAuthToken())) {
           router.replace("/login");
           return;
         }
@@ -30,7 +30,7 @@ export default function RootPage() {
           if (!cancelled) router.replace("/accept-terms");
           return;
         }
-        clearAuthToken();
+        await clearAuthToken();
         if (!cancelled) router.replace("/login");
       }
     };

@@ -1,20 +1,9 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
-import Link from "next/link";
 import {
-  getSummary,
-  getRiskRewardAnalysis,
-  getTradeDistribution,
-  getPerformanceMetrics,
-  getTimeAnalysis,
-  getDrawdownAnalysis,
-  getAIInsights,
-  getTradeQuality,
-  getPsychologyAnalytics,
-  getPnLBreakdown
+  getAnalyticsSnapshot
 } from "@/services/analyticsApi";
 import {
   XAxis,
@@ -26,11 +15,12 @@ import {
   AreaChart,
   Area
 } from "recharts";
-import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { useMarket, MARKETS } from "@/context/MarketContext";
+import { MARKETS } from "@/context/MarketContext";
 import CalendarPnL from "@/features/analytics/components/CalendarPnL";
+import PatternInsightsCard from "@/features/analytics/components/PatternInsightsCard";
+import AICoachFeedWidget from "@/features/ai-coach/components/AICoachFeedWidget";
 
 const theme = {
   bull: "#0D9E6E",
@@ -44,9 +34,15 @@ const theme = {
   card: "#FFFFFF"
 };
 
+const s = (...codes) => String.fromCharCode(...codes);
+const mojibakeTokenPattern = new RegExp(
+  `(?:${s(0x00f0, 0x0178)}|${s(0x00ef, 0x00b8)}|${s(0x00c3)}|${s(0x00c2)}|${s(0x00e2)})[^\\s]*`,
+  "g"
+);
+
 const cleanPsychText = (value = "") =>
   String(value ?? "")
-    .replace(/(?:ðŸ|ï¸|Ã|Â|â)[^\s]*/g, "")
+    .replace(mojibakeTokenPattern, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -170,7 +166,7 @@ function HoverBox({ tip, style, children }) {
 function DistList({ title, data, currency = "₹", maxItems = 6 }) {
   if (!data || Object.keys(data).length === 0) return null;
   const entries = Object.entries(data)
-    .filter(([_, v]) => v.total > 0)
+    .filter((entry) => entry[1].total > 0)
     .sort((a, b) => parseFloat(b[1].profit) - parseFloat(a[1].profit))
     .slice(0, maxItems);
   if (entries.length === 0) return null;
@@ -331,7 +327,7 @@ function PathToAdvanced({ summary, ai, perf, quality, psychology, currency }) {
           <span style={{ fontSize: 13, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace" }}>WIN</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: theme.bull }}>Advanced level unlocked</div>
-            <div style={{ fontSize: 11, color: theme.secondary }}>You're building a data-driven edge. Keep journaling and reviewing analytics to stay profitable.</div>
+            <div style={{ fontSize: 11, color: theme.secondary }}>You are building a data-driven edge. Keep journaling and reviewing analytics to stay profitable.</div>
           </div>
         </div>
       )}
@@ -406,9 +402,7 @@ function ListItem({ label, value, color = theme.primary, sub }) {
 }
 
 export default function IndianAnalyticsPage() {
-  const router = useRouter();
   const { ready } = useRequireAuth();
-  const { currentMarket } = useMarket();
   const [loading, setLoading] = useState(true);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const lastMonthNavAtRef = useRef(0);
@@ -431,55 +425,41 @@ export default function IndianAnalyticsPage() {
     breakdown: null,
     distribution: null,
     quality: null,
-    psychology: null
+    psychology: null,
+    patterns: null,
+    coachFeed: null
   });
   const [timeFilter, setTimeFilter] = useState("daily"); // daily, weekly, monthly
 
   useEffect(() => {
     if (!ready) return;
     fetchData(instrumentType);
-  }, [ready, router]);
+  }, [ready, instrumentType]);
 
   const switchInstrumentType = (type) => {
     if (type === instrumentType) return;
     setInstrumentType(type);
-    fetchData(type);
-  };
-
-  const safeCall = async (fn) => {
-    try { return await fn(); } catch { return null; }
-  };
-
-  const runInBatches = async (tasks, batchSize = 2, pauseMs = 500) => {
-    const results = [];
-    for (let i = 0; i < tasks.length; i += batchSize) {
-      const batch = tasks.slice(i, i + batchSize);
-      const batchResults = await Promise.all(batch.map((task) => safeCall(task)));
-      results.push(...batchResults);
-      if (i + batchSize < tasks.length) {
-        await new Promise((resolve) => setTimeout(resolve, pauseMs));
-      }
-    }
-    return results;
   };
 
   const fetchData = async (itType = "OPTION") => {
     setLoading(true);
     try {
-      const it = itType;
-      const [summary, rr, perf, time, drawdown, ai, breakdown, distribution, quality, psychology] = await runInBatches([
-        () => getSummary(MARKETS.INDIAN_MARKET, it),
-        () => getRiskRewardAnalysis(MARKETS.INDIAN_MARKET, it),
-        () => getPerformanceMetrics(MARKETS.INDIAN_MARKET, it),
-        () => getTimeAnalysis(MARKETS.INDIAN_MARKET, 'all', it),
-        () => getDrawdownAnalysis(MARKETS.INDIAN_MARKET, it),
-        () => getAIInsights(MARKETS.INDIAN_MARKET, it),
-        () => getPnLBreakdown(MARKETS.INDIAN_MARKET, it),
-        () => getTradeDistribution(MARKETS.INDIAN_MARKET, it),
-        () => getTradeQuality(MARKETS.INDIAN_MARKET, it),
-        () => getPsychologyAnalytics(MARKETS.INDIAN_MARKET, it)
-      ]);
-      setData({ summary, rr, perf, time, drawdown, ai, breakdown, distribution, quality, psychology });
+      const snapshot = await getAnalyticsSnapshot(MARKETS.INDIAN_MARKET, itType, { period: "weekly" });
+      setData({
+        summary: snapshot?.summary || null,
+        rr: snapshot?.riskReward || null,
+        perf: snapshot?.performance || null,
+        time: snapshot?.timeAnalysis || null,
+        drawdown: snapshot?.drawdown || null,
+        ai: snapshot?.aiInsights || snapshot?.coachFeed || null,
+        breakdown: snapshot?.pnlBreakdown || null,
+        distribution: snapshot?.distribution || null,
+        quality: snapshot?.quality || snapshot?.tradeQualityAnalysis || null,
+        psychology: snapshot?.psychology || null,
+        patterns: snapshot?.patterns || null,
+        coachFeed: snapshot?.coachFeed || null,
+        snapshot,
+      });
     } catch (error) {
       console.error("Failed to fetch Indian analytics data:", error);
     } finally {
@@ -1174,6 +1154,28 @@ export default function IndianAnalyticsPage() {
               </div>
             )}
 
+            {/* AI COACH FEED */}
+            {data.coachFeed || loading ? (
+              <div style={{ marginBottom: 0 }}>
+                {!data.coachFeed && loading ? (
+                  <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 24, marginBottom: 24, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ fontSize: 12, color: theme.muted }}>Loading AI Coach Feed...</div>
+                  </div>
+                ) : (
+                  <AICoachFeedWidget feed={data.coachFeed} loading={loading} currency="₹" />
+                )}
+              </div>
+            ) : null}
+
+            {/* PATTERN DETECTION */}
+            {data.patterns ? (
+              <PatternInsightsCard patterns={data.patterns} delay={0.66} />
+            ) : loading ? (
+              <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 24, marginBottom: 24, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ fontSize: 12, color: theme.muted }}>Loading pattern analysis...</div>
+              </div>
+            ) : null}
+
             {/* PERFORMANCE DEEP DIVE */}
             <div
               style={{
@@ -1623,7 +1625,7 @@ export default function IndianAnalyticsPage() {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.6 }}>Use the "Would Retake" toggle when logging trades.</div>
+                        <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.6 }}>Use the &quot;Would Retake&quot; toggle when logging trades.</div>
                       )}
                     </div>
 
@@ -1648,7 +1650,7 @@ export default function IndianAnalyticsPage() {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.6 }}>Use the "Would Retake" toggle when logging trades.</div>
+                        <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.6 }}>Use the &quot;Would Retake&quot; toggle when logging trades.</div>
                       )}
                     </div>
                   </div>
@@ -1679,7 +1681,7 @@ export default function IndianAnalyticsPage() {
                 </>
               ) : (
                 <div style={{ padding: 18, borderRadius: 12, border: `1px dashed ${theme.border}`, background: "#F8FAFC", color: theme.muted, fontSize: 12, lineHeight: 1.6 }}>
-                  Psychology analytics unlocks after you log trades with mood, confidence, emotional tags, and the "Would Retake" toggle.
+                  Psychology analytics unlocks after you log trades with mood, confidence, emotional tags, and the &quot;Would Retake&quot; toggle.
                 </div>
               )}
             </div>
@@ -1717,7 +1719,7 @@ export default function IndianAnalyticsPage() {
                         {m.lessons?.length > 0 && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${rankColor}20` }}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
-                            <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>"{m.lessons[0]}"</div>
+                            <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>&quot;{m.lessons[0]}&quot;</div>
                           </div>
                         )}
                       </div>

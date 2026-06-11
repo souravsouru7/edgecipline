@@ -13,9 +13,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
+            staleTime: 60 * 1000,
+            gcTime: 10 * 60 * 1000,
             retry: 1, // Only retry once
-            refetchOnWindowFocus: false, // Avoid redundant fetches when switching tabs
+            refetchOnReconnect: true,
+            refetchOnWindowFocus: false,
           },
         },
       })

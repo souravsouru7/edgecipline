@@ -391,8 +391,11 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   try {
     rotated = await rotateRefreshToken(rawToken, deviceInfo);
   } catch (err) {
-    // On any token error, clear the stale cookie so the browser stops sending it
-    res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitor));
+    // A near-simultaneous duplicate refresh should wait/retry on the client.
+    // Clearing the cookie here would turn a recoverable race into a logout.
+    if (err?.errorCode !== "REFRESH_TOKEN_RACE") {
+      res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitor));
+    }
     throw err;
   }
 

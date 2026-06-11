@@ -1,9 +1,12 @@
 const ApiError = require("../utils/ApiError");
 const { buildCacheKey, getCache, rememberCache } = require("../utils/cache");
-const { clearUserCache } = require("../utils/cacheUtils");
+const { TRADE_CACHE_EVENTS, getTradeCacheVersion, invalidateTradeCaches } = require("../utils/cacheUtils");
+const Trade = require("../models/Trade");
 const tradeRepository = require("../repositories/trade.repository");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
+const tradeLifecycleService = require("./tradeLifecycle.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
+const { markOcrJobConfirmed } = require("./ocrJob.service");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -15,10 +18,6 @@ function normalizeTradeType(type) {
     throw new ApiError(400, "Type must be BUY or SELL", "VALIDATION_ERROR");
   }
   return normalizedType;
-}
-
-function getEffectiveTradeTime(trade) {
-  return new Date(trade.tradeDate || trade.createdAt || 0).getTime();
 }
 
 function getPeriodStart(period) {
@@ -54,8 +53,9 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
 
+  const { ocrJobId, ...tradePayload } = payload;
   const trade = await tradeRepository.createTrade({
-    ...payload,
+    ...tradePayload,
     type: normalizeTradeType(payload.type),
     tradeDate: normalizeTradeDate(payload.tradeDate, { accountCreatedAt }),
     user: userId,
@@ -64,14 +64,95 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     processedAt: payload.processedAt || new Date(),
   });
 
-  await clearUserCache(userId);
+  await invalidateTradeCaches({
+    userId,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
+    market: "Forex",
+    tradeId: trade._id,
+    source: ocrJobId ? "ocr_confirm" : "manual_create",
+  });
   await evaluateSmartNotifications({
     userId,
     trade,
     marketType: "Forex",
     collection: "forex",
   });
+  if (ocrJobId) {
+    await markOcrJobConfirmed(userId, ocrJobId, {
+      tradeId: trade._id,
+      collection: "forex",
+    });
+  }
   return trade;
+}
+
+function buildCreateTradeDocument(userId, payload, { accountCreatedAt } = {}) {
+  if (!payload.pair) {
+    throw new ApiError(400, "Pair is required", "VALIDATION_ERROR");
+  }
+  if (!payload.type) {
+    throw new ApiError(400, "Action/Type is required", "VALIDATION_ERROR");
+  }
+  if (!payload.tradeDate) {
+    throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
+  }
+
+  const { ocrJobId, ...tradePayload } = payload;
+  return {
+    ...tradePayload,
+    type: normalizeTradeType(payload.type),
+    tradeDate: normalizeTradeDate(payload.tradeDate, { accountCreatedAt }),
+    user: userId,
+    status: payload.status || "completed",
+    error: payload.error ?? null,
+    processedAt: payload.processedAt || new Date(),
+  };
+}
+
+async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
+  const trades = Array.isArray(payload?.trades) ? payload.trades : [];
+  if (trades.length === 0) {
+    throw new ApiError(400, "At least one trade is required", "VALIDATION_ERROR");
+  }
+  if (trades.length > 100) {
+    throw new ApiError(400, "Batch trade import cannot exceed 100 trades", "VALIDATION_ERROR");
+  }
+
+  const ocrJobId = payload.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
+  const docs = trades.map((trade) => buildCreateTradeDocument(userId, trade, { accountCreatedAt }));
+  const createdTrades = await tradeRepository.createTrades(docs);
+
+  await invalidateTradeCaches({
+    userId,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.BULK_IMPORT,
+    market: "Forex",
+    tradeId: createdTrades[0]?._id || null,
+    count: createdTrades.length,
+    source: ocrJobId ? "ocr_batch_confirm" : "batch_create",
+  });
+
+  const representativeTrade = createdTrades[createdTrades.length - 1];
+  if (representativeTrade) {
+    await evaluateSmartNotifications({
+      userId,
+      trade: representativeTrade,
+      marketType: "Forex",
+      collection: "forex",
+    });
+  }
+
+  if (ocrJobId && createdTrades[0]) {
+    await markOcrJobConfirmed(userId, ocrJobId, {
+      tradeId: createdTrades[0]._id,
+      collection: "forex",
+    });
+  }
+
+  return {
+    success: true,
+    count: createdTrades.length,
+    trades: createdTrades,
+  };
 }
 
 async function getTrades(userId, query) {
@@ -79,12 +160,12 @@ async function getTrades(userId, query) {
   const page   = Math.max(1, parseInt(query.page,  10) || 1);
   const limit  = Math.min(200, Math.max(1, parseInt(query.limit, 10) || 50));
   const periodStart = getPeriodStart(period);
-  const key = buildCacheKey("trades", userId, "list", `period=${period}&page=${page}&limit=${limit}`);
+  const version = await getTradeCacheVersion(userId);
+  const key = buildCacheKey("trades", userId, `version=${version}`, "list", `period=${period}&page=${page}&limit=${limit}`);
   const startedAt = Date.now();
   const { data: trades } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
     const rows = await tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit });
     return rows
-      .sort((a, b) => getEffectiveTradeTime(b) - getEffectiveTradeTime(a))
       .map((trade) => ({
         ...trade,
         symbol: trade.pair ?? null,
@@ -101,7 +182,8 @@ async function getTrades(userId, query) {
 }
 
 async function getTrade(userId, tradeId) {
-  const key = buildCacheKey("trades", userId, "detail", tradeId);
+  const version = await getTradeCacheVersion(userId);
+  const key = buildCacheKey("trades", userId, `version=${version}`, "detail", tradeId);
   const startedAt = Date.now();
   const { data: trade } = await rememberCache(key, TRADE_DETAILS_TTL_SECONDS, () =>
     tradeRepository.findForexTradeByUser(tradeId, userId)
@@ -120,7 +202,8 @@ async function getTrade(userId, tradeId) {
 }
 
 async function getTradeStatus(userId, tradeId) {
-  const key = buildCacheKey("trades", userId, "status", tradeId);
+  const version = await getTradeCacheVersion(userId);
+  const key = buildCacheKey("trades", userId, `version=${version}`, "status", tradeId);
   const startedAt = Date.now();
   const { data: trade } = await rememberCache(key, TRADE_STATUS_TTL_SECONDS, () =>
     tradeRepository.findTradeByIdAndUser(tradeId, userId)
@@ -195,7 +278,13 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await clearUserCache(userId);
+  await invalidateTradeCaches({
+    userId,
+    event: TRADE_CACHE_EVENTS.EDIT,
+    market: "Forex",
+    tradeId,
+    source: "manual_edit",
+  });
   await evaluateSmartNotifications({
     userId,
     trade,
@@ -206,20 +295,56 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
 }
 
 async function deleteTrade(userId, tradeId) {
-  const trade = await tradeRepository.deleteForexTradeByUser(tradeId, userId);
+  const trade = await tradeLifecycleService.softDeleteTrade(Trade, {
+    tradeId,
+    userId,
+    deletedBy: userId,
+    deletedSource: "user",
+    marketFilter: { marketType: { $ne: "Indian_Market" } },
+    options: { lean: true },
+  });
   if (!trade) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await clearUserCache(userId);
-  return { message: "Trade deleted" };
+  await invalidateTradeCaches({
+    userId,
+    event: TRADE_CACHE_EVENTS.DELETE,
+    market: "Forex",
+    tradeId,
+    source: "manual_delete",
+  });
+  return { message: "Trade deleted", tradeId: trade._id, deletedAt: trade.deletedAt };
+}
+
+async function restoreTrade(userId, tradeId) {
+  const trade = await tradeLifecycleService.restoreTrade(Trade, {
+    tradeId,
+    userId,
+    marketFilter: { marketType: { $ne: "Indian_Market" } },
+    options: { lean: true },
+  });
+  if (!trade) {
+    throw new ApiError(404, "Deleted trade not found or unauthorized", "NOT_FOUND");
+  }
+
+  await invalidateTradeCaches({
+    userId,
+    event: TRADE_CACHE_EVENTS.RESTORE,
+    market: "Forex",
+    tradeId,
+    source: "manual_restore",
+  });
+  return { message: "Trade restored", tradeId: trade._id };
 }
 
 module.exports = {
   createTrade,
+  createTradesBatch,
   deleteTrade,
   getTrade,
   getTrades,
   getTradeStatus,
+  restoreTrade,
   updateTrade,
 };

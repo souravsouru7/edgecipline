@@ -43,6 +43,7 @@ jest.mock('../../middleware/rateLimiter', () => {
     refreshRateLimiter: pass,
     profileRateLimiter: pass,
     statusRateLimiter:  pass,
+    adminDestructiveRateLimiter: pass,
   };
 });
 
@@ -61,6 +62,7 @@ jest.mock('../../models/Users', () => ({
   findById:          jest.fn(),
   find:              jest.fn(),
   countDocuments:    jest.fn(),
+  updateOne:         jest.fn().mockResolvedValue({ modifiedCount: 1 }),
   findByIdAndUpdate: jest.fn(),
 }));
 
@@ -92,6 +94,7 @@ const User = require('../../models/Users');
 const { authRateLimiter } = require('../../middleware/rateLimiter');
 const { appConfig } = require('../../config');
 const JWT_SECRET = appConfig.jwt.secret;
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 const { sanitizeInput } = require('../../middleware/sanitizeInput');
 const { errorHandler }  = require('../../middleware/errorHandler');
@@ -129,13 +132,14 @@ const adminDoc = (overrides = {}) => ({
 function adminCookie() {
   const token = jwt.sign(
     { id: ADMIN_USER_ID, role: 'admin', tokenVersion: 0 },
-    JWT_SECRET,
+    ADMIN_JWT_SECRET,
     { expiresIn: '8h' }
   );
   return `admin_sid=${token}`;
 }
 
 beforeEach(() => {
+  jest.clearAllMocks();
   // Reset rate limiter counter between tests
   if (authRateLimiter._reset) authRateLimiter._reset();
 });
@@ -156,6 +160,8 @@ describe('POST /api/admin/auth/login', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ role: 'admin', email: 'admin@stratedge.com' });
+    expect(() => jwt.verify(res.body.token, ADMIN_JWT_SECRET)).not.toThrow();
+    expect(() => jwt.verify(res.body.token, JWT_SECRET)).toThrow();
     const cookies = res.headers['set-cookie'] || [];
     expect(cookies.some(c => c.startsWith('admin_sid='))).toBe(true);
   });
@@ -294,13 +300,45 @@ describe('Admin tokenVersion invalidation (T5)', () => {
     // Cookie was issued with tokenVersion = 0 (old)
     const staleToken = jwt.sign(
       { id: ADMIN_USER_ID, role: 'admin', tokenVersion: 0 },
-      JWT_SECRET,
+      ADMIN_JWT_SECRET,
       { expiresIn: '8h' }
     );
 
     const res = await request(app)
       .get('/api/admin/users')
       .set('Cookie', `admin_sid=${staleToken}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  test('admin-looking token signed with user JWT secret is rejected', async () => {
+    const admin = adminDoc();
+    User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(admin) });
+
+    const confusedToken = jwt.sign(
+      { id: ADMIN_USER_ID, role: 'admin', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    const res = await request(app)
+      .get('/api/admin/users')
+      .set('Cookie', `admin_sid=${confusedToken}`);
+
+    expect(res.status).toBe(401);
+    expect(User.findById).not.toHaveBeenCalled();
+  });
+
+  test('normal user token cannot access admin route', async () => {
+    const userToken = jwt.sign(
+      { id: ADMIN_USER_ID, role: 'user', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .get('/api/admin/users')
+      .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.status).toBe(401);
   });

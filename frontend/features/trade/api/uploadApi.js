@@ -1,2 +1,1 @@
-// Trade feature — upload API re-export
-export { uploadTradeImage } from "@/services/uploadApi";
+export { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/services/uploadApi";

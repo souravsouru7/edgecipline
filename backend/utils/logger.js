@@ -20,14 +20,51 @@ const logLevels = {
 
 winston.addColors(logLevels.colors);
 
+const SENSITIVE_KEY_PATTERN =
+  /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers|body|email)/i;
+
+const SENSITIVE_VALUE_PATTERN =
+  /(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/g;
+
+function redactValue(value, key = "") {
+  if (SENSITIVE_KEY_PATTERN.test(key)) {
+    return "[REDACTED]";
+  }
+
+  if (typeof value === "string") {
+    return value.replace(SENSITIVE_VALUE_PATTERN, "[REDACTED]");
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item, key));
+  }
+
+  if (value && typeof value === "object") {
+    const redacted = {};
+    for (const [childKey, childValue] of Object.entries(value)) {
+      redacted[childKey] = redactValue(childValue, childKey);
+    }
+    return redacted;
+  }
+
+  return value;
+}
+
+function redactMeta(meta) {
+  return redactValue(meta);
+}
+
 // Custom format for structured logging
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   winston.format.splat(),
   winston.format.printf(({ level, message, timestamp, stack, ...meta }) => {
-    const metaStr = Object.keys(meta).length ? ` | ${JSON.stringify(meta)}` : '';
-    return `${timestamp} [${level}]${metaStr}: ${message}${stack ? '\n' + stack : ''}`;
+    const redactedMeta = redactMeta(meta);
+    const redactedMessage = redactValue(String(message || ""));
+    const redactedStack = stack ? redactValue(stack) : stack;
+    const metaStr = Object.keys(redactedMeta).length ? ` | ${JSON.stringify(redactedMeta)}` : '';
+    return `${timestamp} [${level}]${metaStr}: ${redactedMessage}${redactedStack ? '\n' + redactedStack : ''}`;
   })
 );
 
@@ -70,4 +107,5 @@ const stream = {
 module.exports = {
   logger,
   stream,
+  redactMeta,
 };

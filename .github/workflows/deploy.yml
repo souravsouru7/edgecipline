@@ -6,7 +6,10 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "scripts/**"
       - ".github/workflows/deploy.yml"
+      - ".gitignore"
+      - ".env.example"
 
 jobs:
   lint:
@@ -21,6 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: backend
+      - name: Secret and artifact scan
+        run: node scripts/security-scan.js
+      - name: Mojibake scan
+        run: node scripts/check-mojibake.js
       - name: Lint
         run: npm run lint --if-present
         working-directory: backend

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, createContext, useContext, useCallback } from "react";
+import React, { useState, createContext, useContext, useCallback, useMemo, memo } from "react";
 import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-react";
 
 const ToastContext = createContext();
@@ -45,12 +45,14 @@ export const ToastProvider = ({ children }) => {
     return () => { Object.values(timers).forEach(clearTimeout); };
   }, []);
 
+  const contextValue = useMemo(() => ({ addToast, removeToast }), [addToast, removeToast]);
+
   return (
-    <ToastContext.Provider value={{ addToast, removeToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <div className="toast-container">
         {toasts.map((t) => (
-          <ToastItem key={t.id} {...t} onRemove={() => removeToast(t.id)} />
+          <ToastItem key={t.id} {...t} onRemove={removeToast} />
         ))}
       </div>
       <style jsx>{`
@@ -83,7 +85,9 @@ export const useToast = () => {
   return context;
 };
 
-const ToastItem = ({ message, type, onRemove }) => {
+const ToastItem = memo(({ id, message, type, onRemove }) => {
+  const handleRemove = useCallback(() => onRemove(id), [id, onRemove]);
+
   const icons = {
     success: <CheckCircle size={18} color="#0D9E6E" />,
     error: <AlertCircle size={18} color="#D63B3B" />,
@@ -125,7 +129,7 @@ const ToastItem = ({ message, type, onRemove }) => {
       <div style={{ flexShrink: 0 }}>{icons[type]}</div>
       <div style={{ fontSize: 13, fontWeight: 700, color: "#2D3748", flex: 1 }}>{message}</div>
       <button 
-        onClick={onRemove}
+        onClick={handleRemove}
         style={{ 
           background: "none", border: "none", padding: 4, cursor: "pointer", 
           color: "#A0AEC0", borderRadius: 4, display: "flex" 
@@ -147,4 +151,4 @@ const ToastItem = ({ message, type, onRemove }) => {
       `}</style>
     </div>
   );
-};
+});

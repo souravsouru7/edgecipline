@@ -87,6 +87,7 @@ const { appConfig } = require('../../config');
 
 // Use the same secret the middleware uses — avoids any env-capture-timing mismatch.
 const JWT_SECRET = appConfig.jwt.secret;
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 const { sanitizeInput } = require('../../middleware/sanitizeInput');
 const { errorHandler }  = require('../../middleware/errorHandler');
@@ -268,6 +269,24 @@ describe('POST /api/auth/refresh', () => {
 
     expect(res.status).toBe(401);
   });
+
+  test('same-client refresh race -> 409 without clearing refresh cookie', async () => {
+    tokenSvc.rotateRefreshToken.mockReset();
+    tokenSvc.rotateRefreshToken.mockRejectedValueOnce(
+      Object.assign(new Error('Refresh already completed'), {
+        statusCode: 409,
+        errorCode: 'REFRESH_TOKEN_RACE',
+      })
+    );
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', 'sid=just-rotated-refresh-token');
+
+    expect(res.status).toBe(409);
+    expect(res.body.errorCode).toBe('REFRESH_TOKEN_RACE');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -339,5 +358,20 @@ describe('GET /api/auth/me', () => {
       .set('Authorization', 'Bearer totally.invalid.token');
 
     expect(res.status).toBe(401);
+  });
+
+  test('admin token signed with admin secret cannot access user auth route', async () => {
+    const adminToken = jwt.sign(
+      { id: TEST_USER_ID, role: 'admin', tokenVersion: 0 },
+      ADMIN_JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('INVALID_TOKEN');
   });
 });

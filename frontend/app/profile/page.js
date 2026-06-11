@@ -6,6 +6,7 @@ import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import Link from "next/link";
 import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, Upload } from "lucide-react";
 
 const C = {
   bg: "#F0EEE9",
@@ -75,7 +76,7 @@ function InfoRow({ label, value, mono }) {
           fontFamily: mono ? "'JetBrains Mono', monospace" : undefined,
         }}
       >
-        {value || "â€”"}
+        {value || "-"}
       </span>
     </div>
   );
@@ -132,11 +133,11 @@ export default function ProfilePage() {
 
   const joinedDate = profile?.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "â€”";
+    : "-";
 
   const lastLogin = profile?.lastLogin
     ? new Date(profile.lastLogin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "â€”";
+    : "-";
 
   const expiryDate = profile?.subscriptionExpiry
     ? new Date(profile.subscriptionExpiry).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -220,7 +221,7 @@ export default function ProfilePage() {
                 boxShadow: `0 0 0 3px rgba(34,199,142,0.3), 0 4px 16px rgba(13,158,110,0.4)`,
               }}
             >
-              {loading ? "â€¦" : initials}
+              {loading ? "..." : initials}
             </div>
 
             <div style={{ flex: 1 }}>
@@ -359,12 +360,12 @@ export default function ProfilePage() {
                         boxShadow: "0 2px 8px rgba(13,158,110,0.3)",
                       }}
                     >
-                      Upgrade Plan â†’
+                      Upgrade Plan <ArrowRight size={12} style={{ verticalAlign: "middle", marginLeft: 4 }} />
                     </Link>
                   )}
                   {profile?.subscriptionStatus === "active" && (
                     <div style={{ fontSize: 12, color: "#15803D", fontWeight: 600 }}>
-                      âœ“ Full access enabled
+                      <Check size={13} style={{ verticalAlign: "middle", marginRight: 4 }} /> Full access enabled
                     </div>
                   )}
                 </div>
@@ -387,11 +388,11 @@ export default function ProfilePage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { href: "/analytics", label: "View Analytics", icon: "ðŸ“Š" },
-                { href: "/upload-trade", label: "Upload Trade", icon: "â¬†" },
-                { href: "/weekly-reports", label: "Weekly Reports", icon: "ðŸ“‹" },
-                { href: "/indian-market/dashboard", label: "Indian Market", icon: "ðŸ‡®ðŸ‡³" },
-              ].map(({ href, label, icon }) => (
+                { href: "/analytics", label: "View Analytics", Icon: BarChart3 },
+                { href: "/upload-trade", label: "Upload Trade", Icon: Upload },
+                { href: "/weekly-reports", label: "Weekly Reports", Icon: ClipboardList },
+                { href: "/indian-market/dashboard", label: "Indian Market", Icon: Globe2 },
+              ].map(({ href, label, Icon }) => (
                 <Link
                   key={href}
                   href={href}
@@ -410,9 +411,9 @@ export default function ProfilePage() {
                     background: "#FAFAFA",
                   }}
                 >
-                  <span style={{ fontSize: 14 }}>{icon}</span>
+                  <Icon size={14} strokeWidth={2.2} />
                   {label}
-                  <span style={{ marginLeft: "auto", color: C.muted, fontSize: 11 }}>â†’</span>
+                  <ArrowRight size={12} style={{ marginLeft: "auto", color: C.muted }} />
                 </Link>
               ))}
               <button
@@ -437,9 +438,9 @@ export default function ProfilePage() {
                   textAlign: "left",
                 }}
               >
-                <span style={{ fontSize: 14 }}>ðŸŽ“</span>
+                <GraduationCap size={14} strokeWidth={2.2} />
                 {replayingTutorial ? "Starting tutorial..." : "Replay App Tutorial"}
-                <span style={{ marginLeft: "auto", color: C.green, fontSize: 11 }}>â†’</span>
+                <ArrowRight size={12} style={{ marginLeft: "auto", color: C.green }} />
               </button>
             </div>
           </div>

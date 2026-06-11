@@ -8,7 +8,7 @@ const ADMIN_COOKIE_NAME = "admin_sid";
 
 // Must match the secret used in adminAuthController — dedicated secret prevents
 // user tokens from being accepted by admin middleware even if role check is bypassed.
-const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret || appConfig.jwt.secret;
+const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 /**
  * Admin authentication middleware.

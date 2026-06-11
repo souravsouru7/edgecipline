@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MARKETS } from "@/context/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -149,6 +151,7 @@ function PriceGrid({ entry, exit, sl, tp, type }) {
 // ─── Main content ─────────────────────────────────────────────────────────────
 function IndianTradeDetailContent() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const id = searchParams.get("id");
   const [trade, setTrade] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -176,6 +179,7 @@ function IndianTradeDetailContent() {
     setSavingNote(true);
     try {
       await updateTrade(id, { ...trade, notes: notesEdit }, MARKETS.INDIAN_MARKET);
+      invalidateTradeDependentQueries(queryClient);
       setTrade(t => t ? { ...t, notes: notesEdit } : null);
       setNoteSaved(true);
       setTimeout(() => setNoteSaved(false), 2000);

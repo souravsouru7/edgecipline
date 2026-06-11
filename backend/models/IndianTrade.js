@@ -140,6 +140,32 @@ const indianTradeSchema = new mongoose.Schema(
       type: String,
       enum: ["Yes", "No", ""],
       default: ""
+    },
+
+    tradeQuality: {
+      type: String,
+      enum: ["Great", "Average", "Poor", ""],
+      default: ""
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    deleteReason: {
+      type: String,
+      default: "",
+      maxlength: 500,
+    },
+    deletedSource: {
+      type: String,
+      default: "",
+      maxlength: 50,
     }
   },
   { timestamps: true }
@@ -150,6 +176,19 @@ indianTradeSchema.index({ user: 1, tradeDate: -1 });
 indianTradeSchema.index({ user: 1, strategy: 1, createdAt: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, createdAt: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, createdAt: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: 1, createdAt: 1 });
+indianTradeSchema.index({ user: 1, deletedAt: 1, createdAt: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
+indianTradeSchema.index({ deletedAt: 1 }, { sparse: true });
+indianTradeSchema.index({ user: 1, instrumentType: 1, setupScore: 1, tradeDate: 1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, mistakeTag: 1, tradeDate: 1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, strategy: 1, createdAt: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, tradeDate: 1, profit: 1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, entryBasis: 1, tradeDate: 1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, "setupRules.followed": 1, "setupRules.label": 1 });
 
 module.exports = mongoose.model("IndianTrade", indianTradeSchema);

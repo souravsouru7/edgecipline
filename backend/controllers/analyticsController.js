@@ -2,6 +2,7 @@ const Trade = require("../models/Trade");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { appConfig } = require("../config");
+const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 
 const ALLOWED_FOREX_MARKET_TYPES = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks"]);
 
@@ -74,49 +75,26 @@ function getIsoWeekKey(dateInput) {
 
 exports.getSummary = asyncHandler(async (req, res) => {
   try {
-    const query = forexQuery(req);
-    const trades = await Trade.find(query).lean()
-      .sort({ createdAt: -1 })
-      .select("profit commission swap setupScore")
-      .limit(10000);
-
-    const totalTrades = trades.length;
-    const totalProfit = trades.reduce((acc, t) => acc + toNum(t.profit), 0);
-    const wins = trades.filter(t => t.profit > 0).length;
-    const winRate = totalTrades ? (wins / totalTrades) * 100 : 0;
-
-    const winningTrades = trades.filter(t => t.profit > 0);
-    const losingTrades = trades.filter(t => t.profit < 0);
-
-    const avgWin = winningTrades.length
-      ? winningTrades.reduce((acc, t) => acc + toNum(t.profit), 0) / winningTrades.length
-      : 0;
-    const avgLoss = losingTrades.length
-      ? Math.abs(losingTrades.reduce((acc, t) => acc + toNum(t.profit), 0) / losingTrades.length)
-      : 0;
-
-    const totalCommission = trades.reduce((acc, t) => acc + toNum(t.commission), 0);
-    const totalSwap = trades.reduce((acc, t) => acc + toNum(t.swap), 0);
-    const totalCosts = totalCommission + totalSwap;
-    const netProfit = totalProfit - totalCosts;
-
-    // Setup Quality Stats
-    const tradesWithScore = trades.filter(t => t.setupScore !== null && t.setupScore !== undefined);
-    const avgSetupScore = tradesWithScore.length
-      ? tradesWithScore.reduce((acc, t) => acc + toNum(t.setupScore), 0) / tradesWithScore.length
-      : 0;
+    forexQuery(req);
+    const snapshot = await analyticsSnapshotService.getPerformanceSnapshot({
+      userId: req.user._id,
+      market: "Forex",
+    });
+    const performance = snapshot.performance;
+    const avgSetupScore = performance.avgSetupScore ?? 0;
 
     res.json({
-      totalTrades,
-      totalProfit: fixed(totalProfit),
-      netProfit: fixed(netProfit),
-      winRate: fixed(winRate, 1),
-      avgTrade: fixed(totalTrades ? totalProfit / totalTrades : 0),
-      avgWin: fixed(avgWin),
-      avgLoss: fixed(avgLoss),
-      totalCosts: fixed(totalCosts),
-      winningTrades: winningTrades.length,
-      losingTrades: losingTrades.length,
+      totalTrades: performance.totalTrades,
+      totalProfit: fixed(performance.grossPnL),
+      netProfit: fixed(performance.netPnL),
+      netPnL: fixed(performance.netPnL),
+      winRate: fixed(performance.winRate, 1),
+      avgTrade: fixed(performance.avgPnL),
+      avgWin: fixed(performance.avgWin),
+      avgLoss: fixed(performance.avgLoss),
+      totalCosts: fixed(performance.totalCosts),
+      winningTrades: performance.winningTrades,
+      losingTrades: performance.losingTrades,
       avgSetupScore: fixed(avgSetupScore, 1)
     });
   } catch (error) {
@@ -126,20 +104,12 @@ exports.getSummary = asyncHandler(async (req, res) => {
 
 exports.getWeeklyStats = asyncHandler(async (req, res) => {
   try {
-    const query = forexQuery(req);
-    const trades = await Trade.find(query).lean()
-      .select("profit tradeDate createdAt")
-      .limit(10000);
-    const weekly = {};
-
-    trades.forEach(trade => {
-      const week = getIsoWeekKey(trade.tradeDate || trade.createdAt);
-      if (!week) return;
-      if (!weekly[week]) weekly[week] = 0;
-      weekly[week] += toNum(trade.profit);
+    forexQuery(req);
+    const breakdown = await analyticsSnapshotService.getPnlBreakdownSnapshot({
+      userId: req.user._id,
+      market: "Forex",
     });
-
-    res.json(weekly);
+    res.json(Object.fromEntries(breakdown.weekly.map((row) => [row.week, row.profit])));
   } catch (error) {
     handleAnalyticsError(error);
   }
@@ -273,98 +243,12 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
 // 2. Trade Distribution
 exports.getTradeDistribution = asyncHandler(async (req, res) => {
   try {
-    const query = forexQuery(req);
-    const trades = await Trade.find(query).lean()
-      .select("profit pair type strategy session createdAt")
-      .limit(10000);
-
-    // By Currency Pair
-    const byPair = {};
-    trades.forEach(t => {
-      if (!byPair[t.pair]) byPair[t.pair] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byPair[t.pair].total++;
-      if (t.profit > 0) byPair[t.pair].wins++;
-      else if (t.profit < 0) byPair[t.pair].losses++;
-      byPair[t.pair].profit += t.profit || 0;
+    forexQuery(req);
+    const snapshot = await analyticsSnapshotService.getTradeDistributionSnapshot({
+      userId: req.user._id,
+      market: "Forex",
     });
-    Object.keys(byPair).forEach(pair => byPair[pair].winRate = ((byPair[pair].wins / byPair[pair].total) * 100).toFixed(1));
-
-    // By Trade Type (BUY/SELL)
-    const byType = { BUY: { total: 0, wins: 0, losses: 0, profit: 0 }, SELL: { total: 0, wins: 0, losses: 0, profit: 0 } };
-    trades.forEach(t => {
-      if (byType[t.type]) {
-        byType[t.type].total++;
-        if (t.profit > 0) byType[t.type].wins++;
-        else if (t.profit < 0) byType[t.type].losses++;
-        byType[t.type].profit += t.profit || 0;
-      }
-    });
-    Object.keys(byType).forEach(type => byType[type].winRate = byType[type].total ? ((byType[type].wins / byType[type].total) * 100).toFixed(1) : 0);
-
-    // By Strategy
-    const byStrategy = {};
-    trades.forEach(t => {
-      const strat = t.strategy || "Unspecified";
-      if (!byStrategy[strat]) byStrategy[strat] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      byStrategy[strat].total++;
-      if (t.profit > 0) byStrategy[strat].wins++;
-      else if (t.profit < 0) byStrategy[strat].losses++;
-      byStrategy[strat].profit += t.profit || 0;
-    });
-    Object.keys(byStrategy).forEach(strat => byStrategy[strat].winRate = ((byStrategy[strat].wins / byStrategy[strat].total) * 100).toFixed(1));
-
-    // By Session (determine from time)
-    const bySession = {
-      "Asia Session":    { total: 0, wins: 0, losses: 0, profit: 0 },
-      "London Session":  { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Overlap Session": { total: 0, wins: 0, losses: 0, profit: 0 },
-      "NY Session":      { total: 0, wins: 0, losses: 0, profit: 0 },
-      "Other":           { total: 0, wins: 0, losses: 0, profit: 0 },
-    };
-
-    trades.forEach(t => {
-      const hour = new Date(t.tradeDate || t.createdAt).getUTCHours();
-      let session = "Other";
-
-      // UTC hours for sessions
-      // Asia: 0-8 (midnight to 8am UTC)
-      // London: 8-16 (8am to 4pm UTC)
-      // NY: 13-21 (1pm to 9pm UTC) - overlaps with London
-
-      if (hour >= 0 && hour < 8) session = "Asia Session";
-      else if (hour >= 13 && hour < 16) session = "Overlap Session";
-      else if (hour >= 8 && hour < 16) session = "London Session";
-      else if (hour >= 16 && hour < 21) session = "NY Session";
-
-      // Use stored session if available
-      if (t.session) {
-        session = t.session;
-        if (!bySession[session]) bySession[session] = { total: 0, wins: 0, losses: 0, profit: 0 };
-      }
-
-      bySession[session].total++;
-      if (t.profit > 0) bySession[session].wins++;
-      else if (t.profit < 0) bySession[session].losses++;
-      bySession[session].profit += t.profit || 0;
-    });
-
-    Object.keys(bySession).forEach(session => {
-      bySession[session].winRate = bySession[session].total ? ((bySession[session].wins / bySession[session].total) * 100).toFixed(1) : 0;
-    });
-
-    // Derive Long/Short from BUY/SELL for the Trade Direction widget
-    const longData  = byType.BUY  || { total: 0, wins: 0, profit: 0, winRate: "0.0" };
-    const shortData = byType.SELL || { total: 0, wins: 0, profit: 0, winRate: "0.0" };
-
-    res.json({
-      byPair, byType, byStrategy, bySession,
-      longTrades:   longData.total,
-      shortTrades:  shortData.total,
-      longWinRate:  longData.winRate,
-      shortWinRate: shortData.winRate,
-      longProfit:   parseFloat(longData.profit  || 0).toFixed(2),
-      shortProfit:  parseFloat(shortData.profit || 0).toFixed(2),
-    });
+    res.json(snapshot.distribution);
   } catch (error) {
     handleAnalyticsError(error);
   }
@@ -1371,3 +1255,74 @@ exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
   }
 });
 
+// ============================================
+// TRADE QUALITY ANALYSIS
+// ============================================
+
+exports.getTradeQualityAnalysis = asyncHandler(async (req, res) => {
+  try {
+    forexQuery(req);
+    const snapshot = await analyticsSnapshotService.getTradeQualitySnapshot({
+      userId: req.user._id,
+      market: "Forex",
+    });
+    res.json(snapshot.quality);
+  } catch (error) {
+    handleAnalyticsError(error);
+  }
+});
+
+// ============================================
+// SELF AWARENESS SCORE
+// ============================================
+
+exports.getSelfAwarenessScore = asyncHandler(async (req, res) => {
+  try {
+    forexQuery(req);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Forex",
+    });
+    res.json(snapshot.selfAwareness);
+  } catch (error) {
+    handleAnalyticsError(error);
+  }
+});
+
+// ============================================
+// TRADING DNA ENGINE
+// ============================================
+
+exports.getTradingDNA = asyncHandler(async (req, res) => {
+  try {
+    forexQuery(req);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Forex",
+    });
+    res.json(snapshot.tradingDNA);
+  } catch (error) {
+    handleAnalyticsError(error);
+  }
+});
+
+// ============================================
+// PSYCHOLOGY COST CALCULATOR
+// ============================================
+
+exports.getPsychologyCost = asyncHandler(async (req, res) => {
+  try {
+    forexQuery(req);
+    const daysParam = parseInt(req.query.days, 10);
+    const snapshot = await analyticsSnapshotService.getSnapshot({
+      userId: req.user._id,
+      market: "Forex",
+      dateRange: daysParam > 0 && daysParam <= 3650
+        ? { from: new Date(Date.now() - daysParam * 24 * 60 * 60 * 1000) }
+        : undefined,
+    });
+    res.json(snapshot.psychologyCost);
+  } catch (error) {
+    handleAnalyticsError(error);
+  }
+});

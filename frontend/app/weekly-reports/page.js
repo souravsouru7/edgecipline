@@ -13,7 +13,7 @@ import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 
 const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", blue: "#3B82F6", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
 
-// â”€â”€ JSON extraction helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- JSON extraction helpers ---------------------------------------------------
 
 function tryParseJson(value) {
   if (!value || typeof value !== "string") return null;
@@ -98,7 +98,7 @@ function deepExtractSummary(value, depth = 0) {
     /"summary"\s*:\s*"([\s\S]*?)"\s*(?=\s*,\s*"(?:week|mistakes|improvements|nextWeekChecklist)"|\s*}\s*|$)/i
   );
   if (m) return unescapeForDisplay(m[1]);
-  return text; // give up â€” show raw, at least not silently
+  return text; // give up - show raw, at least not silently
 }
 
 function splitSummaryIntoParagraphs(value) {
@@ -126,7 +126,7 @@ function splitSummaryIntoParagraphs(value) {
   }
 
   // Try to convert the summary into labeled bullets for readability.
-  // This targets the common Gemini â€œcomma paragraphâ€ output shape.
+  // This targets the common Gemini "comma paragraph" output shape.
   const s = summaryText;
   const bullets = [];
 
@@ -178,11 +178,11 @@ function splitSummaryIntoParagraphs(value) {
   const ruleBreakMatch = s.match(/rule\s*break[^']*'([^']+)'/i);
   if (ruleBreakMatch?.[1]) bullets.push(`Discipline signal: Rule break '${ruleBreakMatch[1]}'.`);
 
-  // Take the final â€œactionâ€ sentence as-is (much easier than keeping the whole paragraph).
+  // Take the final "action" sentence as-is (much easier than keeping the whole paragraph).
   const sentenceChunks = s.match(/[^.!?]+[.!?]+(?:\s+|$)/g)?.map((x) => x.trim()).filter(Boolean) || [];
   const lastSentence = sentenceChunks.length ? sentenceChunks[sentenceChunks.length - 1] : null;
   if (lastSentence && lastSentence.length > 30) {
-    const trimmed = lastSentence.length > 190 ? `${lastSentence.slice(0, 187).trim()}â€¦` : lastSentence;
+    const trimmed = lastSentence.length > 190 ? `${lastSentence.slice(0, 187).trim()}...` : lastSentence;
     bullets.push(`What to focus next: ${trimmed}`);
   }
 
@@ -258,7 +258,7 @@ function normalizeAiFeedback(raw) {
   };
 }
 
-// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Sub-components ------------------------------------------------------------
 
 function KpiCard({ label, value, color }) {
   return (
@@ -336,7 +336,7 @@ function ImprovementCard({ item }) {
   );
 }
 
-// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Main component ------------------------------------------------------------
 
 function WeeklyReportsContent() {
   const router = useRouter();
@@ -391,7 +391,7 @@ function WeeklyReportsContent() {
     <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary }}>
       {isIndian ? <IndianMarketHeader /> : <PageHeader />}
 
-      {/* â”€â”€ Page toolbar â”€â”€ */}
+      {/* -- Page toolbar -- */}
       <div style={{
         background: "#FFFFFF", borderBottom: "1px solid #E8EDF2",
         padding: "10px 20px", display: "flex", alignItems: "center",
@@ -407,11 +407,11 @@ function WeeklyReportsContent() {
           transition: "all 0.2s", whiteSpace: "nowrap",
         }}>
           <RefreshCw size={13} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />
-          <span className="wr-gen-label">{busy ? "Generatingâ€¦" : "Generate Report"}</span>
+          <span className="wr-gen-label">{busy ? "Generating..." : "Generate Report"}</span>
         </button>
       </div>
 
-      {/* â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* -- Body -------------------------------------------------- */}
       <div className="wr-body" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px", display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
 
         {/* Sidebar */}
@@ -421,7 +421,7 @@ function WeeklyReportsContent() {
           </div>
 
           {!reports ? (
-            <div style={{ padding: 20 }}><LoadingSpinner message="Loadingâ€¦" /></div>
+            <div style={{ padding: 20 }}><LoadingSpinner message="Loading..." /></div>
           ) : reports.length === 0 ? (
             <div style={{ padding: 20, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
               No reports yet.<br />Click <strong style={{ color: C.bull }}>Generate Report</strong> above.
@@ -479,7 +479,7 @@ function WeeklyReportsContent() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* â”€â”€ Week header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* -- Week header ------------------------------------ */}
               <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -487,7 +487,7 @@ function WeeklyReportsContent() {
                       {snap?.week?.label?.replace(" (Last 7 days)", "") || "Weekly Report"}
                     </h2>
                     <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace", marginTop: 4, letterSpacing: "0.04em" }}>
-                      {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} Â· {snap?.counts?.totalTrades ?? 0} trades
+                      {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} * {snap?.counts?.totalTrades ?? 0} trades
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: net >= 0 ? "rgba(13,158,110,0.08)" : "rgba(214,59,59,0.08)", border: `1px solid ${net >= 0 ? "rgba(13,158,110,0.2)" : "rgba(214,59,59,0.2)"}`, flexShrink: 0 }}>
@@ -501,7 +501,7 @@ function WeeklyReportsContent() {
                 {/* KPI row */}
                 <div className="wr-kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
                   <KpiCard label="Win Rate"      value={`${snap?.rates?.winRatePct ?? 0}%`} color={parseFloat(snap?.rates?.winRatePct ?? 0) >= 50 ? C.bull : C.bear} />
-                  <KpiCard label="Profit Factor" value={snap?.rates?.profitFactor ?? "â€”"}   color={parseFloat(snap?.rates?.profitFactor ?? 0) >= 1 ? C.bull : C.bear} />
+                  <KpiCard label="Profit Factor" value={snap?.rates?.profitFactor ?? "-"}   color={parseFloat(snap?.rates?.profitFactor ?? 0) >= 1 ? C.bull : C.bear} />
                   <KpiCard label="Avg Win"       value={`${currency}${snap?.rates?.avgWin ?? 0}`}  color={C.bull} />
                   <KpiCard label="Avg Loss"      value={`${currency}${snap?.rates?.avgLoss ?? 0}`} color={C.bear} />
                   {typeof snap?.discipline?.avgSetupScore === "number" && (
@@ -510,7 +510,7 @@ function WeeklyReportsContent() {
                 </div>
               </div>
 
-              {/* â”€â”€ AI Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* -- AI Overview ------------------------------------- */}
               {ai && (
                 <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, transparent)` }} />
@@ -529,7 +529,7 @@ function WeeklyReportsContent() {
                 </div>
               )}
 
-              {/* â”€â”€ Psychology feedback (if provided) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* -- Psychology feedback (if provided) -------------- */}
               {ai?.psychologyFeedback && (
                 <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.purple}, transparent)` }} />
@@ -548,7 +548,7 @@ function WeeklyReportsContent() {
                 </div>
               )}
 
-              {/* â”€â”€ Mistakes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* -- Mistakes ---------------------------------------- */}
               {ai?.mistakes?.length > 0 && (
                 <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bear}, transparent)` }} />
@@ -564,7 +564,7 @@ function WeeklyReportsContent() {
                 </div>
               )}
 
-              {/* â”€â”€ Improvements + Checklist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+              {/* -- Improvements + Checklist ------------------------ */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="wr-grid">
 
                 {ai?.improvements?.length > 0 && (
@@ -624,13 +624,13 @@ function WeeklyReportsContent() {
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         * { box-sizing: border-box; }
 
-        /* â”€â”€ Tablet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        /* -- Tablet ---------------------------------------- */
         @media (max-width: 900px) {
           .wr-body { grid-template-columns: 1fr !important; padding: 16px !important; }
           .wr-grid { grid-template-columns: 1fr !important; }
         }
 
-        /* â”€â”€ Mobile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        /* -- Mobile ---------------------------------------- */
         @media (max-width: 600px) {
           .wr-body { padding: 12px !important; gap: 12px !important; }
 
@@ -664,7 +664,7 @@ function WeeklyReportsContent() {
 
 export default function WeeklyReportsPage() {
   return (
-    <Suspense fallback={<LoadingSpinner message="Loadingâ€¦" fullPage />}>
+    <Suspense fallback={<LoadingSpinner message="Loading..." fullPage />}>
       <WeeklyReportsContent />
     </Suspense>
   );

@@ -1,37 +1,45 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { Skeleton } from "@/features/shared";
-import TradeRow  from "./TradeRow";
+import TradeRow from "./TradeRow";
 import TradeCard from "./TradeCard";
 
 const TABLE_HEADERS = ["DATE", "PAIR", "TYPE", "BASIS", "P&L", "ACTIONS"];
+const DESKTOP_SKELETON_ROWS = Array.from({ length: 5 });
+const MOBILE_SKELETON_ROWS = Array.from({ length: 3 });
 
-/**
- * TradeTable
- * Renders the full trades list — desktop table + mobile card stack.
- * Features skeleton loading states for better UX.
- */
-export default function TradeTable({ trades, loading, onDelete, deletingId }) {
-  const skeletonCount = 5;
+function TradeTable({ trades, loading, onDelete, deletingId }) {
+  const desktopRows = useMemo(
+    () => trades.map((trade, idx) => (
+      <TradeRow key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
+    )),
+    [trades, onDelete, deletingId],
+  );
+
+  const mobileCards = useMemo(
+    () => trades.map((trade, idx) => (
+      <TradeCard key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
+    )),
+    [trades, onDelete, deletingId],
+  );
 
   return (
-    <div 
+    <div
       className="trade-table-container"
-      style={{ 
-        background: "#FFFFFF", 
-        border: "1px solid #E2E8F0", 
-        borderRadius: 14, 
-        overflow: "hidden", 
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        overflow: "hidden",
         boxShadow: "0 2px 12px rgba(15,25,35,0.05)",
-        position: "relative"
+        position: "relative",
       }}
     >
-      {/* Top accent bar */}
       <div style={{ height: 3, background: "linear-gradient(90deg, #0D9E6E 0%, transparent 45%, transparent 55%, #D63B3B 100%)" }} />
 
       {loading ? (
         <div style={{ padding: "0" }}>
-          {/* Desktop Skeletons */}
           <div className="hidden-mobile">
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -44,7 +52,7 @@ export default function TradeTable({ trades, loading, onDelete, deletingId }) {
                 </tr>
               </thead>
               <tbody>
-                {[...Array(skeletonCount)].map((_, i) => (
+                {DESKTOP_SKELETON_ROWS.map((_, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid #F7FAFC" }}>
                     <td style={{ padding: "16px" }}><Skeleton width="70px" height="14px" /></td>
                     <td style={{ padding: "16px" }}><Skeleton width="80px" height="14px" /></td>
@@ -57,16 +65,14 @@ export default function TradeTable({ trades, loading, onDelete, deletingId }) {
               </tbody>
             </table>
           </div>
-          {/* Mobile Skeletons */}
           <div className="show-mobile" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {[...Array(3)].map((_, i) => (
+            {MOBILE_SKELETON_ROWS.map((_, i) => (
               <Skeleton key={i} width="100%" height="80px" style={{ borderRadius: 12 }} />
             ))}
           </div>
         </div>
       ) : trades.length === 0 ? null : (
         <>
-          {/* Desktop table */}
           <div className="hidden-mobile" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
               <thead>
@@ -78,19 +84,12 @@ export default function TradeTable({ trades, loading, onDelete, deletingId }) {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {trades.map((trade, idx) => (
-                  <TradeRow key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
-                ))}
-              </tbody>
+              <tbody>{desktopRows}</tbody>
             </table>
           </div>
 
-          {/* Mobile cards */}
           <div className="show-mobile" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {trades.map((trade, idx) => (
-              <TradeCard key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
-            ))}
+            {mobileCards}
           </div>
         </>
       )}
@@ -115,3 +114,5 @@ export default function TradeTable({ trades, loading, onDelete, deletingId }) {
     </div>
   );
 }
+
+export default memo(TradeTable);

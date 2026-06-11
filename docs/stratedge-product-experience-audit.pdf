@@ -1,0 +1,414 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 4011 >>
+stream
+BT
+/F1 10 Tf
+72 760 Td
+/F1 18 Tf
+1 0 0 1 72 760 Tm
+(Stratedge Product Experience Audit) Tj
+/F1 10 Tf
+1 0 0 1 72 736 Tm
+(- Complete frontend, UI, UX, product experience, information architecture, onboarding,) Tj
+/F1 10 Tf
+1 0 0 1 72 723 Tm
+(  discoverability, and premium-product audit.) Tj
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(- Prepared from source-level review of dashboard, analytics, OCR import, trade journal,) Tj
+/F1 10 Tf
+1 0 0 1 72 697 Tm
+(  setup templates, pre-trade checklist, discipline analytics, psychology timeline, reports,) Tj
+/F1 10 Tf
+1 0 0 1 72 684 Tm
+(  shared navigation, and Indian-market variants.) Tj
+/F1 10 Tf
+1 0 0 1 72 671 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 657 Tm
+(Executive Scores) Tj
+/F1 10 Tf
+1 0 0 1 72 639 Tm
+(UX Score: 68/100) Tj
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(UI Score: 72/100) Tj
+/F1 10 Tf
+1 0 0 1 72 613 Tm
+(Product Clarity Score: 58/100) Tj
+/F1 10 Tf
+1 0 0 1 72 600 Tm
+(Premium Feel Score: 64/100) Tj
+/F1 10 Tf
+1 0 0 1 72 587 Tm
+(Mobile UX Score: 61/100) Tj
+/F1 10 Tf
+1 0 0 1 72 574 Tm
+(Discoverability Score: 52/100) Tj
+/F1 10 Tf
+1 0 0 1 72 561 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 547 Tm
+(Critical Problems) Tj
+/F1 10 Tf
+1 0 0 1 72 529 Tm
+(- The strongest value proposition, trader intelligence plus psychology edge, is not clear) Tj
+/F1 10 Tf
+1 0 0 1 72 516 Tm
+(  in the first 10 seconds.) Tj
+/F1 10 Tf
+1 0 0 1 72 503 Tm
+(- The product can look like a generic trading journal with many dashboards before it feels) Tj
+/F1 10 Tf
+1 0 0 1 72 490 Tm
+(  like an elite intelligence system.) Tj
+/F1 10 Tf
+1 0 0 1 72 477 Tm
+(- Premium systems are hidden. Trading DNA, Psychology Cost, Self Awareness, Pattern) Tj
+/F1 10 Tf
+1 0 0 1 72 464 Tm
+(  Detection, AI Coach, Timeline, Discipline, OCR, and Notifications are scattered across) Tj
+/F1 10 Tf
+1 0 0 1 72 451 Tm
+(  routes and cards.) Tj
+/F1 10 Tf
+1 0 0 1 72 438 Tm
+(- The information architecture is fragmented across analytics subroutes, top-level pages,) Tj
+/F1 10 Tf
+1 0 0 1 72 425 Tm
+(  market-specific duplicates, and dashboard cards.) Tj
+/F1 10 Tf
+1 0 0 1 72 412 Tm
+(- First-time onboarding is feature-led instead of outcome-led. Users need a guided loop) Tj
+/F1 10 Tf
+1 0 0 1 72 399 Tm
+(  from first trade to first insight.) Tj
+/F1 10 Tf
+1 0 0 1 72 386 Tm
+(- Visible encoding issues in UI copy and symbols hurt premium trust.) Tj
+/F1 10 Tf
+1 0 0 1 72 373 Tm
+(- Brand naming is inconsistent between Stratedge and Edgecipline, which weakens) Tj
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(  subscription confidence.) Tj
+/F1 10 Tf
+1 0 0 1 72 347 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 333 Tm
+(High Priority Problems) Tj
+/F1 10 Tf
+1 0 0 1 72 315 Tm
+(- Dashboard prioritizes generic KPIs while the differentiators appear conditionally or) Tj
+/F1 10 Tf
+1 0 0 1 72 302 Tm
+(  lower on the page.) Tj
+/F1 10 Tf
+1 0 0 1 72 289 Tm
+(- Analytics overview gives too many modules equal weight, increasing cognitive load.) Tj
+/F1 10 Tf
+1 0 0 1 72 276 Tm
+(- OCR upload has strong mechanics, but the required post-extraction review feels heavy) Tj
+/F1 10 Tf
+1 0 0 1 72 263 Tm
+(  without enough context.) Tj
+/F1 10 Tf
+1 0 0 1 72 250 Tm
+(- Mobile experiences become long stacked-card scrolls, making power features hard to scan.) Tj
+/F1 10 Tf
+1 0 0 1 72 237 Tm
+(- Empty states explain that more trades are needed but do not sufficiently preview the) Tj
+/F1 10 Tf
+1 0 0 1 72 224 Tm
+(  future value.) Tj
+/F1 10 Tf
+1 0 0 1 72 211 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 197 Tm
+(Medium Priority Problems) Tj
+/F1 10 Tf
+1 0 0 1 72 179 Tm
+(- AI Extractor, AI Reports, AI Insights, and AI Coach Feed overlap conceptually.) Tj
+/F1 10 Tf
+1 0 0 1 72 166 Tm
+(- Psychology Score, Self Awareness, Discipline, Trade Quality, and Would Retake need a) Tj
+/F1 10 Tf
+1 0 0 1 72 153 Tm
+(  shared mental model.) Tj
+/F1 10 Tf
+1 0 0 1 72 140 Tm
+(- Weekly Reports feel separate from the main intelligence system.) Tj
+/F1 10 Tf
+1 0 0 1 72 127 Tm
+(- Checklist and Setup Templates are valuable, but their connection to Trading DNA,) Tj
+/F1 10 Tf
+1 0 0 1 72 114 Tm
+(  Discipline, and Pattern Detection is not obvious.) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>
+endobj
+4 0 obj
+<< /Length 3636 >>
+stream
+BT
+/F1 10 Tf
+72 760 Td
+/F1 10 Tf
+1 0 0 1 72 760 Tm
+(- Indian-market route duplication creates risk of inconsistent UX quality.) Tj
+/F1 10 Tf
+1 0 0 1 72 747 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 733 Tm
+(Low Priority Problems) Tj
+/F1 10 Tf
+1 0 0 1 72 715 Tm
+(- The visual system leans toward generic SaaS dashboard patterns: cards, KPI tiles, small) Tj
+/F1 10 Tf
+1 0 0 1 72 702 Tm
+(  labels, and many chart panels.) Tj
+/F1 10 Tf
+1 0 0 1 72 689 Tm
+(- Important explanations are sometimes hidden in hover tooltips instead of embedded into) Tj
+/F1 10 Tf
+1 0 0 1 72 676 Tm
+(  the user journey.) Tj
+/F1 10 Tf
+1 0 0 1 72 663 Tm
+(- Ticker tape and decorative trading background create atmosphere but can distract from) Tj
+/F1 10 Tf
+1 0 0 1 72 650 Tm
+(  the core behavioral insight story.) Tj
+/F1 10 Tf
+1 0 0 1 72 637 Tm
+(- Some dense tool surfaces could use cleaner icon-led controls.) Tj
+/F1 10 Tf
+1 0 0 1 72 624 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 610 Tm
+(Features To Promote) Tj
+/F1 10 Tf
+1 0 0 1 72 592 Tm
+(- Psychology Cost Calculator) Tj
+/F1 10 Tf
+1 0 0 1 72 579 Tm
+(- Trading DNA Engine) Tj
+/F1 10 Tf
+1 0 0 1 72 566 Tm
+(- Self Awareness Engine) Tj
+/F1 10 Tf
+1 0 0 1 72 553 Tm
+(- Pattern Detection Engine) Tj
+/F1 10 Tf
+1 0 0 1 72 540 Tm
+(- AI Coach Feed) Tj
+/F1 10 Tf
+1 0 0 1 72 527 Tm
+(- Pre-Trade Checklist tied to setup rules) Tj
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(- Weekly AI Reports) Tj
+/F1 10 Tf
+1 0 0 1 72 501 Tm
+(- Psychology Timeline) Tj
+/F1 10 Tf
+1 0 0 1 72 488 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 474 Tm
+(Features To Reorganize) Tj
+/F1 10 Tf
+1 0 0 1 72 456 Tm
+(- Move all intelligence systems into one top-level Intelligence or Coach area.) Tj
+/F1 10 Tf
+1 0 0 1 72 443 Tm
+(- Use primary navigation: Dashboard, Journal, Import, Plan, Intelligence, Reports,) Tj
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(  Settings.) Tj
+/F1 10 Tf
+1 0 0 1 72 417 Tm
+(- Place Trading DNA, Psychology Cost, Pattern Detection, Self Awareness, Discipline,) Tj
+/F1 10 Tf
+1 0 0 1 72 404 Tm
+(  Timeline, and AI Coach under Intelligence.) Tj
+/F1 10 Tf
+1 0 0 1 72 391 Tm
+(- Place Setups and Pre-Trade Checklist under Plan.) Tj
+/F1 10 Tf
+1 0 0 1 72 378 Tm
+(- Place OCR upload and manual add under Import.) Tj
+/F1 10 Tf
+1 0 0 1 72 365 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 351 Tm
+(Features To Explain Better) Tj
+/F1 10 Tf
+1 0 0 1 72 333 Tm
+(- Trading DNA: your repeatable edge fingerprint.) Tj
+/F1 10 Tf
+1 0 0 1 72 320 Tm
+(- Psychology Cost: money lost to behavior, not strategy.) Tj
+/F1 10 Tf
+1 0 0 1 72 307 Tm
+(- Self Awareness: how accurately you judge trade quality.) Tj
+/F1 10 Tf
+1 0 0 1 72 294 Tm
+(- Pattern Detection: repeated strengths and risk patterns with sample-size confidence.) Tj
+/F1 10 Tf
+1 0 0 1 72 281 Tm
+(- AI Coach Feed: what changed, why it matters, and the next action.) Tj
+/F1 10 Tf
+1 0 0 1 72 268 Tm
+(- Psychology Timeline: why your mindset score changes over time.) Tj
+/F1 10 Tf
+1 0 0 1 72 255 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 241 Tm
+(Features To Hide Or De-emphasize) Tj
+/F1 10 Tf
+1 0 0 1 72 223 Tm
+(- Do not remove features. Hide advanced analytics until enough data exists or place them) Tj
+/F1 10 Tf
+1 0 0 1 72 210 Tm
+(  behind Advanced breakdown.) Tj
+/F1 10 Tf
+1 0 0 1 72 197 Tm
+(- Hide low-confidence charts when sample size is too small and show unlock previews) Tj
+/F1 10 Tf
+1 0 0 1 72 184 Tm
+(  instead.) Tj
+/F1 10 Tf
+1 0 0 1 72 171 Tm
+(- Reduce duplicate AI labels in top-level navigation.) Tj
+/F1 10 Tf
+1 0 0 1 72 158 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 144 Tm
+(Features To Merge) Tj
+/F1 10 Tf
+1 0 0 1 72 126 Tm
+(- Merge AI Insights and AI Coach Feed into one coaching stream.) Tj
+/F1 10 Tf
+1 0 0 1 72 113 Tm
+(- Merge Discipline Analytics signals with Checklist outcomes.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 2054 >>
+stream
+BT
+/F1 10 Tf
+72 760 Td
+/F1 10 Tf
+1 0 0 1 72 760 Tm
+(- Merge Psychology Timeline with Psychology Analytics as a longitudinal tab.) Tj
+/F1 10 Tf
+1 0 0 1 72 747 Tm
+(- Merge top-level trading-dna route with analytics/trading-dna to avoid duplicate mental) Tj
+/F1 10 Tf
+1 0 0 1 72 734 Tm
+(  models.) Tj
+/F1 10 Tf
+1 0 0 1 72 721 Tm
+(- Merge market-specific IA where possible and use market context instead of duplicate) Tj
+/F1 10 Tf
+1 0 0 1 72 708 Tm
+(  navigation.) Tj
+/F1 10 Tf
+1 0 0 1 72 695 Tm
+() Tj
+/F1 13 Tf
+1 0 0 1 72 681 Tm
+(Redesign Strategy) Tj
+/F1 10 Tf
+1 0 0 1 72 663 Tm
+(- Make the product promise: Stratedge shows what makes you profitable, what leaks money,) Tj
+/F1 10 Tf
+1 0 0 1 72 650 Tm
+(  and what to do before your next trade.) Tj
+/F1 10 Tf
+1 0 0 1 72 637 Tm
+(- Primary navigation should be: Dashboard, Journal, Import, Plan, Intelligence, Reports.) Tj
+/F1 10 Tf
+1 0 0 1 72 624 Tm
+(- Dashboard should become a command center with today's next action, current edge, biggest) Tj
+/F1 10 Tf
+1 0 0 1 72 611 Tm
+(  leak, discipline status, latest AI coach insight, Log Trade, and Run Checklist.) Tj
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(- Intelligence should become the premium heart of the app with tabs for Trading DNA,) Tj
+/F1 10 Tf
+1 0 0 1 72 585 Tm
+(  Psychology Cost, Patterns, Self Awareness, Discipline, Timeline, and AI Coach.) Tj
+/F1 10 Tf
+1 0 0 1 72 572 Tm
+(- Each intelligence tab should answer four questions: what happened, why it matters, what) Tj
+/F1 10 Tf
+1 0 0 1 72 559 Tm
+(  to do next, and what improves if the user follows through.) Tj
+/F1 10 Tf
+1 0 0 1 72 546 Tm
+(- Onboarding should be milestone-based: create setup rules, log or upload first trade, add) Tj
+/F1 10 Tf
+1 0 0 1 72 533 Tm
+(  psychology tags, review first insight, run first checklist, generate first weekly report,) Tj
+/F1 10 Tf
+1 0 0 1 72 520 Tm
+(  unlock Trading DNA.) Tj
+/F1 10 Tf
+1 0 0 1 72 507 Tm
+(- Preserve all premium systems, but present them as one intelligence loop: Plan, Execute,) Tj
+/F1 10 Tf
+1 0 0 1 72 494 Tm
+(  Journal, Analyze, Coach, Improve.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+9 0 obj
+<< /Type /Catalog /Pages 8 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000004141 00000 n 
+0000004267 00000 n 
+0000007954 00000 n 
+0000008080 00000 n 
+0000010185 00000 n 
+0000010311 00000 n 
+0000010380 00000 n 
+trailer
+<< /Size 10 /Root 9 0 R >>
+startxref
+10429
+%%EOF

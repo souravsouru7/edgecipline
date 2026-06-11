@@ -62,6 +62,12 @@ function buildFallbackFeedback(snapshot, weekLabel) {
     ].filter(Boolean).join(" ");
   }
 
+  const isTooFewTrades = totalTrades < 10;
+  const confidenceNote = isTooFewTrades
+    ? `Feedback confidence is limited due to a small sample size (${totalTrades} trade${totalTrades === 1 ? "" : "s"}).`
+    : "";
+  const dataQualityScore = isTooFewTrades ? Math.min(40, totalTrades * 4) : 75;
+
   return {
     week: weekLabel,
     summary: summaryLines.join("\n\n"),
@@ -82,6 +88,8 @@ function buildFallbackFeedback(snapshot, weekLabel) {
       "Review top 3 losses at end of day",
       "Reduce size on low-confidence setups",
     ],
+    dataQualityScore,
+    confidenceNote,
   };
 }
 
@@ -91,35 +99,61 @@ async function generateWeeklyFeedback({ snapshot, weekLabel }) {
   const modelName = appConfig.ai.geminiModel;
   const model = genAI.getGenerativeModel({ model: modelName });
 
-  const prompt = `You are a trading journal coach. You are given a JSON snapshot of ONE user's last 7 days of journaled trades.
-Your job: produce very detailed, process-focused feedback. Do NOT give buy/sell signals or price predictions. Do NOT give financial advice.
-Only use the provided data. If a claim cannot be supported by the snapshot, do not claim it. Refer directly to numbers in the snapshot (win rate, net PnL, profit factor, strategy/session breakdowns, discipline metrics, best/worst trades, etc.).
-If a "psychology" object is present in the snapshot, use it to give a SEPARATE section of mindset feedback (mood, confidence, emotional tags, revenge trading, plan adherence).
+  const totalTrades = snapshot?.counts?.totalTrades ?? 0;
+  const lowSampleWarning = totalTrades < 10
+    ? `\nIMPORTANT: Only ${totalTrades} trade(s) were recorded this week. Every observation must be marked as preliminary. State explicitly in the summary and psychologyFeedback that insights are based on a very small sample and may not be statistically reliable.`
+    : "";
 
-The user wants COMPLETE, DETAILED FEEDBACK, not generic one-liners. Make every field below information-dense and concrete.
+  const prompt = `You are a senior trading performance coach reviewing a trader's journal.
 
-Return ONLY valid JSON (no markdown, no backticks) matching this schema:
+STRICT DATA RULES — follow every rule without exception:
+1. ONLY use numbers, trades, and observations that exist in the Snapshot JSON below.
+2. NEVER invent, assume, or extrapolate any statistic, trade, or pattern not present in the data.
+3. NEVER mention a currency pair, session, strategy, or trade that does not appear in the snapshot.
+4. If a field is missing (e.g. no session data), say "session data not recorded" — do not guess.
+5. Do NOT give buy/sell signals, price predictions, or financial advice.
+6. Every "evidence" field MUST quote at least one exact number from the snapshot.
+7. If totalTrades < 10, prefix every section with a low-sample-size warning.
+8. If the snapshot shows a _dataInconsistency field, return a summary stating "Data inconsistency detected" and skip all other analysis.
+${lowSampleWarning}
+
+ANALYSIS REQUIREMENTS:
+- Summary: 2–4 paragraphs. Cover net P&L, win rate, profit factor, best/worst trades, and high-level themes. State the exact trade count.
+- Psychology: 1–3 paragraphs. Only if a "psychology" object is in the snapshot. Reference plan adherence %, mood average, top emotional tags, revenge trade count.
+- Mistakes: Up to 5. Each must have a specific title, evidence quoting exact numbers, and a concrete measurable fix.
+- Improvements: Up to 5. Each must reference actual edges found in the data (e.g. a session or strategy with higher win rate than average).
+- Session Analysis: If "topSessions" data is present, identify the best and worst session by net P&L and win rate.
+- Setup Analysis: If "topStrategies" data is present, identify the best and weakest setup by net P&L and win rate.
+- Trade Quality: If "tradeQualityAnalysis" is present, analyze Great/Average/Poor self-rating distribution. Note calibration: do "Great" trades have higher win rates than "Poor" ones? Flag mismatches.
+- Self-Awareness: If "selfAwareness" is present in the snapshot, generate 1-2 coaching sentences using the exact numbers provided. Reference score, greatAccuracy, averageAccuracy, poorAccuracy. If bestJudgedCategory exists, praise it. If worstJudgedCategory exists, coach on it. If patterns[] is non-empty, incorporate the first pattern verbatim as evidence. NEVER invent self-awareness metrics not present in the data.
+- Psychology Cost: If "psychologyCost" is present, generate 1-3 specific coaching statements using only the exact numbers in the snapshot. Reference totalEmotionCost, biggestLeak name and cost, mostExpensiveEmotion, mostProfitableEmotion. Example patterns: "FOMO cost you $X this week", "Your calm trades generated $Y", "Psychology mistakes accounted for Z% of your losses." NEVER invent any cost figures. If unhealthyNetPnL is negative and healthyNetPnL is positive, highlight the contrast.
+- Action Plan: Exactly 3 checklist items that are specific, measurable, and derived from actual data patterns.
+- Trading DNA: If "dna" is present in the snapshot, generate 1-2 sentences using exact DNA data. Reference dnaSummary.tradingIdentity if available. If bestSession or bestDay is present with netPnL, say "Your DNA shows peak performance during [name] (+$X)." If mostExpensiveEmotion is present, say "[emotion] cost you $X this week." If losingPattern is present, reference conditionLabel and winRate. NEVER invent DNA insights not present in the data.
+- Pattern Detection: If "patterns" is present in the snapshot, use it to sharpen coaching. Use topNegative[0] to identify the single biggest behavioral risk this week. Use topPositive[0] to highlight what is working. If mostDangerousCombination is present (e.g. "FOMO + Confidence 9-10"), name it explicitly. If lossStreakInsight is present, include it verbatim in mistakes or psychologyFeedback. If optimalConfidenceRange or optimalSetupScore is present, reference them in the action plan. NEVER invent pattern data — only reference patterns that exist in the snapshot.patterns object.
+- Confidence: If totalTrades < 10, set dataQualityScore ≤ 40 and state "Feedback confidence is limited due to a small sample size."
+
+Return ONLY valid JSON (no markdown, no backticks, no explanation outside the JSON):
 {
   "week": string,
-  "summary": string, // 2–4 short paragraphs. Include: overall PnL, win rate, profit factor, best/worst days or trades, and high‑level themes.
-  "psychologyFeedback": string, // 1–3 short paragraphs. If psychology data is present, MUST NOT be empty.
+  "summary": string,
+  "psychologyFeedback": string,
   "mistakes": [
     {
-      "title": string,   // Short, punchy label like "Revenge trading after losses".
-      "evidence": string, // 2–4 sentences. Quote specific numbers from the snapshot (e.g. win rate in a bad session, negative net PnL for a strategy, repeated rule breaks, worst trades, etc.).
-      "fix": string      // 2–4 sentences. Very concrete process change for next week (e.g. pre‑trade checklist, max trades after 2 losses, time filters, etc.).
+      "title": string,
+      "evidence": string,
+      "fix": string
     }
   ],
   "improvements": [
     {
-      "title": string, // A specific edge or discipline improvement (e.g. "Lean into London session breakout trades").
-      "why": string,   // 2–3 sentences. Explain WHY this is an edge, using snapshot numbers where possible.
-      "how": string    // 2–4 sentences. Step‑by‑step process for how to apply this in the next 7 days.
+      "title": string,
+      "why": string,
+      "how": string
     }
   ],
-  "nextWeekChecklist": [
-    string // 8–12 very short, atomic checklist items written as commands (e.g. "Risk ≤1% per trade", "Stop trading for the day after 2 consecutive losses", "Tag every trade with the correct mistake label").
-  ]
+  "nextWeekChecklist": [string],
+  "dataQualityScore": number,
+  "confidenceNote": string
 }
 
 Week: ${weekLabel}
@@ -156,6 +190,8 @@ ${JSON.stringify(snapshot)}
     parsed.mistakes = Array.isArray(parsed.mistakes) ? parsed.mistakes : [];
     parsed.improvements = Array.isArray(parsed.improvements) ? parsed.improvements : [];
     parsed.nextWeekChecklist = Array.isArray(parsed.nextWeekChecklist) ? parsed.nextWeekChecklist : [];
+    parsed.dataQualityScore = typeof parsed.dataQualityScore === "number" ? parsed.dataQualityScore : null;
+    parsed.confidenceNote = typeof parsed.confidenceNote === "string" ? parsed.confidenceNote : "";
 
     return {
       model: modelName,

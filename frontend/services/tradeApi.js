@@ -14,6 +14,11 @@ export const createTrade = async (tradeData, marketType = 'Forex') => {
   return await apiClient.post(`${path}/trades`, tradeData);
 };
 
+export const createTradesBatch = async ({ trades, ocrJobId } = {}, marketType = 'Forex') => {
+  const path = getMarketPath(marketType);
+  return await apiClient.post(`${path}/trades/batch`, { trades, ocrJobId });
+};
+
 export const getTrades = async (marketType = 'Forex', options = {}) => {
   const path = getMarketPath(marketType);
   const params = new URLSearchParams();
@@ -34,6 +39,11 @@ export const getTradeStatus = async (id) => {
 export const deleteTrade = async (id, marketType = 'Forex') => {
   const path = getMarketPath(marketType);
   return await apiClient.delete(`${path}/trades/${id}`);
+};
+
+export const restoreTrade = async (id, marketType = 'Forex') => {
+  const path = getMarketPath(marketType);
+  return await apiClient.post(`${path}/trades/${id}/restore`);
 };
 
 export const updateTrade = async (id, tradeData, marketType = 'Forex') => {

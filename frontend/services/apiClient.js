@@ -1,6 +1,12 @@
 import axios from 'axios';
 import { API_URL } from '@/config/api';
-import { clearAuthToken, getValidToken, setAuthToken } from '@/utils/auth';
+import {
+  clearAuthToken,
+  getValidToken,
+  hydrateAuthToken,
+  isNativeCapacitor,
+  setAuthToken,
+} from '@/utils/auth';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -72,11 +78,147 @@ const refreshClient = axios.create({
   withCredentials: true, // sends the refresh-token cookie
 });
 
+const REFRESH_LOCK_KEY = 'edgecipline:auth-refresh-lock';
+const REFRESH_RESULT_KEY = 'edgecipline:auth-refresh-result';
+const REFRESH_LOCK_TTL_MS = 10_000;
+const REFRESH_WAIT_TIMEOUT_MS = 12_000;
+const AUTH_CHANNEL_NAME = 'edgecipline-auth';
+
+const getTabId = () => {
+  if (typeof window === 'undefined') return 'server';
+  if (!window.__EDGEDISCIPLINE_AUTH_TAB_ID__) {
+    window.__EDGEDISCIPLINE_AUTH_TAB_ID__ =
+      `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+  return window.__EDGEDISCIPLINE_AUTH_TAB_ID__;
+};
+
+let _authSyncReady = false;
+let _authChannel = null;
+let _peerRefreshWaiters = [];
+
+function resolvePeerRefreshWaiters(token) {
+  const waiters = _peerRefreshWaiters;
+  _peerRefreshWaiters = [];
+  waiters.forEach((resolve) => resolve(token || null));
+}
+
+function handleAuthSyncMessage(message) {
+  if (!message || message.owner === getTabId()) return;
+  if (message.type === 'refresh:success' && message.token) {
+    void setAuthToken(message.token);
+    resolvePeerRefreshWaiters(message.token);
+  }
+  if (message.type === 'auth:logout') {
+    void clearAuthToken();
+    resolvePeerRefreshWaiters(null);
+  }
+}
+
+function ensureAuthSync() {
+  if (_authSyncReady || typeof window === 'undefined') return;
+  _authSyncReady = true;
+
+  if ('BroadcastChannel' in window) {
+    _authChannel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+    _authChannel.onmessage = (event) => handleAuthSyncMessage(event.data);
+  }
+
+  window.addEventListener('storage', (event) => {
+    if (event.key !== REFRESH_RESULT_KEY || !event.newValue) return;
+    try {
+      handleAuthSyncMessage(JSON.parse(event.newValue));
+    } catch {
+      // Ignore malformed cross-tab messages.
+    }
+  });
+}
+
+function publishRefreshSuccess(token) {
+  if (typeof window === 'undefined' || !token) return;
+  ensureAuthSync();
+  const message = {
+    type: 'refresh:success',
+    token,
+    owner: getTabId(),
+    createdAt: Date.now(),
+  };
+
+  _authChannel?.postMessage(message);
+
+  if (isNativeCapacitor()) return;
+
+  try {
+    localStorage.setItem(REFRESH_RESULT_KEY, JSON.stringify(message));
+    setTimeout(() => {
+      if (localStorage.getItem(REFRESH_RESULT_KEY)?.includes(message.owner)) {
+        localStorage.removeItem(REFRESH_RESULT_KEY);
+      }
+    }, 1000);
+  } catch {
+    // Storage can be unavailable in private mode; BroadcastChannel still covers modern browsers.
+  }
+}
+
+async function waitForPeerRefresh(timeoutMs = REFRESH_WAIT_TIMEOUT_MS) {
+  const existing = getValidToken() || await hydrateAuthToken();
+  if (existing) return Promise.resolve(existing);
+
+  ensureAuthSync();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      _peerRefreshWaiters = _peerRefreshWaiters.filter((waiter) => waiter !== done);
+      resolve(null);
+    }, timeoutMs);
+
+    function done(token) {
+      clearTimeout(timer);
+      resolve(token || getValidToken() || null);
+    }
+
+    _peerRefreshWaiters.push(done);
+  });
+}
+
+function tryAcquireRefreshLock() {
+  if (typeof window === 'undefined') return true;
+  ensureAuthSync();
+  const owner = getTabId();
+  const now = Date.now();
+
+  try {
+    const current = JSON.parse(localStorage.getItem(REFRESH_LOCK_KEY) || 'null');
+    if (current?.expiresAt > now && current.owner !== owner) return false;
+
+    localStorage.setItem(REFRESH_LOCK_KEY, JSON.stringify({
+      owner,
+      expiresAt: now + REFRESH_LOCK_TTL_MS,
+    }));
+
+    const confirmed = JSON.parse(localStorage.getItem(REFRESH_LOCK_KEY) || 'null');
+    return confirmed?.owner === owner;
+  } catch {
+    return true;
+  }
+}
+
+function releaseRefreshLock() {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = JSON.parse(localStorage.getItem(REFRESH_LOCK_KEY) || 'null');
+    if (current?.owner === getTabId()) {
+      localStorage.removeItem(REFRESH_LOCK_KEY);
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Request interceptor — client-side rate limit check + attach access token
 // ---------------------------------------------------------------------------
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
       if (typeof config.headers?.delete === 'function') {
         config.headers.delete('Content-Type');
@@ -92,7 +234,7 @@ apiClient.interceptors.request.use(
     }
 
     if (typeof window !== 'undefined') {
-      const token = getValidToken();
+      const token = getValidToken() || await hydrateAuthToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -189,9 +331,9 @@ apiClient.interceptors.response.use(
         return apiClient(config);
       } catch {
         // Refresh failed — clear local state and redirect to login
-        clearAuthToken();
-        handleUnauthenticated();
-        return Promise.reject(buildError(error));
+      await clearAuthToken();
+      handleUnauthenticated();
+      return Promise.reject(buildError(error));
       }
     }
 
@@ -246,24 +388,68 @@ function handleTermsRequired() {
 // the backend correctly detects as a replay attack and revokes the token family.
 let _refreshInFlight = null;
 
+async function executeRefreshRequest() {
+  const res = await refreshClient.post('/auth/refresh');
+  const token = res.data?.token;
+  if (token) {
+    await setAuthToken(token);
+    publishRefreshSuccess(token);
+    return token;
+  }
+  return null;
+}
+
+function isRefreshRace(error) {
+  return (
+    error?.response?.status === 409 &&
+    error?.response?.data?.errorCode === 'REFRESH_TOKEN_RACE'
+  );
+}
+
 /**
  * Perform a silent refresh from outside the interceptor (e.g. on page load).
  * Returns the new access token string or null if no valid session exists.
  * Concurrent callers share the same in-flight request rather than racing.
  */
 export function silentRefresh() {
+  const existing = getValidToken();
+  if (existing) return Promise.resolve(existing);
   if (_refreshInFlight) return _refreshInFlight;
-  _refreshInFlight = refreshClient.post('/auth/refresh')
-    .then(res => {
-      const token = res.data?.token;
-      if (token) {
-        setAuthToken(token);
-        return token;
+
+  _refreshInFlight = (async () => {
+    let lockOwner = false;
+
+    try {
+      const hydrated = await hydrateAuthToken();
+      if (hydrated) return hydrated;
+
+      lockOwner = tryAcquireRefreshLock();
+
+      if (!lockOwner) {
+        const peerToken = await waitForPeerRefresh();
+        if (peerToken) return peerToken;
+
+        lockOwner = tryAcquireRefreshLock();
       }
-      return null;
-    })
-    .catch(() => null)
-    .finally(() => { _refreshInFlight = null; });
+
+      try {
+        return await executeRefreshRequest();
+      } catch (error) {
+        if (isRefreshRace(error)) {
+          const peerToken = await waitForPeerRefresh();
+          if (peerToken) return peerToken;
+
+          await sleep(250);
+          return await executeRefreshRequest();
+        }
+        return null;
+      }
+    } finally {
+      if (lockOwner) releaseRefreshLock();
+      _refreshInFlight = null;
+    }
+  })();
+
   return _refreshInFlight;
 }
 

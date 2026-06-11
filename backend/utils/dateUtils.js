@@ -33,10 +33,18 @@ function normalizeTradeDate(tradeDate, { accountCreatedAt } = {}) {
     const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
     if (dateOnly) {
-      // Store YYYY-MM-DD strings at noon UTC to stay unambiguous across all
-      // UTC-offset timezones (avoids the ±12 h boundary shifting the date).
+      // Date inputs do not include a clock time; use the actual save-time clock.
       const [, year, month, day] = dateOnly;
-      parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
+      const now = new Date();
+      parsed = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+        now.getMilliseconds()
+      );
     } else {
       parsed = new Date(raw);
     }

@@ -279,6 +279,7 @@ app.use("/api/trades", require("./routes/tradeRoutes"));
 app.use("/api/trade", statusRateLimiter, require("./routes/tradeStatusRoutes"));
 app.use("/api/setups", require("./routes/setupRoutes"));
 app.use("/api/checklists", require("./routes/checklistRoutes"));
+app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/analytics", require("./routes/analyticsRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/reports", require("./routes/weeklyReportRoutes"));

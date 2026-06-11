@@ -10,6 +10,7 @@ import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { MARKETS } from "@/context/MarketContext";
 import { useToast } from "@/features/shared/components/ui/Toast";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -63,6 +64,7 @@ export function useAddTrade(marketType, isIndianMarket) {
     emotionalTags: [],
     mistakeTag: "",
     lesson: "",
+    tradeQuality: "",
   });
 
   const [screenshotPreview, setScreenshotPreview] = useState(null);
@@ -93,9 +95,7 @@ export function useAddTrade(marketType, isIndianMarket) {
   const createTradeMutation = useMutation({
     mutationFn: (data) => createTrade(data, marketType),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trades"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateTradeDependentQueries(queryClient);
       
       addToast("Trade created and synced successfully!", "success");
       

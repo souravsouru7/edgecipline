@@ -1,25 +1,33 @@
 /**
- * auth.js — client-side access-token management
+ * Client-side access-token management.
  *
- * Storage model:
- *  - Web: access token lives in memory only. XSS cannot read module-level variables.
- *  - Android (Capacitor): access token is also written to localStorage so it survives
- *    app restarts (process kills clear JS memory). The risk is lower in a native WebView
- *    because there is no address bar and no way to navigate to attacker-controlled URLs.
- *  - Refresh token (30 day opaque) → httpOnly cookie set by the backend.
- *    This file has no knowledge of the refresh token; the backend owns it entirely.
+ * Web:
+ *  - Access token lives in module memory only.
+ *  - A legacy localStorage token is migrated into memory once, then removed.
  *
- * When the access token expires or is missing, apiClient.js silently calls POST /api/auth/refresh
- * (cookie is sent automatically) and replaces the access token here via setAuthToken().
+ * Capacitor Android:
+ *  - Access token is persisted through the first-party EdgeAuthStorage plugin.
+ *  - EdgeAuthStorage encrypts values with Android Keystore AES-GCM.
+ *  - localStorage is used only as a one-time legacy migration source and is
+ *    cleared immediately afterward.
+ *
+ * Refresh tokens remain backend-owned httpOnly cookies.
  */
 
-const TOKEN_KEY = 'token';
+const LEGACY_TOKEN_KEY = "token";
+const SECURE_TOKEN_KEY = "accessToken";
 
-// Primary storage — lives only for the lifetime of this JS module (page session).
 let _memoryToken = null;
+let _hydrated = false;
+let _hydratePromise = null;
+let _persistPromise = Promise.resolve();
 
-function isNativeAndroid() {
-  if (typeof window === 'undefined') return false;
+function isBrowser() {
+  return typeof window !== "undefined";
+}
+
+export function isNativeCapacitor() {
+  if (!isBrowser()) return false;
   try {
     return Boolean(window.Capacitor?.isNativePlatform?.());
   } catch {
@@ -27,13 +35,18 @@ function isNativeAndroid() {
   }
 }
 
+function getSecureStoragePlugin() {
+  if (!isNativeCapacitor()) return null;
+  return window.Capacitor?.Plugins?.EdgeAuthStorage || null;
+}
+
 function decodeJwtPayload(token) {
-  if (!token || typeof token !== 'string') return null;
-  const parts = token.split('.');
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
   if (parts.length !== 3) return null;
   try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
     return JSON.parse(window.atob(padded));
   } catch {
     return null;
@@ -45,56 +58,144 @@ function isTokenValid(token) {
   return Boolean(payload?.exp && payload.exp * 1000 > Date.now());
 }
 
-export function clearAuthToken() {
-  _memoryToken = null;
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-/**
- * Store the access token in memory. On Android/Capacitor also persist to
- * localStorage so the token survives app restarts (JS module state is lost
- * when the OS kills the process, but localStorage persists on disk).
- */
-export function setAuthToken(token) {
-  _memoryToken = token || null;
-  if (typeof window === 'undefined') return;
-  if (token && isNativeAndroid()) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
+function readLegacyToken() {
+  if (!isBrowser()) return null;
+  try {
+    return localStorage.getItem(LEGACY_TOKEN_KEY);
+  } catch {
+    return null;
   }
 }
 
+function clearLegacyToken() {
+  if (!isBrowser()) return;
+  try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+async function secureGetToken() {
+  const storage = getSecureStoragePlugin();
+  if (!storage?.get) return null;
+  const result = await storage.get({ key: SECURE_TOKEN_KEY });
+  return typeof result?.value === "string" ? result.value : null;
+}
+
+async function secureSetToken(token) {
+  const storage = getSecureStoragePlugin();
+  if (!storage?.set) return false;
+  await storage.set({ key: SECURE_TOKEN_KEY, value: token });
+  return true;
+}
+
+async function secureRemoveToken() {
+  const storage = getSecureStoragePlugin();
+  if (!storage?.remove) return;
+  await storage.remove({ key: SECURE_TOKEN_KEY });
+}
+
+function rememberToken(token) {
+  _memoryToken = token || null;
+  return _memoryToken;
+}
+
 /**
- * Returns the stored access token if present and not expired, otherwise null.
+ * Loads the access token into memory.
  *
- * On Android/Capacitor: localStorage is the intentional persistence layer across
- * app restarts, so a valid token found there is promoted to memory and kept in
- * localStorage (not evicted) so subsequent restarts also restore instantly.
- *
- * On Web: localStorage is only checked for the old migration path; a valid token
- * is promoted to memory and evicted so it never persists past this session.
+ * Native startup order:
+ *  1. Read encrypted native storage.
+ *  2. If missing, migrate a valid legacy localStorage token into native storage.
+ *  3. Always delete the legacy localStorage token.
  */
+export async function hydrateAuthToken() {
+  if (_hydrated) return getValidToken();
+  if (_hydratePromise) return _hydratePromise;
+
+  _hydratePromise = (async () => {
+    try {
+      if (_memoryToken && isTokenValid(_memoryToken)) return _memoryToken;
+      if (_memoryToken) rememberToken(null);
+
+      if (isNativeCapacitor()) {
+        const stored = await secureGetToken();
+        if (stored && isTokenValid(stored)) {
+          clearLegacyToken();
+          return rememberToken(stored);
+        }
+        if (stored) await secureRemoveToken();
+
+        const legacy = readLegacyToken();
+        clearLegacyToken();
+        if (legacy && isTokenValid(legacy)) {
+          const persisted = await secureSetToken(legacy);
+          if (persisted) return rememberToken(legacy);
+        }
+
+        return null;
+      }
+
+      const legacy = readLegacyToken();
+      clearLegacyToken();
+      if (legacy && isTokenValid(legacy)) return rememberToken(legacy);
+      return null;
+    } catch {
+      rememberToken(null);
+      clearLegacyToken();
+      return null;
+    } finally {
+      _hydrated = true;
+      _hydratePromise = null;
+    }
+  })();
+
+  return _hydratePromise;
+}
+
+export function clearAuthToken() {
+  rememberToken(null);
+  _hydrated = true;
+  clearLegacyToken();
+  if (isNativeCapacitor()) {
+    _persistPromise = secureRemoveToken().catch(() => {});
+  }
+  return _persistPromise;
+}
+
+export function setAuthToken(token) {
+  rememberToken(token);
+  _hydrated = true;
+  clearLegacyToken();
+
+  if (isNativeCapacitor()) {
+    _persistPromise = token
+      ? secureSetToken(token).catch(() => {})
+      : secureRemoveToken().catch(() => {});
+    return _persistPromise;
+  }
+
+  _persistPromise = Promise.resolve();
+  return _persistPromise;
+}
+
+export async function flushAuthTokenStorage() {
+  await _persistPromise;
+}
+
 export function getValidToken() {
-  // 1. Check in-memory token (primary)
   if (_memoryToken) {
     if (isTokenValid(_memoryToken)) return _memoryToken;
-    _memoryToken = null; // Expired — discard
+    rememberToken(null);
+    void clearAuthToken();
   }
 
-  // 2. Check localStorage (Android persistence path / web migration fallback)
-  if (typeof window === 'undefined') return null;
-  const stored = localStorage.getItem(TOKEN_KEY);
-  if (stored && isTokenValid(stored)) {
-    _memoryToken = stored;
-    if (!isNativeAndroid()) {
-      // Web: evict immediately — localStorage is not meant for persistent storage here
-      localStorage.removeItem(TOKEN_KEY);
-    }
-    return stored;
-  }
-  if (stored) localStorage.removeItem(TOKEN_KEY); // Clean up expired token
+  if (!isBrowser() || isNativeCapacitor()) return null;
+
+  const legacy = readLegacyToken();
+  clearLegacyToken();
+  if (legacy && isTokenValid(legacy)) return rememberToken(legacy);
+
   return null;
 }
 
@@ -102,9 +203,15 @@ export function hasValidAuthToken() {
   return Boolean(getValidToken());
 }
 
-/** Returns the decoded payload of the current access token, or null. */
 export function getTokenPayload() {
   const token = getValidToken();
   if (!token) return null;
   return decodeJwtPayload(token);
 }
+
+export const __authStorageInternals = {
+  SECURE_TOKEN_KEY,
+  LEGACY_TOKEN_KEY,
+  decodeJwtPayload,
+  isTokenValid,
+};

@@ -14,11 +14,25 @@ import ListItem              from "@/features/analytics/components/ListItem";
 import CalendarPnL           from "@/features/analytics/components/CalendarPnL";
 import InsightTag            from "@/features/analytics/components/InsightTag";
 import { useAnalytics }      from "@/features/analytics/hooks/useAnalytics";
+import PatternInsightsCard   from "@/features/analytics/components/PatternInsightsCard";
+import AICoachFeedWidget     from "@/features/ai-coach/components/AICoachFeedWidget";
 import { Skeleton }          from "@/features/shared";
 
 const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
 
-// ── helpers ────────────────────────────────────────────────────────────────────
+const ANALYTICS_SECTIONS = [
+  { section: "psychology", href: "/analytics/psychology", title: "Psychology Analytics", subtitle: "Mood, confidence, emotions, and retake review", accent: C.purple },
+  { section: "self-awareness", href: "/analytics/self-awareness", title: "Self Awareness Engine", subtitle: "Trade review calibration", accent: C.purple },
+  { section: "psychology-cost", href: "/analytics/psychology-cost", title: "Psychology Cost Calculator", subtitle: "Behavioral P&L cost", accent: C.bear },
+  { section: "trading-dna", href: "/analytics/trading-dna", title: "Trading DNA Engine", subtitle: "Your behavioral fingerprint", accent: C.purple },
+  { section: "patterns", href: "/analytics/patterns", title: "Pattern Detection Engine", subtitle: "Repeated strengths and risk patterns", accent: C.gold },
+  { section: "ai-coach", href: "/analytics/ai-coach", title: "AI Coach Feed", subtitle: "Personalized coaching insights", accent: C.bull },
+  { section: "mistakes", href: "/analytics/mistakes", title: "Repeated Mistakes", subtitle: "Costliest recurring issues", accent: C.bear },
+  { section: "discipline", href: "/analytics/discipline", title: "Discipline Trend", subtitle: "Plan adherence and tilt alerts", accent: C.gold },
+  { section: "ai-insights", href: "/analytics/ai-insights", title: "AI Insights", subtitle: "Automated analysis", accent: C.bull },
+];
+
+// -- helpers --------------------------------------------------------------------
 function fmt(n, prefix = "$") {
   const v = parseFloat(n || 0);
   return `${v >= 0 ? "+" : "-"}${prefix}${Math.abs(v).toFixed(2)}`;
@@ -39,7 +53,7 @@ function classifyInsight(text) {
   return "info";
 }
 
-// Convert distribution.byPair / byStrategy (object) → sorted array
+// Convert distribution.byPair / byStrategy (object) ? sorted array
 function objToRows(obj, keyName = "name", limit = 6) {
   return Object.entries(obj || {})
     .filter(([k]) => k && k !== "Unspecified" && k !== "undefined")
@@ -53,7 +67,7 @@ function objToRows(obj, keyName = "name", limit = 6) {
     .slice(0, limit);
 }
 
-// ── Pair row ───────────────────────────────────────────────────────────────────
+// -- Pair row -------------------------------------------------------------------
 function PairRow({ name, count, winRate, profit }) {
   const p = parseFloat(profit);
   return (
@@ -69,7 +83,7 @@ function PairRow({ name, count, winRate, profit }) {
   );
 }
 
-// ── Generate actionable psychology insights from data ─────────────────────────
+// -- Generate actionable psychology insights from data -------------------------
 function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysis, disciplineScore }) {
   const insights = [];
 
@@ -79,10 +93,10 @@ function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysi
     const best = sorted[0];
     const worst = sorted[sorted.length - 1];
     if (best && parseFloat(best.avgProfit) > 0) {
-      insights.push({ type: "success", icon: "🧠", title: `Trade best when ${best.label}`, body: `${best.winRate}% win rate · avg +$${parseFloat(best.avgProfit).toFixed(2)} per trade. Prioritize setups in this mental state.` });
+      insights.push({ type: "success", icon: "??", title: `Trade best when ${best.label}`, body: `${best.winRate}% win rate · avg +$${parseFloat(best.avgProfit).toFixed(2)} per trade. Prioritize setups in this mental state.` });
     }
     if (worst && parseFloat(worst.avgProfit) < 0 && worst.trades >= 2) {
-      insights.push({ type: "danger", icon: "⚠️", title: `Avoid trading when ${worst.label}`, body: `${worst.winRate}% win rate · avg $${parseFloat(worst.avgProfit).toFixed(2)} per trade across ${worst.trades} trades. Step away or reduce size.` });
+      insights.push({ type: "danger", icon: "??", title: `Avoid trading when ${worst.label}`, body: `${worst.winRate}% win rate · avg $${parseFloat(worst.avgProfit).toFixed(2)} per trade across ${worst.trades} trades. Step away or reduce size.` });
     }
   }
 
@@ -90,24 +104,24 @@ function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysi
   const highConf = confRows.find(c => c.level === "High" || c.level === "Overconfident");
   const lowConf  = confRows.find(c => c.level === "Low");
   if (highConf && parseFloat(highConf.avgProfit) < 0 && highConf.trades >= 2) {
-    insights.push({ type: "warning", icon: "🚨", title: "High confidence → losing trades", body: `Your "High" confidence trades average $${parseFloat(highConf.avgProfit).toFixed(2)}. Overconfidence may be causing oversizing or skipping confirmation.` });
+    insights.push({ type: "warning", icon: "??", title: "High confidence ? losing trades", body: `Your "High" confidence trades average $${parseFloat(highConf.avgProfit).toFixed(2)}. Overconfidence may be causing oversizing or skipping confirmation.` });
   }
   if (lowConf && parseFloat(lowConf.avgProfit) > 0 && lowConf.trades >= 2) {
-    insights.push({ type: "success", icon: "💡", title: "Low confidence trades are profitable", body: `Cautious entries average +$${parseFloat(lowConf.avgProfit).toFixed(2)}. Your hesitation signals good instincts — trust them.` });
+    insights.push({ type: "success", icon: "??", title: "Low confidence trades are profitable", body: `Cautious entries average +$${parseFloat(lowConf.avgProfit).toFixed(2)}. Your hesitation signals good instincts — trust them.` });
   }
 
   // Dangerous emotional tags
   const dangerTags = ["FOMO", "Revenge", "Fear", "Greed", "Rushed", "Frustrated"];
   tagRows.forEach(t => {
     if (dangerTags.includes(t.tag) && parseFloat(t.avgProfit) < 0 && t.trades >= 1) {
-      insights.push({ type: "danger", icon: t.emoji || "❌", title: `${t.tag} trades cost you money`, body: `${t.trades} trade${t.trades > 1 ? "s" : ""} · ${t.winRate}% WR · avg $${parseFloat(t.avgProfit).toFixed(2)}. Rule: when you feel ${t.tag.toLowerCase()}, close the platform.` });
+      insights.push({ type: "danger", icon: t.emoji || "?", title: `${t.tag} trades cost you money`, body: `${t.trades} trade${t.trades > 1 ? "s" : ""} · ${t.winRate}% WR · avg $${parseFloat(t.avgProfit).toFixed(2)}. Rule: when you feel ${t.tag.toLowerCase()}, close the platform.` });
     }
   });
 
   // Positive emotional tags
   tagRows.forEach(t => {
     if (!dangerTags.includes(t.tag) && parseFloat(t.avgProfit) > 5 && parseFloat(t.winRate) >= 70 && t.trades >= 2) {
-      insights.push({ type: "success", icon: t.emoji || "✅", title: `${t.tag} state is your edge`, body: `${t.trades} trades · ${t.winRate}% WR · avg +$${parseFloat(t.avgProfit).toFixed(2)}. Seek more trades in this mindset.` });
+      insights.push({ type: "success", icon: t.emoji || "?", title: `${t.tag} state is your edge`, body: `${t.trades} trades · ${t.winRate}% WR · avg +$${parseFloat(t.avgProfit).toFixed(2)}. Seek more trades in this mindset.` });
     }
   });
 
@@ -118,25 +132,25 @@ function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysi
     const yesPnl = parseFloat(yes.avgProfit);
     const noPnl  = parseFloat(no.avgProfit);
     if (yesPnl > 0 && noPnl < 0) {
-      insights.push({ type: "success", icon: "🔁", title: "Your trade instincts are calibrated", body: `Trades you'd retake avg +$${yesPnl.toFixed(2)} vs trades you'd skip avg $${noPnl.toFixed(2)}. Your gut is telling you the right thing — listen to it before entry.` });
+      insights.push({ type: "success", icon: "??", title: "Your trade instincts are calibrated", body: `Trades you'd retake avg +$${yesPnl.toFixed(2)} vs trades you'd skip avg $${noPnl.toFixed(2)}. Your gut is telling you the right thing — listen to it before entry.` });
     } else if (yesPnl < 0 && no.trades > 0) {
-      insights.push({ type: "warning", icon: "🔁", title: "Retake instinct may need recalibration", body: `Even trades you'd retake are losing (avg $${yesPnl.toFixed(2)}). Review your entry criteria — the setups themselves may be flawed.` });
+      insights.push({ type: "warning", icon: "??", title: "Retake instinct may need recalibration", body: `Even trades you'd retake are losing (avg $${yesPnl.toFixed(2)}). Review your entry criteria — the setups themselves may be flawed.` });
     }
   }
 
   // Discipline score interpretation
   if (typeof disciplineScore === "number" && disciplineScore > 0) {
     if (disciplineScore >= 80) {
-      insights.push({ type: "success", icon: "🏆", title: `Strong discipline score: ${disciplineScore}%`, body: "You're following your rules consistently. Keep protecting this score — it's your moat against emotional trading." });
+      insights.push({ type: "success", icon: "??", title: `Strong discipline score: ${disciplineScore}%`, body: "You're following your rules consistently. Keep protecting this score — it's your moat against emotional trading." });
     } else if (disciplineScore < 50) {
-      insights.push({ type: "danger", icon: "📉", title: `Discipline score at ${disciplineScore}%`, body: "Less than half your trades follow your plan. Focus on process over outcome: one disciplined loss beats one undisciplined win." });
+      insights.push({ type: "danger", icon: "??", title: `Discipline score at ${disciplineScore}%`, body: "Less than half your trades follow your plan. Focus on process over outcome: one disciplined loss beats one undisciplined win." });
     }
   }
 
   return insights.slice(0, 6);
 }
 
-// ── Psychology insight card ────────────────────────────────────────────────────
+// -- Psychology insight card ----------------------------------------------------
 function PsychInsightCard({ icon, title, body, type }) {
   const colors = {
     success: { bg: "#F0FDF4", border: "#BBF7D0", title: "#166534" },
@@ -156,7 +170,7 @@ function PsychInsightCard({ icon, title, body, type }) {
   );
 }
 
-// ── Psych bar row ──────────────────────────────────────────────────────────────
+// -- Psych bar row --------------------------------------------------------------
 function PsychRow({ label, winRate, trades, avgProfit, color }) {
   const wr = parseFloat(winRate || 0);
   const ap = parseFloat(avgProfit || 0);
@@ -177,9 +191,118 @@ function PsychRow({ label, winRate, trades, avgProfit, color }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
-function AnalyticsContent() {
+function moneyText(value, prefix = "$") {
+  const v = parseFloat(value || 0);
+  return `${v >= 0 ? "+" : "-"}${prefix}${Math.abs(v).toFixed(2)}`;
+}
+
+function InterpretationGrid({ items, accent = C.purple }) {
+  const visible = (items || []).filter(Boolean);
+  if (!visible.length) return null;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, marginTop: 14 }}>
+      {visible.map((item) => (
+        <div key={item.label} style={{ borderRadius: 10, border: `1px solid ${accent}24`, background: `${accent}08`, padding: "12px 14px" }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: accent, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
+          <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.65 }}>{item.text}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UnlockState({ title, text, accent = C.purple }) {
+  return (
+    <div style={{ borderRadius: 12, border: `1px dashed ${accent}55`, background: `${accent}08`, padding: "16px 18px", marginTop: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>{text}</div>
+    </div>
+  );
+}
+
+function buildTradingDNAInterpretation(dna) {
+  if (!dna || dna.insufficient) return null;
+  const bestSession = dna.sessionDNA?.best;
+  const bestInstrument = dna.instrumentDNA?.best;
+  const bestSetupRange = dna.disciplineDNA?.bestSetupRange;
+  const worstEmotion = dna.emotionDNA?.mostExpensive;
+  const strength = bestSession || bestInstrument || bestSetupRange;
+  const strengthName = strength?.name || strength?.label || "your highest quality repeatable conditions";
+  const strengthPnl = strength?.netPnL ?? strength?.profit;
+  return [
+    { label: "Your Trading Identity", text: dna.dnaSummary?.tradingIdentity || `Your current identity is forming around ${strengthName}. Edgecipline is using your repeated conditions, behaviors, and review data to describe the trader you actually are.` },
+    { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your journal shows the clearest repeatable advantage.` },
+    { label: "Why It Matters", text: strengthPnl != null ? `That condition is contributing ${moneyText(strengthPnl)}, so it deserves more attention than random lower-quality trades.` : "A repeatable edge gives you a better review target than looking at every win and loss equally." },
+    { label: "Action Plan", text: `Prioritize trades that match ${strengthName} and reduce trades that do not match your strongest conditions.` },
+    { label: "Expected Outcome", text: worstEmotion ? `More consistency and fewer leaks from ${worstEmotion.name || "your most expensive emotional state"}.` : "Higher consistency, cleaner trade selection, and fewer impulsive entries." },
+  ];
+}
+
+function buildSelfAwarenessInterpretation(selfAwareness) {
+  if (!selfAwareness || selfAwareness.insufficient) return null;
+  const score = parseFloat(selfAwareness.score ?? selfAwareness.selfAwarenessScore ?? 0);
+  const tracked = selfAwareness.trackedCount || selfAwareness.totalTrackedTrades || 0;
+  const match = selfAwareness.matchCount || selfAwareness.correctCount || 0;
+  return [
+    { label: "What This Means", text: score >= 75 ? `You are judging trade quality well after the trade finishes${tracked ? ` (${match}/${tracked} calibrated reviews)` : ""}.` : `Your post-trade judgement is still calibrating${tracked ? ` across ${tracked} tracked trades` : ""}.` },
+    { label: "Why It Matters", text: "Accurate self-review helps you fix the right mistakes instead of changing a working strategy after one bad outcome." },
+    { label: "Next Improvement Focus", text: "Before entry, write one reason this trade could fail. After exit, compare that note with what actually happened." },
+    { label: "Target Milestone", text: score >= 90 ? "Maintain 90+ by catching mistakes before entry." : "Aim for 90+ by reducing repeated misjudgements over the next review cycle." },
+  ];
+}
+
+function buildPsychologyCostInterpretation(psychologyCost) {
+  if (!psychologyCost || psychologyCost.insufficient) return null;
+  const topLeak = psychologyCost.topLeaks?.[0] || psychologyCost.costliestMistake || psychologyCost.costliestEmotion;
+  const leakName = topLeak?.name || topLeak?.type || "your largest psychology leak";
+  const leakCost = topLeak?.cost ?? topLeak?.netPnL ?? topLeak?.profit;
+  return [
+    { label: "Biggest Behavioral Cost", text: `${leakName}${leakCost != null ? ` is associated with ${moneyText(leakCost)}.` : " is the first behavior to review."}` },
+    { label: "Why It Is Expensive", text: "Psychology leaks turn otherwise valid setups into poor executions through early exits, late entries, oversizing, or revenge trades." },
+    { label: "Recommended Fix", text: `Create one pre-trade rule for ${leakName}: define the exit and invalidation before entering, then review only after the trade closes.` },
+    { label: "Potential Recovery", text: leakCost != null ? `Reducing this leak could recover roughly ${moneyText(Math.abs(parseFloat(leakCost)))} over a similar sample.` : "Reducing the top leak should improve net P&L without needing a new strategy." },
+  ];
+}
+
+function buildPatternInterpretation(patterns) {
+  if (!patterns || patterns.insufficient) return null;
+  const negative = patterns.summary?.topNegativePattern;
+  const positive = patterns.summary?.topPositivePattern;
+  const pattern = negative || positive;
+  const isRisk = Boolean(negative);
+  return [
+    { label: "Pattern Summary", text: pattern?.description || "Your pattern engine is comparing streaks, sessions, setup score, rules, and behavioral combinations." },
+    { label: "Why The Pattern Exists", text: isRisk ? "This usually appears when execution quality changes after a specific trigger, such as a loss streak or lower quality setup." : "This pattern exists because several winning trades share the same repeatable condition." },
+    { label: "Risk Level", text: isRisk ? `High. This pattern shows ${negative?.winRate ?? "lower"}% win rate and needs a guardrail.` : "Positive. This is a condition to study and repeat carefully." },
+    { label: "Action To Take", text: isRisk ? "Pause or reduce size when this pattern appears, then require one extra confirmation before the next entry." : "Tag this pattern for the next 10 matching trades and compare it against your baseline win rate." },
+    { label: "Expected Improvement", text: isRisk ? "Fewer repeated loss clusters and cleaner emotional reset after the trigger appears." : "More confidence in repeating the condition that is already showing an edge." },
+  ];
+}
+
+function buildPsychologyAnalyticsInterpretation({ moodRows, confRows, tagRows, wouldRetakeAnalysis }) {
+  const all = [
+    ...moodRows.map((r) => ({ name: r.label, trades: r.trades, avgProfit: r.avgProfit, winRate: r.winRate })),
+    ...confRows.map((r) => ({ name: r.level, trades: r.trades, avgProfit: r.avgProfit, winRate: r.winRate })),
+    ...tagRows.map((r) => ({ name: r.tag, trades: r.trades, avgProfit: r.avgProfit, winRate: r.winRate })),
+  ].filter((r) => r.name && r.trades > 0);
+  if (!all.length) return null;
+  const sorted = [...all].sort((a, b) => parseFloat(b.avgProfit || 0) - parseFloat(a.avgProfit || 0));
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  const retakeYes = wouldRetakeAnalysis?.yes;
+  const retakeNo = wouldRetakeAnalysis?.no;
+  return [
+    { label: "Key Observation", text: `${best.name} is currently your strongest psychological condition, while ${worst.name} is the weakest.` },
+    { label: "Why It Matters", text: `Your state changes execution quality. ${best.name} averages ${moneyText(best.avgProfit)} per trade; ${worst.name} averages ${moneyText(worst.avgProfit)}.` },
+    { label: "Suggested Adjustment", text: retakeYes && retakeNo ? "Use the 'Would Retake' question before entry, not only after exit, to separate valid setups from trades you already know you would skip." : `Trade smaller or pause when ${worst.name} appears, and prioritize the conditions that produce ${best.name}.` },
+    { label: "Expected Improvement", text: "Cleaner execution, fewer emotionally driven losses, and faster review cycles because each trade has a behavioral explanation." },
+  ];
+}
+
+function AnalyticsContent({ section = "overview" }) {
+  const isOverview = section === "overview";
   const queryClient = useQueryClient();
   const {
     loading,
@@ -190,9 +313,26 @@ function AnalyticsContent() {
     prevMonth,
     nextMonth,
     error,
-    retryAfterSeconds
+    retryAfterSeconds,
+    psychologyCostDays,
+    setPsychologyCostDays,
   } = useAnalytics();
-  const { summary, riskReward, distribution, performance, timeAnalysis, quality, drawdown, aiInsights, psychology } = data || {};
+  const {
+    summary,
+    riskReward,
+    distribution,
+    performance,
+    timeAnalysis,
+    quality,
+    drawdown,
+    aiInsights,
+    psychology,
+    selfAwareness,
+    psychologyCost,
+    tradingDNA,
+    patterns,
+    coachFeed,
+  } = data || {};
 
   const has    = summary?.totalTrades > 0;
   const pnl    = parseFloat(summary?.totalProfit ?? 0);
@@ -204,7 +344,7 @@ function AnalyticsContent() {
     const seconds = retryAfterSeconds % 60;
     return (
       <div style={{ minHeight: "100vh", background: "#F4F2EE", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "40px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 48, marginBottom: 24 }}>⏳</div>
+        <div style={{ fontSize: 48, marginBottom: 24 }}>?</div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: C.primary, marginBottom: 12 }}>Rate Limited</h1>
         <p style={{ fontSize: 16, color: C.muted, marginBottom: 24, maxWidth: "400px" }}>
           Too many analytics requests. Server cooldown: <strong>{minutes}m {seconds}s</strong>
@@ -225,7 +365,7 @@ function AnalyticsContent() {
             cursor: "pointer"
           }}
         >
-          🔄 Refresh Now
+          ?? Refresh Now
         </button>
       </div>
     );
@@ -256,6 +396,16 @@ function AnalyticsContent() {
 
   // Score breakdown for entry basis
   const sb = psychology?.scoreBreakdown || {};
+  const tradingDNAInterpretation = buildTradingDNAInterpretation(tradingDNA);
+  const selfAwarenessInterpretation = buildSelfAwarenessInterpretation(selfAwareness);
+  const psychologyCostInterpretation = buildPsychologyCostInterpretation(psychologyCost);
+  const patternInterpretation = buildPatternInterpretation(patterns);
+  const psychologyAnalyticsInterpretation = buildPsychologyAnalyticsInterpretation({
+    moodRows,
+    confRows,
+    tagRows,
+    wouldRetakeAnalysis: psychology?.wouldRetakeAnalysis,
+  });
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F2EE", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
@@ -268,18 +418,36 @@ function AnalyticsContent() {
 
         <main style={{ flex: 1, maxWidth: 1200, width: "100%", margin: "0 auto", padding: "28px 24px", boxSizing: "border-box" }}>
 
-          {/* ── Page title ─────────────────────────────────────── */}
+          {/* -- Page title --------------------------------------- */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.primary, letterSpacing: "-0.02em", margin: 0 }}>Analytics</h1>
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.primary, letterSpacing: "-0.02em", margin: 0 }}>
+                {isOverview ? "Analytics" : (ANALYTICS_SECTIONS.find((item) => item.section === section)?.title || "Analytics")}
+              </h1>
               <p style={{ fontSize: 12, color: C.muted, fontFamily: "'JetBrains Mono',monospace", margin: "4px 0 0", letterSpacing: "0.04em" }}>
-                Performance intelligence
+                {isOverview ? "Performance intelligence" : (ANALYTICS_SECTIONS.find((item) => item.section === section)?.subtitle || "Performance intelligence")}
               </p>
             </div>
-            <Link href="/trades" style={{ fontSize: 12, color: C.primary, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 14px", textDecoration: "none", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, background: "#FFFFFF" }}>← Journal</Link>
+            <Link href={isOverview ? "/trades" : "/analytics"} style={{ fontSize: 12, color: C.primary, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 14px", textDecoration: "none", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, background: "#FFFFFF" }}>
+              {isOverview ? "Journal" : "Analytics Home"}
+            </Link>
           </div>
 
-          {/* ── Row 1: Core KPIs ───────────────────────────────── */}
+          {!isOverview && (
+            <div style={{ marginBottom: 20, border: "1px solid #E2E8F0", background: "#FFFFFF", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
+                This premium intelligence module keeps its full analysis here. Use the Intelligence Hub for discovery across modules.
+              </div>
+              <Link href="/intelligence" style={{ fontSize: 11, fontWeight: 900, color: C.purple, textDecoration: "none", whiteSpace: "nowrap" }}>
+                Intelligence Hub -&gt;
+              </Link>
+            </div>
+          )}
+
+          {isOverview && (
+            <>
+
+          {/* -- Row 1: Core KPIs --------------------------------- */}
           <div className="analytics-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 14 }}>
             {[
               { label: "Total Trades",  value: has ? String(summary.totalTrades)  : "—", sub: "trades logged",        color: C.primary, tooltip: "Total number of trades you've logged. More trades = more accurate analytics and better AI pattern detection." },
@@ -290,7 +458,7 @@ function AnalyticsContent() {
             ].map((s, i) => <StatCard key={s.label} {...s} loading={loading} delay={i * 0.05} />)}
           </div>
 
-          {/* ── Row 2: Risk & Performance KPIs ─────────────────── */}
+          {/* -- Row 2: Risk & Performance KPIs ------------------- */}
           <div className="analytics-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
             {[
               {
@@ -308,7 +476,7 @@ function AnalyticsContent() {
                 tooltip: "Risk-adjusted return — how much reward you earn per unit of risk. Above 1.0 is good, 2.0+ is excellent. Negative means losses outpace your risk.",
               },
               { label: "Max Drawdown", value: has ? `${drawdown?.maxDrawdown || 0}%`  : "—", sub: "largest equity drop", color: C.bear, tooltip: "Largest peak-to-trough drop in your cumulative P&L. Lower is better. Keep drawdowns under 20% to stay in the game long-term." },
-              { label: "Expectancy",   value: has ? `$${parseFloat(performance?.expectancy || 0).toFixed(2)}` : "—", sub: "per trade expectancy", color: parseFloat(performance?.expectancy || 0) >= 0 ? C.bull : C.bear, tooltip: "Expected average profit per trade. Formula: (Win Rate × Avg Win) − (Loss Rate × Avg Loss). Positive = you have a statistical edge in the market." },
+              { label: "Expectancy",   value: has ? `$${parseFloat(performance?.expectancy || 0).toFixed(2)}` : "—", sub: "per trade expectancy", color: parseFloat(performance?.expectancy || 0) >= 0 ? C.bull : C.bear, tooltip: "Expected average profit per trade. Formula: (Win Rate × Avg Win) - (Loss Rate × Avg Loss). Positive = you have a statistical edge in the market." },
               { label: "Best Streak",  value: has ? String(performance?.maxWinStreak || 0) : "—", sub: "win streak record", color: C.gold, tooltip: "Your longest consecutive winning streak on record. A high streak shows consistency, but never use it as a reason to oversize your positions." },
               { label: "Worst Streak", value: has ? String(performance?.maxLossStreak || 0) : "—", sub: "loss streak record", color: C.bear, tooltip: "Your longest consecutive losing streak. Know this number — if you're approaching it again, pause and review your setups before continuing." },
             ].map((s, i) => <StatCard key={s.label} {...s} loading={loading} delay={i * 0.05} />)}
@@ -316,7 +484,7 @@ function AnalyticsContent() {
 
           {loading && (
             <>
-              {/* ── Skeleton section rows ─────────────────────────── */}
+              {/* -- Skeleton section rows --------------------------- */}
               {[
                 { cols: 3, heights: [180, 160, 160] },
                 { cols: 3, heights: [160, 140, 140] },
@@ -343,9 +511,9 @@ function AnalyticsContent() {
             </>
           )}
 
-          {!loading && (
+          {(!loading || !isOverview) && (
             <>
-              {/* ── Distribution + Strategy + Pairs ──────────────── */}
+              {/* -- Distribution + Strategy + Pairs ---------------- */}
               <div className="analytics-section-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 20 }}>
 
                 {/* Long vs Short */}
@@ -399,7 +567,7 @@ function AnalyticsContent() {
                 </SectionCard>
               </div>
 
-              {/* ── R:R Analysis ──────────────────────────────────── */}
+              {/* -- R:R Analysis ------------------------------------ */}
               <div className="analytics-section-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 20 }}>
                 <SectionCard title="Risk / Reward" subtitle="RR DISTRIBUTION" delay={0.35} accentColor={C.bear}>
                   {riskReward ? (
@@ -447,26 +615,41 @@ function AnalyticsContent() {
                 </SectionCard>
               </div>
 
-              {/* ── Calendar ──────────────────────────────────────── */}
+              {/* -- Calendar ---------------------------------------- */}
               <div style={{ marginBottom: 24 }}>
                 <SectionCard title="Calendar Performance" subtitle="DAILY P&L HEATMAP" delay={0.5} accentColor={C.bull}>
                   <CalendarPnL byDate={timeAnalysis?.byDate || {}} activeMonth={calendarMonth} onPrevMonth={prevMonth} onNextMonth={nextMonth} currency="$" />
                 </SectionCard>
               </div>
 
-              {/* ── Psychology ────────────────────────────────────── */}
-              {psychology && (
-                <div style={{ marginBottom: 24 }}>
-                  <SectionCard title="Psychology & Discipline" subtitle="EMOTIONAL TRADING ANALYSIS" delay={0.55} accentColor={C.purple}>
+              <SectionCard title="Analytics Scope" subtitle="RAW PERFORMANCE EXPLORATION" delay={0.52} accentColor={C.primary}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7, maxWidth: 760 }}>
+                    Use Analytics for performance, sessions, pairs, strategies, risk, calendar, and psychology data exploration. Use Intelligence when you want Edgecipline to explain what the data means and what to improve next.
+                  </div>
+                  <Link href="/intelligence" style={{ fontSize: 11, fontWeight: 900, color: C.purple, textDecoration: "none", border: "1px solid #8B5CF633", background: "#8B5CF608", borderRadius: 8, padding: "9px 12px", whiteSpace: "nowrap" }}>
+                    Open Intelligence -&gt;
+                  </Link>
+                </div>
+              </SectionCard>
+            </>
+          )}
+            </>
+          )}
+
+              {/* -- Psychology -------------------------------------- */}
+              {section === "psychology" && (
+              <div id="psychology-analytics" style={{ marginBottom: 24, scrollMarginTop: 90 }}>
+                <SectionCard title="Psychology Analytics" subtitle="MOOD, CONFIDENCE, EMOTIONS & RETAKE REVIEW" delay={0.55} accentColor={C.purple}>
 
                     {/* Top scores */}
                     <div className="analytics-psych-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
                       {[
-                        // FIX: was psychology.disciplineScore (doesn't exist) → now psychologyScore
+                        // FIX: was psychology.disciplineScore (doesn't exist) ? now psychologyScore
                         { label: "Discipline Score", value: `${disciplineScore}%`, color: C.purple },
-                        // FIX: was psychology.moodWinRate (doesn't exist) → computed from moodAnalysis
+                        // FIX: was psychology.moodWinRate (doesn't exist) ? computed from moodAnalysis
                         { label: "Mood Win Rate",    value: `${moodWinRate}%`,     color: totalMoodTrades > 0 ? (parseFloat(moodWinRate) >= 50 ? C.bull : C.bear) : C.muted },
-                        // FIX: was psychology.fomoTrades (doesn't exist) → from emotionalTagImpact
+                        // FIX: was psychology.fomoTrades (doesn't exist) ? from emotionalTagImpact
                         { label: "FOMO Trades",      value: String(fomoTrades),    color: fomoTrades > 0 ? C.bear : C.bull },
                         { label: "Revenge Trades",   value: String(revengeTrades), color: revengeTrades > 0 ? C.bear : C.bull },
                         { label: "Plan Adherence",   value: sb.planAdherencePct ? `${parseFloat(sb.planAdherencePct).toFixed(0)}%` : "—", color: C.gold },
@@ -514,29 +697,29 @@ function AnalyticsContent() {
                       )}
 
                       {/* Would Retake */}
-                      {(psychology.wouldRetakeAnalysis?.yes || psychology.wouldRetakeAnalysis?.no) && (
+                      {(psychology?.wouldRetakeAnalysis?.yes || psychology?.wouldRetakeAnalysis?.no) && (
                         <div>
                           <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>WOULD YOU RETAKE?</div>
-                          {psychology.wouldRetakeAnalysis.yes && (
+                          {psychology?.wouldRetakeAnalysis?.yes && (
                             <PsychRow label="Yes — retake" winRate={psychology.wouldRetakeAnalysis.yes.winRate}
                               trades={psychology.wouldRetakeAnalysis.yes.trades} avgProfit={psychology.wouldRetakeAnalysis.yes.avgProfit} color={C.bull} />
                           )}
-                          {psychology.wouldRetakeAnalysis.no && (
+                          {psychology?.wouldRetakeAnalysis?.no && (
                             <PsychRow label="No — skip" winRate={psychology.wouldRetakeAnalysis.no.winRate}
                               trades={psychology.wouldRetakeAnalysis.no.trades} avgProfit={psychology.wouldRetakeAnalysis.no.avgProfit} color={C.bear} />
                           )}
-                          {psychology.totalTrackedTrades > 0 && (
+                          {psychology?.totalTrackedTrades > 0 && (
                             <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>{psychology.totalTrackedTrades} psychologically tracked trades</div>
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* ── Actionable Insights ───────────────────────── */}
+                    {/* -- Actionable Insights ------------------------- */}
                     {(() => {
                       const psychInsights = generatePsychInsights({
                         moodRows, confRows, tagRows,
-                        wouldRetakeAnalysis: psychology.wouldRetakeAnalysis,
+                        wouldRetakeAnalysis: psychology?.wouldRetakeAnalysis,
                         disciplineScore,
                       });
                       return psychInsights.length > 0 ? (
@@ -557,12 +740,172 @@ function AnalyticsContent() {
                         Tag your trades with mood, confidence, and emotional state to unlock psychology insights.
                       </p>
                     )}
-                  </SectionCard>
-                </div>
+
+                    {psychologyAnalyticsInterpretation ? (
+                      <InterpretationGrid items={psychologyAnalyticsInterpretation} accent={C.purple} />
+                    ) : (
+                      <UnlockState
+                        title="Add psychology data to unlock interpretation"
+                        text="Log mood, confidence, emotional tags, and Would Retake on at least 5 trades to understand what the psychology charts mean and what to adjust."
+                        accent={C.purple}
+                      />
+                    )}
+                </SectionCard>
+              </div>
               )}
 
-              {/* ── Repeated Mistakes Feed ───────────────────────── */}
-              {aiInsights?.mistakeFeed?.length > 0 && (
+              {/* -- Self Awareness Engine ------------------------- */}
+              {section === "self-awareness" && (
+              <div style={{ marginBottom: 24 }}>
+                <SectionCard title="Self Awareness Engine" subtitle="TRADE REVIEW CALIBRATION" delay={0.57} accentColor={C.purple}>
+                  {selfAwareness && !selfAwareness.insufficient ? (
+                    <>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
+                        <ListItem label="Self Awareness Score" value={`${selfAwareness.score ?? selfAwareness.selfAwarenessScore ?? 0}%`} color={C.purple} sub={`${selfAwareness.matchCount || 0}/${selfAwareness.trackedCount || selfAwareness.totalTrackedTrades || 0} reviews matched`} />
+                        <ListItem label="Overconfidence" value={String(selfAwareness.overconfident || 0)} color={(selfAwareness.overconfident || 0) > 0 ? C.bear : C.bull} sub="review mismatch count" />
+                      </div>
+                      <InterpretationGrid items={selfAwarenessInterpretation} accent={C.purple} />
+                    </>
+                  ) : (
+                    <UnlockState
+                      title="Add post-trade review data"
+                      text={selfAwareness?.message || "Review at least 3 completed trades with quality judgement to unlock Self Awareness interpretation."}
+                      accent={C.purple}
+                    />
+                  )}
+                </SectionCard>
+              </div>
+              )}
+
+              {/* -- Psychology Cost Calculator -------------------- */}
+              {section === "psychology-cost" && (
+              <div style={{ marginBottom: 24 }}>
+                <SectionCard title="Psychology Cost Calculator" subtitle="HOW MUCH BEHAVIOR IS COSTING YOU" delay={0.58} accentColor={C.bear}>
+                  {psychologyCost && !psychologyCost.insufficient ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>PSYCHOLOGY COST SCORE</div>
+                          <div style={{ fontSize: 28, fontWeight: 900, color: (psychologyCost.psychologyCostScore || 0) >= 70 ? C.bull : (psychologyCost.psychologyCostScore || 0) >= 40 ? C.gold : C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
+                            {psychologyCost.psychologyCostScore ?? 0}/100
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {[
+                            { label: "All", value: "" },
+                            { label: "30D", value: "30" },
+                            { label: "90D", value: "90" },
+                            { label: "1Y", value: "365" },
+                          ].map((range) => (
+                            <button
+                              key={range.label}
+                              type="button"
+                              onClick={() => setPsychologyCostDays(range.value)}
+                              style={{
+                                border: `1px solid ${psychologyCostDays === range.value ? C.purple : "#E2E8F0"}`,
+                                background: psychologyCostDays === range.value ? "#F5F3FF" : "#FFFFFF",
+                                color: psychologyCostDays === range.value ? C.purple : C.muted,
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                fontSize: 10,
+                                fontWeight: 800,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {range.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted, maxWidth: 420, lineHeight: 1.6 }}>
+                          Based on {psychologyCost.trackedTrades || 0} trades with enough behavioral data.
+                        </div>
+                      </div>
+                      {psychologyCost.topLeaks?.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: 10 }}>
+                          {psychologyCost.topLeaks.slice(0, 3).map((leak) => (
+                            <div key={leak.name} style={{ borderRadius: 10, border: "1px solid #FED7D7", background: "#FFF8F8", padding: "10px 12px" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: C.primary }}>{leak.name}</div>
+                              <div style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>{moneyText(leak.cost)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <InterpretationGrid items={psychologyCostInterpretation} accent={C.bear} />
+                    </>
+                  ) : (
+                    <UnlockState
+                      title="Add behavioral tags to calculate cost"
+                      text={psychologyCost?.message || "Log at least 5 trades with emotional tags, confidence, and review data to estimate psychology cost."}
+                      accent={C.bear}
+                    />
+                  )}
+                </SectionCard>
+              </div>
+              )}
+
+              {/* -- Trading DNA Engine ----------------------------- */}
+              {section === "trading-dna" && (
+              <div id="trading-dna" style={{ marginBottom: 24, scrollMarginTop: 90 }}>
+                <SectionCard title="Trading DNA Engine" subtitle="YOUR BEHAVIORAL FINGERPRINT" delay={0.59} accentColor={C.purple}>
+                  {tradingDNA && !tradingDNA.insufficient ? (
+                    <>
+                      {tradingDNA.dnaSummary?.tradingIdentity && (
+                        <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.7, borderLeft: `3px solid ${C.purple}`, background: "#F8FAFC", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                          {tradingDNA.dnaSummary.tradingIdentity}
+                        </div>
+                      )}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+                        {[
+                          tradingDNA.sessionDNA?.best && { label: "Best Session", value: tradingDNA.sessionDNA.best.name, sub: moneyText(tradingDNA.sessionDNA.best.netPnL) },
+                          tradingDNA.instrumentDNA?.best && { label: "Best Instrument", value: tradingDNA.instrumentDNA.best.name, sub: moneyText(tradingDNA.instrumentDNA.best.netPnL) },
+                          tradingDNA.emotionDNA?.mostProfitable && { label: "Best Emotion", value: tradingDNA.emotionDNA.mostProfitable.name, sub: moneyText(tradingDNA.emotionDNA.mostProfitable.netPnL) },
+                          tradingDNA.mistakeDNA?.mostExpensive && { label: "Costliest Mistake", value: tradingDNA.mistakeDNA.mostExpensive.name, sub: moneyText(tradingDNA.mistakeDNA.mostExpensive.netPnL) },
+                        ].filter(Boolean).map((row) => (
+                          <div key={row.label} style={{ borderRadius: 10, border: "1px solid #E2E8F0", background: "#FFFFFF", padding: "10px 12px" }}>
+                            <div style={{ fontSize: 9, color: C.muted, fontWeight: 800, letterSpacing: "0.08em" }}>{row.label.toUpperCase()}</div>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: C.primary, marginTop: 3 }}>{row.value}</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: row.sub.startsWith("-") ? C.bear : C.bull, fontFamily: "'JetBrains Mono',monospace" }}>{row.sub}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <InterpretationGrid items={tradingDNAInterpretation} accent={C.purple} />
+                    </>
+                  ) : (
+                    <UnlockState
+                      title="Add more trades to unlock Trading DNA"
+                      text={tradingDNA?.message || "Add at least 5 trades with setup, session, emotion, and review data to generate your Trading DNA analysis."}
+                      accent={C.purple}
+                    />
+                  )}
+                </SectionCard>
+              </div>
+              )}
+
+              {/* -- Pattern Detection Engine ----------------------- */}
+              {section === "patterns" && (
+              <div style={{ marginBottom: 24 }}>
+                <PatternInsightsCard patterns={patterns} delay={0.6} />
+                {patternInterpretation ? (
+                  <SectionCard title="Pattern Interpretation" subtitle="WHAT THE ENGINE IS TELLING YOU" delay={0.61} accentColor={C.gold}>
+                    <InterpretationGrid items={patternInterpretation} accent={C.gold} />
+                  </SectionCard>
+                ) : (
+                  <SectionCard title="Pattern Interpretation" subtitle="WHAT WILL UNLOCK NEXT" delay={0.61} accentColor={C.gold}>
+                    <UnlockState
+                      title="Add more trades to unlock pattern interpretation"
+                      text={patterns?.message || "Add at least 10 trades with setup, session, confidence, emotion, and rule data to detect reliable repeated patterns."}
+                      accent={C.gold}
+                    />
+                  </SectionCard>
+                )}
+              </div>
+              )}
+
+              {/* -- AI Coach Feed ---------------------------------- */}
+              {section === "ai-coach" && <AICoachFeedWidget feed={coachFeed} loading={deepLoading} currency="$" delay={0.62} />}
+
+              {/* -- Repeated Mistakes Feed ------------------------- */}
+              {section === "mistakes" && aiInsights?.mistakeFeed?.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                   <SectionCard title="Repeated Mistakes" subtitle="YOUR MOST COSTLY PATTERNS" delay={0.6} accentColor={C.bear}>
                     <div style={{ fontSize: 11, color: C.muted, marginBottom: 14, lineHeight: 1.6 }}>
@@ -595,7 +938,7 @@ function AnalyticsContent() {
                             {m.lessons?.length > 0 && (
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${rankColor}20` }}>
                                 <div style={{ fontSize: 9, fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
-                                <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>"{m.lessons[0]}"</div>
+                                <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>{m.lessons[0]}</div>
                               </div>
                             )}
                           </div>
@@ -605,9 +948,18 @@ function AnalyticsContent() {
                   </SectionCard>
                 </div>
               )}
+              {section === "mistakes" && !aiInsights?.mistakeFeed?.length && (
+                <SectionCard title="Repeated Mistakes" subtitle="YOUR MOST COSTLY PATTERNS" delay={0.6} accentColor={C.bear}>
+                  <UnlockState
+                    title="Add mistake tags to unlock this page"
+                    text="Tag mistakes on completed trades. Once repeated mistakes appear, this page ranks them by P&L cost and shows what to fix first."
+                    accent={C.bear}
+                  />
+                </SectionCard>
+              )}
 
-              {/* ── Discipline Trend + Revenge/Tilt ──────────────── */}
-              {aiInsights?.weeklyDisciplineTrend?.length > 1 && (
+              {/* -- Discipline Trend + Revenge/Tilt ---------------- */}
+              {section === "discipline" && aiInsights?.weeklyDisciplineTrend?.length > 1 && (
                 <div style={{ marginBottom: 24 }}>
                   <div className="analytics-section-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
 
@@ -621,8 +973,8 @@ function AnalyticsContent() {
                           const weekLabel = w.week.replace(/^\d{4}-/, "");
                           const isLatest = i === arr.length - 1;
                           const prevPct = i > 0 ? arr[i - 1].planAdherencePct : null;
-                          const trend = prevPct !== null ? (pct > prevPct ? "▲" : pct < prevPct ? "▼" : "—") : "";
-                          const trendColor = trend === "▲" ? C.bull : trend === "▼" ? C.bear : C.muted;
+                          const trend = prevPct !== null ? (pct > prevPct ? "?" : pct < prevPct ? "?" : "—") : "";
+                          const trendColor = trend === "?" ? C.bull : trend === "?" ? C.bear : C.muted;
                           return (
                             <div key={w.week} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: isLatest ? C.primary : C.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
@@ -645,7 +997,7 @@ function AnalyticsContent() {
                         if (Math.abs(delta) < 5) return null;
                         return (
                           <div style={{ marginTop: 12, padding: "8px 12px", borderRadius: 8, background: delta > 0 ? "#F0FDF4" : "#FFF8F8", border: `1px solid ${delta > 0 ? "#BBF7D0" : "#FED7D7"}`, fontSize: 11, color: delta > 0 ? "#166534" : "#9B1C1C" }}>
-                            {delta > 0 ? "▲" : "▼"} Discipline {delta > 0 ? "improving" : "declining"} {Math.abs(delta).toFixed(0)}pp over last 4 weeks
+                            {delta > 0 ? "?" : "?"} Discipline {delta > 0 ? "improving" : "declining"} {Math.abs(delta).toFixed(0)}pp over last 4 weeks
                           </div>
                         );
                       })()}
@@ -684,7 +1036,7 @@ function AnalyticsContent() {
                             <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: C.bear }}>Rule: After a loss, wait 15 min before taking another trade.</div>
                           </>
                         ) : (
-                          <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>✓ No revenge trades detected — strong emotional control.</div>
+                          <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>? No revenge trades detected — strong emotional control.</div>
                         )}
                       </div>
 
@@ -716,16 +1068,25 @@ function AnalyticsContent() {
                             <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: C.bear }}>Rule: Stop trading after 3 consecutive losses.</div>
                           </>
                         ) : (
-                          <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>✓ No tilt days detected — great discipline.</div>
+                          <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>? No tilt days detected — great discipline.</div>
                         )}
                       </div>
                     </SectionCard>
                   </div>
                 </div>
               )}
+              {section === "discipline" && !(aiInsights?.weeklyDisciplineTrend?.length > 1) && (
+                <SectionCard title="Discipline Trend" subtitle="WEEKLY PLAN ADHERENCE" delay={0.62} accentColor={C.gold}>
+                  <UnlockState
+                    title="Add rule and plan adherence data"
+                    text="Log setup rules and whether you followed the plan across multiple weeks to unlock discipline trend, revenge, and tilt analysis."
+                    accent={C.gold}
+                  />
+                </SectionCard>
+              )}
 
-              {/* ── AI Insights ───────────────────────────────────── */}
-              {aiInsights?.insights?.length > 0 && (
+              {/* -- AI Insights ------------------------------------- */}
+              {section === "ai-insights" && aiInsights?.insights?.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                   <SectionCard title="AI Insights" subtitle="AUTOMATED ANALYSIS" delay={0.7} accentColor={C.bull}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 0 }}>
@@ -736,10 +1097,16 @@ function AnalyticsContent() {
                   </SectionCard>
                 </div>
               )}
-            </>
-          )}
-
-          {/* ── No data state ──────────────────────────────────── */}
+              {section === "ai-insights" && !aiInsights?.insights?.length && (
+                <SectionCard title="AI Insights" subtitle="AUTOMATED ANALYSIS" delay={0.7} accentColor={C.bull}>
+                  <UnlockState
+                    title="Keep logging trades to unlock AI insights"
+                    text="AI insights appear once there is enough performance, setup, psychology, and discipline data to avoid generic advice."
+                    accent={C.bull}
+                  />
+                </SectionCard>
+              )}
+          {/* -- No data state ------------------------------------ */}
           {!has && !loading && (
             <div style={{ textAlign: "center", padding: "80px 20px", color: C.muted }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.primary, marginBottom: 8 }}>No trades yet</div>
@@ -771,10 +1138,15 @@ function AnalyticsContent() {
   );
 }
 
-export default function AnalyticsPage() {
+export function AnalyticsPageView({ section = "overview" }) {
   return (
     <ErrorBoundary fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Analytics failed to load. Please refresh.</div>}>
-      <Suspense><AnalyticsContent /></Suspense>
+      <Suspense><AnalyticsContent section={section} /></Suspense>
     </ErrorBoundary>
   );
 }
+
+export default function AnalyticsPage() {
+  return <AnalyticsPageView section="overview" />;
+}
+

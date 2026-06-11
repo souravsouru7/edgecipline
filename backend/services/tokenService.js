@@ -26,8 +26,14 @@ const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
 const REFRESH_TOKEN_EXPIRY_MS =
   Number(process.env.REFRESH_TOKEN_EXPIRY_MS) || 30 * 24 * 60 * 60 * 1000;
 
-// Opaque cookie name — don't advertise the purpose in the name.
+// Opaque cookie name - don't advertise the purpose in the name.
 const REFRESH_COOKIE_NAME = "sid";
+
+// Same-client refresh races can present the just-rotated token again before
+// the winning response updates cookies/state in every tab. Treat that as a
+// recoverable race instead of a token-family replay.
+const REFRESH_REUSE_GRACE_MS =
+  Number(process.env.REFRESH_REUSE_GRACE_MS) || 10_000;
 
 // ---------------------------------------------------------------------------
 // Crypto helpers
@@ -141,7 +147,19 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
     const staleToken = await RefreshToken.findOne({ tokenHash }).lean();
 
     if (staleToken?.revokedAt) {
-      // Replay attack detected — revoke the entire family to protect the legitimate user.
+      const msSinceRotation = Date.now() - new Date(staleToken.revokedAt).getTime();
+      const sameUserAgent =
+        (staleToken.deviceInfo?.userAgent || "") === (deviceInfo?.userAgent || "");
+
+      if (sameUserAgent && msSinceRotation >= 0 && msSinceRotation <= REFRESH_REUSE_GRACE_MS) {
+        throw new ApiError(
+          409,
+          "Refresh already completed by another request. Please retry.",
+          "REFRESH_TOKEN_RACE"
+        );
+      }
+
+      // Replay attack detected - revoke the entire family to protect the legitimate user.
       await RefreshToken.updateMany(
         { userId: staleToken.userId, family: staleToken.family },
         { $set: { revokedAt: new Date() } }
@@ -206,5 +224,6 @@ module.exports = {
   revokeAllUserTokens,
   REFRESH_COOKIE_NAME,
   REFRESH_TOKEN_EXPIRY_MS,
+  REFRESH_REUSE_GRACE_MS,
   ACCESS_TOKEN_EXPIRY,
 };

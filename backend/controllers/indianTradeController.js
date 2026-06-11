@@ -1,13 +1,12 @@
 const IndianTrade = require("../models/IndianTrade");
-const { clearUserCache } = require("../utils/cacheUtils");
+const mongoose = require("mongoose");
+const { TRADE_CACHE_EVENTS, invalidateTradeCaches } = require("../utils/cacheUtils");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { evaluateSmartNotifications } = require("../services/smartNotificationEvaluator");
+const tradeLifecycleService = require("../services/tradeLifecycle.service");
+const { markOcrJobConfirmed } = require("../services/ocrJob.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
-
-function getEffectiveTradeTime(trade) {
-  return new Date(trade.tradeDate || trade.createdAt || 0).getTime();
-}
 
 function getPeriodStart(period) {
   const now = new Date();
@@ -31,6 +30,44 @@ function getPeriodStart(period) {
   }
 }
 
+function userMatch(userId) {
+  const id = userId?.toString?.() || String(userId || "");
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    return { $in: [new mongoose.Types.ObjectId(id), id] };
+  }
+  return userId;
+}
+
+const INDIAN_TRADE_LIST_PROJECTION = [
+  "pair",
+  "underlying",
+  "type",
+  "optionType",
+  "quantity",
+  "lotSize",
+  "entryPrice",
+  "exitPrice",
+  "profit",
+  "strategy",
+  "session",
+  "entryBasis",
+  "entryBasisCustom",
+  "createdAt",
+  "tradeDate",
+  "instrumentType",
+  "segment",
+  "tradeType",
+  "stockSymbol",
+  "sharesQty",
+  "exchange",
+  "sector",
+  "strikePrice",
+].join(" ");
+
+const INDIAN_TRADE_LIST_PROJECT_STAGE = INDIAN_TRADE_LIST_PROJECTION
+  .split(" ")
+  .reduce((projection, field) => ({ ...projection, [field]: 1 }), { _id: 1 });
+
 function parseFiniteNumber(value) {
   if (value == null) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -44,8 +81,8 @@ function parseFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-exports.createTrade = asyncHandler(async (req, res) => {
-  const { pair, type, underlying, strikePrice, optionType, tradeDate, instrumentType, stockSymbol, sharesQty } = req.body;
+function buildIndianTradeDocument(userId, payload, { accountCreatedAt } = {}) {
+  const { pair, type, underlying, strikePrice, optionType, tradeDate, instrumentType, stockSymbol, sharesQty } = payload;
 
   if (!type) {
     throw new ApiError(400, "Type (BUY/SELL) is required", "VALIDATION_ERROR");
@@ -73,7 +110,7 @@ exports.createTrade = asyncHandler(async (req, res) => {
     if (normalizedSharesQty == null || normalizedSharesQty <= 0) {
       throw new ApiError(400, "Shares quantity is required for equity trades", "VALIDATION_ERROR");
     }
-    req.body.sharesQty = normalizedSharesQty;
+    payload.sharesQty = normalizedSharesQty;
   }
 
   let symbol = pair;
@@ -92,12 +129,13 @@ exports.createTrade = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
 
+  const { ocrJobId, ...body } = payload;
   const tradeData = {
-    ...req.body,
+    ...body,
     pair: symbol,
     type: type.toUpperCase(),
-    tradeDate: normalizeTradeDate(tradeDate, { accountCreatedAt: req.user.createdAt }),
-    user: req.user._id,
+    tradeDate: normalizeTradeDate(tradeDate, { accountCreatedAt }),
+    user: userId,
   };
   if (!isEquity) {
     tradeData.optionType = ot;
@@ -109,39 +147,117 @@ exports.createTrade = asyncHandler(async (req, res) => {
     tradeData.tradeType = "INTRADAY";
   }
 
+  return tradeData;
+}
+
+exports.createTrade = asyncHandler(async (req, res) => {
+  const ocrJobId = req.body?.ocrJobId || null;
+  const tradeData = buildIndianTradeDocument(req.user._id, req.body, {
+    accountCreatedAt: req.user.createdAt,
+  });
   const trade = await IndianTrade.create(tradeData);
 
-  await clearUserCache(req.user._id);
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
+    market: "Indian_Market",
+    tradeId: trade._id,
+    source: ocrJobId ? "ocr_confirm" : "manual_create",
+  });
   await evaluateSmartNotifications({
     userId: req.user._id,
     trade,
     marketType: "Indian_Market",
     collection: "indian",
   });
+  if (ocrJobId) {
+    await markOcrJobConfirmed(req.user._id, ocrJobId, {
+      tradeId: trade._id,
+      collection: "indian",
+    });
+  }
 
   res.status(201).json(trade);
 });
 
+exports.createTradesBatch = asyncHandler(async (req, res) => {
+  const trades = Array.isArray(req.body?.trades) ? req.body.trades : [];
+  if (trades.length === 0) {
+    throw new ApiError(400, "At least one trade is required", "VALIDATION_ERROR");
+  }
+  if (trades.length > 100) {
+    throw new ApiError(400, "Batch trade import cannot exceed 100 trades", "VALIDATION_ERROR");
+  }
+
+  const ocrJobId = req.body?.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
+  const docs = trades.map((trade) => buildIndianTradeDocument(req.user._id, trade, {
+    accountCreatedAt: req.user.createdAt,
+  }));
+  const createdTrades = await IndianTrade.insertMany(docs, { ordered: true });
+
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.BULK_IMPORT,
+    market: "Indian_Market",
+    tradeId: createdTrades[0]?._id || null,
+    count: createdTrades.length,
+    source: ocrJobId ? "ocr_batch_confirm" : "batch_create",
+  });
+
+  const representativeTrade = createdTrades[createdTrades.length - 1];
+  if (representativeTrade) {
+    await evaluateSmartNotifications({
+      userId: req.user._id,
+      trade: representativeTrade,
+      marketType: "Indian_Market",
+      collection: "indian",
+    });
+  }
+
+  if (ocrJobId && createdTrades[0]) {
+    await markOcrJobConfirmed(req.user._id, ocrJobId, {
+      tradeId: createdTrades[0]._id,
+      collection: "indian",
+    });
+  }
+
+  res.status(201).json({
+    success: true,
+    count: createdTrades.length,
+    trades: createdTrades,
+  });
+});
+
 exports.getTrades = asyncHandler(async (req, res) => {
   const period = String(req.query.period || "all").toLowerCase();
-  const query = { user: req.user._id };
+  const query = { user: userMatch(req.user._id), deletedAt: null };
   const periodStart = getPeriodStart(period);
-  const trades = await IndianTrade.find(query)
-    .select(
-      "pair underlying type optionType quantity lotSize entryPrice exitPrice profit strategy session entryBasis entryBasisCustom createdAt tradeDate instrumentType segment tradeType stockSymbol sharesQty exchange sector strikePrice"
-    )
-    .lean();
-  res.json(
-    trades
-      .filter((trade) => !periodStart || getEffectiveTradeTime(trade) >= periodStart.getTime())
-      .sort((a, b) => getEffectiveTradeTime(b) - getEffectiveTradeTime(a))
-  );
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+  if (periodStart) {
+    query.$or = [
+      { tradeDate: { $gte: periodStart } },
+      { tradeDate: null, createdAt: { $gte: periodStart } },
+    ];
+  }
+
+  const trades = await IndianTrade.aggregate([
+    { $match: query },
+    { $addFields: { effectiveTradeDate: { $ifNull: ["$tradeDate", "$createdAt"] } } },
+    { $sort: { effectiveTradeDate: -1, _id: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
+    { $project: INDIAN_TRADE_LIST_PROJECT_STAGE },
+  ]);
+  res.json(trades);
 });
 
 exports.getTrade = asyncHandler(async (req, res) => {
   const trade = await IndianTrade.findOne({
     _id: req.params.id,
-    user: req.user._id
+    user: req.user._id,
+    deletedAt: null
   });
 
   if (!trade) {
@@ -169,7 +285,7 @@ exports.updateTrade = asyncHandler(async (req, res) => {
   }
 
   const trade = await IndianTrade.findOneAndUpdate(
-    { _id: req.params.id, user: req.user._id },
+    { _id: req.params.id, user: req.user._id, deletedAt: null },
     update,
     {
       returnDocument: "after",
@@ -181,7 +297,13 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await clearUserCache(req.user._id);
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: TRADE_CACHE_EVENTS.EDIT,
+    market: "Indian_Market",
+    tradeId: req.params.id,
+    source: "manual_edit",
+  });
   await evaluateSmartNotifications({
     userId: req.user._id,
     trade,
@@ -193,16 +315,48 @@ exports.updateTrade = asyncHandler(async (req, res) => {
 });
 
 exports.deleteTrade = asyncHandler(async (req, res) => {
-  const trade = await IndianTrade.findOneAndDelete({
-    _id: req.params.id,
-    user: req.user._id
+  const trade = await tradeLifecycleService.softDeleteTrade(IndianTrade, {
+    tradeId: req.params.id,
+    userId: req.user._id,
+    deletedBy: req.user._id,
+    deleteReason: req.body?.deleteReason || "",
+    deletedSource: req.body?.deletedSource || "user",
+    options: { lean: true },
   });
 
   if (!trade) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await clearUserCache(req.user._id);
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: TRADE_CACHE_EVENTS.DELETE,
+    market: "Indian_Market",
+    tradeId: req.params.id,
+    source: "manual_delete",
+  });
 
-  res.json({ message: "Trade deleted" });
+  res.json({ message: "Trade deleted", tradeId: trade._id, deletedAt: trade.deletedAt });
+});
+
+exports.restoreTrade = asyncHandler(async (req, res) => {
+  const trade = await tradeLifecycleService.restoreTrade(IndianTrade, {
+    tradeId: req.params.id,
+    userId: req.user._id,
+    options: { lean: true },
+  });
+
+  if (!trade) {
+    throw new ApiError(404, "Deleted trade not found or unauthorized", "NOT_FOUND");
+  }
+
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: TRADE_CACHE_EVENTS.RESTORE,
+    market: "Indian_Market",
+    tradeId: req.params.id,
+    source: "manual_restore",
+  });
+
+  res.json({ message: "Trade restored", tradeId: trade._id });
 });

@@ -2,9 +2,10 @@ const ApiError = require("../utils/ApiError");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 const { generateWeeklyFeedback } = require("./geminiService");
-const tradeRepository = require("../repositories/trade.repository");
-const indianTradeRepository = require("../repositories/indianTrade.repository");
 const weeklyReportRepository = require("../repositories/weeklyReport.repository");
+const analyticsSnapshotService = require("./analyticsSnapshotService");
+const { getTradeCacheVersion } = require("../utils/cacheUtils");
+const { calculateCostBreakdown, calculatePsychologyScore } = require("../utils/metricEngine");
 
 function getLocalShiftMs() {
   const offsetHours = appConfig.timezoneOffsetHours;
@@ -24,132 +25,30 @@ function getRolling7dUtcRange() {
   return { weekStartUtc, weekEndUtc, weekStartLocal, weekEndLocal };
 }
 
-function computeSnapshot(trades, marketType) {
-  const totalTrades = trades.length;
-  const wins = trades.filter((trade) => (trade.profit || 0) > 0).length;
-  const losses = trades.filter((trade) => (trade.profit || 0) < 0).length;
-  const grossProfit = trades.reduce((sum, trade) => sum + (trade.profit || 0), 0);
-  const isIndian = marketType === "Indian_Market";
-  const commission = isIndian ? 0 : trades.reduce((sum, trade) => sum + (trade.commission || 0), 0);
-  const swap = isIndian ? 0 : trades.reduce((sum, trade) => sum + (trade.swap || 0), 0);
-  const brokerage = isIndian ? trades.reduce((sum, trade) => sum + (trade.brokerage || 0), 0) : 0;
-  const sttTaxes = isIndian ? trades.reduce((sum, trade) => sum + (trade.sttTaxes || 0), 0) : 0;
-  const netProfit = grossProfit - commission - swap - brokerage - sttTaxes;
-  const winRatePct = totalTrades ? (wins / totalTrades) * 100 : 0;
-
-  const winningTrades = trades.filter((trade) => (trade.profit || 0) > 0);
-  const losingTrades = trades.filter((trade) => (trade.profit || 0) < 0);
-  const avgWin = winningTrades.length
-    ? winningTrades.reduce((sum, trade) => sum + (trade.profit || 0), 0) / winningTrades.length
-    : 0;
-  const avgLossAbs = losingTrades.length
-    ? Math.abs(losingTrades.reduce((sum, trade) => sum + (trade.profit || 0), 0) / losingTrades.length)
-    : 0;
-  const totalWinsPnl = winningTrades.reduce((sum, trade) => sum + (trade.profit || 0), 0);
-  const totalLossesAbs = Math.abs(losingTrades.reduce((sum, trade) => sum + (trade.profit || 0), 0));
-  const profitFactor = totalLossesAbs > 0 ? totalWinsPnl / totalLossesAbs : totalWinsPnl > 0 ? Infinity : 0;
-
-  let discipline = {};
-  if (!isIndian) {
-    const scored = trades.filter((trade) => typeof trade.setupScore === "number");
-    const avgSetupScore = scored.length
-      ? scored.reduce((sum, trade) => sum + trade.setupScore, 0) / scored.length
-      : null;
-
-    const ruleBreakCounts = {};
-    trades.forEach((trade) => {
-      if (!Array.isArray(trade.setupRules)) return;
-      trade.setupRules.forEach((rule) => {
-        if (!rule || !rule.label || rule.followed !== false) return;
-        const label = String(rule.label).trim();
-        if (label) ruleBreakCounts[label] = (ruleBreakCounts[label] || 0) + 1;
+function computeSnapshot(trades, marketType, analytics = {}) {
+  const sourceSnapshot = analytics?.performance || analytics?.basicStats
+    ? analytics
+    : analyticsSnapshotService.generateSnapshotFromTrades({
+        trades,
+        marketLabel: marketType,
+        period: "weekly",
       });
-    });
+  const performance = sourceSnapshot.performance || sourceSnapshot.basicStats || {};
+  const costs = calculateCostBreakdown(trades, marketType);
+  const psychologyCostSnapshot = sourceSnapshot.psychologyCost?.trackedTrades >= 2
+    ? sourceSnapshot.psychologyCost
+    : null;
+  const selfAwarenessSnapshot = sourceSnapshot.selfAwareness?.trackedCount >= 3
+    ? sourceSnapshot.selfAwareness
+    : null;
+  const patternsSnapshot = sourceSnapshot.patterns?.insufficient
+    ? null
+    : sourceSnapshot.patterns;
+  const dnaSnapshot = sourceSnapshot.tradingDNA?.insufficient
+    ? null
+    : sourceSnapshot.tradingDNA;
 
-    discipline = {
-      avgSetupScore: avgSetupScore === null ? null : Number(avgSetupScore.toFixed(1)),
-      topRuleBreaks: Object.entries(ruleBreakCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([label, count]) => ({ label, count })),
-    };
-  } else {
-    const entryBasisCounts = { Plan: 0, Emotion: 0, Impulsive: 0, Other: 0 };
-    const mistakeTagCounts = {};
-    trades.forEach((trade) => {
-      const basis =
-        trade.entryBasis === "Plan" || trade.entryBasis === "Emotion" || trade.entryBasis === "Impulsive"
-          ? trade.entryBasis
-          : "Other";
-      entryBasisCounts[basis] += 1;
-      const tag = (trade.mistakeTag || "").trim() || "None";
-      mistakeTagCounts[tag] = (mistakeTagCounts[tag] || 0) + 1;
-    });
-
-    discipline = {
-      entryBasis: {
-        planPct: Number((totalTrades ? (entryBasisCounts.Plan / totalTrades) * 100 : 0).toFixed(1)),
-        emotionPct: Number(
-          (
-            totalTrades
-              ? ((entryBasisCounts.Emotion + entryBasisCounts.Impulsive) / totalTrades) * 100
-              : 0
-          ).toFixed(1)
-        ),
-        counts: entryBasisCounts,
-      },
-      topMistakeTags: Object.entries(mistakeTagCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([label, count]) => ({ label, count })),
-    };
-  }
-
-  const byStrategy = {};
-  const bySession = {};
-  trades.forEach((trade) => {
-    const strategy = trade.strategy || "Unspecified";
-    const session = trade.session || "Unspecified";
-    if (!byStrategy[strategy]) byStrategy[strategy] = { trades: 0, wins: 0, net: 0 };
-    if (!bySession[session]) bySession[session] = { trades: 0, wins: 0, net: 0 };
-
-    byStrategy[strategy].trades += 1;
-    bySession[session].trades += 1;
-
-    const pnl = marketType === "Indian_Market"
-      ? (trade.profit || 0) - (trade.brokerage || 0) - (trade.sttTaxes || 0)
-      : (trade.profit || 0) - (trade.commission || 0) - (trade.swap || 0);
-
-    byStrategy[strategy].net += pnl;
-    bySession[session].net += pnl;
-
-    if ((trade.profit || 0) > 0) {
-      byStrategy[strategy].wins += 1;
-      bySession[session].wins += 1;
-    }
-  });
-
-  const topStrategies = Object.entries(byStrategy)
-    .map(([name, stats]) => ({
-      name,
-      trades: stats.trades,
-      winRatePct: stats.trades ? (stats.wins / stats.trades) * 100 : 0,
-      net: stats.net,
-    }))
-    .sort((a, b) => b.net - a.net)
-    .slice(0, 5);
-
-  const topSessions = Object.entries(bySession)
-    .map(([name, stats]) => ({
-      name,
-      trades: stats.trades,
-      winRatePct: stats.trades ? (stats.wins / stats.trades) * 100 : 0,
-      net: stats.net,
-    }))
-    .sort((a, b) => b.net - a.net)
-    .slice(0, 5);
-
-  const bestTrades = [...trades]
+  const bestTrades = [...(trades || [])]
     .sort((a, b) => (b.profit || 0) - (a.profit || 0))
     .slice(0, 3)
     .map((trade) => ({
@@ -161,7 +60,7 @@ function computeSnapshot(trades, marketType) {
       setupScore: typeof trade.setupScore === "number" ? trade.setupScore : null,
     }));
 
-  const worstTrades = [...trades]
+  const worstTrades = [...(trades || [])]
     .sort((a, b) => (a.profit || 0) - (b.profit || 0))
     .slice(0, 3)
     .map((trade) => ({
@@ -174,26 +73,40 @@ function computeSnapshot(trades, marketType) {
     }));
 
   return {
-    counts: { totalTrades, wins, losses },
+    counts: {
+      totalTrades: performance.totalTrades || 0,
+      wins: performance.wins || 0,
+      losses: performance.losses || 0,
+      breakEven: performance.breakEven || 0,
+    },
     pnl: {
-      gross: Number(grossProfit.toFixed(2)),
-      costs: {
-        commission: Number(commission.toFixed(2)),
-        swap: Number(swap.toFixed(2)),
-        brokerage: Number(brokerage.toFixed(2)),
-        sttTaxes: Number(sttTaxes.toFixed(2)),
-      },
-      net: Number(netProfit.toFixed(2)),
+      gross: Number((performance.grossPnL || 0).toFixed(2)),
+      costs,
+      net: Number((performance.netPnL || 0).toFixed(2)),
     },
     rates: {
-      winRatePct: Number(winRatePct.toFixed(1)),
-      profitFactor: profitFactor === Infinity ? "∞" : Number(profitFactor.toFixed(2)),
-      avgWin: Number(avgWin.toFixed(2)),
-      avgLoss: Number(avgLossAbs.toFixed(2)),
+      winRatePct: Number((performance.winRate || 0).toFixed(1)),
+      profitFactor: performance.profitFactor === Infinity ? "∞" : Number((performance.profitFactor || 0).toFixed(2)),
+      avgWin: Number((performance.avgWin || 0).toFixed(2)),
+      avgLoss: Number((performance.avgLoss || 0).toFixed(2)),
     },
-    discipline,
-    breakdowns: { topStrategies, topSessions },
+    discipline: sourceSnapshot.disciplineSummary || {},
+    breakdowns: {
+      topStrategies: sourceSnapshot.tradingDNA?.strategyDNA?.all?.slice(0, 5) || [],
+      topSessions: sourceSnapshot.tradingDNA?.sessionDNA?.all?.slice(0, 5) || [],
+    },
     tradeSamples: { bestTrades, worstTrades },
+    ...(sourceSnapshot.tradeQualityAnalysis ? { tradeQualityAnalysis: sourceSnapshot.tradeQualityAnalysis } : {}),
+    ...(selfAwarenessSnapshot ? { selfAwareness: selfAwarenessSnapshot } : {}),
+    ...(psychologyCostSnapshot ? { psychologyCost: psychologyCostSnapshot } : {}),
+    ...(dnaSnapshot ? { dna: dnaSnapshot } : {}),
+    ...(patternsSnapshot ? { patterns: patternsSnapshot } : {}),
+    ...(sourceSnapshot.timeline ? { timeline: sourceSnapshot.timeline } : {}),
+    source: {
+      metricSource: "analytics_snapshot",
+      analyticsSnapshotCache: sourceSnapshot.cache || null,
+      analyticsPeriod: sourceSnapshot.period || "weekly",
+    },
   };
 }
 
@@ -265,18 +178,7 @@ function computePsychologySnapshot(trades) {
   const retakeTracked = trades.filter((t) => t.wouldRetake === "Yes" || t.wouldRetake === "No").length;
   const wouldRetakePct = retakeTracked ? (retakeYes / retakeTracked) * 100 : 50;
 
-  const psychologyScore = Math.min(
-    100,
-    Math.max(
-      0,
-      Math.round(
-        planAdherencePct * 0.35 +
-          calmTradingPct * 0.25 +
-          noRevengePct * 0.25 +
-          wouldRetakePct * 0.15
-      )
-    )
-  );
+  const psychologyScore = calculatePsychologyScore(trades);
 
   return {
     totalTrackedTrades: trackedTrades.length,
@@ -294,6 +196,52 @@ function computePsychologySnapshot(trades) {
     topConfidence,
     topEmotionalTags,
   };
+}
+
+/**
+ * Validates that the snapshot is internally consistent before we hand it to AI.
+ * Returns null on success, or an object describing the first mismatch found.
+ */
+function validateSnapshot(snapshot, trades) {
+  const { totalTrades, wins, losses, breakEven } = snapshot.counts || {};
+
+  // 1. Trade count must match the raw array length
+  if (totalTrades !== trades.length) {
+    return {
+      field: "counts.totalTrades",
+      expected: trades.length,
+      actual: totalTrades,
+      source: "computeSnapshot vs raw trades array",
+    };
+  }
+
+  // 2. wins + losses + breakEven must equal totalTrades
+  const sumCheck = (wins || 0) + (losses || 0) + (breakEven || 0);
+  if (sumCheck !== totalTrades) {
+    return {
+      field: "counts.wins+losses+breakEven",
+      expected: totalTrades,
+      actual: sumCheck,
+      source: "wins + losses + breakEven does not equal totalTrades",
+    };
+  }
+
+  // 3. Net P&L must equal gross minus costs (within floating-point tolerance)
+  const { gross, costs, net } = snapshot.pnl || {};
+  if (gross !== undefined && net !== undefined && costs) {
+    const totalCosts = (costs.commission || 0) + (costs.swap || 0) + (costs.brokerage || 0) + (costs.sttTaxes || 0);
+    const expectedNet = Number((gross - totalCosts).toFixed(2));
+    if (Math.abs(expectedNet - net) > 0.01) {
+      return {
+        field: "pnl.net",
+        expected: expectedNet,
+        actual: net,
+        source: "gross - costs does not equal net",
+      };
+    }
+  }
+
+  return null;
 }
 
 async function listWeeklyReports(userId, marketType = "Forex", rawLimit = "12") {
@@ -318,9 +266,14 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
   const weekEndDay = new Date(weekEndUtc);
   weekEndDay.setUTCHours(0, 0, 0, 0);
 
-  const trades = isIndian
-    ? await indianTradeRepository.findIndianTradesForWeeklyWindow(userId, weekStartUtc, weekEndUtc)
-    : await tradeRepository.findTradesForWeeklyWindow(userId, weekStartUtc, weekEndUtc);
+  const analyticsSnapshot = await analyticsSnapshotService.getSnapshot({
+    userId,
+    market: isIndian ? "Indian_Market" : "Forex",
+    dateRange: { from: weekStartUtc, to: weekEndUtc },
+    period: "weekly",
+    includeTrades: true,
+  });
+  const trades = analyticsSnapshot.trades;
 
   const weekLabel = `${weekStartLocal.toDateString()} -> ${weekEndLocal.toDateString()} (Last 7 days)`;
   const snapshotBase = {
@@ -332,7 +285,7 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
     },
     marketType,
     periodType: "rolling7d",
-    ...computeSnapshot(trades, marketType),
+    ...computeSnapshot(trades, marketType, analyticsSnapshot),
   };
 
   // Attach a compact psychology snapshot from THIS week trades.
@@ -375,6 +328,26 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
     return report;
   }
 
+  // Validate snapshot consistency before sending to AI.
+  // If data is internally inconsistent, surface an error rather than produce
+  // AI feedback that contradicts what the user sees on the dashboard.
+  const inconsistency = validateSnapshot(snapshot, trades);
+  if (inconsistency) {
+    logger.error("[WeeklyReport] Snapshot inconsistency detected — aborting AI generation", { inconsistency, userId, marketType });
+    return weeklyReportRepository.updateWeeklyReportById(report._id, {
+      aiFeedback: {
+        week: weekLabel,
+        summary: `Data inconsistency detected. Expected ${inconsistency.field} = ${inconsistency.expected}, but got ${inconsistency.actual}. Source: ${inconsistency.source}. Please refresh your trade journal and try regenerating.`,
+        mistakes: [],
+        improvements: [],
+        nextWeekChecklist: [],
+        psychologyFeedback: "",
+        _dataInconsistency: inconsistency,
+      },
+      aiModel: "validation-error",
+    });
+  }
+
   try {
     const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel });
     return weeklyReportRepository.updateWeeklyReportById(report._id, {
@@ -398,11 +371,13 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
 async function generateNowOnce(userId, marketType = "Forex") {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const lastGenerated = await weeklyReportRepository.findRecentlyGeneratedWeeklyReport(userId, marketType, since);
+  const currentTradeVersion = await getTradeCacheVersion(userId);
+  const lastReportedVersion = lastGenerated?.snapshot?.source?.analyticsSnapshotCache?.version;
 
   // Backward compatibility: allow one regeneration if old AI feedback exists
-  // but psychologyFeedback was never stored.
+  // but psychologyFeedback or trade-version metadata was never stored.
   const hasPsychFeedback = Boolean(lastGenerated?.aiFeedback?.psychologyFeedback);
-  if (lastGenerated && hasPsychFeedback) {
+  if (lastGenerated && hasPsychFeedback && String(lastReportedVersion) === String(currentTradeVersion)) {
     throw new ApiError(
       409,
       "AI feedback already generated in the last 7 days. Please wait before generating again.",
@@ -415,6 +390,7 @@ async function generateNowOnce(userId, marketType = "Forex") {
 }
 
 module.exports = {
+  computeSnapshot,
   generateNowOnce,
   generateRolling7dReportForUser,
   getWeeklyReport,

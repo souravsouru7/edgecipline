@@ -2,7 +2,7 @@
 
 import { registerDeviceToken } from "@/services/notificationApi";
 import { Capacitor } from "@capacitor/core";
-import { getValidToken } from "@/utils/auth";
+import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
 let initialized = false;
 
@@ -130,7 +130,7 @@ async function createAllChannels(PushNotifications) {
 export async function initializePushNotifications() {
   if (initialized || !isNativeCapacitorRuntime()) return;
 
-  const authToken = getValidToken();
+  const authToken = getValidToken() || await hydrateAuthToken();
   if (!authToken) return;
 
   initialized = true;

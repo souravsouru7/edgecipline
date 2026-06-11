@@ -45,6 +45,23 @@ function requireEnv(name) {
   return value;
 }
 
+function requireSecret(name) {
+  const value = requireEnv(name);
+  if (String(value).length < 32) {
+    throw new Error(`${name} must be at least 32 characters`);
+  }
+  return value;
+}
+
+function requireDistinctSecrets(leftName, rightName) {
+  const left = requireSecret(leftName);
+  const right = requireSecret(rightName);
+  if (left === right) {
+    throw new Error(`${leftName} and ${rightName} must be different secrets`);
+  }
+  return { left, right };
+}
+
 function normalizeMongoUri(value) {
   const raw = String(value || "").trim();
   if (!raw) {
@@ -56,6 +73,8 @@ function normalizeMongoUri(value) {
   return `mongodb://${raw.replace(/^\/+/, "")}`;
 }
 
+const jwtSecrets = requireDistinctSecrets("JWT_SECRET", "ADMIN_JWT_SECRET");
+
 const appConfig = {
   env: process.env.NODE_ENV || "development",
   port: readNumber("PORT", 5000),
@@ -63,12 +82,10 @@ const appConfig = {
   mongoUri: normalizeMongoUri(requireEnv("MONGO_URI")),
   mongoDnsServers: readList("MONGO_DNS_SERVERS"),
   jwt: {
-    secret: requireEnv("JWT_SECRET"),
+    secret: jwtSecrets.left,
     expiresIn: process.env.JWT_EXPIRES_IN || "15m",
-    // Separate secret for admin tokens. Falls back to JWT_SECRET if not set so
-    // existing deployments don't break — set ADMIN_JWT_SECRET in production for
-    // true secret separation between user and admin token domains.
-    adminSecret: process.env.ADMIN_JWT_SECRET || null,
+    // Dedicated admin signing secret. Never use the user JWT secret here.
+    adminSecret: jwtSecrets.right,
   },
   cloudinary: {
     cloudName: requireEnv("CLOUD_NAME"),

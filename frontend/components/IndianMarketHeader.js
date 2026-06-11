@@ -31,7 +31,7 @@ export default function IndianMarketHeader() {
 
   const handleLogout = async () => {
     try { await apiClient.post("/auth/logout"); } catch {}
-    clearAuthToken();
+    await clearAuthToken();
     await signOutFirebase();
     router.push("/login");
   };

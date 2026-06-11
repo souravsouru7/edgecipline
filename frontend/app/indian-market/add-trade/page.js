@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
@@ -9,6 +10,7 @@ import { fetchSetups } from "@/services/setupApi";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useToast } from "@/features/shared/components/ui/Toast";
+import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -65,6 +67,7 @@ const LOT_SIZES = { "NIFTY": 25, "BANK NIFTY": 15, "FIN NIFTY": 25, "MIDCPNIFTY"
 
 function IndianOptionsAddTradeContent() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   useRequireAuth();
   const { addToast } = useToast();
   const searchParams = useSearchParams();
@@ -102,6 +105,7 @@ function IndianOptionsAddTradeContent() {
     confidence: "",
     emotionalTags: [],
     wouldRetake: "",
+    tradeQuality: "",
     stockSymbol: "",
     exchange: "NSE",
     sharesQty: "",
@@ -295,7 +299,8 @@ function IndianOptionsAddTradeContent() {
       mood: trade.mood ?? undefined,
       confidence: trade.confidence || undefined,
       emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
-      wouldRetake: trade.wouldRetake || undefined
+      wouldRetake: trade.wouldRetake || undefined,
+      tradeQuality: trade.tradeQuality || undefined,
     };
 
     let tradeData;
@@ -342,6 +347,7 @@ function IndianOptionsAddTradeContent() {
     try {
       const result = await createTrade(tradeData, MARKETS.INDIAN_MARKET);
       if (result?._id) {
+        invalidateTradeDependentQueries(queryClient);
         addToast("Trade saved to your journal!", "success");
         router.push("/indian-market/dashboard");
       } else {
@@ -838,6 +844,35 @@ function IndianOptionsAddTradeContent() {
                       }}
                     >
                       {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>TRADE QUALITY (EXECUTION)</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {[
+                    { val: "Great", color: "#0D9E6E", desc: "Followed the plan" },
+                    { val: "Average", color: "#F59E0B", desc: "Partial execution" },
+                    { val: "Poor", color: "#D63B3B", desc: "Broke the rules" },
+                  ].map(q => (
+                    <button
+                      key={q.val}
+                      type="button"
+                      onClick={() => setTrade(prev => ({ ...prev, tradeQuality: prev.tradeQuality === q.val ? "" : q.val }))}
+                      style={{
+                        padding: "10px 4px",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                        textAlign: "center",
+                        border: trade.tradeQuality === q.val ? `1.5px solid ${q.color}` : "1px solid #E2E8F0",
+                        background: trade.tradeQuality === q.val ? `${q.color}14` : "#F8FAFC",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.val}</div>
+                      <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.desc}</div>
                     </button>
                   ))}
                 </div>

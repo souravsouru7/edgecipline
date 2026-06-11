@@ -1,4 +1,6 @@
+const mongoose = require("mongoose");
 const Trade = require("../models/Trade");
+const tradeLifecycleService = require("../services/tradeLifecycle.service");
 
 const TRADE_LIST_PROJECTION = [
   "pair",
@@ -24,6 +26,10 @@ const TRADE_LIST_PROJECTION = [
   "ocrJobId",
   "ocrAttempts",
 ].join(" ");
+
+const TRADE_LIST_PROJECT_STAGE = TRADE_LIST_PROJECTION
+  .split(" ")
+  .reduce((projection, field) => ({ ...projection, [field]: 1 }), { _id: 1 });
 
 const TRADE_STATUS_PROJECTION = [
   "pair",
@@ -70,6 +76,7 @@ const TRADE_STATUS_PROJECTION = [
   "entryBasisCustom",
   "setupRules",
   "setupScore",
+  "tradeQuality",
 ].join(" ");
 
 const WEEKLY_TRADE_PROJECTION = [
@@ -83,6 +90,11 @@ const WEEKLY_TRADE_PROJECTION = [
   "setupScore",
   "entryBasis",
   "mistakeTag",
+  "tradeQuality",
+  "mood",
+  "confidence",
+  "emotionalTags",
+  "wouldRetake",
   "createdAt",
   "tradeDate",
 ].join(" ");
@@ -91,8 +103,31 @@ async function createTrade(data) {
   return Trade.create(data);
 }
 
+async function createTrades(data) {
+  return Trade.insertMany(data, { ordered: true });
+}
+
+function userMatch(userId) {
+  const id = userId?.toString?.() || String(userId || "");
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    return { $in: [new mongoose.Types.ObjectId(id), id] };
+  }
+  return userId;
+}
+
+function visibleForexQuery(userId, extra = {}) {
+  return {
+    user: userMatch(userId),
+    marketType: { $ne: "Indian_Market" },
+    "parsedData.multiTradeGhost": { $ne: true },
+    deletedAt: null,
+    status: { $nin: ["pending", "processing", "failed"] },
+    ...extra,
+  };
+}
+
 async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
-  const query = { user: userId, marketType: { $ne: "Indian_Market" }, "parsedData.multiTradeGhost": { $ne: true }, deletedAt: null };
+  const query = visibleForexQuery(userId);
 
   if (dateFrom instanceof Date) {
     query.$or = [
@@ -101,34 +136,31 @@ async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
     ];
   }
 
-  const [cursor, debugCounts] = await Promise.all([
-    Trade.find(query).sort({ createdAt: -1 }).select(TRADE_LIST_PROJECTION).lean()
-      .then(rows => typeof page === "number" && typeof limit === "number"
-        ? rows.slice((page - 1) * limit, page * limit)
-        : rows),
-    Promise.all([
-      Trade.countDocuments({ user: userId }),
-      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" } }),
-      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null }),
-      Trade.countDocuments({ user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } }),
-      Trade.distinct("marketType", { user: userId }),
-    ]),
-  ]);
+  const hasPagination = typeof page === "number" && typeof limit === "number";
+  const tradeQuery = hasPagination
+    ? Trade.aggregate([
+        { $match: query },
+        { $addFields: { effectiveTradeDate: { $ifNull: ["$tradeDate", "$createdAt"] } } },
+        { $sort: { effectiveTradeDate: -1, _id: -1 } },
+        { $skip: Math.max(0, (page - 1) * limit) },
+        { $limit: limit },
+        { $project: TRADE_LIST_PROJECT_STAGE },
+      ])
+    : Trade.find(query)
+        .sort({ createdAt: -1, _id: -1 })
+        .select(TRADE_LIST_PROJECTION)
+        .lean();
 
-  const [total, nonIndianOnly, nonIndianNotDeleted, nonIndianVisible, marketTypes] = debugCounts;
-  if (nonIndianVisible === 0 && total > 0) {
-    console.warn(`[TradeRepo] User ${userId} has ${total} trades but 0 visible in journal. Breakdown: nonIndian=${nonIndianOnly}, notDeleted=${nonIndianNotDeleted}, notGhost=${nonIndianVisible}. MarketTypes: ${JSON.stringify(marketTypes)}`);
-  }
-
-  return cursor;
+  return tradeQuery;
 }
 
 async function countTradesDebug(userId) {
+  const visibleQuery = visibleForexQuery(userId);
   const [total, forexOnly, forexNotDeleted, forexVisible, marketTypes, ghostCount, deletedCount] = await Promise.all([
     Trade.countDocuments({ user: userId }),
     Trade.countDocuments({ user: userId, marketType: "Forex" }),
     Trade.countDocuments({ user: userId, marketType: "Forex", deletedAt: null }),
-    Trade.countDocuments({ user: userId, marketType: "Forex", deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } }),
+    Trade.countDocuments(visibleQuery),
     Trade.distinct("marketType", { user: userId }),
     Trade.countDocuments({ user: userId, "parsedData.multiTradeGhost": true }),
     Trade.countDocuments({ user: userId, deletedAt: { $ne: null } }),
@@ -140,25 +172,27 @@ async function findForexTradeByUser(tradeId, userId) {
   return Trade.findOne({
     _id: tradeId,
     user: userId,
-    marketType: "Forex",
+    marketType: { $ne: "Indian_Market" },
     deletedAt: null,
   }).lean();
 }
 
 async function updateForexTradeByUser(tradeId, userId, update, options = {}) {
   return Trade.findOneAndUpdate(
-    { _id: tradeId, user: userId, marketType: "Forex", deletedAt: null },
+    { _id: tradeId, user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null },
     update,
     { returnDocument: "after", lean: true, ...options }
   );
 }
 
 async function deleteForexTradeByUser(tradeId, userId) {
-  return Trade.findOneAndUpdate(
-    { _id: tradeId, user: userId, marketType: "Forex", deletedAt: null },
-    { $set: { deletedAt: new Date() } },
-    { returnDocument: "after" }
-  );
+  return tradeLifecycleService.softDeleteTrade(Trade, {
+    tradeId,
+    userId,
+    deletedBy: userId,
+    deletedSource: "user",
+    marketFilter: { marketType: { $ne: "Indian_Market" } },
+  });
 }
 
 async function updateTradeById(tradeId, update, options = {}) {
@@ -175,6 +209,9 @@ async function findTradesForWeeklyWindow(userId, startDate, endDate) {
   return Trade.find({
     user: userId,
     marketType: "Forex",
+    deletedAt: null,
+    "parsedData.multiTradeGhost": { $ne: true },
+    status: { $ne: "failed" },
     $or: [
       { tradeDate: { $gte: startDate, $lte: endDate } },
       { tradeDate: null, createdAt: { $gte: startDate, $lte: endDate } },
@@ -188,6 +225,7 @@ async function findTradesForWeeklyWindow(userId, startDate, endDate) {
 module.exports = {
   countTradesDebug,
   createTrade,
+  createTrades,
   deleteForexTradeByUser,
   findForexTradeByUser,
   findForexTradesByUser,

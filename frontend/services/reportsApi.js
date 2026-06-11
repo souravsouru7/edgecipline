@@ -1,8 +1,8 @@
 import { API_URL as BASE_URL } from "@/config/api";
-import { getValidToken } from "@/utils/auth";
+import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
-const getAuthHeaders = () => {
-  const token = getValidToken();
+const getAuthHeaders = async () => {
+  const token = getValidToken() || await hydrateAuthToken();
   return {
     "Content-Type": "application/json",
     Authorization: token ? `Bearer ${token}` : "",
@@ -29,14 +29,14 @@ const handleResponse = async (res) => {
 export const listWeeklyReports = async (limit = 12, marketType = "Forex") => {
   const res = await fetch(
     `${BASE_URL}/reports/weekly?limit=${encodeURIComponent(limit)}&marketType=${encodeURIComponent(marketType)}`,
-    { headers: getAuthHeaders() }
+    { headers: await getAuthHeaders() }
   );
   return handleResponse(res);
 };
 
 export const getWeeklyReport = async (id) => {
   const res = await fetch(`${BASE_URL}/reports/weekly/${id}`, {
-    headers: getAuthHeaders(),
+    headers: await getAuthHeaders(),
   });
   return handleResponse(res);
 };
@@ -46,7 +46,7 @@ export const generateWeeklyFeedbackNow = async (marketType = "Forex") => {
     `${BASE_URL}/reports/weekly/generate-now?marketType=${encodeURIComponent(marketType)}`,
     {
       method: "POST",
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     }
   );
   return handleResponse(res);
