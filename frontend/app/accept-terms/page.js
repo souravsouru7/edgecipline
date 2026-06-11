@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { clearAuthToken, getValidToken, hydrateAuthToken } from "@/utils/auth";
 import Link from "next/link";
 import { acceptTerms, logoutUser } from "@/services/api";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 /**
  * /accept-terms
@@ -33,7 +33,19 @@ export default function AcceptTermsPage() {
       const token = getValidToken() || await hydrateAuthToken();
       if (token) return;
 
-      const refreshed = await silentRefresh();
+      let refreshed = null;
+      try {
+        refreshed = await silentRefresh();
+      } catch (err) {
+        if (isAuthRefreshTransientError(err)) {
+          console.warn("[Auth] accept terms preserved session after transient refresh failure", {
+            at: new Date().toISOString(),
+            status: err.status || 0,
+          });
+          return;
+        }
+        throw err;
+      }
       if (!refreshed && !cancelled) router.replace("/login");
     };
 

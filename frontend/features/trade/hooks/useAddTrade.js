@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getValidToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { fetchSetups } from "@/services/setupApi";
@@ -115,7 +115,20 @@ export function useAddTrade(marketType, isIndianMarket) {
     let cancelled = false;
     const checkAuth = async () => {
       if (!getValidToken()) {
-        const token = await silentRefresh();
+        let token = null;
+        try {
+          token = await silentRefresh();
+        } catch (err) {
+          if (isAuthRefreshTransientError(err)) {
+            console.warn("[Auth] add trade preserved session after transient refresh failure", {
+              at: new Date().toISOString(),
+              status: err.status || 0,
+            });
+            if (!cancelled) setMounted(true);
+            return;
+          }
+          throw err;
+        }
         if (cancelled) return;
         if (!token) { router.replace("/login"); return; }
       }

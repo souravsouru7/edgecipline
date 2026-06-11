@@ -9,7 +9,7 @@ import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 
 const DEFAULT_SETUP_RULES = [];
@@ -411,7 +411,20 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         return;
       }
 
-      const token = await silentRefresh();
+      let token = null;
+      try {
+        token = await silentRefresh();
+      } catch (err) {
+        if (isAuthRefreshTransientError(err)) {
+          console.warn("[Auth] OCR upload preserved session after transient refresh failure", {
+            at: new Date().toISOString(),
+            status: err.status || 0,
+          });
+          if (!cancelled) setMounted(true);
+          return;
+        }
+        throw err;
+      }
       if (cancelled) return;
 
       if (token) {

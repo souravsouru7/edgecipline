@@ -1,11 +1,11 @@
 require("dotenv").config();
 
-const { Worker } = require("bullmq");
+const { UnrecoverableError, Worker } = require("bullmq");
 const connectDB = require("../config/db");
 const { appConfig } = require("../config");
 const { connectRedis, bullmqConnection } = require("../config/redis");
 const { OCR_QUEUE_NAME } = require("../queues/ocrQueue");
-const { processOcrJob } = require("../services/ocrJob.service");
+const { isNonRetryableOcrError, processOcrJob } = require("../services/ocrJob.service");
 const { logger } = require("../utils/logger");
 const { jobFailureTracker } = require("../utils/jobFailureTracker");
 
@@ -37,11 +37,24 @@ function createProcessor() {
       jobId: job.id,
       ocrJobId,
       userId,
+      payload: {
+        jobId: job.data.jobId || null,
+        tradeId: job.data.tradeId || null,
+        imageUrl: Boolean(job.data.imageUrl),
+        marketType: job.data.marketType || null,
+      },
       attempt: job.attemptsMade + 1,
       timestamp: new Date().toISOString(),
     });
 
     try {
+      if (!ocrJobId) {
+        const error = new Error("OCR worker payload missing jobId");
+        error.code = "OCR_INVALID_PAYLOAD";
+        error.nonRetryable = true;
+        throw error;
+      }
+
       await job.updateProgress({
         stage: "processing",
         attempt: job.attemptsMade + 1,
@@ -74,6 +87,9 @@ function createProcessor() {
         stack: error.stack,
         timestamp: new Date().toISOString(),
       });
+      if (isNonRetryableOcrError(error)) {
+        throw new UnrecoverableError(error.message);
+      }
       throw error;
     }
   };

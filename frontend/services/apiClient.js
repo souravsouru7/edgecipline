@@ -83,6 +83,7 @@ const REFRESH_RESULT_KEY = 'edgecipline:auth-refresh-result';
 const REFRESH_LOCK_TTL_MS = 10_000;
 const REFRESH_WAIT_TIMEOUT_MS = 12_000;
 const AUTH_CHANNEL_NAME = 'edgecipline-auth';
+const AUTH_REFRESH_TRANSIENT = 'AUTH_REFRESH_TRANSIENT';
 
 const getTabId = () => {
   if (typeof window === 'undefined') return 'server';
@@ -214,6 +215,42 @@ function releaseRefreshLock() {
   }
 }
 
+function createTransientRefreshError(error, reason = 'Refresh temporarily unavailable') {
+  const transient = new Error(reason);
+  transient.code = AUTH_REFRESH_TRANSIENT;
+  transient.isTransientAuthRefresh = true;
+  transient.status = error?.response?.status || error?.status || 0;
+  transient.cause = error;
+  return transient;
+}
+
+export function isAuthRefreshTransientError(error) {
+  return Boolean(error?.isTransientAuthRefresh || error?.code === AUTH_REFRESH_TRANSIENT);
+}
+
+function isTerminalRefreshFailure(error) {
+  const status = error?.response?.status || error?.status;
+  const errorCode = error?.response?.data?.errorCode || error?.data?.errorCode;
+  return (
+    status === 401 ||
+    status === 403 ||
+    errorCode === 'AUTH_REQUIRED' ||
+    errorCode === 'REFRESH_TOKEN_EXPIRED' ||
+    errorCode === 'TOKEN_REPLAY_DETECTED'
+  );
+}
+
+function getRefreshFailureReason(error) {
+  const status = error?.response?.status || error?.status;
+  if (!error?.response) {
+    const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout');
+    return isTimeout ? 'Refresh request timed out' : 'Refresh network unavailable';
+  }
+  if (status === 429) return 'Refresh rate limited';
+  if (status >= 500) return 'Refresh service unavailable';
+  return 'Refresh temporarily unavailable';
+}
+
 // ---------------------------------------------------------------------------
 // Request interceptor — client-side rate limit check + attach access token
 // ---------------------------------------------------------------------------
@@ -303,13 +340,13 @@ apiClient.interceptors.response.use(
     if (status === 401) {
       // Auth entry paths getting a 401 means bad credentials / bad session — don't refresh.
       if (isAuthEntryPath(config.url)) {
-        handleUnauthenticated();
+        handleUnauthenticated('auth_entry_unauthorized');
         return Promise.reject(buildError(error));
       }
 
       // Only attempt one silent refresh per original request to prevent infinite loops.
       if (config._retried) {
-        handleUnauthenticated();
+        handleUnauthenticated('retried_request_unauthorized');
         return Promise.reject(buildError(error));
       }
 
@@ -329,11 +366,20 @@ apiClient.interceptors.response.use(
 
         // Retry the original request with the new access token
         return apiClient(config);
-      } catch {
-        // Refresh failed — clear local state and redirect to login
-      await clearAuthToken();
-      handleUnauthenticated();
-      return Promise.reject(buildError(error));
+      } catch (refreshError) {
+        // Refresh failed. Only definitive auth failures should destroy the
+        // session; network/timeouts/429/5xx must not auto-logout mobile users.
+        if (!isAuthRefreshTransientError(refreshError)) {
+          await clearAuthToken();
+          handleUnauthenticated('refresh_terminal_failure');
+        } else {
+          console.warn('[Auth] preserving session after transient refresh failure', {
+            at: new Date().toISOString(),
+            status: refreshError.status || 0,
+            reason: refreshError.message,
+          });
+        }
+        return Promise.reject(buildError(error));
       }
     }
 
@@ -364,11 +410,16 @@ function buildError(axiosError) {
 // their own redirect, which would cause a redirect loop in some browsers.
 let _redirectingToLogin = false;
 
-function handleUnauthenticated() {
+function handleUnauthenticated(reason = 'auth_required') {
   if (typeof window === 'undefined') return;
   if (_redirectingToLogin) return;
   const { pathname } = window.location;
   if (pathname === '/login' || pathname === '/register') return;
+  console.warn('[Auth] logout:triggered', {
+    at: new Date().toISOString(),
+    reason,
+    path: pathname,
+  });
   _redirectingToLogin = true;
   // Reset after 5s in case the framework router intercepts the navigation and
   // the module is not reloaded — prevents subsequent 401s being silently swallowed.
@@ -389,11 +440,13 @@ function handleTermsRequired() {
 let _refreshInFlight = null;
 
 async function executeRefreshRequest() {
+  console.info('[Auth] refresh:start', { at: new Date().toISOString() });
   const res = await refreshClient.post('/auth/refresh');
   const token = res.data?.token;
   if (token) {
     await setAuthToken(token);
     publishRefreshSuccess(token);
+    console.info('[Auth] refresh:success', { at: new Date().toISOString() });
     return token;
   }
   return null;
@@ -436,12 +489,27 @@ export function silentRefresh() {
         return await executeRefreshRequest();
       } catch (error) {
         if (isRefreshRace(error)) {
+          console.warn('[Auth] refresh:race', { at: new Date().toISOString() });
           const peerToken = await waitForPeerRefresh();
           if (peerToken) return peerToken;
 
           await sleep(250);
           return await executeRefreshRequest();
         }
+        if (!isTerminalRefreshFailure(error)) {
+          const reason = getRefreshFailureReason(error);
+          console.warn('[Auth] refresh:transient-failure', {
+            at: new Date().toISOString(),
+            status: error?.response?.status || error?.status || 0,
+            reason,
+          });
+          throw createTransientRefreshError(error, reason);
+        }
+        console.warn('[Auth] refresh:terminal-failure', {
+          at: new Date().toISOString(),
+          status: error?.response?.status || error?.status || 0,
+          errorCode: error?.response?.data?.errorCode || error?.data?.errorCode,
+        });
         return null;
       }
     } finally {

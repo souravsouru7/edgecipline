@@ -39,6 +39,24 @@ function isCancellationError(error) {
   return error?.code === "OCR_JOB_CANCELLED";
 }
 
+function createNonRetryableOcrError(message, code = "OCR_NON_RETRYABLE") {
+  const error = new Error(message);
+  error.code = code;
+  error.nonRetryable = true;
+  return error;
+}
+
+function isNonRetryableOcrError(error) {
+  return Boolean(error?.nonRetryable) ||
+    [
+      "OCR_INVALID_PAYLOAD",
+      "OCR_JOB_NOT_FOUND",
+      "OCR_JOB_CANCELLED",
+      "NOT_A_TRADE_IMAGE",
+      "WRONG_MARKET_TYPE",
+    ].includes(error?.code);
+}
+
 async function createOcrJob({ user, uploadedImage, marketType, tradeSubType, broker, requestedTradeDate }) {
   const job = await OCRJob.create({
     user: user._id,
@@ -57,13 +75,30 @@ async function createOcrJob({ user, uploadedImage, marketType, tradeSubType, bro
     expiresAt: getExpiryDate(),
   });
 
-  const queueJob = await enqueueOcrJob({
+  logger.info("OCR job created", {
     jobId: job._id.toString(),
-    imageUrl: uploadedImage.imageUrl,
-    userId: user._id,
+    userId: user._id?.toString?.() || user._id,
     marketType,
-    broker,
+    tradeSubType: job.tradeSubType,
+    imageUrl: Boolean(uploadedImage.imageUrl),
   });
+
+  let queueJob;
+  try {
+    queueJob = await enqueueOcrJob({
+      jobId: job._id.toString(),
+      imageUrl: uploadedImage.imageUrl,
+      userId: user._id,
+      marketType,
+      broker,
+    });
+  } catch (error) {
+    job.status = "FAILED";
+    job.error = error.message;
+    job.processedAt = new Date();
+    await job.save();
+    throw error;
+  }
 
   job.queueJobId = queueJob.id;
   job.queueJobName = queueJob.name;
@@ -87,6 +122,23 @@ async function getOcrJobForUser(userId, jobId) {
 async function getOcrJobStatus(userId, jobId) {
   const job = await getOcrJobForUser(userId, jobId);
   const queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
+  if (
+    queueState?.state === "failed" &&
+    (job.status === "PENDING" || job.status === "PROCESSING")
+  ) {
+    job.status = "FAILED";
+    job.error = job.error || queueState.failedReason || "OCR processing failed";
+    job.processedAt = job.processedAt || new Date();
+    job.attemptsMade = Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0);
+    await job.save();
+    logger.error("OCR job status reconciled from failed queue state", {
+      jobId,
+      queueJobId: job.queueJobId,
+      userId: userId?.toString?.() || userId,
+      attemptsMade: job.attemptsMade,
+      error: job.error,
+    });
+  }
   return serializeJob(job, queueState);
 }
 
@@ -130,9 +182,23 @@ async function isOcrJobCancelled(jobId, stage = "") {
 }
 
 async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+    logger.error("OCR worker rejected invalid job id", {
+      jobId,
+      queueJobId,
+      attempt,
+    });
+    throw createNonRetryableOcrError("Invalid OCR job id", "OCR_INVALID_PAYLOAD");
+  }
+
   const job = await OCRJob.findById(jobId);
   if (!job) {
-    throw new Error("OCR job not found");
+    logger.error("OCR worker could not find OCRJob document", {
+      jobId,
+      queueJobId,
+      attempt,
+    });
+    throw createNonRetryableOcrError("OCR job not found", "OCR_JOB_NOT_FOUND");
   }
   if (job.status === "CANCELLED" || job.status === "CONFIRMED") {
     return serializeJob(job);
@@ -146,8 +212,17 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
   await job.save();
 
   try {
+    logger.info("OCR processing started", {
+      jobId: job._id.toString(),
+      queueJobId: queueJobId || job.queueJobId || job._id.toString(),
+      userId: job.user?.toString?.() || job.user,
+      marketType: job.marketType,
+      imageUrl: Boolean(job.uploadedImage?.imageUrl),
+      attempt,
+    });
+
     const result = await processTradeUpload({
-      tradeId: job._id.toString(),
+      ocrJobId: job._id.toString(),
       imageUrl: job.uploadedImage.imageUrl,
       jobId: queueJobId || job.queueJobId,
       attempt,
@@ -176,6 +251,14 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
     latest.error = null;
     latest.attemptsMade = attempt;
     await latest.save();
+    logger.info("OCR processing completed", {
+      jobId,
+      queueJobId,
+      userId: latest.user?.toString?.() || latest.user,
+      marketType: latest.marketType,
+      extractionConfidence: latest.extractionConfidence,
+      attempt,
+    });
     return serializeJob(latest);
   } catch (error) {
     const latest = await OCRJob.findById(jobId);
@@ -198,6 +281,16 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
       latest.attemptsMade = attempt;
       await latest.save();
     }
+    logger.error("OCR processing failed", {
+      jobId,
+      queueJobId,
+      userId: latest?.user?.toString?.() || latest?.user,
+      marketType: latest?.marketType,
+      error: error.message,
+      code: error.code,
+      nonRetryable: isNonRetryableOcrError(error),
+      attempt,
+    });
     throw error;
   }
 }
@@ -234,5 +327,6 @@ module.exports = {
   deleteUploadedImageForJob,
   getOcrJobStatus,
   markOcrJobConfirmed,
+  isNonRetryableOcrError,
   processOcrJob,
 };

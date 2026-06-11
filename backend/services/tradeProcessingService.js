@@ -640,6 +640,7 @@ async function findTradeWithRetry(tradeId) {
 
 async function processTradeUpload({
   tradeId,
+  ocrJobId,
   imageUrl,
   imagePath,
   jobId,
@@ -648,9 +649,27 @@ async function processTradeUpload({
   persistTrade = true,
   checkCancellation = null,
 }) {
+  const processingId = tradeId || ocrJobId || tradeRecord?._id?.toString?.() || jobId || "unknown";
+  if (persistTrade && !tradeId) {
+    const error = new Error("OCR payload missing tradeId");
+    error.code = "OCR_INVALID_PAYLOAD";
+    error.nonRetryable = true;
+    throw error;
+  }
+  if (!persistTrade && !tradeRecord) {
+    const error = new Error("OCR payload missing OCR job record");
+    error.code = "OCR_INVALID_PAYLOAD";
+    error.nonRetryable = true;
+    throw error;
+  }
+  tradeId = processingId;
+
   const trade = tradeRecord || await findTradeWithRetry(tradeId);
   if (!trade) {
-    throw new Error(persistTrade ? "Trade not found" : "OCR job not found");
+    const error = new Error(persistTrade ? "Trade not found" : "OCR job not found");
+    error.code = persistTrade ? "TRADE_NOT_FOUND" : "OCR_JOB_NOT_FOUND";
+    error.nonRetryable = true;
+    throw error;
   }
 
   const sourceImage =
@@ -660,7 +679,10 @@ async function processTradeUpload({
     trade.screenshot ||
     trade.uploadedImage?.imageUrl;
   if (!sourceImage) {
-    throw new Error("No image URL available for OCR processing");
+    const error = new Error("No image URL available for OCR processing");
+    error.code = "OCR_INVALID_PAYLOAD";
+    error.nonRetryable = true;
+    throw error;
   }
 
   await runCancellationCheck(checkCancellation, "before-status-update");
@@ -693,13 +715,13 @@ async function processTradeUpload({
       ocrImageMimeType = ocrResult.mimeType;
       if (ocrResult.ocrFailed) {
         ocrSkipped = true;
-        logger.warn(`OCR text extraction failed | tradeId=${tradeId} | image buffer retained for Gemini Vision`, { tradeId });
+        logger.warn(`OCR text extraction failed | tradeId=${processingId} | image buffer retained for Gemini Vision`, { tradeId: processingId });
       }
     } catch (error) {
       // Image download itself failed — no buffer available
       ocrSkipped = true;
-      logger.warn(`OCR failed (image unreachable) | tradeId=${tradeId} | falling back to AI-only extraction`, {
-        tradeId,
+      logger.warn(`OCR failed (image unreachable) | tradeId=${processingId} | falling back to AI-only extraction`, {
+        tradeId: processingId,
         reason: error.message,
       });
     }
@@ -710,8 +732,8 @@ async function processTradeUpload({
     const weakOcr = ocrSkipped || isWeakOcrText(cleanedText);
     const broker = detectBrokerPattern(cleanedText, trade.broker || undefined);
 
-    logger.info(`OCR output | tradeId=${tradeId}`, {
-      tradeId,
+    logger.info(`OCR output | tradeId=${processingId}`, {
+      tradeId: processingId,
       textLength: cleanedText.length,
       broker,
       weakOcr: weakOcr,

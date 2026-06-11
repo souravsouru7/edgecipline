@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { markWelcomeGuideSeen } from "@/services/api";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { clearAuthToken, hasValidAuthToken, hydrateAuthToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 const TOUR_SEEN_KEY = "hasSeenWelcomeGuide";
 
@@ -34,7 +34,20 @@ export function useDashboard() {
 
     const verifyAuth = async () => {
       if (!hasValidAuthToken() && !(await hydrateAuthToken())) {
-        const newToken = await silentRefresh();
+        let newToken = null;
+        try {
+          newToken = await silentRefresh();
+        } catch (error) {
+          if (isAuthRefreshTransientError(error)) {
+            console.warn("[Auth] dashboard preserved session after transient refresh failure", {
+              at: new Date().toISOString(),
+              reason: error.message,
+            });
+            if (!cancelled) setMounted(true);
+            return;
+          }
+          throw error;
+        }
         if (!newToken) {
           if (!cancelled) router.replace("/login");
           return;

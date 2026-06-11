@@ -215,6 +215,57 @@ describe("OCR job workflow", () => {
     expect(destroy).not.toHaveBeenCalled();
   });
 
+  test("status polling reconciles failed BullMQ state to FAILED OCRJob", async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const jobDoc = {
+      _id: { toString: () => validJobId },
+      user: validUserId,
+      status: "PROCESSING",
+      queueJobId: validJobId,
+      attemptsMade: 0,
+      error: null,
+      save,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      processingStartedAt: new Date("2026-01-01T00:00:01.000Z"),
+      processedAt: null,
+      cancelledAt: null,
+      confirmedAt: null,
+      expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findOne: jest.fn().mockResolvedValue(jobDoc),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot: jest.fn().mockResolvedValue({
+        state: "failed",
+        attemptsMade: 1,
+        failedReason: "Invalid OCR job id",
+      }),
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy: jest.fn() },
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { getOcrJobStatus } = require("../../services/ocrJob.service");
+
+    const result = await getOcrJobStatus(validUserId, validJobId);
+
+    expect(result.status).toBe("FAILED");
+    expect(result.error).toBe("Invalid OCR job id");
+    expect(jobDoc.status).toBe("FAILED");
+    expect(jobDoc.attemptsMade).toBe(1);
+    expect(jobDoc.processedAt).toBeInstanceOf(Date);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
   test("cancel rejects unauthorized OCRJob ownership", async () => {
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
@@ -297,6 +348,104 @@ describe("OCR job workflow", () => {
     expect(jobDoc.status).toBe("CANCELLED");
     expect(jobDoc.extractedData).toBeNull();
     expect(jobDoc.extractionConfidence).toBe(0);
+  });
+
+  test("processOcrJob passes OCR job id, not a draft trade id, to the processor", async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const jobDoc = {
+      _id: { toString: () => validJobId },
+      user: validUserId,
+      status: "PROCESSING",
+      queueJobId: validJobId,
+      uploadedImage: { imageUrl: "https://example.test/image.png", publicId: "ocr/active" },
+      marketType: "Forex",
+      tradeSubType: "",
+      broker: "",
+      requestedTradeDate: new Date("2026-01-01T00:00:00.000Z"),
+      save,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+    const processTradeUpload = jest.fn().mockResolvedValue({
+      data: {
+        extractionConfidence: 91,
+        parsedTrade: { pair: "EURUSD" },
+      },
+    });
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findById: jest
+          .fn()
+          .mockResolvedValueOnce(jobDoc)
+          .mockResolvedValueOnce(jobDoc),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot: jest.fn(),
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../services/tradeProcessingService", () => ({
+      getFriendlyProcessingError: jest.fn((error) => error.message),
+      processTradeUpload,
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy: jest.fn() },
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { processOcrJob } = require("../../services/ocrJob.service");
+
+    const result = await processOcrJob(validJobId, { queueJobId: validJobId, attempt: 1 });
+
+    expect(result.status).toBe("COMPLETED");
+    expect(processTradeUpload).toHaveBeenCalledWith(expect.objectContaining({
+      ocrJobId: validJobId,
+      imageUrl: "https://example.test/image.png",
+      persistTrade: false,
+      tradeRecord: expect.objectContaining({
+        user: validUserId,
+        marketType: "Forex",
+      }),
+    }));
+    expect(processTradeUpload.mock.calls[0][0]).not.toHaveProperty("tradeId");
+  });
+
+  test("processOcrJob fails invalid queue ids without retryable trade lookup", async () => {
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findById: jest.fn(),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot: jest.fn(),
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../services/tradeProcessingService", () => ({
+      getFriendlyProcessingError: jest.fn((error) => error.message),
+      processTradeUpload: jest.fn(),
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy: jest.fn() },
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { processOcrJob } = require("../../services/ocrJob.service");
+    const tradeProcessing = require("../../services/tradeProcessingService");
+
+    await expect(processOcrJob("undefined", { queueJobId: "undefined", attempt: 1 }))
+      .rejects
+      .toMatchObject({
+        code: "OCR_INVALID_PAYLOAD",
+        nonRetryable: true,
+      });
+    expect(tradeProcessing.processTradeUpload).not.toHaveBeenCalled();
   });
 
   test("saving a real Forex trade confirms the completed OCRJob", async () => {

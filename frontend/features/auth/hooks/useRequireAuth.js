@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getValidToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 /**
  * Drop-in auth guard for protected pages.
@@ -29,7 +29,20 @@ export function useRequireAuth() {
         return;
       }
 
-      const newToken = await silentRefresh();
+      let newToken = null;
+      try {
+        newToken = await silentRefresh();
+      } catch (error) {
+        if (isAuthRefreshTransientError(error)) {
+          console.warn("[Auth] route guard preserved session after transient refresh failure", {
+            at: new Date().toISOString(),
+            reason: error.message,
+          });
+          if (!cancelled) setReady(true);
+          return;
+        }
+        throw error;
+      }
       if (cancelled) return;
 
       if (newToken) {

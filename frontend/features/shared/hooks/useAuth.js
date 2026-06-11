@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getValidToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 /**
  * useAuth
@@ -18,7 +18,19 @@ export function useAuth() {
     let cancelled = false;
     const checkAuth = async () => {
       if (!getValidToken()) {
-        const token = await silentRefresh();
+        let token = null;
+        try {
+          token = await silentRefresh();
+        } catch (error) {
+          if (isAuthRefreshTransientError(error)) {
+            console.warn("[Auth] preserved session after transient refresh failure", {
+              at: new Date().toISOString(),
+              reason: error.message,
+            });
+            return;
+          }
+          throw error;
+        }
         if (cancelled) return;
         if (!token) router.replace("/login");
       }

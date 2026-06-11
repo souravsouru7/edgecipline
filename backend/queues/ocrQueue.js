@@ -19,17 +19,61 @@ const ocrQueue = new Queue(OCR_QUEUE_NAME, {
 });
 
 async function enqueueOcrJob({ jobId, tradeId, imageUrl, userId, marketType, broker }) {
-  const id = String(jobId || tradeId);
+  const id = String(jobId || tradeId || "").trim();
+  if (!id) {
+    const error = new Error("OCR queue payload missing jobId");
+    error.code = "OCR_INVALID_PAYLOAD";
+    logger.error("OCR enqueue rejected: missing jobId", {
+      jobId,
+      tradeId,
+      userId: userId?.toString?.() || userId,
+      imageUrl: Boolean(imageUrl),
+      marketType,
+    });
+    throw error;
+  }
+  if (!imageUrl) {
+    const error = new Error("OCR queue payload missing imageUrl");
+    error.code = "OCR_INVALID_PAYLOAD";
+    logger.error("OCR enqueue rejected: missing imageUrl", {
+      jobId: id,
+      tradeId,
+      userId: userId?.toString?.() || userId,
+      marketType,
+    });
+    throw error;
+  }
+  if (!userId) {
+    const error = new Error("OCR queue payload missing userId");
+    error.code = "OCR_INVALID_PAYLOAD";
+    logger.error("OCR enqueue rejected: missing userId", {
+      jobId: id,
+      tradeId,
+      imageUrl: Boolean(imageUrl),
+      marketType,
+    });
+    throw error;
+  }
+
   const existing = await ocrQueue.getJob(id);
   if (existing) {
     const state = await existing.getState();
     logger.warn("Duplicate OCR enqueue prevented", {
       jobId: id,
-      jobId: existing.id,
+      queueJobId: existing.id,
       state,
     });
     return existing;
   }
+
+  logger.info("OCR job queued", {
+    jobName: OCR_JOB_NAME,
+    jobId: id,
+    tradeId: tradeId || null,
+    userId: userId?.toString?.() || userId,
+    imageUrl: Boolean(imageUrl),
+    marketType,
+  });
 
   return ocrQueue.add(
     OCR_JOB_NAME,

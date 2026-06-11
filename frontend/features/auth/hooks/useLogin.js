@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProfile, loginUser, googleLogin } from "@/services/api";
 import { clearAuthToken, getValidToken, hydrateAuthToken, setAuthToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import {
   signInWithFirebaseGoogle,
   handleGoogleRedirectResult,
@@ -154,7 +154,20 @@ export function useLogin() {
 
       // Step 2: try silent refresh — the httpOnly refresh cookie may still be valid
       // even though the access token has expired or was cleared above.
-      const newToken = await silentRefresh();
+      let newToken = null;
+      try {
+        newToken = await silentRefresh();
+      } catch (err) {
+        if (isAuthRefreshTransientError(err)) {
+          console.warn("[Auth] login restore preserved session after transient refresh failure", {
+            at: new Date().toISOString(),
+            status: err.status || 0,
+          });
+          showForm();
+          return;
+        }
+        throw err;
+      }
       if (newToken && !cancelled) {
         const savedRedirect = typeof window !== "undefined"
           ? sessionStorage.getItem("auth_redirect")

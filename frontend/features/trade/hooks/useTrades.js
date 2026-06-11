@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import { getValidToken } from "@/utils/auth";
-import { silentRefresh } from "@/services/apiClient";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import { calculatePerformanceMetrics } from "@/utils/metricEngine";
 
@@ -65,7 +65,20 @@ export function useTrades() {
     let cancelled = false;
     const checkAuth = async () => {
       if (!getValidToken()) {
-        const token = await silentRefresh();
+        let token = null;
+        try {
+          token = await silentRefresh();
+        } catch (err) {
+          if (isAuthRefreshTransientError(err)) {
+            console.warn("[Auth] trades preserved session after transient refresh failure", {
+              at: new Date().toISOString(),
+              status: err.status || 0,
+            });
+            if (!cancelled) setMounted(true);
+            return;
+          }
+          throw err;
+        }
         if (cancelled) return;
         if (!token) { router.replace("/login"); return; }
       }
