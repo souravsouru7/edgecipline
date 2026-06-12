@@ -57,6 +57,60 @@ function isNonRetryableOcrError(error) {
     ].includes(error?.code);
 }
 
+function isLegacyDraftTradeFailure(queueState, job) {
+  const reason = String(queueState?.failedReason || job?.error || "").toLowerCase();
+  return reason.includes("trade not found") && (job?.legacyDraftFailureRetryCount || 0) < 1;
+}
+
+async function removeQueueJob(queueJobId, jobId) {
+  const queueJob = await ocrQueue.getJob(queueJobId);
+  if (!queueJob) return;
+  const state = await queueJob.getState();
+  if (state === "failed" || state === "completed") {
+    await queueJob.remove().catch((error) => {
+      logger.warn("Failed to remove stale OCR queue job before requeue", {
+        jobId,
+        queueJobId,
+        state,
+        error: error.message,
+      });
+    });
+  }
+}
+
+async function requeueLegacyDraftFailure(job, queueState) {
+  const jobId = job._id.toString();
+  const queueJobId = job.queueJobId || queueState?.jobId || jobId;
+  await removeQueueJob(queueJobId, jobId);
+
+  const queueJob = await enqueueOcrJob({
+    jobId,
+    imageUrl: job.uploadedImage?.imageUrl,
+    userId: job.user,
+    marketType: job.marketType,
+    broker: job.broker,
+  });
+
+  job.status = "PROCESSING";
+  job.queueJobId = queueJob.id;
+  job.queueJobName = queueJob.name;
+  job.error = null;
+  job.processedAt = null;
+  job.processingStartedAt = new Date();
+  job.attemptsMade = 0;
+  job.legacyDraftFailureRetryCount = (job.legacyDraftFailureRetryCount || 0) + 1;
+  await job.save();
+
+  logger.warn("Requeued OCR job after legacy draft-trade failure", {
+    jobId,
+    previousQueueJobId: queueJobId,
+    queueJobId: queueJob.id,
+    legacyDraftFailureRetryCount: job.legacyDraftFailureRetryCount,
+  });
+
+  return serializeJob(job, await getOcrJobSnapshot(queueJob.id));
+}
+
 async function createOcrJob({ user, uploadedImage, marketType, tradeSubType, broker, requestedTradeDate }) {
   const job = await OCRJob.create({
     user: user._id,
@@ -122,6 +176,9 @@ async function getOcrJobForUser(userId, jobId) {
 async function getOcrJobStatus(userId, jobId) {
   const job = await getOcrJobForUser(userId, jobId);
   const queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
+  if (queueState?.state === "failed" && isLegacyDraftTradeFailure(queueState, job)) {
+    return requeueLegacyDraftFailure(job, queueState);
+  }
   if (
     queueState?.state === "failed" &&
     (job.status === "PENDING" || job.status === "PROCESSING")

@@ -98,6 +98,10 @@ const ocrJobSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    legacyDraftFailureRetryCount: {
+      type: Number,
+      default: 0,
+    },
     expiresAt: {
       type: Date,
       required: true,

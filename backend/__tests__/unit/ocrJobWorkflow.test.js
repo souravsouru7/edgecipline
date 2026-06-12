@@ -266,6 +266,91 @@ describe("OCR job workflow", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  test("status polling requeues one legacy Trade not found OCR failure", async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const jobDoc = {
+      _id: { toString: () => validJobId },
+      user: validUserId,
+      status: "PROCESSING",
+      queueJobId: validJobId,
+      queueJobName: "processOcrJob",
+      attemptsMade: 3,
+      error: null,
+      uploadedImage: { imageUrl: "https://example.test/image.png", publicId: "ocr/active" },
+      marketType: "Forex",
+      broker: "",
+      legacyDraftFailureRetryCount: 0,
+      save,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      processingStartedAt: new Date("2026-01-01T00:00:01.000Z"),
+      processedAt: null,
+      cancelledAt: null,
+      confirmedAt: null,
+      expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+    const remove = jest.fn().mockResolvedValue(undefined);
+    const enqueueOcrJob = jest.fn().mockResolvedValue({
+      id: validJobId,
+      name: "processOcrJob",
+      attemptsMade: 0,
+    });
+    const getOcrJobSnapshot = jest
+      .fn()
+      .mockResolvedValueOnce({
+        jobId: validJobId,
+        state: "failed",
+        attemptsMade: 3,
+        failedReason: "Trade not found",
+      })
+      .mockResolvedValueOnce({
+        jobId: validJobId,
+        state: "waiting",
+        attemptsMade: 0,
+      });
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findOne: jest.fn().mockResolvedValue(jobDoc),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob,
+      getOcrJobSnapshot,
+      ocrQueue: {
+        getJob: jest.fn().mockResolvedValue({
+          getState: jest.fn().mockResolvedValue("failed"),
+          remove,
+        }),
+      },
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy: jest.fn() },
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { getOcrJobStatus } = require("../../services/ocrJob.service");
+
+    const result = await getOcrJobStatus(validUserId, validJobId);
+
+    expect(result.status).toBe("PROCESSING");
+    expect(result.queueState).toBe("waiting");
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(enqueueOcrJob).toHaveBeenCalledWith({
+      jobId: validJobId,
+      imageUrl: "https://example.test/image.png",
+      userId: validUserId,
+      marketType: "Forex",
+      broker: "",
+    });
+    expect(jobDoc.error).toBeNull();
+    expect(jobDoc.processedAt).toBeNull();
+    expect(jobDoc.attemptsMade).toBe(0);
+    expect(jobDoc.legacyDraftFailureRetryCount).toBe(1);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
   test("cancel rejects unauthorized OCRJob ownership", async () => {
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
