@@ -1078,8 +1078,9 @@ async function processTradeUpload({
 
     if (!persistTrade) {
       await runCancellationCheck(checkCancellation, "before-result-return");
+      const resultJobId = ocrJobId || tradeRecord?._id?.toString?.() || jobId || processingId;
       return {
-        tradeId,
+        jobId: resultJobId,
         status: "completed",
         parsedTrade,
         parsedTrades,

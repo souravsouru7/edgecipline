@@ -68,7 +68,6 @@ describe("OCR queue payload validation", () => {
       "processOcrJob",
       expect.objectContaining({
         jobId: "507f1f77bcf86cd799439011",
-        tradeId: undefined,
         imageUrl: "https://example.test/image.png",
         userId: "507f1f77bcf86cd799439012",
         marketType: "Forex",

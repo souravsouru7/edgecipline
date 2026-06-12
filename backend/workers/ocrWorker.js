@@ -30,7 +30,7 @@ function bindShutdownHandlers() {
 
 function createProcessor() {
   return async (job) => {
-    const ocrJobId = job.data.jobId || job.data.tradeId || job.id;
+    const ocrJobId = job.data.jobId || job.id;
     const userId = job.data.userId;
 
     logger.info(`OCR job started | id=${job.id} | jobId=${ocrJobId}`, {
@@ -39,7 +39,6 @@ function createProcessor() {
       userId,
       payload: {
         jobId: job.data.jobId || null,
-        tradeId: job.data.tradeId || null,
         imageUrl: Boolean(job.data.imageUrl),
         marketType: job.data.marketType || null,
       },
@@ -116,15 +115,15 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
   );
 
   workerInstance.on("completed", (job) => {
-    logger.info(`OCR job completed event fired | id=${job.id} | jobId=${job.data.jobId || job.data.tradeId}`, {
+    logger.info(`OCR job completed event fired | id=${job.id} | jobId=${job.data.jobId || job.id}`, {
       jobId: job.id,
-      ocrJobId: job.data.jobId || job.data.tradeId,
+      ocrJobId: job.data.jobId || job.id,
       timestamp: new Date().toISOString(),
     });
   });
 
   workerInstance.on("failed", (job, err) => {
-    const ocrJobId = job?.data?.jobId || job?.data?.tradeId;
+    const ocrJobId = job?.data?.jobId || job?.id;
     if (job && job.attemptsMade >= job.opts.attempts) {
       logger.error("OCR job permanently failed; all retries exhausted", {
         ocrJobId,

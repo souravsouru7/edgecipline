@@ -357,7 +357,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [file, setFile]                       = useState(null);
   const [error, setError]                     = useState(null);
   const [jobId, setJobId]                     = useState("");
-  const [uploadedTradeId, setUploadedTradeId] = useState(null);
+  const [uploadedJobId, setUploadedJobId]     = useState(null);
   const [broker, setBroker]                   = useState("AUTO");
   const [tradeSubType, setTradeSubType]       = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
@@ -375,7 +375,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [isCancellingUpload, setIsCancellingUpload] = useState(false);
   const processedTradeIdRef                   = useRef(null);
   const saveAllLockRef                        = useRef(false);
-  const uploadedTradeIdRef                    = useRef(null);
+  const uploadedJobIdRef                      = useRef(null);
   const savedRef                              = useRef(false);
   const uploadSessionRef                      = useRef(0);
   const pendingUploadCancelRef                = useRef(null);
@@ -394,8 +394,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const userEditedFormRef                     = useRef(false);
 
   useEffect(() => {
-    uploadedTradeIdRef.current = uploadedTradeId;
-  }, [uploadedTradeId]);
+    uploadedJobIdRef.current = uploadedJobId;
+  }, [uploadedJobId]);
 
   useEffect(() => {
     savedRef.current = saved;
@@ -477,11 +477,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         }
         return;
       }
-      const tradeId = String(res.jobId || "");
+      const nextJobId = String(res.jobId || "");
       processedTradeIdRef.current = null;
       userEditedFormRef.current = false;
-      setJobId(tradeId);
-      setUploadedTradeId(tradeId);
+      setJobId(nextJobId);
+      setUploadedJobId(nextJobId);
       setError(null);
       const tid = addToast(
         `Correct ${isInd ? "Indian" : "Forex"} image uploaded. AI processing started...`,
@@ -512,7 +512,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     cancelJob = true,
     resetDate = false,
   } = {}) => {
-    const activeJobId = uploadedTradeIdRef.current || jobId;
+    const activeJobId = uploadedJobIdRef.current || jobId;
     if (cancelJob && !activeJobId && uploadJobMutation.isPending) {
       pendingUploadCancelRef.current = { nextFile, keepFile, clearError, resetDate };
       setIsCancellingUpload(true);
@@ -548,7 +548,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     userEditedFormRef.current = false;
     saveAllLockRef.current = false;
     setJobId("");
-    setUploadedTradeId(null);
+    setUploadedJobId(null);
     setTrade(null);
     setTrades([]);
     setSavedTrades([]);
@@ -568,7 +568,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   useEffect(() => {
     return () => {
-      const activeJobId = uploadedTradeIdRef.current;
+      const activeJobId = uploadedJobIdRef.current;
       if (activeJobId && !savedRef.current) {
         cancelUploadJob(activeJobId).catch(() => {});
       }
@@ -726,7 +726,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   useEffect(() => {
     const currentStatus = String(jobStatusQuery.data?.status || "").toUpperCase();
     if (currentStatus === "COMPLETED" && jobStatusQuery.data?.data) {
-      const sourceId = uploadedTradeId || jobId;
+      const sourceId = uploadedJobId || jobId;
       if (!sourceId || processedTradeIdRef.current === sourceId) return;
 
       processedTradeIdRef.current = sourceId;
@@ -814,7 +814,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       const tradeData = buildTradePayload(t, isInd, rules, selectedTradeDate);
       return createTrade({
         ...tradeData,
-        ocrJobId: uploadedTradeId || jobId || undefined,
+        ocrJobId: uploadedJobId || jobId || undefined,
       }, marketType);
     },
     onSuccess: (res, variables) => {
@@ -836,7 +836,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       } else {
         savedRef.current = true;
         setSaved(true);
-        setUploadedTradeId(null);
+        setUploadedJobId(null);
         processedTradeIdRef.current = null;
         userEditedFormRef.current = false;
         setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
@@ -1107,7 +1107,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         try {
           await createTradesBatch({
             trades: batchPayload,
-            ocrJobId: uploadedTradeId || jobId || undefined,
+            ocrJobId: uploadedJobId || jobId || undefined,
           }, marketType);
 
           setSavedTrades(prev => {
@@ -1117,7 +1117,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           });
           savedRef.current = true;
           setSaved(true);
-          setUploadedTradeId(null);
+          setUploadedJobId(null);
           processedTradeIdRef.current = null;
           userEditedFormRef.current = false;
           invalidateTradeDependentQueries(queryClient);
