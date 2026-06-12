@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { validateSelectableImage } from "@/utils/imageUpload";
 
 /**
  * FileUploadZone
@@ -10,17 +11,15 @@ import { useState, useRef } from "react";
  * @param {File|null} selectedFile - Currently selected file (to show preview)
  * @param {Function} onClear       - Called when user clicks REMOVE
  */
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // Backend upload limit
-
 export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) {
   const [isDragging, setIsDragging] = useState(false);
   const [sizeError, setSizeError] = useState(null);
   const fileInputRef = useRef(null);
 
   const validateAndSelect = (f) => {
-    if (!f || !f.type.startsWith("image/")) return;
-    if (f.size > MAX_FILE_SIZE) {
-      setSizeError(`File too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Max 2 MB.`);
+    const validationError = validateSelectableImage(f);
+    if (validationError) {
+      setSizeError(validationError);
       return;
     }
     setSizeError(null);
@@ -54,7 +53,7 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         onChange={e => validateAndSelect(e.target.files[0])}
         style={{ display: "none" }}
       />
@@ -99,7 +98,7 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
           <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 6 }}>Drop your trade screenshot here</div>
           <div style={{ fontSize: 12, color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 12 }}>or click to browse</div>
           <div style={{ display: "inline-flex", gap: 6 }}>
-            {["PNG", "JPG", "JPEG"].map(f => (
+            {["PNG", "JPG", "JPEG", "WEBP"].map(f => (
               <span key={f} style={{ fontSize: 9, color: "#B8860B", background: "rgba(184,134,11,0.08)", border: "1px solid rgba(184,134,11,0.2)", borderRadius: 4, padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{f}</span>
             ))}
           </div>

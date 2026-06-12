@@ -297,6 +297,9 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
     const forexTrades = Array.isArray(parsed.trades) ? parsed.trades.map(mapOneForex) : [];
     return { ...mainForex, trades: forexTrades, rawResponse: rawText };
   } catch (err) {
+    if (err.code === "WRONG_MARKET_TYPE") {
+      throw err;
+    }
     logger.warn("Gemini Vision extraction failed", { error: err.message, imageUrl });
     return null;
   }

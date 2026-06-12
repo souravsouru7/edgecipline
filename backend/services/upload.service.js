@@ -2,9 +2,11 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary");
 const ApiError = require("../utils/ApiError");
 const { cancelOcrJob, createOcrJob, getOcrJobStatus } = require("./ocrJob.service");
+const { ocrQueue } = require("../queues/ocrQueue");
 const userRepository = require("../repositories/user.repository");
 const { logger } = require("../utils/logger");
 const { normalizeTradeDate } = require("../utils/dateUtils");
+const { isRedisReady } = require("../config/redis");
 
 const BROKER_MAX_LENGTH = 50;
 
@@ -53,6 +55,14 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
 
     if (!uploadedImage?.imageUrl) {
       throw new ApiError(400, "Image file is required.", "VALIDATION_ERROR");
+    }
+
+    if (!isRedisReady()) {
+      throw new ApiError(
+        503,
+        "OCR queue is temporarily unavailable. Please try again in a moment.",
+        "OCR_QUEUE_UNAVAILABLE"
+      );
     }
 
     const allowedMarketTypes = new Set(["Forex", "Indian_Market"]);
@@ -112,7 +122,7 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
     return {
       success: true,
       jobId,
-      status: "PROCESSING",
+      status: "PENDING",
     };
   } catch (error) {
     await cleanupFailedUpload({
@@ -139,8 +149,35 @@ async function cancelUploadJob(userId, jobId) {
   return cancelOcrJob(userId, jobId);
 }
 
+async function getUploadQueueHealth() {
+  if (!isRedisReady()) {
+    return {
+      redisReady: false,
+      queueReady: false,
+      counts: null,
+    };
+  }
+
+  const counts = await ocrQueue.getJobCounts(
+    "waiting",
+    "active",
+    "delayed",
+    "failed",
+    "completed",
+    "paused",
+    "prioritized"
+  );
+
+  return {
+    redisReady: true,
+    queueReady: true,
+    counts,
+  };
+}
+
 module.exports = {
   cancelUploadJob,
+  getUploadQueueHealth,
   getUploadJobStatus,
   submitTradeUpload,
 };

@@ -5,8 +5,11 @@ const { OCRJob } = require("../models/OCRJob");
 const { enqueueOcrJob, getOcrJobSnapshot, ocrQueue } = require("../queues/ocrQueue");
 const { processTradeUpload, getFriendlyProcessingError } = require("./tradeProcessingService");
 const { logger } = require("../utils/logger");
+const { appConfig } = require("../config");
 
 const DEFAULT_TTL_HOURS = Number(process.env.OCR_JOB_TTL_HOURS || 24);
+const STALE_PENDING_MS = Number(process.env.OCR_STALE_PENDING_MS || 5 * 60 * 1000);
+const STALE_PROCESSING_MS = Number(process.env.OCR_STALE_PROCESSING_MS || 12 * 60 * 1000);
 
 function getExpiryDate() {
   return new Date(Date.now() + DEFAULT_TTL_HOURS * 60 * 60 * 1000);
@@ -156,8 +159,6 @@ async function createOcrJob({ user, uploadedImage, marketType, tradeSubType, bro
 
   job.queueJobId = queueJob.id;
   job.queueJobName = queueJob.name;
-  job.status = "PROCESSING";
-  job.processingStartedAt = new Date();
   job.attemptsMade = queueJob.attemptsMade || 0;
   await job.save();
 
@@ -176,6 +177,30 @@ async function getOcrJobForUser(userId, jobId) {
 async function getOcrJobStatus(userId, jobId) {
   const job = await getOcrJobForUser(userId, jobId);
   const queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
+
+  if (
+    !queueState &&
+    (job.status === "PENDING" || job.status === "PROCESSING")
+  ) {
+    const ageMs = Date.now() - new Date(job.processingStartedAt || job.createdAt).getTime();
+    const staleMs = job.status === "PROCESSING" ? STALE_PROCESSING_MS : STALE_PENDING_MS;
+    if (ageMs >= staleMs) {
+      const previousStatus = job.status;
+      job.status = "FAILED";
+      job.error = "OCR queue job was lost before completion. Please upload the screenshot again.";
+      job.processedAt = new Date();
+      await job.save();
+      logger.error("OCR job failed because BullMQ job is missing", {
+        jobId,
+        queueJobId: job.queueJobId,
+        userId: userId?.toString?.() || userId,
+        previousStatus,
+        ageMs,
+      });
+      return serializeJob(job, null);
+    }
+  }
+
   if (queueState?.state === "failed" && isLegacyDraftTradeFailure(queueState, job)) {
     return requeueLegacyDraftFailure(job, queueState);
   }
@@ -196,6 +221,36 @@ async function getOcrJobStatus(userId, jobId) {
       error: job.error,
     });
   }
+
+  if (
+    job.status === "PENDING" &&
+    queueState &&
+    ["active"].includes(queueState.state)
+  ) {
+    job.status = "PROCESSING";
+    job.processingStartedAt = job.processingStartedAt || new Date(queueState.processedOn || Date.now());
+    job.attemptsMade = Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0);
+    await job.save();
+  }
+
+  if (
+    job.status === "PROCESSING" &&
+    job.processingStartedAt &&
+    Date.now() - new Date(job.processingStartedAt).getTime() >= STALE_PROCESSING_MS &&
+    (!queueState || ["stalled", "unknown"].includes(queueState.state))
+  ) {
+    job.status = "FAILED";
+    job.error = "OCR processing timed out. Please upload the screenshot again.";
+    job.processedAt = new Date();
+    await job.save();
+    logger.error("OCR job failed because processing became stale", {
+      jobId,
+      queueJobId: job.queueJobId,
+      queueState: queueState?.state || null,
+      userId: userId?.toString?.() || userId,
+    });
+  }
+
   return serializeJob(job, queueState);
 }
 
@@ -332,9 +387,10 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
       return latest ? serializeJob(latest) : { jobId, status: "CANCELLED" };
     }
     if (latest && latest.status !== "CANCELLED") {
-      latest.status = "FAILED";
-      latest.error = getFriendlyProcessingError(error);
-      latest.processedAt = new Date();
+      const terminalFailure = isNonRetryableOcrError(error) || attempt >= appConfig.ocrQueue.attempts;
+      latest.status = terminalFailure ? "FAILED" : "PROCESSING";
+      latest.error = terminalFailure ? getFriendlyProcessingError(error) : null;
+      latest.processedAt = terminalFailure ? new Date() : null;
       latest.attemptsMade = attempt;
       await latest.save();
     }

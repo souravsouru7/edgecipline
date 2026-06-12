@@ -39,3 +39,8 @@ exports.cancelUploadJob = asyncHandler(async (req, res) => {
   const jobStatus = await uploadService.cancelUploadJob(req.user._id, req.params.id);
   res.json(jobStatus);
 });
+
+exports.getUploadQueueHealth = asyncHandler(async (_req, res) => {
+  const health = await uploadService.getUploadQueueHealth();
+  res.status(health.queueReady ? 200 : 503).json(health);
+});

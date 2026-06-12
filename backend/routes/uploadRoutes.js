@@ -10,6 +10,7 @@ const { uploadTradeImage } = require("../middleware/upload.middleware");
 
 const {
   cancelUploadJob,
+  getUploadQueueHealth,
   getUploadJobStatus,
   uploadImage,
   uploadScreenshotImage,
@@ -17,6 +18,7 @@ const {
 
 router.post("/image", protect, uploadRateLimiter, uploadTradeImage, uploadScreenshotImage);
 router.post("/", protect, uploadRateLimiter, uploadTradeImage, uploadImage);
+router.get("/queue-health", protect, statusRateLimiter, getUploadQueueHealth);
 router.get("/job-status/:id", protect, statusRateLimiter, getUploadJobStatus);
 router.post("/job-status/:id/cancel", protect, statusRateLimiter, cancelUploadJob);
 router.post("/cancel/:id", protect, statusRateLimiter, cancelUploadJob);

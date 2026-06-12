@@ -39,6 +39,9 @@ describe("OCR job workflow", () => {
     jest.doMock("../../config/cloudinary", () => ({
       uploader: { destroy: jest.fn().mockResolvedValue(undefined) },
     }));
+    jest.doMock("../../config/redis", () => ({
+      isRedisReady: jest.fn(() => true),
+    }));
     jest.doMock("../../utils/logger", () => ({
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
     }));
@@ -67,9 +70,67 @@ describe("OCR job workflow", () => {
       file: { originalname: "image.png", mimetype: "image/png", size: 1234 },
     });
 
-    expect(result).toMatchObject({ success: true, jobId: validJobId, status: "PROCESSING" });
+    expect(result).toMatchObject({ success: true, jobId: validJobId, status: "PENDING" });
     expect(OCRJob.create).toHaveBeenCalledTimes(1);
     expect(tradeRepository.createTrade).not.toHaveBeenCalled();
+  });
+
+  test("upload fails before creating OCRJob when Redis queue is unavailable", async () => {
+    const destroy = jest.fn().mockResolvedValue(undefined);
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        create: jest.fn(),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot: jest.fn(),
+      ocrQueue: { getJob: jest.fn(), getJobCounts: jest.fn() },
+    }));
+    jest.doMock("../../repositories/user.repository", () => ({
+      markFreeUploadUsed: jest.fn(),
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy },
+    }));
+    jest.doMock("../../config/redis", () => ({
+      isRedisReady: jest.fn(() => false),
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { OCRJob } = require("../../models/OCRJob");
+    const { enqueueOcrJob } = require("../../queues/ocrQueue");
+    const uploadService = require("../../services/upload.service");
+
+    await expect(uploadService.submitTradeUpload({
+      user: {
+        _id: validUserId,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        subscriptionStatus: "active",
+        subscriptionExpiry: new Date("2027-01-01T00:00:00.000Z"),
+        freeUploadUsed: false,
+      },
+      body: { marketType: "Forex", tradeDate: "2026-01-01" },
+      query: {},
+      uploadedImage: {
+        imageUrl: "https://example.test/image.png",
+        publicId: "ocr/test",
+        originalName: "image.png",
+        mimeType: "image/png",
+        bytes: 1234,
+      },
+      file: { originalname: "image.png", mimetype: "image/png", size: 1234 },
+    })).rejects.toMatchObject({
+      statusCode: 503,
+      errorCode: "OCR_QUEUE_UNAVAILABLE",
+    });
+
+    expect(OCRJob.create).not.toHaveBeenCalled();
+    expect(enqueueOcrJob).not.toHaveBeenCalled();
+    expect(destroy).toHaveBeenCalledWith("ocr/test", { resource_type: "image" });
   });
 
   test("cancel marks the OCRJob cancelled without deleting a Trade", async () => {

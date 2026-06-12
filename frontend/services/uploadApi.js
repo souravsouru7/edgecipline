@@ -1,8 +1,10 @@
 import apiClient from "./apiClient";
+import { prepareImageForUpload } from "@/utils/imageUpload";
 
 export const uploadTradeImage = async ({ file, marketType, broker, tradeSubType, tradeDate }) => {
+  const uploadFile = await prepareImageForUpload(file);
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("image", uploadFile);
   formData.append("marketType", marketType);
   if (broker) formData.append("broker", broker);
   if (tradeSubType) formData.append("tradeSubType", tradeSubType);
@@ -20,8 +22,9 @@ export const cancelUploadJob = async (jobId) => {
 };
 
 export const uploadTradeScreenshot = async (file) => {
+  const uploadFile = await prepareImageForUpload(file);
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("image", uploadFile);
 
   return await apiClient.post("/upload/image", formData, { timeout: 120000 });
 };

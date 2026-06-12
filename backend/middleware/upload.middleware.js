@@ -6,6 +6,7 @@ const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif"]);
 
 function sanitizeFilename(name) {
   return String(name || "").replace(/[^\x20-\x7E]/g, "?").slice(0, 255);
@@ -36,10 +37,20 @@ function isAllowedImage(file) {
   return hasAllowedExt && ALLOWED_MIME_TYPES.has(file.mimetype);
 }
 
+function isHeicImage(file) {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  return [".heic", ".heif"].includes(ext) || HEIC_MIME_TYPES.has(String(file.mimetype || "").toLowerCase());
+}
+
 function createCloudinaryStorage(folderName) {
   return {
     _handleFile(_req, file, cb) {
       if (!isAllowedImage(file)) {
+        if (isHeicImage(file)) {
+          const error = new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname);
+          error.message = "HEIC/HEIF images are not supported. Please upload a JPEG, PNG, or WEBP screenshot.";
+          return cb(error);
+        }
         return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
       }
 
@@ -143,6 +154,11 @@ function createCloudinaryUpload(folderName) {
     },
     fileFilter: (_req, file, cb) => {
       if (!isAllowedImage(file)) {
+        if (isHeicImage(file)) {
+          const error = new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname);
+          error.message = "HEIC/HEIF images are not supported. Please upload a JPEG, PNG, or WEBP screenshot.";
+          return cb(error);
+        }
         return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
       }
 
@@ -158,6 +174,9 @@ function formatUploadError(error) {
     }
 
     if (error.code === "LIMIT_UNEXPECTED_FILE") {
+      if (/HEIC|HEIF/i.test(error.message || "")) {
+        return error.message;
+      }
       return "Invalid file type. Only JPEG, PNG, and WEBP images are allowed.";
     }
 

@@ -767,11 +767,61 @@ async function processTradeUpload({
     let parsedTrade = {};
     let parsedTrades = [];
     let geminiVisionUsed = false;
+    let quality = null;
+
+    if (!weakOcr) {
+      if (isEquityIntraday) {
+        parsedTrade = safeParseEquityTrade(cleanedText, { broker });
+        parsedTrades = safeParseEquityTrades(cleanedText, { broker });
+      } else if (marketType === "Indian_Market") {
+        parsedTrade = safeParseIndianTrade(cleanedText, { broker });
+        parsedTrades = safeParseTradesFromOCR(cleanedText, { broker });
+      } else {
+        const { data: parsed, error: parseError } = safeParseTrade(cleanedText);
+        if (parseError || !parsed) {
+          logger.warn("OCR parse error or empty result", { parseError });
+          parsedTrade = {};
+        } else {
+          parsedTrade = parsed;
+        }
+        parsedTrades = safeParseForexTradesFromOCR(cleanedText);
+      }
+
+      logExtractedTrades({ tradeId, stage: "OCR-first extraction", parsedTrade, parsedTrades });
+      if (marketType === "Indian_Market" && !isEquityIntraday) {
+        logIndianOptionExtractionDebug({
+          tradeId,
+          stage: "ocr-first",
+          cleanedText,
+          parsedTrade,
+          parsedTrades,
+        });
+      }
+    }
+
+    quality = marketType === "Indian_Market"
+      ? calculateIndianConfidenceScore({ parsedTrade, parsedTrades, ocrText: cleanedText, broker })
+      : calculateConfidenceScore({ parsedTrade, ocrText: cleanedText });
+
+    const shouldAttemptGeminiVision =
+      weakOcr ||
+      (marketType === "Indian_Market" ? isIndianExtractionWeak({ parsedTrade, parsedTrades }) : false) ||
+      !quality.validation.isValid ||
+      quality.isLowConfidence;
+
+    logger.info(`OCR-first confidence score | tradeId=${tradeId}`, {
+      tradeId,
+      score: quality.score,
+      isValid: quality.validation.isValid,
+      isLowConfidence: quality.isLowConfidence,
+      shouldAttemptGeminiVision,
+    });
 
     // ── Primary extraction: Gemini Vision reads the image directly ──────────
     // Runs on every upload regardless of OCR quality. Direct image → JSON is
     // more accurate than OCR text → AI because it avoids all OCR corruption.
     // Retried once on failure — a single network blip should not drop us to Tesseract.
+    if (shouldAttemptGeminiVision) {
     try {
       let visionData = null;
       for (let vAttempt = 1; vAttempt <= 2; vAttempt++) {
@@ -849,9 +899,10 @@ async function processTradeUpload({
       if (err.code === "WRONG_MARKET_TYPE") throw err;
       logger.warn(`Gemini Vision step error | tradeId=${tradeId}`, { error: err.message });
     }
+    }
 
     // ── OCR-based parsing (runs when Gemini Vision unavailable or failed) ───
-    if (!geminiVisionUsed) {
+    if (!geminiVisionUsed && Object.keys(parsedTrade || {}).length === 0 && parsedTrades.length === 0) {
       if (isEquityIntraday && !weakOcr) {
         parsedTrade = safeParseEquityTrade(cleanedText, { broker });
         parsedTrades = safeParseEquityTrades(cleanedText, { broker });
@@ -925,7 +976,7 @@ async function processTradeUpload({
       }
     }
 
-    let quality = marketType === "Indian_Market"
+    quality = marketType === "Indian_Market"
       ? calculateIndianConfidenceScore({ parsedTrade, parsedTrades, ocrText: cleanedText, broker })
       : calculateConfidenceScore({ parsedTrade, ocrText: cleanedText });
 
