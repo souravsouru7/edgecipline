@@ -332,6 +332,21 @@ function getFriendlyUploadError(err) {
   return message || "Upload failed. Please try again.";
 }
 
+function isTransientPollingError(error) {
+  if (!error) return false;
+  const status = error?.status;
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    !status ||
+    status === 408 ||
+    status === 429 ||
+    status >= 500 ||
+    message.includes("timed out") ||
+    message.includes("timeout") ||
+    message.includes("network")
+  );
+}
+
 // ─── hook ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -714,8 +729,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     retry: (failureCount, error) => error?.status === 404 ? false : failureCount < 3,
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
-      // Stop polling on completed, failed, or persistent error
-      if (query.state.error) return false;
+      // Keep polling through transient mobile/network blips. A completed/failed
+      // job status is authoritative; a timeout while checking status is not.
+      if (query.state.error) {
+        return isTransientPollingError(query.state.error) ? 5000 : false;
+      }
       const status = query.state.data?.status;
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
       return 4000;
@@ -787,10 +805,19 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobStatusQuery.data?.status]);
 
-  // Stop polling and surface error when status request itself fails (e.g. 404)
+  // Stop polling only for definitive status errors. Transient mobile/network
+  // timeouts should not discard an active OCR job after upload has succeeded.
   useEffect(() => {
     if (jobStatusQuery.error) {
       const msg = jobStatusQuery.error?.message || "Failed to check processing status.";
+      if (isTransientPollingError(jobStatusQuery.error)) {
+        console.warn("[OCR] status polling transient error; keeping job active", {
+          jobId,
+          message: msg,
+          status: jobStatusQuery.error?.status || 0,
+        });
+        return;
+      }
       clearOcrSession({ nextFile: null, clearError: false, cancelJob: false });
       setError(msg);
       addToast(msg, "error");

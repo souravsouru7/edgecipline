@@ -112,7 +112,8 @@ ocrQueue.on("error", (error) => {
   });
 });
 
-ocrQueue.on("waiting", (jobId) => {
+ocrQueue.on("waiting", (event) => {
+  const jobId = typeof event === "string" ? event : event?.jobId || event?.id || null;
   logger.info("OCR job waiting", { jobId });
 });
 
