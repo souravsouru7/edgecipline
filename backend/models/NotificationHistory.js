@@ -70,6 +70,18 @@ const NotificationHistorySchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    openedAt: {
+      type: Date,
+      default: null,
+    },
+    actionClickedAt: {
+      type: Date,
+      default: null,
+    },
+    actionType: {
+      type: String,
+      default: null,
+    },
     delivery: {
       successCount: { type: Number, default: 0 },
       failureCount: { type: Number, default: 0 },
@@ -91,5 +103,8 @@ const NotificationHistorySchema = new mongoose.Schema(
 NotificationHistorySchema.index({ user: 1, createdAt: -1 });
 NotificationHistorySchema.index({ user: 1, isRead: 1, createdAt: -1 });
 NotificationHistorySchema.index({ user: 1, dedupeKey: 1 }, { unique: true });
+// Analytics aggregation index — status + type scans for funnel metrics
+NotificationHistorySchema.index({ type: 1, status: 1, createdAt: -1 });
+NotificationHistorySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("NotificationHistory", NotificationHistorySchema);

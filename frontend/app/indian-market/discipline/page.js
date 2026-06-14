@@ -142,7 +142,7 @@ function DisciplineContent() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {[["", "All time"], ["30", "30 days"], ["90", "90 days"], ["180", "6 months"], ["365", "1 year"]].map(([val, lbl]) => (
           <button key={val} onClick={() => setDays(val)} style={{
-            padding: "6px 14px", borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: "pointer",
+            padding: "11px 16px", borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: "pointer",
             background: days === val ? C.blue : "#F1F5F9", color: days === val ? "#FFF" : "#64748B", border: "none",
           }}>{lbl}</button>
         ))}

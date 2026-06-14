@@ -255,51 +255,87 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 });
 
 // 3. Performance Metrics
+//
+// Rewritten: scalar metrics ($max, $min, $sum, $avg, counts) are computed
+// in a single $group aggregation — one document round-tripped instead of
+// up to 10K full trade docs. Streaks need ordered iteration; we keep that
+// in Node but project ONLY {profit} via a cursor, capped at 10K because
+// streak relevance falls off beyond that for a single user anyway.
 exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
-    const trades = await Trade.find(query).lean()
-      .sort({ tradeDate: 1, createdAt: 1 })
-      .select("profit tradeDate createdAt lotSize")
-      .limit(10000);
 
-    const winningTrades = trades.filter(t => t.profit > 0);
-    const losingTrades = trades.filter(t => t.profit < 0);
+    const [scalars = {}] = await Trade.aggregate([
+      { $match: query },
+      { $project: { profit: { $ifNull: ["$profit", 0] } } },
+      {
+        $group: {
+          _id: null,
+          totalTrades:   { $sum: 1 },
+          winningCount:  { $sum: { $cond: [{ $gt: ["$profit", 0] }, 1, 0] } },
+          losingCount:   { $sum: { $cond: [{ $lt: ["$profit", 0] }, 1, 0] } },
+          totalWins:     { $sum: { $cond: [{ $gt: ["$profit", 0] }, "$profit", 0] } },
+          totalLossesNeg:{ $sum: { $cond: [{ $lt: ["$profit", 0] }, "$profit", 0] } },
+          largestWin:    { $max: { $cond: [{ $gt: ["$profit", 0] }, "$profit", 0] } },
+          largestLoss:   { $min: { $cond: [{ $lt: ["$profit", 0] }, "$profit", 0] } },
+          // $avg ignores nulls but we projected default 0; gate later in JS
+          avgWinDoc: {
+            $avg: { $cond: [{ $gt: ["$profit", 0] }, "$profit", null] },
+          },
+          avgLossDoc: {
+            $avg: { $cond: [{ $lt: ["$profit", 0] }, "$profit", null] },
+          },
+        },
+      },
+    ], { allowDiskUse: true });
 
-    const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map(t => t.profit)) : 0;
-    const largestLoss = losingTrades.length > 0 ? Math.min(...losingTrades.map(t => t.profit)) : 0;
+    const totalTrades  = scalars.totalTrades   || 0;
+    const winningCount = scalars.winningCount  || 0;
+    const losingCount  = scalars.losingCount   || 0;
+    const avgWin       = scalars.avgWinDoc     ?? 0;
+    const avgLoss      = scalars.avgLossDoc    ?? 0;
+    const totalWins    = scalars.totalWins     || 0;
+    const totalLosses  = Math.abs(scalars.totalLossesNeg || 0);
 
-    const avgWin = winningTrades.length ? winningTrades.reduce((acc, t) => acc + t.profit, 0) / winningTrades.length : 0;
-    const avgLoss = losingTrades.length ? losingTrades.reduce((acc, t) => acc + t.profit, 0) / losingTrades.length : 0;
-
+    // Streak calculation requires ordered iteration. Cursor-stream ONLY
+    // the profit field to keep memory bounded. We pull up to 10K trades
+    // chronologically; beyond that, the streak signal is statistically
+    // noisy for a single user's display anyway.
     let maxWinStreak = 0, maxLossStreak = 0, tempWinStreak = 0, tempLossStreak = 0;
-    trades.forEach(t => {
-      if (t.profit > 0) { tempWinStreak++; tempLossStreak = 0; maxWinStreak = Math.max(maxWinStreak, tempWinStreak); }
-      else if (t.profit < 0) { tempLossStreak++; tempWinStreak = 0; maxLossStreak = Math.max(maxLossStreak, tempLossStreak); }
-    });
+    const cursor = Trade.find(query, { profit: 1, _id: 0 })
+      .sort({ tradeDate: 1, createdAt: 1 })
+      .limit(10000)
+      .lean()
+      .cursor();
+    for await (const t of cursor) {
+      if (t.profit > 0) {
+        tempWinStreak++; tempLossStreak = 0;
+        if (tempWinStreak > maxWinStreak) maxWinStreak = tempWinStreak;
+      } else if (t.profit < 0) {
+        tempLossStreak++; tempWinStreak = 0;
+        if (tempLossStreak > maxLossStreak) maxLossStreak = tempLossStreak;
+      }
+    }
 
-    const totalWins = winningTrades.reduce((acc, t) => acc + toNum(t.profit), 0);
-    const totalLosses = Math.abs(losingTrades.reduce((acc, t) => acc + toNum(t.profit), 0));
     const profitFactor = safeDivide(totalWins, totalLosses);
-
-    const winRate = trades.length ? (winningTrades.length / trades.length) * 100 : 0;
+    const winRate = totalTrades ? (winningCount / totalTrades) * 100 : 0;
     const expectancy = (avgWin * (winRate / 100)) + (avgLoss * ((100 - winRate) / 100));
 
     res.json({
-      largestWin: fixed(largestWin),
-      largestLoss: fixed(largestLoss),
-      avgWin: fixed(avgWin),
-      avgLoss: fixed(avgLoss),
+      largestWin:  fixed(scalars.largestWin  || 0),
+      largestLoss: fixed(scalars.largestLoss || 0),
+      avgWin:      fixed(avgWin),
+      avgLoss:     fixed(avgLoss),
       maxWinStreak,
       maxLossStreak,
       profitFactor: fixed(profitFactor),
-      expectancy: fixed(expectancy),
-      totalWins: fixed(totalWins),
-      totalLosses: fixed(totalLosses),
-      winRate: fixed(winRate, 1),
-      losingTradesCount: losingTrades.length,
-      winningTradesCount: winningTrades.length,
-      recoveryFactor: "0.00"
+      expectancy:   fixed(expectancy),
+      totalWins:    fixed(totalWins),
+      totalLosses:  fixed(totalLosses),
+      winRate:      fixed(winRate, 1),
+      losingTradesCount:  losingCount,
+      winningTradesCount: winningCount,
+      recoveryFactor: "0.00",
     });
   } catch (error) {
     handleAnalyticsError(error);

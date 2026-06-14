@@ -16,9 +16,15 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_accent" />
+        <!--
+            Default channel for FCM data-messages that omit channelId.
+            edgecipline_insights is medium importance with no sound — safe
+            fallback. The backend explicitly sets channelId per type, so this
+            only fires when the backend payload is malformed.
+        -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="smart_coach" />
+            android:value="edgecipline_insights" />
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -55,6 +61,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".ChecklistAlarmReceiver"
+            android:exported="false" />
+
         <!-- ── Checklist Notification: Reschedule WorkManager after device reboot ── -->
         <receiver
             android:name=".ChecklistBootReceiver"
@@ -63,6 +73,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <!-- HTC / OnePlus quick-boot -->
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

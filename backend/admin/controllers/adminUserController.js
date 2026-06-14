@@ -4,6 +4,7 @@ const IndianTrade = require("../../models/IndianTrade");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
 const { logger } = require("../../utils/logger");
+const { invalidateAuthCache } = require("../../services/authCacheService");
 
 /**
  * @desc    Get all users with their statistics
@@ -61,6 +62,9 @@ exports.deleteUser = asyncHandler(async (req, res) => {
       IndianTrade.deleteMany({ user: user._id }),
       User.findByIdAndDelete(user._id)
     ]);
+
+  // Drop the auth cache — any in-flight JWT for this user must now fail.
+  await invalidateAuthCache(user._id);
 
   // M17: Structured audit log for destructive admin action
   logger.warn("Admin deleted user", {

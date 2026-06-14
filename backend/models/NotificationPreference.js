@@ -19,6 +19,7 @@ const NotificationPreferenceSchema = new mongoose.Schema(
     moodRisk: { type: Boolean, default: true },
     noStopLoss: { type: Boolean, default: true },
     weeklyInsight: { type: Boolean, default: true },
+    sessionReminders: { type: Boolean, default: true },
     morningMentor: { type: Boolean, default: true },
     quietHours: {
       enabled: { type: Boolean, default: false },

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/services/uploadApi";
+import { compressImage } from "@/utils/imageCompression";
 import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
@@ -394,6 +395,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const savedRef                              = useRef(false);
   const uploadSessionRef                      = useRef(0);
   const pendingUploadCancelRef                = useRef(null);
+  // Used to compute OCR_DURATION — set when the upload returns a jobId
+  // (server-side OCR starts now), read when the polling reaches COMPLETED.
+  const ocrStartedAtRef                       = useRef(null);
 
   // Clamp preExtractDate to [accountCreatedDate, today] whenever accountCreatedDate
   // arrives late (profile query resolves after mount) or preExtractDate drifts out of range.
@@ -493,6 +497,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         return;
       }
       const nextJobId = String(res.jobId || "");
+
+      // Upload finished — backend has the file. Server-side OCR starts now.
+      if (variables?.uploadStartedAt != null) {
+        console.info("IMAGE_UPLOAD_DURATION", {
+          jobId: nextJobId,
+          durationMs: Math.round(performance.now() - variables.uploadStartedAt),
+        });
+      }
+      ocrStartedAtRef.current = performance.now();
+
       processedTradeIdRef.current = null;
       userEditedFormRef.current = false;
       setJobId(nextJobId);
@@ -729,14 +743,18 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     retry: (failureCount, error) => error?.status === 404 ? false : failureCount < 3,
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
-      // Keep polling through transient mobile/network blips. A completed/failed
-      // job status is authoritative; a timeout while checking status is not.
+      // Adaptive backoff: start fast (2s), ramp to 12s as job lingers.
+      // Keeps "feels instant" perception when OCR finishes quickly while
+      // avoiding stacked requests on slow networks.
       if (query.state.error) {
         return isTransientPollingError(query.state.error) ? 5000 : false;
       }
       const status = query.state.data?.status;
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
-      return 4000;
+      const fetches = query.state.dataUpdateCount + query.state.errorUpdateCount;
+      const base = Math.min(2000 + fetches * 1000, 12000);
+      const jitter = Math.random() * 500;
+      return base + jitter;
     },
   });
 
@@ -746,6 +764,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (currentStatus === "COMPLETED" && jobStatusQuery.data?.data) {
       const sourceId = uploadedJobId || jobId;
       if (!sourceId || processedTradeIdRef.current === sourceId) return;
+
+      if (ocrStartedAtRef.current != null) {
+        console.info("OCR_DURATION", {
+          jobId: sourceId,
+          durationMs: Math.round(performance.now() - ocrStartedAtRef.current),
+        });
+        ocrStartedAtRef.current = null;
+      }
 
       processedTradeIdRef.current = sourceId;
       applyProcessedTradeData(jobStatusQuery.data.data);
@@ -879,12 +905,51 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (uploadJobMutation.isPending || jobId || isCancellingUpload) return;
     if (!file) return setError("Select file");
     if (isInd && broker === "AUTO") return setError("Select broker");
-    const fileToUpload = file;
+
+    // Compress BEFORE upload. PDFs and small images pass through unchanged.
+    // Failures degrade gracefully — the original file is uploaded.
+    let fileToUpload = file;
+    try {
+      const compressStart = performance.now();
+      console.info("IMAGE_ORIGINAL_SIZE", { bytes: file.size, type: file.type, name: file.name });
+
+      const result = await compressImage(file);
+      const compressMs = Math.round(performance.now() - compressStart);
+
+      if (result.skipped) {
+        console.info("IMAGE_COMPRESSION_SKIPPED", {
+          reason: result.reason,
+          originalSizeBytes: result.originalSize,
+          durationMs: compressMs,
+        });
+      } else {
+        console.info("IMAGE_COMPRESSED_SIZE", { bytes: result.compressedSize });
+        console.info("IMAGE_COMPRESSION_RATIO", {
+          ratio: result.compressionRatio,
+          originalBytes: result.originalSize,
+          compressedBytes: result.compressedSize,
+          sourceDims: { w: result.sourceWidth, h: result.sourceHeight },
+          targetDims: { w: result.targetWidth, h: result.targetHeight },
+          durationMs: compressMs,
+        });
+        fileToUpload = result.file;
+      }
+    } catch (err) {
+      console.warn("IMAGE_COMPRESSION_ERROR", { error: err?.message || String(err) });
+      // Fall through with original file — never block the user on a
+      // compression failure.
+    }
+
     const sessionId = uploadSessionRef.current + 1;
     uploadSessionRef.current = sessionId;
     const cleared = await clearOcrSession({ nextFile: fileToUpload, cancelJob: true });
     if (!cleared) return;
-    uploadJobMutation.mutate({ fileObj: fileToUpload, sessionId });
+
+    uploadJobMutation.mutate({
+      fileObj: fileToUpload,
+      sessionId,
+      uploadStartedAt: performance.now(),
+    });
   };
 
   const handleChange = (e) => {

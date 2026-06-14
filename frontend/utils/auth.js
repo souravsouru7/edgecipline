@@ -17,6 +17,24 @@
 const LEGACY_TOKEN_KEY = "token";
 const SECURE_TOKEN_KEY = "accessToken";
 
+// Debug logging — set localStorage.authDebug = "1" in dev to enable.
+function __authLog(...args) {
+  if (typeof window !== "undefined" && window.localStorage?.getItem?.("authDebug") === "1") {
+    console.log("[AUTH]", new Date().toISOString(), ...args);
+  }
+}
+
+function authLog(level, event, meta = {}) {
+  if (typeof window === "undefined") return;
+  const log = console[level] || console.info;
+  log(`[AUTH] ${event}`, {
+    at: new Date().toISOString(),
+    appState: document.visibilityState || "unknown",
+    native: isNativeCapacitor(),
+    ...meta,
+  });
+}
+
 let _memoryToken = null;
 let _hydrated = false;
 let _hydratePromise = null;
@@ -53,9 +71,19 @@ function decodeJwtPayload(token) {
   }
 }
 
+// 90-second skew buffer: Android device clocks commonly run ahead by minutes.
+// Without this, a 15-min token can appear expired after only 5 real minutes.
+const CLOCK_SKEW_MS = 90_000;
+
 function isTokenValid(token) {
   const payload = decodeJwtPayload(token);
-  return Boolean(payload?.exp && payload.exp * 1000 > Date.now());
+  return Boolean(payload?.exp && payload.exp * 1000 > Date.now() - CLOCK_SKEW_MS);
+}
+
+function tokenExpiresInMs(token) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return 0;
+  return payload.exp * 1000 - Date.now();
 }
 
 function readLegacyToken() {
@@ -76,24 +104,102 @@ function clearLegacyToken() {
   }
 }
 
+// Android Keystore can fail transiently during screen-lock, doze mode, post-boot
+// before DE storage unlocks, and right after app resume while KeyguardManager
+// settles. A single attempt loses the token; retry with backoff covers the
+// transient window (typically <600ms).
+const SECURE_STORAGE_MAX_ATTEMPTS = 3;
+const SECURE_STORAGE_BACKOFF_MS = [0, 200, 500];
+
+function reportSecureStorageFailure(operation, error) {
+  authLog("error", "secure_storage_failed_terminal", {
+    operation,
+    error: error?.message || String(error),
+  });
+  // Surface to Sentry if available. This should never fire in steady state;
+  // when it does it is the smoking gun for the 5–15 minute logout bug.
+  try {
+    if (typeof window !== "undefined" && window.Sentry?.captureException) {
+      window.Sentry.captureException(error, {
+        tags: { area: "auth_storage", operation },
+      });
+    }
+  } catch {
+    /* Sentry not loaded; ignore. */
+  }
+}
+
+async function withSecureStorageRetry(operation, fn) {
+  let lastError;
+  for (let attempt = 0; attempt < SECURE_STORAGE_MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, SECURE_STORAGE_BACKOFF_MS[attempt] || 500)
+      );
+      authLog("warn", "secure_storage_retry", { operation, attempt });
+    }
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  reportSecureStorageFailure(operation, lastError);
+  throw lastError;
+}
+
 async function secureGetToken() {
   const storage = getSecureStoragePlugin();
-  if (!storage?.get) return null;
-  const result = await storage.get({ key: SECURE_TOKEN_KEY });
-  return typeof result?.value === "string" ? result.value : null;
+  if (!storage?.get) {
+    authLog("warn", "secure_storage_unavailable");
+    return null;
+  }
+  try {
+    const result = await withSecureStorageRetry("get", () =>
+      storage.get({ key: SECURE_TOKEN_KEY })
+    );
+    const hasValue = typeof result?.value === "string" && result.value.length > 0;
+    authLog("info", "secure_get_complete", { hasValue });
+    return hasValue ? result.value : null;
+  } catch {
+    // Already reported via withSecureStorageRetry. Return null so callers can
+    // fall back to silentRefresh; do NOT throw upstream — losing a Keystore
+    // read should never cascade into a logout when the cookie can still rescue.
+    return null;
+  }
 }
 
 async function secureSetToken(token) {
   const storage = getSecureStoragePlugin();
-  if (!storage?.set) return false;
-  await storage.set({ key: SECURE_TOKEN_KEY, value: token });
-  return true;
+  if (!storage?.set) {
+    authLog("warn", "secure_storage_unavailable");
+    return false;
+  }
+  try {
+    await withSecureStorageRetry("set", () =>
+      storage.set({ key: SECURE_TOKEN_KEY, value: token })
+    );
+    authLog("info", "secure_set_complete", { tokenExpiresInMs: tokenExpiresInMs(token) });
+    return true;
+  } catch {
+    // Persistence failed even after retries — the in-memory token is the only
+    // copy. Next process kill will lose it; the user will need to re-auth via
+    // the refresh cookie on next launch.
+    return false;
+  }
 }
 
 async function secureRemoveToken() {
   const storage = getSecureStoragePlugin();
   if (!storage?.remove) return;
-  await storage.remove({ key: SECURE_TOKEN_KEY });
+  try {
+    await withSecureStorageRetry("remove", () =>
+      storage.remove({ key: SECURE_TOKEN_KEY })
+    );
+    authLog("info", "secure_remove_complete");
+  } catch {
+    /* Already reported. */
+  }
 }
 
 function rememberToken(token) {
@@ -110,7 +216,18 @@ function rememberToken(token) {
  *  3. Always delete the legacy localStorage token.
  */
 export async function hydrateAuthToken() {
-  if (_hydrated) return getValidToken();
+  authLog("info", "hydrate start", {
+    alreadyHydrated: _hydrated,
+    hasMemoryToken: Boolean(_memoryToken),
+  });
+  if (_hydrated) {
+    const token = getValidToken();
+    authLog("info", token ? "hydrate success" : "hydrate empty", {
+      source: "memory_or_hydrated",
+      tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
+    });
+    return token;
+  }
   if (_hydratePromise) return _hydratePromise;
 
   _hydratePromise = (async () => {
@@ -122,25 +239,49 @@ export async function hydrateAuthToken() {
         const stored = await secureGetToken();
         if (stored && isTokenValid(stored)) {
           clearLegacyToken();
+          __authLog("hydrateAuthToken: loaded valid stored token, expires in", tokenExpiresInMs(stored), "ms");
+          authLog("info", "hydrate success", {
+            source: "secure_storage",
+            tokenExpiresInMs: tokenExpiresInMs(stored),
+          });
           return rememberToken(stored);
         }
-        if (stored) await secureRemoveToken();
+        // Do NOT delete Keystore if stored token looks expired — it may still be valid
+        // on the server (clock skew). Leave it in place; silentRefresh will overwrite it.
+        if (stored) {
+          __authLog("hydrateAuthToken: stored token appears expired (may be clock skew), keeping for refresh");
+        }
 
         const legacy = readLegacyToken();
         clearLegacyToken();
         if (legacy && isTokenValid(legacy)) {
           const persisted = await secureSetToken(legacy);
-          if (persisted) return rememberToken(legacy);
+          if (persisted) {
+            authLog("info", "hydrate success", {
+              source: "legacy_migration",
+              tokenExpiresInMs: tokenExpiresInMs(legacy),
+            });
+            return rememberToken(legacy);
+          }
         }
 
+        authLog("info", "hydrate empty", { source: "native" });
         return null;
       }
 
       const legacy = readLegacyToken();
       clearLegacyToken();
-      if (legacy && isTokenValid(legacy)) return rememberToken(legacy);
+      if (legacy && isTokenValid(legacy)) {
+        authLog("info", "hydrate success", {
+          source: "legacy_web",
+          tokenExpiresInMs: tokenExpiresInMs(legacy),
+        });
+        return rememberToken(legacy);
+      }
+      authLog("info", "hydrate empty", { source: "web" });
       return null;
-    } catch {
+    } catch (error) {
+      authLog("error", "hydrate failed", { error: error?.message || String(error) });
       rememberToken(null);
       clearLegacyToken();
       return null;
@@ -154,6 +295,12 @@ export async function hydrateAuthToken() {
 }
 
 export function clearAuthToken() {
+  authLog("error", "logout triggered", {
+    reason: "clearAuthToken",
+    hadMemoryToken: Boolean(_memoryToken),
+    hydrated: _hydrated,
+  });
+  __authLog("clearAuthToken: called — wiping memory + Keystore");
   rememberToken(null);
   _hydrated = true;
   clearLegacyToken();
@@ -164,14 +311,20 @@ export function clearAuthToken() {
 }
 
 export function setAuthToken(token) {
+  authLog("info", "setAuthToken", {
+    hasToken: Boolean(token),
+    tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
+  });
+  __authLog("setAuthToken: storing new token, expires in", token ? tokenExpiresInMs(token) : "N/A", "ms");
   rememberToken(token);
   _hydrated = true;
   clearLegacyToken();
 
   if (isNativeCapacitor()) {
-    _persistPromise = token
-      ? secureSetToken(token).catch(() => {})
-      : secureRemoveToken().catch(() => {});
+    // secureSetToken / secureRemoveToken handle their own retry + Sentry
+    // reporting. They resolve `false` (not throw) on terminal failure so the
+    // returned promise never rejects — preserving setAuthToken's contract.
+    _persistPromise = token ? secureSetToken(token) : secureRemoveToken();
     return _persistPromise;
   }
 
@@ -186,8 +339,10 @@ export async function flushAuthTokenStorage() {
 export function getValidToken() {
   if (_memoryToken) {
     if (isTokenValid(_memoryToken)) return _memoryToken;
+    // Only clear memory — do NOT delete Keystore here. The token may still be
+    // valid server-side (clock skew) and silentRefresh needs it as a fallback.
+    __authLog("getValidToken: memory token expired, clearing memory only");
     rememberToken(null);
-    void clearAuthToken();
   }
 
   if (!isBrowser() || isNativeCapacitor()) return null;
@@ -209,9 +364,30 @@ export function getTokenPayload() {
   return decodeJwtPayload(token);
 }
 
+export function getAuthDiagnostics() {
+  const token = getValidToken();
+  return {
+    hydrated: _hydrated,
+    hydrationInFlight: Boolean(_hydratePromise),
+    hasMemoryToken: Boolean(_memoryToken),
+    hasValidToken: Boolean(token),
+    tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
+    native: isNativeCapacitor(),
+    appState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+  };
+}
+
 export const __authStorageInternals = {
   SECURE_TOKEN_KEY,
   LEGACY_TOKEN_KEY,
   decodeJwtPayload,
   isTokenValid,
+  tokenExpiresInMs,
 };
+
+// Kick off Keystore hydration the moment this module is parsed — before React
+// renders the dashboard. The _hydratePromise singleton means this is a no-op
+// if called again inside useEffect. Saves ~150–200ms on Capacitor Android.
+if (typeof window !== "undefined") {
+  void hydrateAuthToken();
+}

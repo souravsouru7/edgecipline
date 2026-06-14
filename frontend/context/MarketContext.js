@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, Suspense } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 // Market types
@@ -116,60 +116,62 @@ export function MarketProvider({ children }) {
     });
   }, []);
 
-  // Get currency symbol for current market
-  const getCurrencySymbol = () => {
-    return currentMarket === MARKETS.FOREX ? '$' : '₹';
-  };
+  const getCurrencySymbol = useCallback(
+    () => (currentMarket === MARKETS.FOREX ? '$' : '₹'),
+    [currentMarket]
+  );
 
-  // Format currency amount
-  const formatCurrency = (amount, showSymbol = true) => {
-    const symbol = getCurrencySymbol();
-    const formatted = Math.abs(amount).toFixed(2);
-    const sign = amount < 0 ? '-' : '';
-    return showSymbol ? `${sign}${symbol}${formatted}` : `${sign}${formatted}`;
-  };
+  const formatCurrency = useCallback(
+    (amount, showSymbol = true) => {
+      const symbol = currentMarket === MARKETS.FOREX ? '$' : '₹';
+      const formatted = Math.abs(amount).toFixed(2);
+      const sign = amount < 0 ? '-' : '';
+      return showSymbol ? `${sign}${symbol}${formatted}` : `${sign}${formatted}`;
+    },
+    [currentMarket]
+  );
 
-  // Get market-specific label
-  const getMarketLabel = () => {
-    return currentMarket === MARKETS.FOREX ? 'Forex' : 'Indian Market';
-  };
+  const getMarketLabel = useCallback(
+    () => (currentMarket === MARKETS.FOREX ? 'Forex' : 'Indian Market'),
+    [currentMarket]
+  );
 
-  // Get market-specific theme colors
-  const getThemeColors = () => {
-    if (currentMarket === MARKETS.FOREX) {
-      return {
-        primary: '#0D9E6E',
-        secondary: '#0F1923',
-        background: '#F0EEE9',
-        accent: '#B8860B',
-        bull: '#0D9E6E',
-        bear: '#D63B3B'
-      };
-    } else {
-      // Same as Forex
-      return {
-        primary: '#0D9E6E',
-        secondary: '#0F1923',
-        background: '#F0EEE9',
-        accent: '#B8860B',
-        bull: '#0D9E6E',
-        bear: '#D63B3B'
-      };
-    }
-  };
+  const getThemeColors = useCallback(
+    () => ({
+      primary: '#0D9E6E',
+      secondary: '#0F1923',
+      background: '#F0EEE9',
+      accent: '#B8860B',
+      bull: '#0D9E6E',
+      bear: '#D63B3B',
+    }),
+    []
+  );
 
-  const value = {
-    currentMarket,
-    toggleMarket,
-    switchMarket,
-    getCurrencySymbol,
-    formatCurrency,
-    getMarketLabel,
-    getThemeColors,
-    isLoading,
-    isForex: currentMarket === MARKETS.FOREX,
-    isIndianMarket: currentMarket === MARKETS.INDIAN_MARKET
-  };
+  const value = useMemo(
+    () => ({
+      currentMarket,
+      toggleMarket,
+      switchMarket,
+      getCurrencySymbol,
+      formatCurrency,
+      getMarketLabel,
+      getThemeColors,
+      isLoading,
+      isForex: currentMarket === MARKETS.FOREX,
+      isIndianMarket: currentMarket === MARKETS.INDIAN_MARKET,
+    }),
+    [
+      currentMarket,
+      toggleMarket,
+      switchMarket,
+      getCurrencySymbol,
+      formatCurrency,
+      getMarketLabel,
+      getThemeColors,
+      isLoading,
+    ]
+  );
 
   return (
     <MarketContext.Provider value={value}>

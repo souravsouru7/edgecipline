@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import PageHeader from "@/features/shared/components/PageHeader";
@@ -194,19 +194,26 @@ function DisciplineContent() {
   const trendMap = { improving: { arrow: "↑", color: C.green, text: "Improving" }, declining: { arrow: "↓", color: C.red, text: "Declining" }, stable: { arrow: "→", color: C.muted, text: "Stable" } };
   const trend = trendMap[overview.trend] || trendMap.stable;
 
-  const timelineData = timeline.map(b => ({
-    key: b.key,
-    "Follow rate": b.compliancePct ?? null,
-    "Win rate": b.winRate ?? null,
-  }));
+  const timelineData = useMemo(
+    () => timeline.map(b => ({
+      key: b.key,
+      "Follow rate": b.compliancePct ?? null,
+      "Win rate": b.winRate ?? null,
+    })),
+    [timeline]
+  );
 
-  const rulesForChart = [...rules]
-    .sort((a, b) => (a.compliancePct ?? 0) - (b.compliancePct ?? 0))
-    .slice(0, 10);
+  const rulesForChart = useMemo(
+    () => [...rules]
+      .sort((a, b) => (a.compliancePct ?? 0) - (b.compliancePct ?? 0))
+      .slice(0, 10),
+    [rules]
+  );
 
-  const setupsForChart = setups
-    .filter(s => s.trades >= 2)
-    .slice(0, 6);
+  const setupsForChart = useMemo(
+    () => setups.filter(s => s.trades >= 2).slice(0, 6),
+    [setups]
+  );
 
   return (
     <div style={{ padding: "0 16px 60px", display: "flex", flexDirection: "column", gap: 14 }}>

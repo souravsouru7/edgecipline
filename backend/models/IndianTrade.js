@@ -171,8 +171,13 @@ const indianTradeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-indianTradeSchema.index({ user: 1, createdAt: -1 });
-indianTradeSchema.index({ user: 1, tradeDate: -1 });
+// ─── 2026-06 INDEX CLEANUP ──────────────────────────────────────────────────
+// Dropped: { user: 1, createdAt: -1 }  — covered by {user:1, instrumentType:1, deletedAt:1, createdAt:-1, _id:-1}
+// Dropped: { user: 1, tradeDate: -1 }  — covered by {user:1, instrumentType:1, deletedAt:1, tradeDate:-1, _id:-1}
+//
+// To remove from production (mongo shell):
+//   db.indiantrades.dropIndex("user_1_createdAt_-1")
+//   db.indiantrades.dropIndex("user_1_tradeDate_-1")
 indianTradeSchema.index({ user: 1, strategy: 1, createdAt: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, createdAt: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: -1 });
@@ -185,6 +190,8 @@ indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, createdAt: -
 indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
 indianTradeSchema.index({ deletedAt: 1 }, { sparse: true });
 indianTradeSchema.index({ user: 1, instrumentType: 1, setupScore: 1, tradeDate: 1 });
+// Covers checkSetupDisciplineDrop countDocuments — deletedAt filter without instrumentType partition
+indianTradeSchema.index({ user: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, mistakeTag: 1, tradeDate: 1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, strategy: 1, createdAt: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, tradeDate: 1, profit: 1 });

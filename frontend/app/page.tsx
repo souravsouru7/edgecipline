@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getProfile } from "@/services/api";
 import { clearAuthToken, getValidToken, hydrateAuthToken } from "@/utils/auth";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 type UserProfile = {
   requiresTermsAcceptance?: boolean;
@@ -17,7 +18,7 @@ export default function RootPage() {
 
     const routeByAuth = async () => {
       try {
-        if (!(getValidToken() || await hydrateAuthToken())) {
+        if (!(getValidToken() || await hydrateAuthToken() || await silentRefresh())) {
           router.replace("/login");
           return;
         }
@@ -28,6 +29,9 @@ export default function RootPage() {
         const apiError = err as { data?: { errorCode?: string } };
         if (apiError.data?.errorCode === "TERMS_NOT_ACCEPTED") {
           if (!cancelled) router.replace("/accept-terms");
+          return;
+        }
+        if (isAuthRefreshTransientError(err)) {
           return;
         }
         await clearAuthToken();

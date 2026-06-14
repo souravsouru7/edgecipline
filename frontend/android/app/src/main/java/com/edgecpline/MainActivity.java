@@ -25,6 +25,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ChecklistNotificationPlugin.class);
         registerPlugin(EdgeAuthStoragePlugin.class);
         super.onCreate(savedInstanceState);
+        NotificationChannelInitializer.ensureChannels(getApplicationContext());
         enableWebViewCookies();
         requestNotificationPermissionIfNeeded();
         handleNotificationIntent(getIntent());
@@ -89,6 +90,22 @@ public class MainActivity extends BridgeActivity {
             boolean granted = grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             Log.d(TAG, "POST_NOTIFICATIONS permission " + (granted ? "granted" : "denied"));
+        }
+    }
+
+    /**
+     * Flush WebView cookie database to disk before Android may kill the process.
+     * Without this, the httpOnly refresh-token cookie can be silently lost on
+     * OOM-kill, requiring the user to log in again.
+     */
+    @Override
+    public void onPause() {
+        super.onPause();
+        try {
+            CookieManager.getInstance().flush();
+            Log.d(TAG, "onPause: CookieManager flushed to disk");
+        } catch (Exception e) {
+            Log.w(TAG, "onPause: CookieManager flush failed: " + e.getMessage());
         }
     }
 

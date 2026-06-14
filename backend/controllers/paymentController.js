@@ -7,6 +7,7 @@ const Notification = require("../models/Notification");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { invalidateAuthCache } = require("../services/authCacheService");
 
 // Server-side source of truth for plan pricing.
 // Amount is NEVER trusted from the client — always derived from this map.
@@ -158,6 +159,11 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     );
 
     await session.commitTransaction();
+
+    // Invalidate AFTER commit — subscriptionStatus / subscriptionExpiry are
+    // cached fields read by subscription guards. If invalidation fails the
+    // 5-minute TTL caps staleness; payment record is already durable.
+    invalidateAuthCache(userId).catch(() => {});
 
     // Notification created AFTER commit so a notification failure never rolls back a real payment
     Notification.create([

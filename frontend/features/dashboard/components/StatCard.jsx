@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { Skeleton } from "@/features/shared";
 
-export default function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = false, tooltip }) {
+function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = false, tooltip }) {
   const [showTip, setShowTip] = useState(false);
+  const handleEnter = useCallback(() => setShowTip(true), []);
+  const handleLeave = useCallback(() => setShowTip(false), []);
 
   if (loading) {
     return (
@@ -37,8 +39,8 @@ export default function StatCard({ label, value, sub, accentColor, icon, delay =
         boxShadow: "0 2px 12px rgba(15,25,35,0.06), 0 1px 3px rgba(15,25,35,0.04)",
         animation: `fadeUp 0.5s ease ${delay}s both`, position: "relative",
       }}
-      onMouseEnter={() => setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       <div style={{ height: 3, background: `linear-gradient(90deg,${accentColor},${accentColor}22)`, borderRadius: "12px 12px 0 0" }} />
       <div style={{ padding: "20px 20px 16px" }}>
@@ -84,3 +86,5 @@ export default function StatCard({ label, value, sub, accentColor, icon, delay =
     </div>
   );
 }
+
+export default memo(StatCard);

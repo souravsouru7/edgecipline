@@ -1,0 +1,2647 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 406 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(EDGEDISCIPLINE) Tj
+/FB 26 Tf
+1 0 0 1 62 726 Tm
+(Security And Access Document) Tj
+/FB 12 Tf
+1 0 0 1 62 690 Tm
+(Authentication, roles, row-level security, errors, and launch edge cases) Tj
+/FR 10 Tf
+1 0 0 1 62 668 Tm
+(Prepared from the Stratedge codebase) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 1) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Length 194 >>
+stream
+BT
+/FB 22 Tf
+1 0 0 1 62 742 Tm
+(Edgecipline Security And Access Document) Tj
+/FR 10 Tf
+1 0 0 1 62 712 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 2) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 1357 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(1. Purpose) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(This document explains how security and access should work for Edgecipline in plain) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(English. It is written for a founder, product owner, or early engineering team that needs) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(to understand who can access what, how user data is protected, what errors should look) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(like, and what edge cases must be handled before launch.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(Edgecipline stores sensitive user data:) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Personal account details.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Trading history.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Trading screenshots.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Payment and subscription records.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- Psychology and behavioral trading notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- Admin actions and feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(The security goal is simple:) Tj
+/FR 11 Tf
+1 0 0 1 76 552 Tm
+(Every user should only see and change their own trading data, admins should have) Tj
+/FR 11 Tf
+1 0 0 1 76 536 Tm
+(controlled operational access, and sensitive failures should be handled without) Tj
+/FR 11 Tf
+1 0 0 1 76 520 Tm
+(leaking private information.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 3) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 2704 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(2. Recommended Authentication Method) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Best Fit For This App) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Use a hybrid authentication model:) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Email/password login for normal accounts.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Google sign-in through Firebase for users who prefer OAuth.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Backend-issued short-lived JWT access tokens for API requests.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Backend-issued rotating refresh tokens stored as secure httpOnly cookies.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Separate admin authentication using a different admin JWT secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(This is the best fit because Edgecipline is both a web app and mobile-wrapped app. Users) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(need convenient login, while the backend still needs strong control over access to trade) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(data, uploads, payments, and admin tools.) Tj
+/FB 12 Tf
+1 0 0 1 62 577 Tm
+(How Login Should Work) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(1. User logs in with email/password or Google.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(2. Backend verifies the login.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(3. Backend returns a short-lived access token.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(4. Backend sets a long-lived refresh token in an httpOnly cookie.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(5. Frontend sends the access token with API calls.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(6. When the access token expires, the frontend silently refreshes it using the) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(   refresh cookie.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(7. Refresh tokens rotate every time they are used.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(8. If a reused refresh token is detected, the whole session family is revoked.) Tj
+/FB 12 Tf
+1 0 0 1 62 434 Tm
+(Why This Is Secure) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Access tokens expire quickly, so stolen tokens have a short lifetime.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- Refresh tokens are stored hashed in the database, not as raw tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- Refresh tokens are kept in httpOnly cookies, so normal frontend JavaScript cannot) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(  read them.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Token rotation detects replay attacks.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- tokenVersion lets the backend invalidate all active sessions after password reset) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(  or logout-all.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- Admin tokens use a different secret, so user tokens cannot accidentally become) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(  admin tokens.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 4) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 2153 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(3. Password And Account Security Rules) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Password Requirements) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Passwords should require:) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- At least 8 characters.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- At least one uppercase letter.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- At least one lowercase letter.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- At least one number.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- At least one special character.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(Login Protection) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(After repeated failed login attempts:) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Lock the account temporarily.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Return a neutral error message.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Do not reveal whether the email exists.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(Current recommended rule:) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- 5 failed attempts locks the account for 15 minutes.) Tj
+/FB 12 Tf
+1 0 0 1 62 518 Tm
+(Password Reset Protection) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(Password reset should use OTP with these rules:) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Store only a hashed OTP in the database.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- OTP expires after 10 minutes.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Limit failed OTP attempts.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- After OTP verification, issue a short-lived reset token.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Clear the OTP immediately after successful verification.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- After password reset, revoke all refresh tokens and increment tokenVersion.) Tj
+/FB 12 Tf
+1 0 0 1 62 403 Tm
+(Google Login Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- Only accept verified Google emails.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- Only accept Google as the sign-in provider.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- Do not silently convert password accounts into Google accounts.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(- If an email is already registered with password login, Google login should be) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(  rejected with a clear message.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 5) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 371 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(4. User Roles) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Edgecipline should have two primary roles at launch:) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(- User) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Admin) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(Do not add more roles until there is a real operational need.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 6) Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 2988 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(5. Role Permissions) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Role: User) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(A regular user is a trader using Edgecipline.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Register and log in.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Log out from current device.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Log out from all devices.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Accept terms and privacy policy.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- View their own profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Update their own onboarding/preferences.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- Upload their own trade screenshots.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- View their own OCR job status.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(- Confirm their own extracted trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(- Manually create their own trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(- View, edit, and delete their own Forex trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(- View, edit, and delete their own Indian market trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 507 Tm
+(- View their own dashboard.) Tj
+/FR 10 Tf
+1 0 0 1 62 493 Tm
+(- View their own analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 479 Tm
+(- Create, update, and delete their own setup strategies.) Tj
+/FR 10 Tf
+1 0 0 1 62 465 Tm
+(- Save their own checklist tracking records.) Tj
+/FR 10 Tf
+1 0 0 1 62 451 Tm
+(- View their own weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 437 Tm
+(- Generate their own weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 423 Tm
+(- View their own notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 409 Tm
+(- Register their own device token.) Tj
+/FR 10 Tf
+1 0 0 1 62 395 Tm
+(- Update their own notification preferences.) Tj
+/FR 10 Tf
+1 0 0 1 62 381 Tm
+(- Submit feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 367 Tm
+(- Create payment orders for their own account.) Tj
+/FR 10 Tf
+1 0 0 1 62 353 Tm
+(- Verify their own payment.) Tj
+/FR 10 Tf
+1 0 0 1 62 339 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 325 Tm
+(- View another user's trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 311 Tm
+(- Edit another user's trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 297 Tm
+(- Delete another user's trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 283 Tm
+(- View another user's screenshots.) Tj
+/FR 10 Tf
+1 0 0 1 62 269 Tm
+(- View another user's analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 255 Tm
+(- View another user's weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 241 Tm
+(- View another user's payment records.) Tj
+/FR 10 Tf
+1 0 0 1 62 227 Tm
+(- Change their own subscription status directly.) Tj
+/FR 10 Tf
+1 0 0 1 62 213 Tm
+(- Change their own role.) Tj
+/FR 10 Tf
+1 0 0 1 62 199 Tm
+(- Access admin routes.) Tj
+/FR 10 Tf
+1 0 0 1 62 185 Tm
+(- Access raw database IDs unless those IDs belong to their own records.) Tj
+/FR 10 Tf
+1 0 0 1 62 171 Tm
+(- Bypass terms acceptance for normal app usage.) Tj
+/FR 10 Tf
+1 0 0 1 62 157 Tm
+(- Upload unlimited screenshots after free limits unless subscribed.) Tj
+/FB 12 Tf
+1 0 0 1 62 143 Tm
+(Role: Admin) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 7) Tj
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 15 0 R >>
+endobj
+17 0 obj
+<< /Length 3070 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(An admin is an internal operator or founder supporting users.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- Log in through the admin login flow.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- View platform-level admin dashboard.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- View user list.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- View user details needed for support.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- Activate, extend, or expire subscriptions.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- View payment history.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- View trade records for support/debugging.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- View feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Update feedback status.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Send or manage operational notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Review platform analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Perform controlled administrative actions.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(Admins cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Use normal user tokens to access admin routes.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Access admin routes without the separate admin JWT secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- See raw passwords.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- See raw refresh tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- See raw OTP values.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- Use admin tools as a substitute for direct database editing without audit.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- Delete user data permanently without a deliberate policy.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- Disable security checks for convenience.) Tj
+/FB 12 Tf
+1 0 0 1 62 420 Tm
+(Future Role: Support Agent) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(Do not build this in version one unless needed.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(When added, support agents should be weaker than admins:) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- Can view user account/subscription status.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Can view support tickets/feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- Can trigger password reset help instructions.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- Cannot view full trade screenshots by default.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- Cannot change roles.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- Cannot export full user data.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- Cannot perform destructive actions.) Tj
+/FB 12 Tf
+1 0 0 1 62 277 Tm
+(Future Role: Coach/Mentor) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(Do not build this in version one unless you launch a coaching product.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(Coach access should require explicit user consent:) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- User invites a coach.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- Coach can view selected journal/analytics data.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(- Coach cannot edit trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- Coach cannot view payments.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- Coach cannot access auth/security settings.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- User can revoke access anytime.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 8) Tj
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 17 0 R >>
+endobj
+19 0 obj
+<< /Length 2738 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(6. Row-Level Security Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(MongoDB does not automatically enforce row-level security like some SQL databases. In) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(Edgecipline, row-level security must be enforced in the application layer.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(Plain English rule:) Tj
+/FR 11 Tf
+1 0 0 1 76 678 Tm
+(Every query for user-owned data must include the logged-in user's ID.) Tj
+/FB 12 Tf
+1 0 0 1 62 662 Tm
+(Global Rule) Tj
+/FR 10 Tf
+1 0 0 1 62 645 Tm
+(If a collection has a user, userId, or owner field, every normal user request must be) Tj
+/FR 10 Tf
+1 0 0 1 62 631 Tm
+(filtered by that owner field.) Tj
+/FR 10 Tf
+1 0 0 1 62 617 Tm
+(Examples:) Tj
+/FR 10 Tf
+1 0 0 1 62 603 Tm
+(- A user requesting trades must only query trades where trade.user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 589 Tm
+(- A user requesting reports must only query reports where report.user =) Tj
+/FR 10 Tf
+1 0 0 1 62 575 Tm
+(  currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 561 Tm
+(- A user requesting notification history must only query records where) Tj
+/FR 10 Tf
+1 0 0 1 62 547 Tm
+(  notification.user = currentUser.id.) Tj
+/FB 12 Tf
+1 0 0 1 62 533 Tm
+(User Collection Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 516 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 502 Tm
+(- Read their own basic profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 488 Tm
+(- Update allowed preference fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 474 Tm
+(- Accept terms for their own account.) Tj
+/FR 10 Tf
+1 0 0 1 62 460 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 446 Tm
+(- List all users.) Tj
+/FR 10 Tf
+1 0 0 1 62 432 Tm
+(- Read another user's profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 418 Tm
+(- Update role, subscription, total paid, token version, or login lock fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 404 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 390 Tm
+(- List users.) Tj
+/FR 10 Tf
+1 0 0 1 62 376 Tm
+(- View user support fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 362 Tm
+(- Update subscription-related fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 348 Tm
+(Admins should not:) Tj
+/FR 10 Tf
+1 0 0 1 62 334 Tm
+(- Read password hashes.) Tj
+/FR 10 Tf
+1 0 0 1 62 320 Tm
+(- Read reset OTP hashes unless there is a specific debugging reason.) Tj
+/FR 10 Tf
+1 0 0 1 62 306 Tm
+(- Manually edit auth security fields except through controlled flows.) Tj
+/FB 12 Tf
+1 0 0 1 62 292 Tm
+(Trade Collection Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 275 Tm
+(Applies to Trade and IndianTrade.) Tj
+/FR 10 Tf
+1 0 0 1 62 261 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 247 Tm
+(- Create trades with user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 233 Tm
+(- Read trades where user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 219 Tm
+(- Update trades where user = currentUser.id.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 9) Tj
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 19 0 R >>
+endobj
+21 0 obj
+<< /Length 2704 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Soft-delete trades where user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- Pass another user's ID in the request body.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- Change the user field after creation.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Read soft-deleted trades unless the product explicitly supports trash/history.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Access trades by ID unless that trade also belongs to them.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- View trades for support and moderation.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- Soft-delete or restore trades only through admin routes.) Tj
+/FB 12 Tf
+1 0 0 1 62 616 Tm
+(OCRJob Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- Create OCR jobs for themselves.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- Poll OCR jobs where user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- Cancel OCR jobs where user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- Confirm OCR jobs where user = currentUser.id.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- Confirm another user's OCR job.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Use an OCR job to create a trade under another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Access raw OCR/AI responses from another user's screenshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Review OCR failures for support.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Inspect extraction quality where necessary.) Tj
+/FB 12 Tf
+1 0 0 1 62 431 Tm
+(SetupStrategy Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- Create setup strategies for themselves.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- Read their own setup strategies.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- Update their own setup strategies.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- Delete their own setup strategies.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- Duplicate setup names within the same market.) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- Access setup strategies owned by another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(- Attach another user's setup strategy to their trade.) Tj
+/FB 12 Tf
+1 0 0 1 62 288 Tm
+(ChecklistTracking Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 271 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 257 Tm
+(- Save their own checklist completion records.) Tj
+/FR 10 Tf
+1 0 0 1 62 243 Tm
+(- Read their own checklist history.) Tj
+/FR 10 Tf
+1 0 0 1 62 229 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 215 Tm
+(- Change checklist records for another user.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 10) Tj
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 21 0 R >>
+endobj
+23 0 obj
+<< /Length 2365 >>
+stream
+BT
+/FB 12 Tf
+1 0 0 1 62 742 Tm
+(WeeklyReport Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 725 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 711 Tm
+(- Generate reports for their own trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(- Read their own reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(- Generate reports using another user's trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- Read another user's report snapshots or AI feedback.) Tj
+/FB 12 Tf
+1 0 0 1 62 641 Tm
+(Payment Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 624 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 610 Tm
+(- Create payment orders for their own account.) Tj
+/FR 10 Tf
+1 0 0 1 62 596 Tm
+(- Verify payments for their own account.) Tj
+/FR 10 Tf
+1 0 0 1 62 582 Tm
+(- View their own subscription status.) Tj
+/FR 10 Tf
+1 0 0 1 62 568 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(- Mark a payment as completed manually.) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(- Change subscriptionStatus.) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(- Change subscriptionExpiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(- View another user's payments.) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(- Reuse another user's Razorpay order ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 470 Tm
+(- View payment records.) Tj
+/FR 10 Tf
+1 0 0 1 62 456 Tm
+(- Manually activate subscriptions when needed.) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(- Add notes to payment records.) Tj
+/FB 12 Tf
+1 0 0 1 62 428 Tm
+(Notification Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 411 Tm
+(Users can:) Tj
+/FR 10 Tf
+1 0 0 1 62 397 Tm
+(- View their own notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(- Mark their own notifications as read.) Tj
+/FR 10 Tf
+1 0 0 1 62 369 Tm
+(- Update their own notification preferences.) Tj
+/FR 10 Tf
+1 0 0 1 62 355 Tm
+(- Register their own device tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 341 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 327 Tm
+(- Register a device token for another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 313 Tm
+(- Read another user's notification history.) Tj
+/FR 10 Tf
+1 0 0 1 62 299 Tm
+(- Send system-wide notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 285 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 271 Tm
+(- Send operational notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 257 Tm
+(- View delivery status.) Tj
+/FB 12 Tf
+1 0 0 1 62 243 Tm
+(Feedback Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 226 Tm
+(Users can:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 11) Tj
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 23 0 R >>
+endobj
+25 0 obj
+<< /Length 649 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Submit feedback for themselves.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- View their own feedback if the product exposes that.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(Users cannot:) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- View all feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Change feedback status.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Read another user's feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(Admins can:) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- View feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- Update feedback status.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- Add admin notes.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 12) Tj
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 25 0 R >>
+endobj
+27 0 obj
+<< /Length 2148 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(7. API Access Rules) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Public Routes) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(These can be accessed without a valid user session:) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Register.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Login.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Google login.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Forgot password.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Verify OTP.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- Reset password.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Refresh token.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- Logout.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- Health check.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(Public does not mean unprotected. These routes still need validation and rate limits.) Tj
+/FB 12 Tf
+1 0 0 1 62 549 Tm
+(Protected User Routes) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(These require a valid user access token:) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Indian trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Uploads.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- OCR status.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- Analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- Dashboard.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- Setups.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- Checklists.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- Reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- Payments.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- Notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- Profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(- Feedback submission.) Tj
+/FB 12 Tf
+1 0 0 1 62 336 Tm
+(Terms-Gated Routes) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(After login, users who have not accepted the current terms should only access:) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- Current profile route.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- Accept terms route.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- Logout route.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(All normal product routes should return:) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- HTTP 403) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- Error code TERMS_NOT_ACCEPTED) Tj
+/FB 12 Tf
+1 0 0 1 62 221 Tm
+(Admin Routes) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(All admin routes must require:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 13) Tj
+ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 27 0 R >>
+endobj
+29 0 obj
+<< /Length 408 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Admin token signed with admin secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- User exists.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- role = admin.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- Token version still valid.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(Admin routes should live under:) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- /api/admin/*) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 14) Tj
+ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 29 0 R >>
+endobj
+31 0 obj
+<< /Length 1016 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(8. Error Handling Guide) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Error messages should be useful to legitimate users but not helpful to attackers.) Tj
+/FB 12 Tf
+1 0 0 1 62 706 Tm
+(Standard Error Shape) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(All API errors should return:) Tj
+/FR 8 Tf
+1 0 0 1 74 675 Tm
+({) Tj
+/FR 8 Tf
+1 0 0 1 74 664 Tm
+("status": "error",) Tj
+/FR 8 Tf
+1 0 0 1 74 653 Tm
+("message": "Human-readable message",) Tj
+/FR 8 Tf
+1 0 0 1 74 642 Tm
+("errorCode": "MACHINE_READABLE_CODE") Tj
+/FR 8 Tf
+1 0 0 1 74 631 Tm
+(}) Tj
+/FR 10 Tf
+1 0 0 1 62 620 Tm
+(In production, server errors should always return:) Tj
+/FR 8 Tf
+1 0 0 1 74 606 Tm
+({) Tj
+/FR 8 Tf
+1 0 0 1 74 595 Tm
+("status": "error",) Tj
+/FR 8 Tf
+1 0 0 1 74 584 Tm
+("message": "Something went wrong",) Tj
+/FR 8 Tf
+1 0 0 1 74 573 Tm
+("errorCode": "INTERNAL_ERROR") Tj
+/FR 8 Tf
+1 0 0 1 74 562 Tm
+(}) Tj
+/FR 10 Tf
+1 0 0 1 62 551 Tm
+(Do not expose stack traces in production.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 15) Tj
+ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 31 0 R >>
+endobj
+33 0 obj
+<< /Length 2014 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(9. Major Failure Points And Correct Responses) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Missing Login Token) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- User calls protected route without a token.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Error code AUTH_REQUIRED) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Message: No token provided) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Send user to login.) Tj
+/FB 12 Tf
+1 0 0 1 62 591 Tm
+(Expired Access Token) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Access token has expired.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Error code TOKEN_EXPIRED) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Frontend should attempt silent refresh.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- If refresh fails, send user to login.) Tj
+/FB 12 Tf
+1 0 0 1 62 462 Tm
+(Invalid Or Tampered Token) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Token signature is invalid.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Token is malformed.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- Token uses wrong secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Error code INVALID_TOKEN) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- Clear local session and send user to login.) Tj
+/FB 12 Tf
+1 0 0 1 62 319 Tm
+(Token Version Mismatch) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- User changed password.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- User logged out all devices.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- Admin/security flow invalidated tokens.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 16) Tj
+ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 33 0 R >>
+endobj
+35 0 obj
+<< /Length 2236 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- Error code TOKEN_INVALIDATED) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Clear session and ask user to log in again.) Tj
+/FB 12 Tf
+1 0 0 1 62 672 Tm
+(Refresh Token Missing) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- Cookie expired.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Browser blocked cookie.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- User cleared cookies.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- Mobile app did not send cookie.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- Error code AUTH_REQUIRED) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- Send user to login.) Tj
+/FB 12 Tf
+1 0 0 1 62 515 Tm
+(Refresh Token Reuse Detected) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(- A revoked refresh token is used again outside the short race grace window.) Tj
+/FR 10 Tf
+1 0 0 1 62 470 Tm
+(- This may indicate stolen session token.) Tj
+/FR 10 Tf
+1 0 0 1 62 456 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- Error code TOKEN_REPLAY_DETECTED) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(Security action:) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- Revoke the whole refresh token family.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- Force login again.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- Optionally show: For your security, please sign in again.) Tj
+/FB 12 Tf
+1 0 0 1 62 344 Tm
+(Refresh Token Race) Tj
+/FR 10 Tf
+1 0 0 1 62 327 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 313 Tm
+(- Multiple tabs refresh at nearly the same time.) Tj
+/FR 10 Tf
+1 0 0 1 62 299 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 285 Tm
+(- HTTP 409) Tj
+/FR 10 Tf
+1 0 0 1 62 271 Tm
+(- Error code REFRESH_TOKEN_RACE) Tj
+/FR 10 Tf
+1 0 0 1 62 257 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 243 Tm
+(- Retry refresh once after a short delay.) Tj
+/FR 10 Tf
+1 0 0 1 62 229 Tm
+(- Do not log user out immediately.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 17) Tj
+ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 35 0 R >>
+endobj
+37 0 obj
+<< /Length 1960 >>
+stream
+BT
+/FB 12 Tf
+1 0 0 1 62 742 Tm
+(Terms Not Accepted) Tj
+/FR 10 Tf
+1 0 0 1 62 725 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 711 Tm
+(- User is authenticated but has not accepted current terms/privacy version.) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(- HTTP 403) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(- Error code TERMS_NOT_ACCEPTED) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- Send user to accept terms page.) Tj
+/FB 12 Tf
+1 0 0 1 62 627 Tm
+(Weak Password) Tj
+/FR 10 Tf
+1 0 0 1 62 610 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 596 Tm
+(- Password does not meet complexity rules.) Tj
+/FR 10 Tf
+1 0 0 1 62 582 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 568 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(- Error code WEAK_PASSWORD) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(- Show exact missing requirement.) Tj
+/FB 12 Tf
+1 0 0 1 62 512 Tm
+(Account Locked) Tj
+/FR 10 Tf
+1 0 0 1 62 495 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 481 Tm
+(- Too many failed login attempts.) Tj
+/FR 10 Tf
+1 0 0 1 62 467 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 453 Tm
+(- HTTP 429) Tj
+/FR 10 Tf
+1 0 0 1 62 439 Tm
+(- Error code ACCOUNT_LOCKED) Tj
+/FR 10 Tf
+1 0 0 1 62 425 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 411 Tm
+(- Tell user how long to wait.) Tj
+/FB 12 Tf
+1 0 0 1 62 397 Tm
+(Invalid Credentials) Tj
+/FR 10 Tf
+1 0 0 1 62 380 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 366 Tm
+(- Wrong email/password.) Tj
+/FR 10 Tf
+1 0 0 1 62 352 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 338 Tm
+(- HTTP 401) Tj
+/FR 10 Tf
+1 0 0 1 62 324 Tm
+(- Error code INVALID_CREDENTIALS) Tj
+/FR 10 Tf
+1 0 0 1 62 310 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 296 Tm
+(- Show: Invalid email or password.) Tj
+/FR 10 Tf
+1 0 0 1 62 282 Tm
+(Security note:) Tj
+/FR 10 Tf
+1 0 0 1 62 268 Tm
+(- Do not reveal whether the email exists.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 18) Tj
+ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 37 0 R >>
+endobj
+39 0 obj
+<< /Length 2192 >>
+stream
+BT
+/FB 12 Tf
+1 0 0 1 62 742 Tm
+(Google Auth Failure) Tj
+/FR 10 Tf
+1 0 0 1 62 725 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 711 Tm
+(- Google/Firebase token is invalid.) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(- Email is not verified.) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(- Provider is not Google.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(- Google verification service times out.) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- HTTP 401, 502, or 504) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Error codes: AUTH_FAILED, GOOGLE_AUTH_UNAVAILABLE, GOOGLE_AUTH_TIMEOUT) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- Ask user to try again or use email/password if that account was created locally.) Tj
+/FB 12 Tf
+1 0 0 1 62 585 Tm
+(Auth Provider Conflict) Tj
+/FR 10 Tf
+1 0 0 1 62 568 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(- User registered with password but tries Google login with same email.) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(- HTTP 409) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(- Error code AUTH_PROVIDER_CONFLICT) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(- Tell user to log in with password.) Tj
+/FB 12 Tf
+1 0 0 1 62 470 Tm
+(Invalid Input Structure) Tj
+/FR 10 Tf
+1 0 0 1 62 453 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 439 Tm
+(- Request body contains keys starting with $ or containing ..) Tj
+/FR 10 Tf
+1 0 0 1 62 425 Tm
+(- This can indicate NoSQL injection.) Tj
+/FR 10 Tf
+1 0 0 1 62 411 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 397 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(- Error code VALIDATION_ERROR) Tj
+/FR 10 Tf
+1 0 0 1 62 369 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 355 Tm
+(- Show generic invalid input message.) Tj
+/FB 12 Tf
+1 0 0 1 62 341 Tm
+(Invalid Object ID) Tj
+/FR 10 Tf
+1 0 0 1 62 324 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 310 Tm
+(- User passes malformed MongoDB ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 296 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 282 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 268 Tm
+(- Error code INVALID_ID) Tj
+/FR 10 Tf
+1 0 0 1 62 254 Tm
+(User experience:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 19) Tj
+ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 39 0 R >>
+endobj
+41 0 obj
+<< /Length 2178 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Show resource not found or invalid request, depending on route.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Security note:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- For records that may belong to another user, prefer 404 Not found after ownership) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(  check instead of revealing the record exists.) Tj
+/FB 12 Tf
+1 0 0 1 62 686 Tm
+(Duplicate Resource) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- Duplicate email.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- Duplicate setup strategy name.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Duplicate transaction ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- Duplicate notification dedupe key.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- HTTP 409) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- Error code DUPLICATE_RESOURCE) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- Tell user what needs to be changed.) Tj
+/FB 12 Tf
+1 0 0 1 62 529 Tm
+(File Too Large) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(- Screenshot exceeds upload limit.) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 470 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 456 Tm
+(- Error code LIMIT_FILE_SIZE) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- Ask user to upload a smaller screenshot.) Tj
+/FB 12 Tf
+1 0 0 1 62 414 Tm
+(Invalid File Type) Tj
+/FR 10 Tf
+1 0 0 1 62 397 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(- User uploads a non-image or unsupported image.) Tj
+/FR 10 Tf
+1 0 0 1 62 369 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 355 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 341 Tm
+(- Error code INVALID_FILE_TYPE) Tj
+/FR 10 Tf
+1 0 0 1 62 327 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 313 Tm
+(- Ask user to upload a supported screenshot image.) Tj
+/FB 12 Tf
+1 0 0 1 62 299 Tm
+(Non-Trade Image Uploaded) Tj
+/FR 10 Tf
+1 0 0 1 62 282 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 268 Tm
+(- OCR/AI determines image is not a trade screenshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 254 Tm
+(Response:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 20) Tj
+ET
+endstream
+endobj
+42 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 41 0 R >>
+endobj
+43 0 obj
+<< /Length 2211 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- HTTP 400) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Error code such as INVALID_TRADE_SCREENSHOT) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(Security/product action:) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- Reject extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Delete image from Cloudinary when possible.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Do not save a completed trade.) Tj
+/FB 12 Tf
+1 0 0 1 62 658 Tm
+(OCR Or AI Provider Failure) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Google Vision fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- Tesseract fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- Gemini fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- Provider times out.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- Mark OCR job as FAILED.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- Return safe error to client.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- Offer retry.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Offer manual trade entry.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(Security note:) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Do not expose raw provider error messages to users.) Tj
+/FB 12 Tf
+1 0 0 1 62 459 Tm
+(Payment Verification Failure) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- Razorpay signature mismatch.) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(- Order ID does not belong to user.) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- Payment already used.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- HTTP 400 or 403) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- Error code such as PAYMENT_VERIFICATION_FAILED) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(Security action:) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- Do not activate subscription.) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- Log the attempt.) Tj
+/FB 12 Tf
+1 0 0 1 62 302 Tm
+(Rate Limit Exceeded) Tj
+/FR 10 Tf
+1 0 0 1 62 285 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 271 Tm
+(- Too many auth, upload, status, refresh, or global requests.) Tj
+/FR 10 Tf
+1 0 0 1 62 257 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 243 Tm
+(- HTTP 429) Tj
+/FR 10 Tf
+1 0 0 1 62 229 Tm
+(- Include Retry-After.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 21) Tj
+ET
+endstream
+endobj
+44 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 43 0 R >>
+endobj
+45 0 obj
+<< /Length 1668 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Ask user to wait and retry.) Tj
+/FB 12 Tf
+1 0 0 1 62 714 Tm
+(Database Unavailable) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(- MongoDB disconnected.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- HTTP 503 for health check.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- HTTP 500 for normal requests with generic message.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- Show temporary service issue.) Tj
+/FB 12 Tf
+1 0 0 1 62 599 Tm
+(Redis Unavailable) Tj
+/FR 10 Tf
+1 0 0 1 62 582 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 568 Tm
+(- Rate limiter or queue/cache backend is unavailable.) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(Current recommendation:) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(- Rate limiter may fail open so normal users are not blocked.) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(- OCR upload queue should fail closed if jobs cannot be created.) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(- Uploads may show temporary processing unavailable.) Tj
+/FB 12 Tf
+1 0 0 1 62 484 Tm
+(Admin Forbidden) Tj
+/FR 10 Tf
+1 0 0 1 62 467 Tm
+(When it happens:) Tj
+/FR 10 Tf
+1 0 0 1 62 453 Tm
+(- User token or non-admin role tries admin route.) Tj
+/FR 10 Tf
+1 0 0 1 62 439 Tm
+(Response:) Tj
+/FR 10 Tf
+1 0 0 1 62 425 Tm
+(- HTTP 403) Tj
+/FR 10 Tf
+1 0 0 1 62 411 Tm
+(- Error code FORBIDDEN) Tj
+/FR 10 Tf
+1 0 0 1 62 397 Tm
+(User experience:) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(- Do not show admin UI to non-admin users.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 22) Tj
+ET
+endstream
+endobj
+46 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 45 0 R >>
+endobj
+47 0 obj
+<< /Length 1354 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(10. Logging Rules) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Log enough to debug attacks and support issues, but never log secrets.) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(Safe to log:) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Route.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Method.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- Status code.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Duration.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- User ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Error code.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- IP address.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- User agent.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- OCR job ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(- Payment order ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 552 Tm
+(Never log:) Tj
+/FR 10 Tf
+1 0 0 1 62 538 Tm
+(- Passwords.) Tj
+/FR 10 Tf
+1 0 0 1 62 524 Tm
+(- Raw refresh tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 510 Tm
+(- Access tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 496 Tm
+(- OTPs.) Tj
+/FR 10 Tf
+1 0 0 1 62 482 Tm
+(- Reset tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 468 Tm
+(- Razorpay secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 454 Tm
+(- Firebase private key.) Tj
+/FR 10 Tf
+1 0 0 1 62 440 Tm
+(- Google Vision private key.) Tj
+/FR 10 Tf
+1 0 0 1 62 426 Tm
+(- Cloudinary secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 412 Tm
+(- Full Authorization header.) Tj
+/FR 10 Tf
+1 0 0 1 62 398 Tm
+(- Full cookie header.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 23) Tj
+ET
+endstream
+endobj
+48 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 47 0 R >>
+endobj
+49 0 obj
+<< /Length 3177 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(11. Launch Edge Cases To Handle) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Authentication Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- User opens app with expired access token.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- User opens app with missing refresh cookie.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- User has valid token but account was deleted.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- User has valid token but tokenVersion changed.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Multiple browser tabs refresh at the same time.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- User resets password while another device is active.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- User logs out from all devices.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- User registered with Google tries password login.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- User registered with password tries Google login.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- Firebase is misconfigured.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(- Google token verification times out.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(- Mobile app requires SameSite=None; Secure=true refresh cookie.) Tj
+/FB 12 Tf
+1 0 0 1 62 535 Tm
+(Authorization Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- User requests trade ID owned by another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- User tries to update user field on a trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- User tries to access another user's OCR job.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- User tries to confirm another user's OCR job.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- User tries to view another user's payment.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- User tries to update own role or subscription status.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- Non-admin accesses /api/admin/*.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- Admin token is signed with user secret by mistake.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- User token is accepted by admin middleware by mistake.) Tj
+/FB 12 Tf
+1 0 0 1 62 392 Tm
+(Upload And OCR Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- Upload is too large.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Upload is unsupported file type.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- File extension says image but content is not image.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- Screenshot is not a trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- Screenshot has multiple trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- Screenshot has low confidence extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- Cloudinary upload succeeds but OCR job creation fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- OCR job succeeds but user never confirms.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- OCR job expires before confirmation.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- User cancels upload while worker is processing.) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- Worker crashes mid-job.) Tj
+/FR 10 Tf
+1 0 0 1 62 221 Tm
+(- Duplicate status polling happens from multiple tabs.) Tj
+/FR 10 Tf
+1 0 0 1 62 207 Tm
+(- Gemini returns malformed JSON.) Tj
+/FR 10 Tf
+1 0 0 1 62 193 Tm
+(- OCR extracts wrong broker/instrument.) Tj
+/FR 10 Tf
+1 0 0 1 62 179 Tm
+(- Indian options screenshot has CE/PE ambiguity.) Tj
+/FR 10 Tf
+1 0 0 1 62 165 Tm
+(- Forex screenshot contains partial data.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 24) Tj
+ET
+endstream
+endobj
+50 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 49 0 R >>
+endobj
+51 0 obj
+<< /Length 3054 >>
+stream
+BT
+/FB 12 Tf
+1 0 0 1 62 742 Tm
+(Trade Data Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 725 Tm
+(- Negative profit.) Tj
+/FR 10 Tf
+1 0 0 1 62 711 Tm
+(- Zero profit.) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(- Missing exit price.) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(- Missing stop loss.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(- Custom risk-reward value.) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- Trade date before account creation.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- Future trade date.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Duplicate trade upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- User deletes a trade used in analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- Soft-deleted trades accidentally included in analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- Indian option expiry stored as invalid date.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- Equity and option fields mixed together.) Tj
+/FB 12 Tf
+1 0 0 1 62 557 Tm
+(Payment Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(- User closes Razorpay checkout.) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(- Payment succeeds but verification request fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(- Payment verification is retried.) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(- Same Razorpay payment ID submitted twice.) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(- Razorpay order belongs to another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 470 Tm
+(- Subscription expiry calculation crosses month/year boundary.) Tj
+/FR 10 Tf
+1 0 0 1 62 456 Tm
+(- Admin manually activates subscription after failed payment.) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(- Payment record says completed but user subscription not updated.) Tj
+/FB 12 Tf
+1 0 0 1 62 428 Tm
+(Notification Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 411 Tm
+(- Device token belongs to another user.) Tj
+/FR 10 Tf
+1 0 0 1 62 397 Tm
+(- Device token expires.) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(- Push delivery fails repeatedly.) Tj
+/FR 10 Tf
+1 0 0 1 62 369 Tm
+(- User disables push notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 355 Tm
+(- User enables quiet hours.) Tj
+/FR 10 Tf
+1 0 0 1 62 341 Tm
+(- Duplicate notification would be sent.) Tj
+/FR 10 Tf
+1 0 0 1 62 327 Tm
+(- Morning mentor sends outside intended timezone.) Tj
+/FR 10 Tf
+1 0 0 1 62 313 Tm
+(- Notification deep link points to deleted trade/report.) Tj
+/FB 12 Tf
+1 0 0 1 62 299 Tm
+(Admin Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 282 Tm
+(- Admin account password reset invalidates sessions.) Tj
+/FR 10 Tf
+1 0 0 1 62 268 Tm
+(- Admin tries destructive action too many times.) Tj
+/FR 10 Tf
+1 0 0 1 62 254 Tm
+(- Admin edits subscription accidentally.) Tj
+/FR 10 Tf
+1 0 0 1 62 240 Tm
+(- Admin views sensitive screenshots without audit.) Tj
+/FR 10 Tf
+1 0 0 1 62 226 Tm
+(- Admin action fails halfway.) Tj
+/FR 10 Tf
+1 0 0 1 62 212 Tm
+(- Admin logs out but cookie remains stale.) Tj
+/FB 12 Tf
+1 0 0 1 62 198 Tm
+(Privacy And Compliance Edge Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 181 Tm
+(- User asks to delete account.) Tj
+/FR 10 Tf
+1 0 0 1 62 167 Tm
+(- User asks to export data.) Tj
+/FR 10 Tf
+1 0 0 1 62 153 Tm
+(- User uploads screenshot containing account number or personal information.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 25) Tj
+ET
+endstream
+endobj
+52 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 51 0 R >>
+endobj
+53 0 obj
+<< /Length 2364 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Logs accidentally contain OCR text with private data.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Sentry captures sensitive request data.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- AI provider receives screenshot data.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- Terms/privacy version changes and users must re-accept.) Tj
+/FB 15 Tf
+1 0 0 1 62 686 Tm
+(12. Pre-Launch Security Checklist) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- User and admin JWT secrets are different.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- JWT secrets are at least 32 characters.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Refresh tokens are stored hashed only.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Refresh cookie is httpOnly.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Production cookies use secure settings.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- Capacitor app refresh works with correct cookie settings.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- Password reset revokes all sessions.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(- Logout-all revokes all sessions.) Tj
+/FR 10 Tf
+1 0 0 1 62 552 Tm
+(- Terms gate works on all protected product pages.) Tj
+/FR 10 Tf
+1 0 0 1 62 538 Tm
+(- Every user-owned query filters by current user ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 524 Tm
+(- Admin routes use admin middleware only.) Tj
+/FR 10 Tf
+1 0 0 1 62 510 Tm
+(- User routes do not accept admin-only fields from request body.) Tj
+/FR 10 Tf
+1 0 0 1 62 496 Tm
+(- Uploads validate real file type, not just extension.) Tj
+/FR 10 Tf
+1 0 0 1 62 482 Tm
+(- Non-trade images are rejected.) Tj
+/FR 10 Tf
+1 0 0 1 62 468 Tm
+(- Payment verification checks signature and ownership.) Tj
+/FR 10 Tf
+1 0 0 1 62 454 Tm
+(- Soft-deleted trades are excluded from analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 440 Tm
+(- Rate limits are enabled for auth, upload, refresh, and status polling.) Tj
+/FR 10 Tf
+1 0 0 1 62 426 Tm
+(- Sentry scrubs Authorization and cookies.) Tj
+/FR 10 Tf
+1 0 0 1 62 412 Tm
+(- Logs do not include secrets or tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 398 Tm
+(- Production CORS allowlist is explicit.) Tj
+/FR 10 Tf
+1 0 0 1 62 384 Tm
+(- Health endpoint does not expose secrets.) Tj
+/FR 10 Tf
+1 0 0 1 62 370 Tm
+(- .env files are not committed.) Tj
+/FR 10 Tf
+1 0 0 1 62 356 Tm
+(- Admin accounts are created intentionally and reviewed.) Tj
+/FR 10 Tf
+1 0 0 1 62 342 Tm
+(- Security tests cover IDOR and token replay.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 26) Tj
+ET
+endstream
+endobj
+54 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 53 0 R >>
+endobj
+55 0 obj
+<< /Length 917 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(13. Founder-Friendly Security Policy) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(For version one, use this policy:) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(1. Users own their data.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(2. Every user-owned record must be queried with the logged-in user's ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(3. Admins can support users, but admin access must be separate and limited.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(4. Passwords, OTPs, and refresh tokens must never be stored or logged in raw form.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(5. Payment status can only change after verified payment or explicit admin action.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(6. AI/OCR failures should never create false completed trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(7. When in doubt, fail safely and ask the user to retry or log the trade manually.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Security | 27) Tj
+ET
+endstream
+endobj
+56 0 obj
+<< /Type /Page /Parent 57 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 55 0 R >>
+endobj
+57 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R 46 0 R 48 0 R 50 0 R 52 0 R 54 0 R 56 0 R] /Count 27 >>
+endobj
+58 0 obj
+<< /Type /Catalog /Pages 57 0 R >>
+endobj
+xref
+0 59
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000000610 00000 n 
+0000000747 00000 n 
+0000000991 00000 n 
+0000001128 00000 n 
+0000002536 00000 n 
+0000002673 00000 n 
+0000005428 00000 n 
+0000005566 00000 n 
+0000007771 00000 n 
+0000007910 00000 n 
+0000008332 00000 n 
+0000008471 00000 n 
+0000011511 00000 n 
+0000011650 00000 n 
+0000014772 00000 n 
+0000014911 00000 n 
+0000017701 00000 n 
+0000017840 00000 n 
+0000020596 00000 n 
+0000020735 00000 n 
+0000023152 00000 n 
+0000023291 00000 n 
+0000023991 00000 n 
+0000024130 00000 n 
+0000026330 00000 n 
+0000026469 00000 n 
+0000026928 00000 n 
+0000027067 00000 n 
+0000028135 00000 n 
+0000028274 00000 n 
+0000030340 00000 n 
+0000030479 00000 n 
+0000032767 00000 n 
+0000032906 00000 n 
+0000034918 00000 n 
+0000035057 00000 n 
+0000037301 00000 n 
+0000037440 00000 n 
+0000039670 00000 n 
+0000039809 00000 n 
+0000042072 00000 n 
+0000042211 00000 n 
+0000043931 00000 n 
+0000044070 00000 n 
+0000045476 00000 n 
+0000045615 00000 n 
+0000048844 00000 n 
+0000048983 00000 n 
+0000052089 00000 n 
+0000052228 00000 n 
+0000054644 00000 n 
+0000054783 00000 n 
+0000055751 00000 n 
+0000055890 00000 n 
+0000056129 00000 n 
+trailer
+<< /Size 59 /Root 58 0 R >>
+startxref
+56180
+%%EOF

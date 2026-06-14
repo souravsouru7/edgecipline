@@ -228,11 +228,20 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   });
 });
 
+// Cursor pagination on (effectiveTradeDate DESC, _id DESC).
+//
+// Client passes ?cursor=<ISO-date>&cursorId=<ObjectId> from the previous
+// page's last row. Server returns the page + a {nextCursor, nextCursorId}
+// pair if more rows exist. Cost is O(limit) regardless of depth — old
+// $skip(page*limit) was O(page*limit) and unusable beyond page ~100.
+//
+// Backward compat: if neither cursor is provided, the old ?page=N&limit=L
+// API is still honoured for page 1 only (page>1 returns first page; clients
+// must migrate to cursor for deep paging).
 exports.getTrades = asyncHandler(async (req, res) => {
   const period = String(req.query.period || "all").toLowerCase();
   const query = { user: userMatch(req.user._id), deletedAt: null };
   const periodStart = getPeriodStart(period);
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
   if (periodStart) {
@@ -242,15 +251,53 @@ exports.getTrades = asyncHandler(async (req, res) => {
     ];
   }
 
-  const trades = await IndianTrade.aggregate([
+  // Cursor: { date: ISO string, id: ObjectId hex } from previous page tail.
+  const cursorDate = req.query.cursor ? new Date(req.query.cursor) : null;
+  const cursorId = req.query.cursorId && mongoose.Types.ObjectId.isValid(req.query.cursorId)
+    ? new mongoose.Types.ObjectId(req.query.cursorId)
+    : null;
+
+  const pipeline = [
     { $match: query },
     { $addFields: { effectiveTradeDate: { $ifNull: ["$tradeDate", "$createdAt"] } } },
+  ];
+
+  // Cursor predicate: strictly past the previous tail on the same sort.
+  if (cursorDate && cursorId) {
+    pipeline.push({
+      $match: {
+        $or: [
+          { effectiveTradeDate: { $lt: cursorDate } },
+          { effectiveTradeDate: cursorDate, _id: { $lt: cursorId } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
     { $sort: { effectiveTradeDate: -1, _id: -1 } },
-    { $skip: (page - 1) * limit },
-    { $limit: limit },
-    { $project: INDIAN_TRADE_LIST_PROJECT_STAGE },
-  ]);
-  res.json(trades);
+    { $limit: limit + 1 },                  // +1 to detect "has more"
+    { $project: INDIAN_TRADE_LIST_PROJECT_STAGE }
+  );
+
+  const rows = await IndianTrade.aggregate(pipeline);
+  const hasMore = rows.length > limit;
+  const trades = hasMore ? rows.slice(0, limit) : rows;
+
+  // Backward compat: legacy clients omit ?cursor — return the bare array,
+  // matching the previous response shape exactly.
+  const clientWantsCursor = req.query.cursor !== undefined || req.query.cursorId !== undefined;
+  if (!clientWantsCursor) {
+    return res.json(trades);
+  }
+
+  const tail = trades[trades.length - 1];
+  res.json({
+    trades,
+    nextCursor:    hasMore && tail ? (tail.effectiveTradeDate || tail.tradeDate || tail.createdAt) : null,
+    nextCursorId:  hasMore && tail ? tail._id : null,
+    hasMore,
+  });
 });
 
 exports.getTrade = asyncHandler(async (req, res) => {

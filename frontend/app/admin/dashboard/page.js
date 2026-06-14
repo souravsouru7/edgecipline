@@ -34,19 +34,22 @@ export default function AdminDashboardPage() {
   }, []);
 
   const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const [statsRes, growthRes] = await Promise.all([
-        getAdminStats(),
-        getAdminGrowth()
-      ]);
-      if (statsRes) setStats(statsRes);
-      if (growthRes) setGrowthData(growthRes);
-    } catch (err) {
-      console.error("Dashboard error:", err);
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const [statsRes, growthRes] = await Promise.allSettled([
+      getAdminStats(),
+      getAdminGrowth()
+    ]);
+    if (statsRes.status === "fulfilled" && statsRes.value) {
+      setStats(statsRes.value);
+    } else if (statsRes.status === "rejected") {
+      console.error("Admin stats error:", statsRes.reason);
     }
+    if (growthRes.status === "fulfilled" && growthRes.value) {
+      setGrowthData(growthRes.value);
+    } else if (growthRes.status === "rejected") {
+      console.error("Admin growth error:", growthRes.reason);
+    }
+    setLoading(false);
   };
 
   const statCards = [

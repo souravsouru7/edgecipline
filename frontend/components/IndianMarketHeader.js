@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/indian-market/setups",    label: "Setups"    },
   { href: "/profile",                 label: "Profile"   },
   { href: "/weekly-reports?market=Indian_Market", label: "Reports" },
+  { href: "/indian-market/discipline",             label: "Discipline" },
 ];
 
 export default function IndianMarketHeader() {

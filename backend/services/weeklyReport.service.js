@@ -4,6 +4,7 @@ const { logger } = require("../utils/logger");
 const { generateWeeklyFeedback } = require("./geminiService");
 const weeklyReportRepository = require("../repositories/weeklyReport.repository");
 const analyticsSnapshotService = require("./analyticsSnapshotService");
+const { notifyWeeklyInsight } = require("./smartNotificationEvaluator");
 const { getTradeCacheVersion } = require("../utils/cacheUtils");
 const { calculateCostBreakdown, calculatePsychologyScore } = require("../utils/metricEngine");
 
@@ -350,10 +351,25 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
 
   try {
     const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel });
-    return weeklyReportRepository.updateWeeklyReportById(report._id, {
+    const updatedReport = await weeklyReportRepository.updateWeeklyReportById(report._id, {
       aiFeedback: feedback,
       aiModel: model,
     });
+    try {
+      const notification = await notifyWeeklyInsight({ userId, report: updatedReport, marketType });
+      logger.info("[WeeklyInsight]", {
+        userId: userId?.toString?.(),
+        reportId: updatedReport?._id?.toString?.(),
+        notificationSent: Boolean(notification),
+      });
+    } catch (notificationError) {
+      logger.error("[WeeklyInsight] notification failed", {
+        userId: userId?.toString?.(),
+        reportId: updatedReport?._id?.toString?.(),
+        error: notificationError.message,
+      });
+    }
+    return updatedReport;
   } catch (aiError) {
     logger.warn("[WeeklyReport] AI generation failed, saving report without AI feedback", { error: aiError.message });
     return weeklyReportRepository.updateWeeklyReportById(report._id, {

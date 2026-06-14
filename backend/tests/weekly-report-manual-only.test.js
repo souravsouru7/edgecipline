@@ -66,6 +66,10 @@ jest.mock("../services/geminiService", () => ({
   generateWeeklyFeedback: jest.fn(),
 }));
 
+jest.mock("../services/smartNotificationEvaluator", () => ({
+  notifyWeeklyInsight: jest.fn().mockResolvedValue({ _id: "notif-1", status: "sent" }),
+}));
+
 const weeklyReportRepository = require("../repositories/weeklyReport.repository");
 const tradeRepository = require("../repositories/trade.repository");
 const { generateWeeklyFeedback } = require("../services/geminiService");

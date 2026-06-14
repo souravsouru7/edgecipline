@@ -80,8 +80,7 @@ public class ChecklistNotificationManager {
 
     /** Returns the active channel ID, stored in the Forex SharedPreferences (channel is shared). */
     public static String getChannelId(Context ctx) {
-        int ver = getPrefs(ctx, "Forex").getInt(KEY_CHANNEL_VER, 2);
-        return ver <= 1 ? CHANNEL_ID_BASE : CHANNEL_ID_BASE + "_v" + ver;
+        return CHANNEL_ID_BASE;
     }
 
     /**
@@ -97,8 +96,8 @@ public class ChecklistNotificationManager {
                 ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return getChannelId(ctx);
 
-        // Clean up all legacy / old-version channels
-        for (String old : new String[]{ CHANNEL_ID_BASE, CHANNEL_ID_BASE + "_v1" }) {
+        // Clean up old-version channels. The canonical checklist channel ID is edgecipline_checklist.
+        for (String old : new String[]{ CHANNEL_ID_BASE + "_v1", CHANNEL_ID_BASE + "_v2" }) {
             if (nm.getNotificationChannel(old) != null) {
                 nm.deleteNotificationChannel(old);
                 Log.d(TAG, "Deleted legacy channel: " + old);
@@ -108,17 +107,9 @@ public class ChecklistNotificationManager {
         String channelId = getChannelId(ctx);
         NotificationChannel existing = nm.getNotificationChannel(channelId);
 
-        if (existing != null && existing.getImportance() == NotificationManager.IMPORTANCE_NONE) {
-            // Channel was blocked — bump version and delete so we get a fresh one
-            int newVer = getPrefs(ctx, "Forex").getInt(KEY_CHANNEL_VER, 2) + 1;
-            getPrefs(ctx, "Forex").edit().putInt(KEY_CHANNEL_VER, newVer).commit();
-            nm.deleteNotificationChannel(channelId);
-            channelId = CHANNEL_ID_BASE + "_v" + newVer;
-            existing = null;
-            Log.w(TAG, "Channel was blocked — bumped to " + channelId);
-        }
 
         if (existing == null) {
+            Log.d("Notifications", "Creating channel: " + channelId);
             NotificationChannel ch = new NotificationChannel(
                     channelId,
                     "Pre-Trade Checklist",
@@ -131,6 +122,7 @@ public class ChecklistNotificationManager {
             ch.enableVibration(false);
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(ch);
+            Log.d("Notifications", "Channel created successfully");
             Log.d(TAG, "Channel created: " + channelId);
         } else {
             Log.d(TAG, "Channel OK: " + channelId + " importance=" + existing.getImportance());

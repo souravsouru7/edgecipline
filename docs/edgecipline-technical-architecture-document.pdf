@@ -1,0 +1,3700 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 413 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(EDGEDISCIPLINE) Tj
+/FB 26 Tf
+1 0 0 1 62 726 Tm
+(Technical Architecture Document) Tj
+/FB 12 Tf
+1 0 0 1 62 690 Tm
+(SaaS architecture, database schema, project structure, and configuration) Tj
+/FR 10 Tf
+1 0 0 1 62 668 Tm
+(Prepared from the Stratedge codebase) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 1) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Length 201 >>
+stream
+BT
+/FB 22 Tf
+1 0 0 1 62 742 Tm
+(Edgecipline Technical Architecture Document) Tj
+/FR 10 Tf
+1 0 0 1 62 712 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 2) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 2051 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(1. Architecture Summary) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Edgecipline is a multi-platform SaaS product for retail traders. It combines an) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(AI-assisted trade journal, screenshot-to-trade extraction, performance analytics,) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(discipline tracking, psychology insights, weekly reports, subscriptions, notifications,) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(and an internal admin console.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(The recommended architecture is a modular full-stack SaaS:) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Static-export Next.js frontend for web and mobile shell delivery.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Capacitor Android wrapper for mobile distribution.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Node.js/Express API for business logic and integrations.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- MongoDB for flexible product data and analytics-friendly document storage.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- Redis + BullMQ for asynchronous OCR/AI processing.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- Cloudinary for uploaded screenshot storage.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(- Google Vision / Tesseract / Gemini for OCR and AI extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 552 Tm
+(- Firebase Authentication for Google sign-in and mobile-friendly auth.) Tj
+/FR 10 Tf
+1 0 0 1 62 538 Tm
+(- JWT + rotating refresh tokens for backend sessions.) Tj
+/FR 10 Tf
+1 0 0 1 62 524 Tm
+(- Razorpay for India-first subscription payments.) Tj
+/FR 10 Tf
+1 0 0 1 62 510 Tm
+(- Sentry + Winston logs for production observability.) Tj
+/FR 10 Tf
+1 0 0 1 62 496 Tm
+(At scale, the system should be deployed as three independently scalable runtime units:) Tj
+/FR 10 Tf
+1 0 0 1 62 482 Tm
+(1. Frontend static app served by CDN.) Tj
+/FR 10 Tf
+1 0 0 1 62 468 Tm
+(2. API server handling auth, CRUD, analytics, payments, admin, and orchestration.) Tj
+/FR 10 Tf
+1 0 0 1 62 454 Tm
+(3. OCR worker fleet processing image extraction jobs from Redis/BullMQ.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 3) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 2603 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(2. Core Product Domains) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(User Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Handles account creation, login, Google auth, terms acceptance, subscription state,) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(onboarding state, token revocation, and password reset.) Tj
+/FB 12 Tf
+1 0 0 1 62 675 Tm
+(Trade Journal Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(Handles Forex and Indian market trade creation, editing, deletion, screenshot references,) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(manual entry, psychology metadata, setup checklist outcomes, and soft deletion.) Tj
+/FB 12 Tf
+1 0 0 1 62 630 Tm
+(OCR / AI Extraction Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(Handles screenshot upload, Cloudinary persistence, async job creation, OCR text) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(extraction, AI extraction, validation, confidence scoring, non-trade rejection, and draft) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(confirmation.) Tj
+/FB 12 Tf
+1 0 0 1 62 571 Tm
+(Analytics Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(Computes dashboard metrics, equity curve, performance by strategy/session/instrument,) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(psychology cost, self-awareness, trading DNA, repeated mistakes, drawdown, and pattern) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(detection.) Tj
+/FB 12 Tf
+1 0 0 1 62 512 Tm
+(Setup And Discipline Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 495 Tm
+(Handles setup strategies, rule checklists, per-session checklist tracking, setup score,) Tj
+/FR 10 Tf
+1 0 0 1 62 481 Tm
+(A+ classification, checklist reminders, and plan adherence analytics.) Tj
+/FB 12 Tf
+1 0 0 1 62 467 Tm
+(Report Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 450 Tm
+(Generates rolling weekly reports from trade history and optional AI feedback.) Tj
+/FB 12 Tf
+1 0 0 1 62 436 Tm
+(Subscription Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 419 Tm
+(Handles free upload gating, Razorpay order creation, payment verification, subscription) Tj
+/FR 10 Tf
+1 0 0 1 62 405 Tm
+(activation, expiry, and admin overrides.) Tj
+/FB 12 Tf
+1 0 0 1 62 391 Tm
+(Notification Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 374 Tm
+(Handles device tokens, notification preferences, in-app notification history, push) Tj
+/FR 10 Tf
+1 0 0 1 62 360 Tm
+(delivery status, morning mentor reminders, weekly report reminders, and checklist) Tj
+/FR 10 Tf
+1 0 0 1 62 346 Tm
+(reminders.) Tj
+/FB 12 Tf
+1 0 0 1 62 332 Tm
+(Admin Domain) Tj
+/FR 10 Tf
+1 0 0 1 62 315 Tm
+(Provides separate admin authentication and operations for users, payments, trades,) Tj
+/FR 10 Tf
+1 0 0 1 62 301 Tm
+(feedback, notifications, and platform analytics.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 4) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 4449 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(3. Recommended Tech Stack) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Frontend) Tj
+/FR 8 Tf
+1 0 0 1 70 703 Tm
+(Layer Choice Reason) Tj
+/FR 8 Tf
+1 0 0 1 70 692 Tm
+(--- --- ---) Tj
+/FR 8 Tf
+1 0 0 1 70 681 Tm
+(Web framework Next.js App Router with static export Good developer experience, route-based product) Tj
+/FR 8 Tf
+1 0 0 1 70 670 Tm
+(organization, CDN-friendly static deployment, works with Capacitor.) Tj
+/FR 8 Tf
+1 0 0 1 70 659 Tm
+(Language TypeScript-first JavaScript Type safety where available while preserving current JS modules.) Tj
+/FR 8 Tf
+1 0 0 1 70 648 Tm
+(UI React 19 Mature ecosystem, component reuse across web/PWA/mobile shell.) Tj
+/FR 8 Tf
+1 0 0 1 70 637 Tm
+(Styling Tailwind CSS v4 plus local component styles Fast iteration for early-stage SaaS, easy responsive) Tj
+/FR 8 Tf
+1 0 0 1 70 626 Tm
+(layouts.) Tj
+/FR 8 Tf
+1 0 0 1 70 615 Tm
+(Server state TanStack React Query Caching, loading states, retries, invalidation after trade writes.) Tj
+/FR 8 Tf
+1 0 0 1 70 604 Tm
+(HTTP client Axios + axios-retry Centralized API client with retry semantics.) Tj
+/FR 8 Tf
+1 0 0 1 70 593 Tm
+(Charts Recharts Sufficient for dashboards, P&L curves, performance cards.) Tj
+/FR 8 Tf
+1 0 0 1 70 582 Tm
+(Icons lucide-react Consistent UI icon system.) Tj
+/FR 8 Tf
+1 0 0 1 70 571 Tm
+(Mobile shell Capacitor Android Lets the same static app ship as Android APK.) Tj
+/FR 8 Tf
+1 0 0 1 70 560 Tm
+(Error tracking Sentry for Next.js Client-side production error visibility.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(Recommendation: keep Next.js as a static export while the app is API-driven. If SSR) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(becomes necessary for SEO-heavy public pages, split marketing/public pages from the) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(authenticated app shell.) Tj
+/FB 12 Tf
+1 0 0 1 62 507 Tm
+(Backend) Tj
+/FR 8 Tf
+1 0 0 1 70 490 Tm
+(Layer Choice Reason) Tj
+/FR 8 Tf
+1 0 0 1 70 479 Tm
+(--- --- ---) Tj
+/FR 8 Tf
+1 0 0 1 70 468 Tm
+(Runtime Node.js Good fit for I/O-heavy SaaS and AI/API orchestration.) Tj
+/FR 8 Tf
+1 0 0 1 70 457 Tm
+(API framework Express 5 Simple, mature, already in codebase.) Tj
+/FR 8 Tf
+1 0 0 1 70 446 Tm
+(Database ORM Mongoose Flexible schema modelling for evolving analytics/trade objects.) Tj
+/FR 8 Tf
+1 0 0 1 70 435 Tm
+(Auth Backend JWT + rotating refresh tokens + Firebase Admin for Google tokens Keeps backend authorization) Tj
+/FR 8 Tf
+1 0 0 1 70 424 Tm
+(authoritative while allowing Google/mobile auth.) Tj
+/FR 8 Tf
+1 0 0 1 70 413 Tm
+(Queue BullMQ Reliable Redis-backed background processing for OCR/AI work.) Tj
+/FR 8 Tf
+1 0 0 1 70 402 Tm
+(Cache Redis Response caching, queue backend, invalidation after writes.) Tj
+/FR 8 Tf
+1 0 0 1 70 391 Tm
+(File upload Multer + file-type validation Standard multipart upload flow with validation.) Tj
+/FR 8 Tf
+1 0 0 1 70 380 Tm
+(Image storage Cloudinary Managed image hosting, public IDs, deletion support.) Tj
+/FR 8 Tf
+1 0 0 1 70 369 Tm
+(OCR Google Cloud Vision primary, Tesseract fallback Strong broker screenshot OCR, local fallback for) Tj
+/FR 8 Tf
+1 0 0 1 70 358 Tm
+(resilience.) Tj
+/FR 8 Tf
+1 0 0 1 70 347 Tm
+(AI extraction Gemini 2.5 Flash primary, text fallback Cost-effective multimodal extraction for) Tj
+/FR 8 Tf
+1 0 0 1 70 336 Tm
+(screenshots.) Tj
+/FR 8 Tf
+1 0 0 1 70 325 Tm
+(Payments Razorpay Best fit for India-first subscription payments.) Tj
+/FR 8 Tf
+1 0 0 1 70 314 Tm
+(Email Resend and/or SMTP/Nodemailer Transactional emails, OTP, reports, reminders.) Tj
+/FR 8 Tf
+1 0 0 1 70 303 Tm
+(Logging Winston + Morgan Structured application logs and request logs.) Tj
+/FR 8 Tf
+1 0 0 1 70 292 Tm
+(Error tracking Sentry Node Crash/error visibility with header/cookie scrubbing.) Tj
+/FR 8 Tf
+1 0 0 1 70 281 Tm
+(Security Helmet, CORS allowlist, rate limiting, input sanitization, central error handler Baseline SaaS) Tj
+/FR 8 Tf
+1 0 0 1 70 270 Tm
+(hardening.) Tj
+/FB 12 Tf
+1 0 0 1 62 259 Tm
+(Data Storage) Tj
+/FR 8 Tf
+1 0 0 1 70 242 Tm
+(Store Usage) Tj
+/FR 8 Tf
+1 0 0 1 70 231 Tm
+(--- ---) Tj
+/FR 8 Tf
+1 0 0 1 70 220 Tm
+(MongoDB Users, trades, Indian trades, OCR jobs, reports, payments, notifications, feedback, setup) Tj
+/FR 8 Tf
+1 0 0 1 70 209 Tm
+(strategies.) Tj
+/FR 8 Tf
+1 0 0 1 70 198 Tm
+(Redis BullMQ jobs, short-lived cache, operational queue state.) Tj
+/FR 8 Tf
+1 0 0 1 70 187 Tm
+(Cloudinary Uploaded screenshots and setup reference images.) Tj
+/FB 12 Tf
+1 0 0 1 62 176 Tm
+(Deployment) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 5) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 708 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(Recommended deployment topology:) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- CDN/static host for frontend/out.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- API server as stratedge-api.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- OCR worker as stratedge-ocr-worker.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- MongoDB Atlas for database.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Managed Redis for queue/cache.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- PM2 or container orchestration for backend processes.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- Nginx/Cloudflare in front of API for TLS, compression, and static security) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(  headers.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 6) Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 3101 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(4. High-Level System Flow) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Authentication Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(1. User registers with email/password or signs in with Google.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(2. Google login sends Firebase ID token to backend.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(3. Backend verifies credentials or Firebase token.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(4. Backend creates or finds User.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(5. Backend issues short-lived JWT and refresh token.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(6. Protected requests send Authorization: Bearer <token>.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(7. Auth middleware verifies JWT, checks user, checks token version, and attaches) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(   req.user.) Tj
+/FB 12 Tf
+1 0 0 1 62 591 Tm
+(Screenshot Upload Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(1. Client uploads screenshot to /api/upload/trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(2. API validates file type, size, user subscription, market type, broker, and trade) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(   subtype.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(3. API uploads image to Cloudinary.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(4. API creates an OCRJob record.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(5. API enqueues BullMQ job.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(6. Worker extracts OCR text using Google Vision or Tesseract.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(7. Worker runs Gemini Vision extraction, with text fallback if needed.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(8. Worker validates parsed trade data and confidence.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(9. Worker stores extracted draft data in OCRJob.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(10. Client polls job/status endpoint.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(11. User reviews and confirms extracted trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(12. Confirmed trade is saved into Trade or IndianTrade.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(13. User-specific cache is invalidated.) Tj
+/FB 12 Tf
+1 0 0 1 62 378 Tm
+(Analytics Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(1. Client requests dashboard or analytics endpoint.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(2. API reads user trade data filtered by market and soft-delete state.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(3. Analytics utilities compute derived stats.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(4. Expensive aggregate responses may be cached briefly in Redis.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(5. Any trade write clears the user cache.) Tj
+/FB 12 Tf
+1 0 0 1 62 291 Tm
+(Payment Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(1. User selects paid plan.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(2. API creates Razorpay order and Payment record.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(3. Client opens Razorpay checkout.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(4. Client sends payment ID/signature to backend.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(5. Backend verifies signature.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(6. Backend marks payment completed and updates User.subscriptionStatus,) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(   subscriptionPlan, and subscriptionExpiry.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 7) Tj
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 15 0 R >>
+endobj
+17 0 obj
+<< /Length 3160 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(5. Recommended Project Structure) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(The current repo already follows this structure. Keep it, but standardize naming and) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(ownership boundaries.) Tj
+/FR 8 Tf
+1 0 0 1 74 692 Tm
+(stratedge/) Tj
+/FR 8 Tf
+1 0 0 1 74 681 Tm
+(backend/) Tj
+/FR 8 Tf
+1 0 0 1 74 670 Tm
+(admin/) Tj
+/FR 8 Tf
+1 0 0 1 74 659 Tm
+(controllers/ Admin business handlers) Tj
+/FR 8 Tf
+1 0 0 1 74 648 Tm
+(routes/ /api/admin/* route definitions) Tj
+/FR 8 Tf
+1 0 0 1 74 637 Tm
+(config/) Tj
+/FR 8 Tf
+1 0 0 1 74 626 Tm
+(index.js Central environment/config loader) Tj
+/FR 8 Tf
+1 0 0 1 74 615 Tm
+(db.js MongoDB connection) Tj
+/FR 8 Tf
+1 0 0 1 74 604 Tm
+(redis.js Redis/BullMQ connection) Tj
+/FR 8 Tf
+1 0 0 1 74 593 Tm
+(cloudinary.js Cloudinary client) Tj
+/FR 8 Tf
+1 0 0 1 74 582 Tm
+(firebaseAdmin.js Firebase Admin SDK) Tj
+/FR 8 Tf
+1 0 0 1 74 571 Tm
+(constants/) Tj
+/FR 8 Tf
+1 0 0 1 74 560 Tm
+(terms.js Terms/privacy version constants) Tj
+/FR 8 Tf
+1 0 0 1 74 549 Tm
+(controllers/) Tj
+/FR 8 Tf
+1 0 0 1 74 538 Tm
+(authController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 527 Tm
+(uploadController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 516 Tm
+(tradeController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 505 Tm
+(indianTradeController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 494 Tm
+(analyticsController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 483 Tm
+(indianAnalyticsController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 472 Tm
+(dashboardController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 461 Tm
+(setupController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 450 Tm
+(checklistController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 439 Tm
+(weeklyReportController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 428 Tm
+(paymentController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 417 Tm
+(notificationController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 406 Tm
+(feedbackController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 395 Tm
+(profileController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 384 Tm
+(aiCoachController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 373 Tm
+(disciplineController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 362 Tm
+(patternController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 351 Tm
+(timelineController.js) Tj
+/FR 8 Tf
+1 0 0 1 74 340 Tm
+(jobs/) Tj
+/FR 8 Tf
+1 0 0 1 74 329 Tm
+(dataCleanupCron.js) Tj
+/FR 8 Tf
+1 0 0 1 74 318 Tm
+(weeklyReportsCron.js) Tj
+/FR 8 Tf
+1 0 0 1 74 307 Tm
+(morningMentorCron.js) Tj
+/FR 8 Tf
+1 0 0 1 74 296 Tm
+(middleware/) Tj
+/FR 8 Tf
+1 0 0 1 74 285 Tm
+(adminAuth.js) Tj
+/FR 8 Tf
+1 0 0 1 74 274 Tm
+(authMiddleware.js) Tj
+/FR 8 Tf
+1 0 0 1 74 263 Tm
+(cacheMiddleware.js) Tj
+/FR 8 Tf
+1 0 0 1 74 252 Tm
+(errorHandler.js) Tj
+/FR 8 Tf
+1 0 0 1 74 241 Tm
+(rateLimiter.js) Tj
+/FR 8 Tf
+1 0 0 1 74 230 Tm
+(sanitizeInput.js) Tj
+/FR 8 Tf
+1 0 0 1 74 219 Tm
+(timeout.js) Tj
+/FR 8 Tf
+1 0 0 1 74 208 Tm
+(uploadMiddleware.js) Tj
+/FR 8 Tf
+1 0 0 1 74 197 Tm
+(validateObjectId.js) Tj
+/FR 8 Tf
+1 0 0 1 74 186 Tm
+(validateNumbers.js) Tj
+/FR 8 Tf
+1 0 0 1 74 175 Tm
+(models/) Tj
+/FR 8 Tf
+1 0 0 1 74 164 Tm
+(Users.js) Tj
+/FR 8 Tf
+1 0 0 1 74 153 Tm
+(RefreshToken.js) Tj
+/FR 8 Tf
+1 0 0 1 74 142 Tm
+(Trade.js) Tj
+/FR 8 Tf
+1 0 0 1 74 131 Tm
+(IndianTrade.js) Tj
+/FR 8 Tf
+1 0 0 1 74 120 Tm
+(OCRJob.js) Tj
+/FR 8 Tf
+1 0 0 1 74 109 Tm
+(ExtractionLog.js) Tj
+/FR 8 Tf
+1 0 0 1 74 98 Tm
+(SetupStrategy.js) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 8) Tj
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 17 0 R >>
+endobj
+19 0 obj
+<< /Length 3182 >>
+stream
+BT
+/FR 8 Tf
+1 0 0 1 74 742 Tm
+(ChecklistTracking.js) Tj
+/FR 8 Tf
+1 0 0 1 74 731 Tm
+(WeeklyReport.js) Tj
+/FR 8 Tf
+1 0 0 1 74 720 Tm
+(Payment.js) Tj
+/FR 8 Tf
+1 0 0 1 74 709 Tm
+(Notification.js) Tj
+/FR 8 Tf
+1 0 0 1 74 698 Tm
+(NotificationHistory.js) Tj
+/FR 8 Tf
+1 0 0 1 74 687 Tm
+(NotificationPreference.js) Tj
+/FR 8 Tf
+1 0 0 1 74 676 Tm
+(DeviceToken.js) Tj
+/FR 8 Tf
+1 0 0 1 74 665 Tm
+(ChecklistNotificationSetting.js) Tj
+/FR 8 Tf
+1 0 0 1 74 654 Tm
+(Feedback.js) Tj
+/FR 8 Tf
+1 0 0 1 74 643 Tm
+(queues/) Tj
+/FR 8 Tf
+1 0 0 1 74 632 Tm
+(ocrQueue.js) Tj
+/FR 8 Tf
+1 0 0 1 74 621 Tm
+(repositories/) Tj
+/FR 8 Tf
+1 0 0 1 74 610 Tm
+(user.repository.js) Tj
+/FR 8 Tf
+1 0 0 1 74 599 Tm
+(trade.repository.js) Tj
+/FR 8 Tf
+1 0 0 1 74 588 Tm
+(indianTrade.repository.js) Tj
+/FR 8 Tf
+1 0 0 1 74 577 Tm
+(setup.repository.js) Tj
+/FR 8 Tf
+1 0 0 1 74 566 Tm
+(weeklyReport.repository.js) Tj
+/FR 8 Tf
+1 0 0 1 74 555 Tm
+(routes/) Tj
+/FR 8 Tf
+1 0 0 1 74 544 Tm
+(authRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 533 Tm
+(uploadRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 522 Tm
+(tradeRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 511 Tm
+(tradeStatusRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 500 Tm
+(indianMarketRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 489 Tm
+(dashboardRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 478 Tm
+(analyticsRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 467 Tm
+(indianAnalyticsRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 456 Tm
+(setupRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 445 Tm
+(checklistRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 434 Tm
+(weeklyReportRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 423 Tm
+(paymentRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 412 Tm
+(notificationRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 401 Tm
+(profileRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 390 Tm
+(feedbackRoutes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 379 Tm
+(services/) Tj
+/FR 8 Tf
+1 0 0 1 74 368 Tm
+(tokenService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 357 Tm
+(upload.service.js) Tj
+/FR 8 Tf
+1 0 0 1 74 346 Tm
+(trade.service.js) Tj
+/FR 8 Tf
+1 0 0 1 74 335 Tm
+(tradeLifecycle.service.js) Tj
+/FR 8 Tf
+1 0 0 1 74 324 Tm
+(tradeProcessingService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 313 Tm
+(ocrJob.service.js) Tj
+/FR 8 Tf
+1 0 0 1 74 302 Tm
+(visionOcrService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 291 Tm
+(ocrService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 280 Tm
+(aiExtractionService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 269 Tm
+(geminiService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 258 Tm
+(parsingService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 247 Tm
+(extractionQualityService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 236 Tm
+(analyticsSnapshotService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 225 Tm
+(weeklyReport.service.js) Tj
+/FR 8 Tf
+1 0 0 1 74 214 Tm
+(notificationService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 203 Tm
+(morningMentorService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 192 Tm
+(mailService.js) Tj
+/FR 8 Tf
+1 0 0 1 74 181 Tm
+(utils/) Tj
+/FR 8 Tf
+1 0 0 1 74 170 Tm
+(ApiError.js) Tj
+/FR 8 Tf
+1 0 0 1 74 159 Tm
+(asyncHandler.js) Tj
+/FR 8 Tf
+1 0 0 1 74 148 Tm
+(cache.js) Tj
+/FR 8 Tf
+1 0 0 1 74 137 Tm
+(cacheUtils.js) Tj
+/FR 8 Tf
+1 0 0 1 74 126 Tm
+(dateUtils.js) Tj
+/FR 8 Tf
+1 0 0 1 74 115 Tm
+(metricEngine.js) Tj
+/FR 8 Tf
+1 0 0 1 74 104 Tm
+(disciplineAnalytics.js) Tj
+/FR 8 Tf
+1 0 0 1 74 93 Tm
+(aiCoachFeed.js) Tj
+/FR 8 Tf
+1 0 0 1 74 82 Tm
+(patternDetection.js) Tj
+/FR 8 Tf
+1 0 0 1 74 71 Tm
+(psychologyCost.js) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 9) Tj
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 19 0 R >>
+endobj
+21 0 obj
+<< /Length 2796 >>
+stream
+BT
+/FR 8 Tf
+1 0 0 1 74 742 Tm
+(psychologyTimeline.js) Tj
+/FR 8 Tf
+1 0 0 1 74 731 Tm
+(tradingDNA.js) Tj
+/FR 8 Tf
+1 0 0 1 74 720 Tm
+(tradeEvaluation.js) Tj
+/FR 8 Tf
+1 0 0 1 74 709 Tm
+(logger.js) Tj
+/FR 8 Tf
+1 0 0 1 74 698 Tm
+(workers/) Tj
+/FR 8 Tf
+1 0 0 1 74 687 Tm
+(ocrWorker.js) Tj
+/FR 8 Tf
+1 0 0 1 74 676 Tm
+(__tests__/) Tj
+/FR 8 Tf
+1 0 0 1 74 665 Tm
+(unit/) Tj
+/FR 8 Tf
+1 0 0 1 74 654 Tm
+(integration/) Tj
+/FR 8 Tf
+1 0 0 1 74 643 Tm
+(server.js) Tj
+/FR 8 Tf
+1 0 0 1 74 632 Tm
+(package.json) Tj
+/FR 8 Tf
+1 0 0 1 74 621 Tm
+(frontend/) Tj
+/FR 8 Tf
+1 0 0 1 74 610 Tm
+(app/) Tj
+/FR 8 Tf
+1 0 0 1 74 599 Tm
+(layout.tsx) Tj
+/FR 8 Tf
+1 0 0 1 74 588 Tm
+(providers.tsx) Tj
+/FR 8 Tf
+1 0 0 1 74 577 Tm
+(page.tsx) Tj
+/FR 8 Tf
+1 0 0 1 74 566 Tm
+(login/) Tj
+/FR 8 Tf
+1 0 0 1 74 555 Tm
+(register/) Tj
+/FR 8 Tf
+1 0 0 1 74 544 Tm
+(forgot-password/) Tj
+/FR 8 Tf
+1 0 0 1 74 533 Tm
+(reset-password/) Tj
+/FR 8 Tf
+1 0 0 1 74 522 Tm
+(verify-otp/) Tj
+/FR 8 Tf
+1 0 0 1 74 511 Tm
+(accept-terms/) Tj
+/FR 8 Tf
+1 0 0 1 74 500 Tm
+(dashboard/) Tj
+/FR 8 Tf
+1 0 0 1 74 489 Tm
+(upload-trade/) Tj
+/FR 8 Tf
+1 0 0 1 74 478 Tm
+(add-trade/) Tj
+/FR 8 Tf
+1 0 0 1 74 467 Tm
+(trades/) Tj
+/FR 8 Tf
+1 0 0 1 74 456 Tm
+(indian-market/) Tj
+/FR 8 Tf
+1 0 0 1 74 445 Tm
+(dashboard/) Tj
+/FR 8 Tf
+1 0 0 1 74 434 Tm
+(upload-trade/) Tj
+/FR 8 Tf
+1 0 0 1 74 423 Tm
+(add-trade/) Tj
+/FR 8 Tf
+1 0 0 1 74 412 Tm
+(trades/) Tj
+/FR 8 Tf
+1 0 0 1 74 401 Tm
+(analytics/) Tj
+/FR 8 Tf
+1 0 0 1 74 390 Tm
+(discipline/) Tj
+/FR 8 Tf
+1 0 0 1 74 379 Tm
+(setups/) Tj
+/FR 8 Tf
+1 0 0 1 74 368 Tm
+(analytics/) Tj
+/FR 8 Tf
+1 0 0 1 74 357 Tm
+(page.js) Tj
+/FR 8 Tf
+1 0 0 1 74 346 Tm
+(ai-coach/) Tj
+/FR 8 Tf
+1 0 0 1 74 335 Tm
+(ai-insights/) Tj
+/FR 8 Tf
+1 0 0 1 74 324 Tm
+(discipline/) Tj
+/FR 8 Tf
+1 0 0 1 74 313 Tm
+(mistakes/) Tj
+/FR 8 Tf
+1 0 0 1 74 302 Tm
+(patterns/) Tj
+/FR 8 Tf
+1 0 0 1 74 291 Tm
+(psychology/) Tj
+/FR 8 Tf
+1 0 0 1 74 280 Tm
+(psychology-cost/) Tj
+/FR 8 Tf
+1 0 0 1 74 269 Tm
+(self-awareness/) Tj
+/FR 8 Tf
+1 0 0 1 74 258 Tm
+(trading-dna/) Tj
+/FR 8 Tf
+1 0 0 1 74 247 Tm
+(checklist/) Tj
+/FR 8 Tf
+1 0 0 1 74 236 Tm
+(setups/) Tj
+/FR 8 Tf
+1 0 0 1 74 225 Tm
+(weekly-reports/) Tj
+/FR 8 Tf
+1 0 0 1 74 214 Tm
+(intelligence/) Tj
+/FR 8 Tf
+1 0 0 1 74 203 Tm
+(trading-dna/) Tj
+/FR 8 Tf
+1 0 0 1 74 192 Tm
+(discipline/) Tj
+/FR 8 Tf
+1 0 0 1 74 181 Tm
+(psychology-timeline/) Tj
+/FR 8 Tf
+1 0 0 1 74 170 Tm
+(notifications/) Tj
+/FR 8 Tf
+1 0 0 1 74 159 Tm
+(profile/) Tj
+/FR 8 Tf
+1 0 0 1 74 148 Tm
+(support/) Tj
+/FR 8 Tf
+1 0 0 1 74 137 Tm
+(admin/) Tj
+/FR 8 Tf
+1 0 0 1 74 126 Tm
+(privacy-policy/) Tj
+/FR 8 Tf
+1 0 0 1 74 115 Tm
+(terms/) Tj
+/FR 8 Tf
+1 0 0 1 74 104 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 93 Tm
+(shared cross-feature components) Tj
+/FR 8 Tf
+1 0 0 1 74 82 Tm
+(config/) Tj
+/FR 8 Tf
+1 0 0 1 74 71 Tm
+(api.js) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 10) Tj
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 21 0 R >>
+endobj
+23 0 obj
+<< /Length 2252 >>
+stream
+BT
+/FR 8 Tf
+1 0 0 1 74 742 Tm
+(seo.ts) Tj
+/FR 8 Tf
+1 0 0 1 74 731 Tm
+(marketThemes.js) Tj
+/FR 8 Tf
+1 0 0 1 74 720 Tm
+(context/) Tj
+/FR 8 Tf
+1 0 0 1 74 709 Tm
+(MarketContext.js) Tj
+/FR 8 Tf
+1 0 0 1 74 698 Tm
+(features/) Tj
+/FR 8 Tf
+1 0 0 1 74 687 Tm
+(auth/) Tj
+/FR 8 Tf
+1 0 0 1 74 676 Tm
+(api/) Tj
+/FR 8 Tf
+1 0 0 1 74 665 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 654 Tm
+(hooks/) Tj
+/FR 8 Tf
+1 0 0 1 74 643 Tm
+(trade/) Tj
+/FR 8 Tf
+1 0 0 1 74 632 Tm
+(api/) Tj
+/FR 8 Tf
+1 0 0 1 74 621 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 610 Tm
+(hooks/) Tj
+/FR 8 Tf
+1 0 0 1 74 599 Tm
+(analytics/) Tj
+/FR 8 Tf
+1 0 0 1 74 588 Tm
+(api/) Tj
+/FR 8 Tf
+1 0 0 1 74 577 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 566 Tm
+(hooks/) Tj
+/FR 8 Tf
+1 0 0 1 74 555 Tm
+(dashboard/) Tj
+/FR 8 Tf
+1 0 0 1 74 544 Tm
+(api/) Tj
+/FR 8 Tf
+1 0 0 1 74 533 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 522 Tm
+(hooks/) Tj
+/FR 8 Tf
+1 0 0 1 74 511 Tm
+(ai-coach/) Tj
+/FR 8 Tf
+1 0 0 1 74 500 Tm
+(shared/) Tj
+/FR 8 Tf
+1 0 0 1 74 489 Tm
+(components/) Tj
+/FR 8 Tf
+1 0 0 1 74 478 Tm
+(hooks/) Tj
+/FR 8 Tf
+1 0 0 1 74 467 Tm
+(plugins/) Tj
+/FR 8 Tf
+1 0 0 1 74 456 Tm
+(Capacitor plugins) Tj
+/FR 8 Tf
+1 0 0 1 74 445 Tm
+(public/) Tj
+/FR 8 Tf
+1 0 0 1 74 434 Tm
+(logos, sample screenshots, manifest) Tj
+/FR 8 Tf
+1 0 0 1 74 423 Tm
+(services/) Tj
+/FR 8 Tf
+1 0 0 1 74 412 Tm
+(api clients and notification services) Tj
+/FR 8 Tf
+1 0 0 1 74 401 Tm
+(utils/) Tj
+/FR 8 Tf
+1 0 0 1 74 390 Tm
+(auth.js) Tj
+/FR 8 Tf
+1 0 0 1 74 379 Tm
+(metricEngine.js) Tj
+/FR 8 Tf
+1 0 0 1 74 368 Tm
+(queryInvalidation.js) Tj
+/FR 8 Tf
+1 0 0 1 74 357 Tm
+(marketNavigation.js) Tj
+/FR 8 Tf
+1 0 0 1 74 346 Tm
+(imageUpload.js) Tj
+/FR 8 Tf
+1 0 0 1 74 335 Tm
+(currencyFormatter.js) Tj
+/FR 8 Tf
+1 0 0 1 74 324 Tm
+(android/) Tj
+/FR 8 Tf
+1 0 0 1 74 313 Tm
+(Capacitor Android project) Tj
+/FR 8 Tf
+1 0 0 1 74 302 Tm
+(package.json) Tj
+/FR 8 Tf
+1 0 0 1 74 291 Tm
+(docs/) Tj
+/FR 8 Tf
+1 0 0 1 74 280 Tm
+(product-requirements-document.md) Tj
+/FR 8 Tf
+1 0 0 1 74 269 Tm
+(technical-architecture-document.md) Tj
+/FR 8 Tf
+1 0 0 1 74 258 Tm
+(scripts/) Tj
+/FR 8 Tf
+1 0 0 1 74 247 Tm
+(security-scan.js) Tj
+/FR 8 Tf
+1 0 0 1 74 236 Tm
+(check-mobile-auth-storage.js) Tj
+/FR 8 Tf
+1 0 0 1 74 225 Tm
+(check-mojibake.js) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 11) Tj
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 23 0 R >>
+endobj
+25 0 obj
+<< /Length 3466 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(6. Database Schema) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(This project uses MongoDB collections via Mongoose models. The word "table" below maps to) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(a MongoDB collection.) Tj
+/FB 12 Tf
+1 0 0 1 62 692 Tm
+(Relationship Overview) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- User owns most user-scoped records.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Trade.user, IndianTrade.user, SetupStrategy.user, ChecklistTracking.user,) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(  WeeklyReport.user, Payment.user, Feedback.user, DeviceToken.user, and notification) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(  records reference User.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- RefreshToken.userId references User for backend session rotation.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- ChecklistNotificationSetting.strategyId optionally references SetupStrategy.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- OCRJob.confirmedTradeId points to a confirmed Trade or IndianTrade, with) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(  confirmedTradeCollection identifying the collection.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(- Trade.deletedBy and IndianTrade.deletedBy reference User for soft delete audit.) Tj
+/FB 12 Tf
+1 0 0 1 62 549 Tm
+(User) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(Collection: users) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(Purpose: account, auth, role, subscription, onboarding, and security state.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- name: user display name.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- email: unique lowercase email.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- password: hashed local password, excluded by default.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- authProvider: local or google.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- googleId: Google account ID, unique when present.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- role: user or admin.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- avatar: profile image URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- resetPasswordOTP: OTP used for password reset.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- resetPasswordOTPExpires: OTP expiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- resetPasswordToken: short-lived token issued after OTP verification.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(- resetPasswordTokenExpires: reset token expiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(- otpAttempts: OTP attempt counter.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(- otpLockUntil: temporary OTP lock time.) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(- subscriptionStatus: inactive, active, or expired.) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(- subscriptionPlan: free, monthly, or yearly.) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(- subscriptionExpiry: subscription end date.) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(- totalPaid: total lifetime amount paid.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(- lastLogin: last login timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(- freeUploadUsed: whether free screenshot upload has been consumed.) Tj
+/FR 10 Tf
+1 0 0 1 62 224 Tm
+(- hasSeenWelcomeGuide: dashboard onboarding flag.) Tj
+/FR 10 Tf
+1 0 0 1 62 210 Tm
+(- isOnboardingCompleted: broader onboarding completion flag.) Tj
+/FR 10 Tf
+1 0 0 1 62 196 Tm
+(- termsAcceptance.acceptedTerms: terms accepted boolean.) Tj
+/FR 10 Tf
+1 0 0 1 62 182 Tm
+(- termsAcceptance.acceptedPrivacy: privacy policy accepted boolean.) Tj
+/FR 10 Tf
+1 0 0 1 62 168 Tm
+(- termsAcceptance.acceptedAt: acceptance timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 154 Tm
+(- termsAcceptance.termsVersion: accepted terms version.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 12) Tj
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 25 0 R >>
+endobj
+27 0 obj
+<< /Length 2832 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- tokenVersion: increments to invalidate existing JWTs.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- loginAttempts: login rate/security counter, excluded by default.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- loginLockedUntil: temporary login lock time, excluded by default.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Unique email.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- Sparse unique googleId.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- role + subscriptionStatus + subscriptionExpiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- subscriptionStatus + subscriptionExpiry.) Tj
+/FB 12 Tf
+1 0 0 1 62 616 Tm
+(RefreshToken) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(Collection: refreshtokens) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(Purpose: stores hashed rotating refresh tokens for secure session renewal and replay) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(detection.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- userId: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- tokenHash: SHA-256 hash of raw refresh token, unique.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- family: rotation family ID; replay can revoke the whole family.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- deviceInfo.userAgent: client user agent.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- deviceInfo.ip: client IP.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- expiresAt: token expiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- revokedAt: timestamp when rotated/revoked.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Unique tokenHash.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- family.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- TTL on expiresAt with 24-hour grace.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- userId + revokedAt + expiresAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 361 Tm
+(Trade) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(Collection: trades) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(Purpose: Forex trades, and legacy/pending extraction fields for general trade upload) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(processing.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- pair: forex pair or instrument label.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- type: BUY or SELL.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- quantity: quantity/position amount.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- lotSize: lot size.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- entryPrice: entry price.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(- exitPrice: exit price.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- stopLoss: stop loss.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- takeProfit: take profit.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- profit: realized P&L.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 13) Tj
+ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 27 0 R >>
+endobj
+29 0 obj
+<< /Length 3622 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- commission: broker commission.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- swap: swap/overnight fee.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- balance: account balance from screenshot if available.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- strategy: strategy/setup label.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- session: trading session.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- tradeDate: actual trade date.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- notes: user notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- riskRewardRatio: enum such as 1:1, 1:2, 1:3, 1:4, 1:5, custom.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- riskRewardCustom: custom R:R text.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- screenshot: screenshot URL shown in journal.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- imageUrl: original Cloudinary URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- marketType: defaults to Forex.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- tradeSubType: OPTION, EQUITY, or null for cross-market upload compatibility.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- broker: broker label.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- segment: market segment.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- instrumentType: instrument type.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- strikePrice: option strike when relevant.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- expiryDate: option expiry text when relevant.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- extractedText: cleaned OCR text.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- rawOCRText: raw OCR output.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- aiRawResponse: raw AI response.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- parsedData: mixed parsed extraction payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- extractionConfidence: 0-100 confidence score.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- isValid: whether extraction/trade passed validation.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- needsReview: whether user should verify fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- status: pending, processing, completed, or failed.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- ocrJobId: queue/job identifier.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- ocrJobName: job name.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(- ocrAttempts: processing attempts count.) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(- queuedAt: when job was queued.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(- processingStartedAt: when processing began.) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(- error: failure message.) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(- processedAt: completion timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(- setupRules: array of { label, followed }, max 20.) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(- setupScore: percentage of setup rules followed.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(- entryBasis: Plan, Emotion, Impulsive, Custom, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(- entryBasisCustom: custom entry basis text.) Tj
+/FR 10 Tf
+1 0 0 1 62 224 Tm
+(- mood: 1-5 psychology state.) Tj
+/FR 10 Tf
+1 0 0 1 62 210 Tm
+(- confidence: Low, Medium, High, Overconfident, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 196 Tm
+(- emotionalTags: up to 10 tags.) Tj
+/FR 10 Tf
+1 0 0 1 62 182 Tm
+(- mistakeTag: mistake label.) Tj
+/FR 10 Tf
+1 0 0 1 62 168 Tm
+(- lesson: post-trade lesson.) Tj
+/FR 10 Tf
+1 0 0 1 62 154 Tm
+(- wouldRetake: Yes, No, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 140 Tm
+(- tradeQuality: Great, Average, Poor, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 126 Tm
+(- deletedAt: soft delete timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 112 Tm
+(- deletedBy: user/admin who deleted.) Tj
+/FR 10 Tf
+1 0 0 1 62 98 Tm
+(- deleteReason: audit reason.) Tj
+/FR 10 Tf
+1 0 0 1 62 84 Tm
+(- deletedSource: deletion source.) Tj
+/FR 10 Tf
+1 0 0 1 62 70 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 14) Tj
+ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 29 0 R >>
+endobj
+31 0 obj
+<< /Length 3058 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- User/time indexes for journal queries.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- User/market/status indexes for upload/status flows.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- User/deletedAt/tradeDate/profit indexes for analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- User/setupScore, mistakeTag, entryBasis indexes for discipline analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Sparse deletedAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 658 Tm
+(IndianTrade) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(Collection: indiantrades) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(Purpose: Indian market trades for F&O options and intraday equities.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- pair: display symbol such as NIFTY 26000 CE.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- underlying: NIFTY, BANKNIFTY, stock ticker, etc.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- type: BUY or SELL.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- optionType: CE or PE.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- entryPrice: entry premium/price.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- exitPrice: exit premium/price.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- stopLoss: stop loss.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- takeProfit: target.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- profit: realized P&L in INR.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- strategy: strategy/setup label.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- session: trading session.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- tradeDate: trade date.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- notes: user notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- riskRewardRatio: enum such as 1:1, 1:1.5, 1:2, custom.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- riskRewardCustom: custom R:R text.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- screenshot: screenshot URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- segment: F&O, EQUITY, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- instrumentType: OPTION, EQUITY, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- stockSymbol: equity ticker.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- exchange: NSE, BSE, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- sharesQty: equity share quantity.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- sector: equity sector.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- strikePrice: option strike.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- expiryDate: expiry date.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- quantity: lots or quantity.) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- lotSize: lot size.) Tj
+/FR 10 Tf
+1 0 0 1 62 221 Tm
+(- tradeType: INTRADAY, DELIVERY, SWING, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 207 Tm
+(- brokerage: brokerage amount.) Tj
+/FR 10 Tf
+1 0 0 1 62 193 Tm
+(- sttTaxes: taxes/fees.) Tj
+/FR 10 Tf
+1 0 0 1 62 179 Tm
+(- entryBasis: plan/emotion/impulsive/custom state.) Tj
+/FR 10 Tf
+1 0 0 1 62 165 Tm
+(- entryBasisCustom: custom entry basis.) Tj
+/FR 10 Tf
+1 0 0 1 62 151 Tm
+(- setup: setup label.) Tj
+/FR 10 Tf
+1 0 0 1 62 137 Tm
+(- mistakeTag: mistake label.) Tj
+/FR 10 Tf
+1 0 0 1 62 123 Tm
+(- lesson: user lesson.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 15) Tj
+ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 31 0 R >>
+endobj
+33 0 obj
+<< /Length 3387 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- setupRules: array of checklist rules.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- setupScore: setup adherence percentage.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- mood: 1-5 psychology state.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- confidence: confidence label.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- emotionalTags: up to 10 emotion tags.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- wouldRetake: Yes, No, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- tradeQuality: Great, Average, Poor, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- deletedAt, deletedBy, deleteReason, deletedSource: soft delete audit fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- User/instrument/time indexes for market-specific journal views.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- User/deletedAt/time indexes for analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- User/setupScore, mistakeTag, entryBasis indexes for behavioral analytics.) Tj
+/FB 12 Tf
+1 0 0 1 62 560 Tm
+(OCRJob) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(Collection: ocrjobs) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(Purpose: durable state for screenshot extraction jobs and reviewable extracted drafts.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- marketType: Forex or Indian_Market.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- tradeSubType: OPTION, EQUITY, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- broker: broker label.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- uploadedImage.imageUrl: Cloudinary URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- uploadedImage.publicId: Cloudinary public ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- uploadedImage.originalName: original file name.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- uploadedImage.mimeType: uploaded MIME type.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- uploadedImage.bytes: file size.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- requestedTradeDate: user-selected date before extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- status: PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, or CONFIRMED.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- queueJobId: BullMQ job ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- queueJobName: queue job name.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- attemptsMade: retry count.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- processingStartedAt: processing start time.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- processedAt: processing end time.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- cancelledAt: cancellation time.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- confirmedAt: user confirmation time.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- confirmedTradeId: confirmed trade document ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- confirmedTradeCollection: forex, indian, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 221 Tm
+(- error: failure message.) Tj
+/FR 10 Tf
+1 0 0 1 62 207 Tm
+(- extractedData: extracted draft payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 193 Tm
+(- extractionConfidence: 0-100 confidence.) Tj
+/FR 10 Tf
+1 0 0 1 62 179 Tm
+(- legacyDraftFailureRetryCount: migration/legacy retry state.) Tj
+/FR 10 Tf
+1 0 0 1 62 165 Tm
+(- expiresAt: TTL expiry for unconfirmed jobs.) Tj
+/FR 10 Tf
+1 0 0 1 62 151 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 137 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 123 Tm
+(- user + createdAt.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 16) Tj
+ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 33 0 R >>
+endobj
+35 0 obj
+<< /Length 2503 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- user + status + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- TTL on expiresAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 714 Tm
+(ExtractionLog) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(Collection: extractionlogs) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(Purpose: audit log for OCR/AI extraction attempts.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- imageUrl: processed image URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- marketType: market context.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- extractedText: OCR text.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- parsedData: parsed payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- isSuccess: extraction success flag.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- aiUsed: whether AI was used.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- errorMessage: failure reason.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- user + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- isSuccess + createdAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 487 Tm
+(SetupStrategy) Tj
+/FR 10 Tf
+1 0 0 1 62 470 Tm
+(Collection: setupstrategies) Tj
+/FR 10 Tf
+1 0 0 1 62 456 Tm
+(Purpose: user-defined trading setups and rule checklists.) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(- marketType: Forex or Indian_Market.) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- name: setup name.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- referenceImages: array of { url, publicId }.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- rules: array of { label }.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- user + marketType + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- Unique user + marketType + name.) Tj
+/FB 12 Tf
+1 0 0 1 62 302 Tm
+(ChecklistTracking) Tj
+/FR 10 Tf
+1 0 0 1 62 285 Tm
+(Collection: checklisttrackings) Tj
+/FR 10 Tf
+1 0 0 1 62 271 Tm
+(Purpose: history of pre-trade checklist completions.) Tj
+/FR 10 Tf
+1 0 0 1 62 257 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 243 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 229 Tm
+(- market: Forex or Indian_Market.) Tj
+/FR 10 Tf
+1 0 0 1 62 215 Tm
+(- strategyName: setup/checklist strategy name.) Tj
+/FR 10 Tf
+1 0 0 1 62 201 Tm
+(- totalRules: total checklist rule count.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 17) Tj
+ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 35 0 R >>
+endobj
+37 0 obj
+<< /Length 2872 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- followedRules: number followed.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- score: adherence score.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- isAPlus: whether checklist qualifies as A+.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- setupSimilarity: yes, partly, no, or empty.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- user + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- user + market + createdAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 630 Tm
+(WeeklyReport) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(Collection: weeklyreports) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(Purpose: stores generated weekly/rolling reports and optional AI feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- marketType: market context.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- periodType: currently rolling7d.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- weekStart: period start.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- weekEnd: period end.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- snapshot: generated report stats.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- aiFeedback: AI report commentary payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- aiModel: AI model used.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- promptVersion: report prompt version.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Unique user + marketType + periodType + weekStart + weekEnd.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- user + marketType + weekStart.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- user + marketType + periodType + createdAt.) Tj
+/FB 12 Tf
+1 0 0 1 62 375 Tm
+(Payment) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(Collection: payments) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(Purpose: payment and subscription transaction audit.) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(- amount: amount paid.) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- currency: defaults to INR.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- status: pending, completed, refunded, or failed.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- paymentMethod: razorpay, manual, or stripe.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- transactionId: unique internal/external transaction ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- planType: 3_months or custom.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- expiryDate: resulting subscription expiry.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(- notes: admin/payment notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- razorpayOrderId: Razorpay order ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- razorpayPaymentId: Razorpay payment ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- razorpaySignature: verification signature.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 18) Tj
+ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 37 0 R >>
+endobj
+39 0 obj
+<< /Length 2876 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- user + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- status + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Sparse razorpayOrderId.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Sparse unique razorpayPaymentId for Razorpay payments.) Tj
+/FB 12 Tf
+1 0 0 1 62 658 Tm
+(Notification) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(Collection: notifications) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(Purpose: legacy/simple notification records.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- title: notification title.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- message: body copy.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- type: payment, feedback, or system.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- isRead: read flag.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- userId: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- metadata: arbitrary payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- userId + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- userId + isRead.) Tj
+/FB 12 Tf
+1 0 0 1 62 459 Tm
+(NotificationHistory) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(Collection: notificationhistories) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(Purpose: rich notification delivery log and in-app notification feed.) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- type: notification category such as revenge trading, overtrading, morning mentor,) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(  weekly insight, payment, feedback, system.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- title: title.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(- body: message body.) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- data: arbitrary structured payload.) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- deepLink: in-app target route.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(- sourceType: trade, weekly_report, cron, or system.) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- sourceId: related object ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- dedupeKey: unique user-scoped key preventing duplicate notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- status: created, sent, failed, partial, or skipped.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- isRead: read state.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- readAt: read timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- sentAt: send timestamp.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(- delivery.successCount: successful token deliveries.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- delivery.failureCount: failed token deliveries.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- delivery.invalidTokens: invalid token list, capped at 100.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- delivery.error: delivery error text.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 19) Tj
+ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 39 0 R >>
+endobj
+41 0 obj
+<< /Length 2816 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- user + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- user + isRead + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Unique user + dedupeKey.) Tj
+/FB 12 Tf
+1 0 0 1 62 672 Tm
+(NotificationPreference) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(Collection: notificationpreferences) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(Purpose: per-user notification settings.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- user: unique reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- pushEnabled: push toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- inAppEnabled: in-app toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- smartCoach: smart coaching toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- revengeTrading: revenge alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- overtrading: overtrading alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- setupDiscipline: setup discipline alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- repeatedMistakes: repeated mistakes alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- moodRisk: mood risk alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- noStopLoss: no-stop alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- weeklyInsight: weekly insight alert toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- morningMentor: morning mentor toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- quietHours.enabled: quiet hours toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- quietHours.start: quiet start time.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- quietHours.end: quiet end time.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- quietHours.timezone: timezone.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Unique user.) Tj
+/FB 12 Tf
+1 0 0 1 62 347 Tm
+(DeviceToken) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(Collection: devicetokens) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(Purpose: stores push notification tokens per device.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- token: unique FCM/device token.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- platform: android, ios, or web.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- deviceId: client device ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- appVersion: app version.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- enabled: whether token is active.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(- lastSeenAt: last token heartbeat.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- failureCount: delivery failure counter.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- revokedAt: token revocation time.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 20) Tj
+ET
+endstream
+endobj
+42 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 41 0 R >>
+endobj
+43 0 obj
+<< /Length 2485 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Unique token.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- user + enabled.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- lastSeenAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- TTL on lastSeenAt after 90 days.) Tj
+/FB 12 Tf
+1 0 0 1 62 672 Tm
+(ChecklistNotificationSetting) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(Collection: checklistnotificationsettings) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(Purpose: stores pre-trade checklist reminder settings.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- enabled: reminder toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- strategyId: optional reference to SetupStrategy.) Tj
+/FR 10 Tf
+1 0 0 1 62 571 Tm
+(- strategyName: denormalized strategy name.) Tj
+/FR 10 Tf
+1 0 0 1 62 557 Tm
+(- market: Forex or Indian_Market.) Tj
+/FR 10 Tf
+1 0 0 1 62 543 Tm
+(- notificationTime: local reminder time.) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- repeatMode: daily, weekdays, or custom.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- customDays: 1-7 day numbers.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- persistent: whether notification persists.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- resetEnabled: whether checklist resets.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- resetTime: reset time.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Unique user + market.) Tj
+/FB 12 Tf
+1 0 0 1 62 417 Tm
+(Feedback) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(Collection: feedbacks) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(Purpose: user-submitted support, bug, and feature feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(Fields:) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- user: reference to User.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(- type: BUG, FEATURE_REQUEST, or GENERAL_FEEDBACK.) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- subject: subject line.) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(- message: feedback body.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(- status: PENDING, IN_PROGRESS, or RESOLVED.) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- adminNotes: internal notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- screenshot: optional screenshot URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- createdAt, updatedAt: timestamps.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(Important indexes:) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- user + createdAt.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- status + createdAt.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 21) Tj
+ET
+endstream
+endobj
+44 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 43 0 R >>
+endobj
+45 0 obj
+<< /Length 2005 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(7. API Surface) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Public/User API) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- /api/auth: register, login, Google login, refresh, logout, forgot password, verify) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(  OTP, reset password, accept terms, profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- /api/upload: screenshot upload and OCR job lifecycle.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- /api/trades: Forex trade CRUD.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- /api/trade: OCR/trade status polling.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- /api/indian/trades: Indian market trade CRUD.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- /api/dashboard: dashboard snapshot and summary.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- /api/analytics: Forex analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- /api/indian/analytics: Indian analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- /api/setups: setup strategy CRUD.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(- /api/checklists: checklist tracking.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(- /api/reports: weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(- /api/payments: Razorpay orders and verification.) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(- /api/notifications: notification feed/preferences.) Tj
+/FR 10 Tf
+1 0 0 1 62 507 Tm
+(- /api/profile: device token/profile updates.) Tj
+/FR 10 Tf
+1 0 0 1 62 493 Tm
+(- /api/feedback: user feedback.) Tj
+/FB 12 Tf
+1 0 0 1 62 479 Tm
+(Admin API) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- /api/admin/auth: admin login.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- /api/admin/users: user and subscription management.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- /api/admin/payments: payment management.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- /api/admin/trades: trade review/management.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- /api/admin/analytics: platform analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- /api/admin/notifications: send/manage notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- /api/admin/feedback: feedback review.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 22) Tj
+ET
+endstream
+endobj
+46 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 45 0 R >>
+endobj
+47 0 obj
+<< /Length 3460 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(8. Configuration And Environment Variables) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Required Backend Variables) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- NODE_ENV: development, test, or production.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- PORT: backend port, default 5000.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- MONGO_URI: MongoDB connection string.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- JWT_SECRET: user JWT secret, minimum 32 characters.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- ADMIN_JWT_SECRET: admin JWT secret, minimum 32 characters and different from) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(  JWT_SECRET.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- CLOUD_NAME: Cloudinary cloud name.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- CLOUD_API_KEY: Cloudinary API key.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- CLOUD_API_SECRET: Cloudinary API secret.) Tj
+/FB 12 Tf
+1 0 0 1 62 577 Tm
+(Strongly Recommended Backend Variables) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- REDIS_URL: Redis connection string for BullMQ/cache.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- GEMINI_API_KEY: Gemini API key for AI extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- GEMINI_MODEL: default Gemini model, currently gemini-2.5-flash.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- GEMINI_TRADE_MODEL: override model for trade extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- GOOGLE_VISION_PROJECT_ID: Google Vision project ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- GOOGLE_VISION_CLIENT_EMAIL: Vision service account email.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- GOOGLE_VISION_PRIVATE_KEY: Vision service account private key.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- FIREBASE_PROJECT_ID: Firebase Admin project ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- FIREBASE_CLIENT_EMAIL: Firebase Admin service account email.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- FIREBASE_PRIVATE_KEY: Firebase Admin private key.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- RAZORPAY_KEY_ID: Razorpay public key ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- RAZORPAY_KEY_SECRET: Razorpay secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- SENTRY_DSN: backend Sentry DSN.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- ALLOWED_ORIGINS: comma-separated allowed frontend origins.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- ALLOWED_VERCEL_PREVIEWS: explicit preview URLs for production.) Tj
+/FB 12 Tf
+1 0 0 1 62 350 Tm
+(Optional Backend Variables) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- LOG_LEVEL: logger verbosity.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- MONGO_DNS_SERVERS: DNS servers for Mongo lookup.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- MONGO_MAX_POOL_SIZE: Mongo pool max, default 50.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- MONGO_MIN_POOL_SIZE: Mongo pool min, default 5.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- OCR_QUEUE_NAME: queue name.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- OCR_JOB_ATTEMPTS: OCR job retry count.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- OCR_JOB_BACKOFF_MS: OCR retry backoff.) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- OCR_JOB_INITIAL_DELAY_MS: initial processing delay.) Tj
+/FR 10 Tf
+1 0 0 1 62 221 Tm
+(- OCR_WORKER_CONCURRENCY: worker concurrency, default 5.) Tj
+/FR 10 Tf
+1 0 0 1 62 207 Tm
+(- OCR_WORKER_LOCK_DURATION_MS: BullMQ lock duration.) Tj
+/FR 10 Tf
+1 0 0 1 62 193 Tm
+(- UPLOAD_MAX_FILE_SIZE_BYTES: upload size limit, default 2 MB.) Tj
+/FR 10 Tf
+1 0 0 1 62 179 Tm
+(- ENABLE_DATA_CLEANUP_CRON: enable OCR data cleanup.) Tj
+/FR 10 Tf
+1 0 0 1 62 165 Tm
+(- DATA_CLEANUP_CRON_SCHEDULE: cleanup schedule.) Tj
+/FR 10 Tf
+1 0 0 1 62 151 Tm
+(- CLEANUP_RAW_OCR_DAYS: raw OCR retention.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 23) Tj
+ET
+endstream
+endobj
+48 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 47 0 R >>
+endobj
+49 0 obj
+<< /Length 3897 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- CLEANUP_AI_RESPONSE_DAYS: AI response retention.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- CLEANUP_IMAGES_DAYS: image cleanup retention.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- CLEANUP_BATCH_SIZE: cleanup batch size.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- ENABLE_WEEKLY_REPORTS_CRON: weekly report reminder cron.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- WEEKLY_REPORTS_CRON: weekly report cron schedule.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- ENABLE_MORNING_MENTOR_CRON: morning mentor cron.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- MORNING_MENTOR_CRON: morning mentor schedule.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- MORNING_MENTOR_TIMEZONE: default Asia/Kolkata.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- MORNING_MENTOR_TIMEZONE_OFFSET_HOURS: default 5.5.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- TIMEZONE_OFFSET_HOURS: global reporting offset.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM: SMTP email) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(  config.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- RESEND_API_KEY, RESEND_FROM: Resend transactional email config.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS: global rate limit.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- AUTH_RATE_LIMIT_WINDOW_MS, AUTH_RATE_LIMIT_MAX_REQUESTS: auth limiter.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- UPLOAD_RATE_LIMIT_WINDOW_MS, UPLOAD_RATE_LIMIT_MAX_REQUESTS: upload limiter.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- STATUS_RATE_LIMIT_WINDOW_MS, STATUS_RATE_LIMIT_MAX_REQUESTS: polling limiter.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- API_REQUEST_TIMEOUT_MS: API timeout.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- OCR_SERVICE_TIMEOUT_MS: OCR timeout.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- AI_SERVICE_TIMEOUT_MS: AI timeout.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(- DB_OPERATION_TIMEOUT_MS: DB timeout.) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- EXTERNAL_API_TIMEOUT_MS: external API timeout.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- PROCESSING_TIMEOUT_MS: overall job timeout.) Tj
+/FB 12 Tf
+1 0 0 1 62 420 Tm
+(Frontend Variables) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- NEXT_PUBLIC_API_URL: backend API base URL.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- NEXT_PUBLIC_FIREBASE_API_KEY: Firebase web API key.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: Firebase auth domain.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- NEXT_PUBLIC_FIREBASE_PROJECT_ID: Firebase project ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: Firebase storage bucket.) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: messaging sender ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- NEXT_PUBLIC_FIREBASE_APP_ID: Firebase app ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID: Google web client ID.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- NEXT_PUBLIC_SENTRY_DSN: frontend Sentry DSN.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- SENTRY_ORG: Sentry org for source map upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- SENTRY_PROJECT: Sentry project for source map upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- SENTRY_AUTH_TOKEN: source map upload token.) Tj
+/FB 12 Tf
+1 0 0 1 62 235 Tm
+(Configuration Notes) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- Do not read process.env directly outside backend/config/index.js except for early) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(  bootstrapping and framework-specific build config.) Tj
+/FR 10 Tf
+1 0 0 1 62 190 Tm
+(- JWT_SECRET and ADMIN_JWT_SECRET must be different.) Tj
+/FR 10 Tf
+1 0 0 1 62 176 Tm
+(- Use separate Firebase Admin and Google Vision service accounts where possible.) Tj
+/FR 10 Tf
+1 0 0 1 62 162 Tm
+(- In production, keep ALLOWED_ORIGINS explicit; do not wildcard all Vercel apps.) Tj
+/FR 10 Tf
+1 0 0 1 62 148 Tm
+(- Static-export security headers must also be set at CDN/Nginx level.) Tj
+/FR 10 Tf
+1 0 0 1 62 134 Tm
+(- For mobile/Capacitor, allow capacitor://localhost in CORS.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 24) Tj
+ET
+endstream
+endobj
+50 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 49 0 R >>
+endobj
+51 0 obj
+<< /Length 2294 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(9. Security Architecture) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Authentication And Authorization) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Use short-lived access JWTs.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Use rotating refresh tokens stored hashed in MongoDB.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Use tokenVersion to invalidate all active access tokens after sensitive events.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Keep admin JWT secret separate from user JWT secret.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Use separate admin middleware and route namespace.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Always scope data queries by authenticated user ID.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(Upload Security) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Enforce MIME/file-type validation.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Enforce file size limit.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Reject non-trade images.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Store images in Cloudinary, not directly on API server disk.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Delete invalid images where possible.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Never trust AI output without validation.) Tj
+/FB 12 Tf
+1 0 0 1 62 518 Tm
+(API Security) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Helmet security headers.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Production HTTPS redirect.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- CORS allowlist.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Rate limit auth, upload, and status polling.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Input sanitization.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Central error handler that avoids leaking internals in production.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Sentry scrubbing for Authorization and cookies.) Tj
+/FB 12 Tf
+1 0 0 1 62 403 Tm
+(Data Security) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- Never store raw refresh tokens.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- Do not return password/login lock fields by default.) Tj
+/FR 10 Tf
+1 0 0 1 62 358 Tm
+(- Soft-delete trades for auditability.) Tj
+/FR 10 Tf
+1 0 0 1 62 344 Tm
+(- Clean raw OCR and AI responses after configured retention period.) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(- Use least-privilege keys for Cloudinary, Firebase, Google Vision, Gemini,) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(  Razorpay, and email providers.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 25) Tj
+ET
+endstream
+endobj
+52 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 51 0 R >>
+endobj
+53 0 obj
+<< /Length 1637 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(10. Scalability Plan) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(First 0-1,000 Users) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Single API server.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Embedded worker in development only; separate worker in production.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- MongoDB Atlas shared/dedicated cluster.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Managed Redis.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Cloudinary for images.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Short Redis response cache for analytics.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(1,000-10,000 Users) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Horizontally scale API instances.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Scale OCR workers separately based on queue depth.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Add worker concurrency controls by cost/provider limits.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Add broker-specific extraction quality dashboards.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Move expensive analytics to materialized snapshots.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Add stricter queue dead-letter handling.) Tj
+/FB 12 Tf
+1 0 0 1 62 518 Tm
+(10,000+ Users) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Separate analytics read models/snapshots.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Introduce event-driven trade write events.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Batch AI insight generation.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Add multi-region CDN for frontend.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Add Mongo read replicas where appropriate.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Add provider circuit breakers and cost controls.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 26) Tj
+ET
+endstream
+endobj
+54 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 53 0 R >>
+endobj
+55 0 obj
+<< /Length 698 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(11. Caching Strategy) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(- Cache read-heavy analytics and dashboard endpoints in Redis.) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(- Key by user, route, market, and query parameters.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Do not cache auth/profile-sensitive mutation responses.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Clear user cache after trade create, update, delete, upload confirmation, and) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(  setup/checklist writes where analytics may change.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Keep TTLs short enough that traders trust the dashboard after updates.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 27) Tj
+ET
+endstream
+endobj
+56 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 55 0 R >>
+endobj
+57 0 obj
+<< /Length 1656 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(12. Observability) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Logs) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Use Winston for structured application logs.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Use Morgan for HTTP request logs.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Include route, method, status, duration, user agent, and error metadata.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Avoid logging tokens, passwords, OTPs, payment secrets, and private keys.) Tj
+/FB 12 Tf
+1 0 0 1 62 647 Tm
+(Metrics To Track) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- API latency by endpoint.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- OCR queue depth.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- OCR job duration.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- OCR failure rate by broker and market.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Gemini failure/timeout rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Upload-to-confirm conversion.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Trade create/update/delete counts.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Payment verification failures.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Notification delivery success/failure.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Cache hit/miss rates.) Tj
+/FB 12 Tf
+1 0 0 1 62 490 Tm
+(Alerts) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- API 5xx spike.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- OCR queue stuck or growing.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Redis unavailable.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Mongo disconnected.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Payment verification failures.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- Sentry error spike.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- AI/OCR provider timeout spike.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 28) Tj
+ET
+endstream
+endobj
+58 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 57 0 R >>
+endobj
+59 0 obj
+<< /Length 1698 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(13. Testing Strategy) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Backend) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Unit tests for metric engines, trade lifecycle, auth, payments, OCR job workflow,) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(  analytics snapshots, discipline analytics, and pattern detection.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Integration tests for auth, admin, and trade flows.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Security tests for IDOR, rate limits, config secrets, and token replay.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Regression tests for Indian market parsing and upload-to-journal flows.) Tj
+/FB 12 Tf
+1 0 0 1 62 633 Tm
+(Frontend) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- Component-level tests for key forms and dashboards.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- API hook tests with mocked responses.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- E2E smoke tests for login, upload, save trade, journal view, analytics view, and) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(  subscription gate.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Mobile viewport checks for upload/review forms.) Tj
+/FB 12 Tf
+1 0 0 1 62 546 Tm
+(Critical Test Cases) Tj
+/FR 10 Tf
+1 0 0 1 62 529 Tm
+(- User cannot access another user's trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- Invalid screenshot does not create confirmed trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Failed OCR job can be retried or fails cleanly.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Trade update invalidates analytics cache.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Payment signature verification cannot be bypassed.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Admin token cannot access user-token-only routes and vice versa.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 29) Tj
+ET
+endstream
+endobj
+60 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 59 0 R >>
+endobj
+61 0 obj
+<< /Length 2274 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(14. Technical Debt And Architecture Recommendations) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Keep) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Separate Trade and IndianTrade models because Indian options/equity semantics) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(  differ.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Separate admin route/auth stack.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Repository pattern for Mongoose queries.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Async OCR queue instead of synchronous upload processing.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Redis user-cache invalidation after writes.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(Improve) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Standardize naming: externally use Edgecipline, internally keep stratedge if) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(  needed.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Move remaining direct DB queries from services/controllers into repositories.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Consolidate simple Notification and richer NotificationHistory over time.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Normalize strategy, setup, and strategyName naming across Forex and Indian flows.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Add a formal extraction result schema instead of broad Mixed for) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(  OCRJob.extractedData.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Add versioned analytics snapshots for faster dashboard loads at scale.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Add API contract documentation, preferably OpenAPI.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- Add a provider abstraction for AI/OCR with explicit timeout, retry, and fallback) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(  policies.) Tj
+/FB 12 Tf
+1 0 0 1 62 448 Tm
+(Avoid) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Do not add broker sync in v1 architecture.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Do not process OCR synchronously in API requests.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- Do not store raw uploaded images on local disk.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- Do not use one shared JWT secret for admin and user sessions.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- Do not allow generic wildcard production CORS.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Do not make analytics depend on live AI calls for every page load.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 30) Tj
+ET
+endstream
+endobj
+62 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 61 0 R >>
+endobj
+63 0 obj
+<< /Length 1207 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(15. Build Readiness Checklist) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(- MongoDB URI configured and reachable.) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(- Redis configured and reachable.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Cloudinary keys configured.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- User and admin JWT secrets generated separately.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- Firebase web and admin config configured.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Gemini key configured.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Google Vision configured for best OCR quality.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Razorpay keys configured before paid launch.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Sentry configured for frontend and backend.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- CORS production origins explicitly set.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- API and worker deployed as separate processes.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(- Data cleanup cron enabled.) Tj
+/FR 10 Tf
+1 0 0 1 62 552 Tm
+(- Rate limits verified.) Tj
+/FR 10 Tf
+1 0 0 1 62 538 Tm
+(- Security scan passes.) Tj
+/FR 10 Tf
+1 0 0 1 62 524 Tm
+(- Basic unit and integration test suite passes.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline Architecture | 31) Tj
+ET
+endstream
+endobj
+64 0 obj
+<< /Type /Page /Parent 65 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 63 0 R >>
+endobj
+65 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R 46 0 R 48 0 R 50 0 R 52 0 R 54 0 R 56 0 R 58 0 R 60 0 R 62 0 R 64 0 R] /Count 31 >>
+endobj
+66 0 obj
+<< /Type /Catalog /Pages 65 0 R >>
+endobj
+xref
+0 67
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000000617 00000 n 
+0000000754 00000 n 
+0000001005 00000 n 
+0000001142 00000 n 
+0000003244 00000 n 
+0000003381 00000 n 
+0000006035 00000 n 
+0000006173 00000 n 
+0000010674 00000 n 
+0000010813 00000 n 
+0000011572 00000 n 
+0000011711 00000 n 
+0000014864 00000 n 
+0000015003 00000 n 
+0000018215 00000 n 
+0000018354 00000 n 
+0000021588 00000 n 
+0000021727 00000 n 
+0000024575 00000 n 
+0000024714 00000 n 
+0000027018 00000 n 
+0000027157 00000 n 
+0000030675 00000 n 
+0000030814 00000 n 
+0000033698 00000 n 
+0000033837 00000 n 
+0000037511 00000 n 
+0000037650 00000 n 
+0000040760 00000 n 
+0000040899 00000 n 
+0000044338 00000 n 
+0000044477 00000 n 
+0000047032 00000 n 
+0000047171 00000 n 
+0000050095 00000 n 
+0000050234 00000 n 
+0000053162 00000 n 
+0000053301 00000 n 
+0000056169 00000 n 
+0000056308 00000 n 
+0000058845 00000 n 
+0000058984 00000 n 
+0000061041 00000 n 
+0000061180 00000 n 
+0000064692 00000 n 
+0000064831 00000 n 
+0000068780 00000 n 
+0000068919 00000 n 
+0000071265 00000 n 
+0000071404 00000 n 
+0000073093 00000 n 
+0000073232 00000 n 
+0000073981 00000 n 
+0000074120 00000 n 
+0000075828 00000 n 
+0000075967 00000 n 
+0000077717 00000 n 
+0000077856 00000 n 
+0000080182 00000 n 
+0000080321 00000 n 
+0000081580 00000 n 
+0000081719 00000 n 
+0000081986 00000 n 
+trailer
+<< /Size 67 /Root 66 0 R >>
+startxref
+82037
+%%EOF

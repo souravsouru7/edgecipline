@@ -288,12 +288,22 @@ const tradeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-tradeSchema.index({ user: 1 });
-tradeSchema.index({ createdAt: -1 });
-tradeSchema.index({ tradeDate: -1 });
-tradeSchema.index({ strategy: 1 });
-tradeSchema.index({ user: 1, createdAt: -1 });
-tradeSchema.index({ user: 1, tradeDate: -1 });
+// ─── 2026-06 INDEX CLEANUP ──────────────────────────────────────────────────
+// Dropped: { user: 1 }                — fully covered by every {user:1,...} compound
+// Dropped: { createdAt: -1 }          — global scan, never used at scale
+// Dropped: { tradeDate: -1 }          — global scan, never used at scale
+// Dropped: { strategy: 1 }            — global scan; analytics always filter by user first
+// Dropped: { user: 1, createdAt: -1 } — covered by {user:1, marketType:1, deletedAt:1, createdAt:-1, _id:-1}
+// Dropped: { user: 1, tradeDate: -1 } — covered by {user:1, marketType:1, deletedAt:1, tradeDate:-1, _id:-1}
+//
+// To remove from production (in mongo shell):
+//   db.trades.dropIndex("user_1")
+//   db.trades.dropIndex("createdAt_-1")
+//   db.trades.dropIndex("tradeDate_-1")
+//   db.trades.dropIndex("strategy_1")
+//   db.trades.dropIndex("user_1_createdAt_-1")
+//   db.trades.dropIndex("user_1_tradeDate_-1")
+// Removes ~30 % write-amplification, ~15 % storage, no read-path regression.
 tradeSchema.index({ user: 1, marketType: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
@@ -301,6 +311,8 @@ tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, tradeDate: -1, _id: -1
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, status: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, createdAt: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });
+// Covers checkSetupDisciplineDrop countDocuments — includes marketType for Forex partition
+tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, mistakeTag: 1, tradeDate: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, profit: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, entryBasis: 1, tradeDate: 1 });

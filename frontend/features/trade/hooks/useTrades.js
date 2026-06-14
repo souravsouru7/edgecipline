@@ -35,6 +35,9 @@ export function useTrades() {
     },
     // Start only after client auth check to avoid hydration mismatch.
     enabled: mounted && hasToken,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // 2. Data Deletion via useMutation

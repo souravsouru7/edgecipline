@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_URL } from '@/config/api';
 import {
   clearAuthToken,
+  getAuthDiagnostics,
   getValidToken,
   hydrateAuthToken,
   isNativeCapacitor,
@@ -77,6 +78,19 @@ const refreshClient = axios.create({
   timeout: 5000,
   withCredentials: true, // sends the refresh-token cookie
 });
+
+function applyNativeClientHeaders(config = {}) {
+  if (isNativeCapacitor()) {
+    config.headers = {
+      ...(config.headers || {}),
+      'X-Client-Platform': 'capacitor',
+    };
+  }
+  return config;
+}
+
+apiClient.interceptors.request.use((config) => applyNativeClientHeaders(config));
+refreshClient.interceptors.request.use((config) => applyNativeClientHeaders(config));
 
 const REFRESH_LOCK_KEY = 'edgecipline:auth-refresh-lock';
 const REFRESH_RESULT_KEY = 'edgecipline:auth-refresh-result';
@@ -419,6 +433,7 @@ function handleUnauthenticated(reason = 'auth_required') {
     at: new Date().toISOString(),
     reason,
     path: pathname,
+    tokenState: getAuthDiagnostics(),
   });
   _redirectingToLogin = true;
   // Reset after 5s in case the framework router intercepts the navigation and
@@ -440,15 +455,25 @@ function handleTermsRequired() {
 let _refreshInFlight = null;
 
 async function executeRefreshRequest() {
-  console.info('[Auth] refresh:start', { at: new Date().toISOString() });
+  console.info('[Auth] refresh:start', {
+    at: new Date().toISOString(),
+    tokenState: getAuthDiagnostics(),
+  });
   const res = await refreshClient.post('/auth/refresh');
   const token = res.data?.token;
   if (token) {
     await setAuthToken(token);
     publishRefreshSuccess(token);
-    console.info('[Auth] refresh:success', { at: new Date().toISOString() });
+    console.info('[Auth] refresh:success', {
+      at: new Date().toISOString(),
+      tokenState: getAuthDiagnostics(),
+    });
     return token;
   }
+  console.warn('[Auth] refresh:missing-token', {
+    at: new Date().toISOString(),
+    tokenState: getAuthDiagnostics(),
+  });
   return null;
 }
 
@@ -465,8 +490,18 @@ function isRefreshRace(error) {
  * Concurrent callers share the same in-flight request rather than racing.
  */
 export function silentRefresh() {
+  console.info('[Auth] silentRefresh:start', {
+    at: new Date().toISOString(),
+    tokenState: getAuthDiagnostics(),
+  });
   const existing = getValidToken();
-  if (existing) return Promise.resolve(existing);
+  if (existing) {
+    console.info('[Auth] silentRefresh:existing-token', {
+      at: new Date().toISOString(),
+      tokenState: getAuthDiagnostics(),
+    });
+    return Promise.resolve(existing);
+  }
   if (_refreshInFlight) return _refreshInFlight;
 
   _refreshInFlight = (async () => {
@@ -474,7 +509,13 @@ export function silentRefresh() {
 
     try {
       const hydrated = await hydrateAuthToken();
-      if (hydrated) return hydrated;
+      if (hydrated) {
+        console.info('[Auth] silentRefresh:hydrated-token', {
+          at: new Date().toISOString(),
+          tokenState: getAuthDiagnostics(),
+        });
+        return hydrated;
+      }
 
       lockOwner = tryAcquireRefreshLock();
 
@@ -502,6 +543,7 @@ export function silentRefresh() {
             at: new Date().toISOString(),
             status: error?.response?.status || error?.status || 0,
             reason,
+            tokenState: getAuthDiagnostics(),
           });
           throw createTransientRefreshError(error, reason);
         }
@@ -509,6 +551,7 @@ export function silentRefresh() {
           at: new Date().toISOString(),
           status: error?.response?.status || error?.status || 0,
           errorCode: error?.response?.data?.errorCode || error?.data?.errorCode,
+          tokenState: getAuthDiagnostics(),
         });
         return null;
       }

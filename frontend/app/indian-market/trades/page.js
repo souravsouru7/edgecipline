@@ -21,7 +21,7 @@ const C = {
 };
 
 // Section
-const fmtINR = (v) => v != null ? `?${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-";
+const fmtINR = (v) => v != null ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-";
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
 const fmtTime = (d) => new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 const getTradeDisplayDate = (trade) => trade.tradeDate || trade.createdAt;
@@ -60,7 +60,7 @@ function TickerTape() {
         {items.map((t, i) => (
           <span key={i} style={{ fontSize: 11, fontFamily: C.mono, letterSpacing: "0.04em" }}>
             <span style={{ color: "rgba(255,255,255,0.55)", marginRight: 6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#6EE7B7" : "#FCA5A5" }}>{t.bull ? "UP" : "DOWN"} {t.val}</span>
+            <span style={{ color: t.bull ? "#6EE7B7" : "#FCA5A5" }}>{t.bull ? "▲" : "▼"} {t.val}</span>
           </span>
         ))}
       </div>
@@ -202,7 +202,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* P&L */}
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: bull ? C.bull : C.bear, fontFamily: C.mono, letterSpacing: "-0.02em" }}>
-              {bull ? "+" : ""}?{Math.abs(profit).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              {bull ? "+" : ""}₹{Math.abs(profit).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
             {equityTrade ? (
               trade.sharesQty > 0 && (
@@ -230,7 +230,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             border: `1px solid ${isLong ? C.bull : C.bear}40`,
             borderRadius: 5, padding: "3px 8px",
           }}>
-            {isLong ? "UP BUY" : "DOWN SELL"}
+            {isLong ? "▲ BUY" : "▼ SELL"}
           </span>
 
           {/* CE/PE badge (options) or EQUITY badge (stock) */}
@@ -298,7 +298,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           ] : [
             { label: "Entry", val: fmtINR(trade.entryPrice) },
             { label: "Exit",  val: fmtINR(trade.exitPrice)  },
-            { label: "Strike", val: trade.strikePrice != null ? `?${Number(trade.strikePrice).toLocaleString("en-IN")}` : "-" },
+            { label: "Strike", val: trade.strikePrice != null ? `₹${Number(trade.strikePrice).toLocaleString("en-IN")}` : "-" },
           ]).map(p => (
             <div key={p.label} style={{ background: C.bg, borderRadius: 7, padding: "7px 10px" }}>
               <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, marginBottom: 2 }}>{p.label}</div>
@@ -340,7 +340,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             href={`/indian-market/trades/view?id=${trade._id}`}
             style={{
               flex: 1, textAlign: "center",
-              padding: "9px 0", borderRadius: 8,
+              padding: "12px 0", borderRadius: 8,
               background: `${C.bull}15`, border: `1.5px solid ${C.bull}40`,
               fontSize: 11, fontWeight: 700, color: C.bull,
               fontFamily: C.mono, textDecoration: "none", letterSpacing: "0.08em",
@@ -355,7 +355,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             href={`/indian-market/trades/edit?id=${trade._id}`}
             style={{
               flex: 1, textAlign: "center",
-              padding: "9px 0", borderRadius: 8,
+              padding: "12px 0", borderRadius: 8,
               background: `${C.blue}12`, border: `1.5px solid ${C.blue}30`,
               fontSize: 11, fontWeight: 700, color: C.blue,
               fontFamily: C.mono, textDecoration: "none", letterSpacing: "0.08em",
@@ -366,7 +366,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           <button
             onClick={() => onDelete(trade)}
             style={{
-              padding: "9px 14px", borderRadius: 8,
+              padding: "12px 14px", borderRadius: 8,
               background: `${C.bear}12`, border: `1.5px solid ${C.bear}30`,
               fontSize: 11, fontWeight: 700, color: C.bear,
               fontFamily: C.mono, cursor: "pointer", letterSpacing: "0.08em",
@@ -409,7 +409,7 @@ function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, in
             key={v}
             onClick={() => { setInstrumentType(v); setFilter("all"); }}
             style={{
-              padding: "9px 18px", border: "none",
+              padding: "12px 20px", border: "none",
               background: instrumentType === v ? "#0D9E6E" : C.card,
               color: instrumentType === v ? "#fff" : C.muted,
               fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -446,7 +446,7 @@ function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, in
             key={f.key}
             onClick={() => setFilter(f.key)}
             style={{
-              padding: "8px 14px", borderRadius: 20, border: "1.5px solid",
+              padding: "11px 16px", borderRadius: 20, border: "1.5px solid",
               borderColor: filter === f.key ? C.bull : C.border,
               background: filter === f.key ? C.bull : C.card,
               color: filter === f.key ? "#fff" : C.muted,
@@ -464,7 +464,7 @@ function FilterBar({ filter, setFilter, period, setPeriod, search, setSearch, in
             key={p.key}
             onClick={() => setPeriod(p.key)}
             style={{
-              padding: "8px 14px", borderRadius: 20, border: "1.5px solid",
+              padding: "11px 16px", borderRadius: 20, border: "1.5px solid",
               borderColor: period === p.key ? C.ink : C.border,
               background: period === p.key ? C.ink : C.card,
               color: period === p.key ? "#fff" : C.muted,

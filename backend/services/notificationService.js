@@ -44,7 +44,7 @@ const SMART_TYPE_TO_PREF = {
   weekly_ai_insight:      "weeklyInsight",
   weekly_report_reminder: "weeklyInsight",
   confidence_reminder:    "smartCoach",
-  session_reminder:       "smartCoach",
+  session_reminder:       "sessionReminders",
   morning_mentor:         "morningMentor",
 };
 
@@ -52,6 +52,9 @@ const INVALID_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
 ]);
+
+const DEFAULT_QUIET_HOURS_TIMEZONE = "Asia/Kolkata";
+const QUIET_HOURS_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function stringifyData(data = {}) {
@@ -74,6 +77,131 @@ function isSmartCoachType(type) {
   return Boolean(SMART_TYPE_TO_PREF[type]);
 }
 
+function parseQuietHoursTime(value) {
+  if (typeof value !== "string") return null;
+
+  const match = value.match(QUIET_HOURS_TIME_PATTERN);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return {
+    minutesSinceMidnight: hours * 60 + minutes,
+    value: `${match[1]}:${match[2]}`,
+  };
+}
+
+function resolveQuietHoursTimezone(timezone, userId, type) {
+  const candidate = typeof timezone === "string" ? timezone.trim() : "";
+  if (!candidate) {
+    logger.warn("[QuietHours] invalid timezone; falling back to Asia/Kolkata", {
+      userId,
+      type,
+      timezone,
+      fallbackTimezone: DEFAULT_QUIET_HOURS_TIMEZONE,
+    });
+    return DEFAULT_QUIET_HOURS_TIMEZONE;
+  }
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch (error) {
+    logger.warn("[QuietHours] invalid timezone; falling back to Asia/Kolkata", {
+      userId,
+      type,
+      timezone,
+      fallbackTimezone: DEFAULT_QUIET_HOURS_TIMEZONE,
+      error: error.message,
+    });
+    return DEFAULT_QUIET_HOURS_TIMEZONE;
+  }
+}
+
+function getLocalQuietHoursTime(date, timezone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+  if (hour === undefined || minute === undefined) {
+    throw new Error("Unable to resolve local quiet-hours time");
+  }
+
+  return {
+    localTime: `${hour}:${minute}`,
+    minutesSinceMidnight: Number(hour) * 60 + Number(minute),
+  };
+}
+
+function isTimeWithinQuietHours(currentMinutes, startMinutes, endMinutes) {
+  if (startMinutes === endMinutes) return false;
+
+  if (startMinutes < endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }
+
+  return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+}
+
+function isBlockedByQuietHours(prefs, userId, type, now = new Date()) {
+  if (!prefs.quietHours?.enabled) return false;
+
+  const start = parseQuietHoursTime(prefs.quietHours.start);
+  const end = parseQuietHoursTime(prefs.quietHours.end);
+  if (!start || !end) {
+    logger.warn("[QuietHours] malformed quiet hours; skipping enforcement", {
+      userId,
+      type,
+      start: prefs.quietHours.start,
+      end: prefs.quietHours.end,
+    });
+    return false;
+  }
+
+  const timezone = resolveQuietHoursTimezone(prefs.quietHours.timezone, userId, type);
+  let localTime;
+  let minutesSinceMidnight;
+  try {
+    ({ localTime, minutesSinceMidnight } = getLocalQuietHoursTime(now, timezone));
+  } catch (error) {
+    logger.warn("[QuietHours] local time resolution failed; skipping enforcement", {
+      userId,
+      type,
+      timezone,
+      error: error.message,
+    });
+    return false;
+  }
+
+  const blocked = isTimeWithinQuietHours(
+    minutesSinceMidnight,
+    start.minutesSinceMidnight,
+    end.minutesSinceMidnight
+  );
+
+  if (blocked) {
+    logger.info("QUIET_HOURS_BLOCKED", {
+      userId: userId?.toString?.(),
+      type,
+      timezone,
+      localTime,
+      quietHoursStart: start.value,
+      quietHoursEnd:   end.value,
+      // Overnight windows (start > end) wrap past midnight.
+      windowType: start.minutesSinceMidnight < end.minutesSinceMidnight
+        ? "same-day"
+        : "overnight",
+    });
+  }
+
+  return blocked;
+}
+
 async function getAllowedPreferences(userId, type) {
   const prefs = await getOrCreatePreferences(userId);
   if (!prefs.inAppEnabled && !prefs.pushEnabled) return null;
@@ -81,6 +209,7 @@ async function getAllowedPreferences(userId, type) {
 
   const flag = SMART_TYPE_TO_PREF[type];
   if (flag && prefs[flag] === false) return null;
+  if (isBlockedByQuietHours(prefs, userId, type)) return null;
 
   return prefs;
 }
@@ -183,8 +312,20 @@ async function notifyUser(userId, payload) {
       sourceId:   mongoose.Types.ObjectId.isValid(payload.sourceId) ? payload.sourceId : null,
       dedupeKey,
     });
+    logger.info("[NotificationAnalytics] Created", {
+      notificationId: notification._id?.toString?.(),
+      userId: userId?.toString?.(),
+      type: payload.type,
+    });
   } catch (error) {
-    if (error?.code === 11000) return null; // duplicate — already sent
+    if (error?.code === 11000) {
+      logger.info("[TimezoneDedup] duplicate blocked", {
+        userId: userId?.toString?.(),
+        type: payload.type,
+        dedupeKey,
+      });
+      return null;
+    }
     throw error;
   }
 
@@ -201,11 +342,23 @@ async function notifyUser(userId, payload) {
       : delivery.failureCount > 0             ? "failed"
       : "sent";
 
-    return await NotificationHistory.findByIdAndUpdate(
+    const updated = await NotificationHistory.findByIdAndUpdate(
       notification._id,
       { status, sentAt: delivery.successCount > 0 ? new Date() : null, delivery },
       { returnDocument: "after" }
     ) || notification;
+
+    logger.info("[NotificationAnalytics] Sent", {
+      notificationId: notification._id?.toString?.(),
+      userId: userId?.toString?.(),
+      type: payload.type,
+      status,
+      successCount: delivery.successCount,
+      failureCount: delivery.failureCount,
+      invalidTokenCount: delivery.invalidTokens?.length ?? 0,
+    });
+
+    return updated;
 
   } catch (error) {
     logger.warn("Push delivery failed", {
@@ -222,6 +375,54 @@ async function notifyUser(userId, payload) {
 
     return notification;
   }
+}
+
+// ─── Engagement tracking ──────────────────────────────────────────────────────
+async function trackOpen(userId, notificationId) {
+  const notification = await NotificationHistory.findOneAndUpdate(
+    { _id: notificationId, user: userId, openedAt: null },
+    { openedAt: new Date(), isRead: true, readAt: new Date() },
+    { returnDocument: "after" }
+  ).lean();
+
+  if (notification) {
+    logger.info("[NotificationAnalytics] Opened", {
+      notificationId: notificationId?.toString?.(),
+      userId: userId?.toString?.(),
+      type: notification.type,
+    });
+  }
+  return notification;
+}
+
+async function trackAction(userId, notificationId, actionType) {
+  const now = new Date();
+  // Action implies the notification was also opened — set openedAt only if not already set
+  const notification = await NotificationHistory.findOneAndUpdate(
+    { _id: notificationId, user: userId },
+    [
+      {
+        $set: {
+          actionClickedAt: now,
+          actionType: actionType || "default",
+          isRead: true,
+          readAt: { $ifNull: ["$readAt", now] },
+          openedAt: { $ifNull: ["$openedAt", now] },
+        },
+      },
+    ],
+    { returnDocument: "after" }
+  ).lean();
+
+  if (notification) {
+    logger.info("[NotificationAnalytics] Action", {
+      notificationId: notificationId?.toString?.(),
+      userId: userId?.toString?.(),
+      type: notification.type,
+      action: actionType || "default",
+    });
+  }
+  return notification;
 }
 
 // ─── Query helpers ────────────────────────────────────────────────────────────
@@ -251,9 +452,13 @@ async function markAllAsRead(userId) {
 }
 
 module.exports = {
+  getAllowedPreferences,
   getOrCreatePreferences,
+  isBlockedByQuietHours,
   listUserNotifications,
   markAllAsRead,
   markAsRead,
   notifyUser,
+  trackOpen,
+  trackAction,
 };

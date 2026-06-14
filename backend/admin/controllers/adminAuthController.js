@@ -5,6 +5,7 @@ const { appConfig } = require("../../config");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ADMIN_COOKIE_NAME } = require("../../middleware/adminAuth");
+const { invalidateAuthCache } = require("../../services/authCacheService");
 
 // Admin sessions last 8 hours — long enough for a working session, short enough to limit exposure.
 // Stored in httpOnly cookie, never in localStorage.
@@ -130,6 +131,7 @@ exports.logoutAllAdmin = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
   await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+  await invalidateAuthCache(req.user._id);
 
   res.clearCookie(ADMIN_COOKIE_NAME, getClearAdminCookieOptions());
   res.json({ success: true, message: "All admin sessions revoked. Please login again." });

@@ -27,3 +27,11 @@ export const getNotificationPreferences = () => {
 export const updateNotificationPreferences = (payload) => {
   return apiClient.patch("/profile/notification-preferences", payload);
 };
+
+export const trackNotificationOpen = (id) => {
+  return apiClient.post(`/notifications/${id}/opened`);
+};
+
+export const trackNotificationAction = (id, actionType) => {
+  return apiClient.post(`/notifications/${id}/action`, { actionType });
+};

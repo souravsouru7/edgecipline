@@ -6,6 +6,7 @@ const { appConfig } = require("../config");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { logger } = require("../utils/logger");
 const { CURRENT_TERMS_VERSION } = require("../constants/terms");
 const {
   generateAccessToken,
@@ -17,6 +18,7 @@ const {
   getClearCookieOptions,
   REFRESH_COOKIE_NAME,
 } = require("../services/tokenService");
+const { invalidateAuthCache } = require("../services/authCacheService");
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -76,7 +78,18 @@ function needsTermsAcceptance(user) {
 /** Returns true when the request comes from the Capacitor Android app. */
 function isCapacitorRequest(req) {
   const origin = req.headers.origin || "";
-  return origin.startsWith("capacitor://");
+  const clientPlatform = String(req.headers["x-client-platform"] || "").toLowerCase();
+  return origin.startsWith("capacitor://") || clientPlatform === "capacitor";
+}
+
+function getAuthRequestDiagnostics(req) {
+  return {
+    origin: req.headers.origin || "",
+    clientPlatform: req.headers["x-client-platform"] || "",
+    userAgent: (req.headers["user-agent"] || "").slice(0, 120),
+    isCapacitor: isCapacitorRequest(req),
+    hasRefreshCookie: Boolean(req.cookies?.[REFRESH_COOKIE_NAME]),
+  };
 }
 
 /**
@@ -375,8 +388,12 @@ exports.googleLogin = asyncHandler(async (req, res) => {
  */
 exports.refreshToken = asyncHandler(async (req, res) => {
   const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  const authDiagnostics = getAuthRequestDiagnostics(req);
+
+  logger.info("[AUTH] refresh start", authDiagnostics);
 
   if (!rawToken) {
+    logger.warn("[AUTH] refresh failed: missing refresh cookie", authDiagnostics);
     throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
   }
 
@@ -396,6 +413,12 @@ exports.refreshToken = asyncHandler(async (req, res) => {
     if (err?.errorCode !== "REFRESH_TOKEN_RACE") {
       res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitor));
     }
+    logger.warn("[AUTH] refresh failed", {
+      ...authDiagnostics,
+      errorCode: err?.errorCode,
+      statusCode: err?.statusCode,
+      message: err?.message,
+    });
     throw err;
   }
 
@@ -406,6 +429,10 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   );
 
   res.cookie(REFRESH_COOKIE_NAME, rotated.newRawToken, getCookieOptions(isCapacitor));
+  logger.info("[AUTH] refresh success", {
+    ...authDiagnostics,
+    userId: String(rotated.userId),
+  });
   res.json({ token: newAccessToken });
 });
 
@@ -419,6 +446,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
  */
 exports.logoutUser = asyncHandler(async (req, res) => {
   const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  logger.info("[AUTH] logout requested", getAuthRequestDiagnostics(req));
 
   if (rawToken) {
     // Best-effort — don't fail logout if DB is momentarily unavailable
@@ -442,6 +470,10 @@ exports.logoutAll = asyncHandler(async (req, res) => {
     revokeAllUserTokens(req.user._id),
     User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } }),
   ]);
+
+  // Drop the auth cache so the next request loads the new tokenVersion from
+  // MongoDB and rejects all in-flight access tokens.
+  await invalidateAuthCache(req.user._id);
 
   res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitorRequest(req)));
   res.json({ success: true, message: "All sessions revoked. Please login again." });
@@ -502,6 +534,9 @@ exports.updateMyPreferences = asyncHandler(async (req, res) => {
     { new: true, runValidators: true }
   );
 
+  // hasSeenWelcomeGuide / isOnboardingCompleted are cached fields.
+  await invalidateAuthCache(req.user._id);
+
   res.json({
     hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide),
     isOnboardingCompleted: Boolean(user?.isOnboardingCompleted),
@@ -523,6 +558,9 @@ exports.acceptTerms = asyncHandler(async (req, res) => {
     },
     { runValidators: false }
   );
+
+  // termsAcceptance is a cached field — middleware gate reads it.
+  await invalidateAuthCache(req.user._id);
 
   res.json({ success: true, message: "Terms and Privacy Policy accepted." });
 });
@@ -656,6 +694,7 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   await user.save();
 
   await revokeAllUserTokens(user._id);
+  await invalidateAuthCache(user._id);
 
   res.json({ message: "Password reset successful. Please login with your new password." });
 });

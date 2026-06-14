@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProfile, loginUser, googleLogin } from "@/services/api";
+import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { clearAuthToken, getValidToken, hydrateAuthToken, setAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import {
@@ -13,7 +14,11 @@ import {
   hasRedirectPending,
   clearRedirectPending,
 } from "@/services/firebaseAuth";
-import { initializePushNotifications } from "@/services/pushNotifications";
+import {
+  ensurePushRegistration,
+  initializePushNotifications,
+  onUserLoggedIn,
+} from "@/services/pushNotifications";
 
 // ---------------------------------------------------------------------------
 // In-app / WebView browser detection
@@ -213,8 +218,23 @@ export function useLogin() {
       return;
     }
     await setAuthToken(data.token);
+    // Notify FCM state machine of the authenticated identity so it can
+    // detect user switches on shared devices and force re-registration.
+    // Fire-and-forget — login path must not block on FCM.
+    const loggedInUserId = data.user?._id || data.user?.id || data.userId || null;
+    onUserLoggedIn(loggedInUserId).catch(() => {});
     initializePushNotifications().catch(() => {});
+    ensurePushRegistration().catch(() => {});
     queryClient.clear();
+
+    // Warm the dashboard cache while the router transitions — by the time the
+    // dashboard mounts, this request is already in-flight (or done) and
+    // useQuery dedups onto it. Eliminates the post-login white flash.
+    queryClient.prefetchQuery({
+      queryKey: ["dashboard", "snapshot"],
+      queryFn: ({ signal }) => getDashboardSnapshot(signal),
+      staleTime: 2 * 60 * 1000,
+    }).catch(() => {});
 
     if (data.requiresTermsAcceptance) {
       router.push("/accept-terms");

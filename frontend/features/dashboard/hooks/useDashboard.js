@@ -5,8 +5,20 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { markWelcomeGuideSeen } from "@/services/api";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
-import { clearAuthToken, hasValidAuthToken, hydrateAuthToken } from "@/utils/auth";
+import { hasValidAuthToken, hydrateAuthToken, isNativeCapacitor } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+
+// Hide the native splash screen after the dashboard shell is painted.
+// Called via the Capacitor global so @capacitor/splash-screen npm package
+// is not required — the plugin ships with @capacitor/android runtime.
+function hideSplash() {
+  if (!isNativeCapacitor()) return;
+  try {
+    window.Capacitor?.Plugins?.SplashScreen?.hide({ fadeOutDuration: 200 });
+  } catch {
+    // Not available in this runtime version — ignore.
+  }
+}
 
 const TOUR_SEEN_KEY = "hasSeenWelcomeGuide";
 
@@ -23,8 +35,8 @@ export function useDashboard() {
     queryKey: ["dashboard", "snapshot"],
     queryFn: ({ signal }) => getDashboardSnapshot(signal),
     staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnReconnect: true,
+    gcTime: 30 * 60 * 1000,
+    refetchOnReconnect: false,
     refetchOnWindowFocus: false,
     enabled: mounted && hasValidAuthToken(),
   });
@@ -43,7 +55,7 @@ export function useDashboard() {
               at: new Date().toISOString(),
               reason: error.message,
             });
-            if (!cancelled) setMounted(true);
+            if (!cancelled) { setMounted(true); hideSplash(); }
             return;
           }
           throw error;
@@ -54,7 +66,7 @@ export function useDashboard() {
         }
       }
 
-      if (!cancelled) setMounted(true);
+      if (!cancelled) { setMounted(true); hideSplash(); }
     };
 
     verifyAuth();
@@ -73,9 +85,8 @@ export function useDashboard() {
       return;
     }
 
-    if (status === 401 || status === 403) {
-      clearAuthToken().finally(() => router.replace("/login"));
-    }
+    // 401/403 are handled by the apiClient interceptor (handleUnauthenticated).
+    // Handling them here too creates a race: double clearAuthToken + double redirect.
   }, [error, router]);
 
   useEffect(() => {

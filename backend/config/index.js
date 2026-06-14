@@ -105,6 +105,13 @@ const appConfig = {
     concurrency: readNumber("OCR_WORKER_CONCURRENCY", 5),
     lockDurationMs: readNumber("OCR_WORKER_LOCK_DURATION_MS", 300000),
   },
+  smartNotificationQueue: {
+    name:           process.env.SMART_NOTIFICATION_QUEUE_NAME || "smartNotificationsQueue",
+    attempts:       readNumber("SMART_NOTIFICATION_ATTEMPTS", 3),
+    backoffMs:      readNumber("SMART_NOTIFICATION_BACKOFF_MS", 3000),
+    concurrency:    readNumber("SMART_NOTIFICATION_WORKER_CONCURRENCY", 8),
+    lockDurationMs: readNumber("SMART_NOTIFICATION_LOCK_DURATION_MS", 60000),
+  },
   upload: {
     maxFileSizeBytes: readNumber("UPLOAD_MAX_FILE_SIZE_BYTES", 2 * 1024 * 1024),
   },
@@ -124,11 +131,23 @@ const appConfig = {
     enabled: readBoolean("ENABLE_WEEKLY_REPORTS_CRON", true),
     schedule: process.env.WEEKLY_REPORTS_CRON || "0 9 * * *",
   },
+  sessionReminders: {
+    enabled: readBoolean("ENABLE_SESSION_REMINDERS_CRON", true),
+    schedule: process.env.SESSION_REMINDERS_CRON || "*/15 * * * *",
+    timezone: process.env.SESSION_REMINDERS_TIMEZONE || "Asia/Kolkata",
+  },
   morningMentor: {
     enabled: readBoolean("ENABLE_MORNING_MENTOR_CRON", true),
     schedule: process.env.MORNING_MENTOR_CRON || "0 7 * * *",
     timezone: process.env.MORNING_MENTOR_TIMEZONE || "Asia/Kolkata",
     timezoneOffsetHours: readNumber("MORNING_MENTOR_TIMEZONE_OFFSET_HOURS", 5.5),
+  },
+  cron: {
+    // Default 50; per-cron override via {CRON_NAME}_CONCURRENCY env vars.
+    concurrency:              readNumber("CRON_CONCURRENCY", 50),
+    morningMentorConcurrency: readNumber("MORNING_MENTOR_CRON_CONCURRENCY", 0),
+    weeklyReportsConcurrency: readNumber("WEEKLY_REPORTS_CRON_CONCURRENCY", 0),
+    sessionReminderConcurrency: readNumber("SESSION_REMINDER_CRON_CONCURRENCY", 0),
   },
   cors: {
     allowedOrigins: (process.env.ALLOWED_ORIGINS || "")
@@ -137,7 +156,7 @@ const appConfig = {
       .filter(Boolean),
     debug: readBoolean("CORS_DEBUG", false),
   },
-  timezoneOffsetHours: readNumber("TIMEZONE_OFFSET_HOURS", 0),
+  timezoneOffsetHours: readNumber("TIMEZONE_OFFSET_HOURS", 5.5),
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || "",
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",

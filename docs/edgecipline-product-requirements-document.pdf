@@ -1,0 +1,2095 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 377 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(EDGEDISCIPLINE) Tj
+/FB 26 Tf
+1 0 0 1 62 726 Tm
+(Product Requirements Document) Tj
+/FB 13 Tf
+1 0 0 1 62 690 Tm
+(AI-powered trading journal and discipline coach) Tj
+/FR 10 Tf
+1 0 0 1 62 668 Tm
+(Prepared from the Stratedge codebase) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 1) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Length 190 >>
+stream
+BT
+/FB 22 Tf
+1 0 0 1 62 742 Tm
+(Edgecipline Product Requirements Document) Tj
+/FR 10 Tf
+1 0 0 1 62 712 Tm
+(Last updated: 2026-06-13) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 2) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 1256 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(1. Product Summary) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Edgecipline is an AI-powered trading journal and discipline coach for retail traders,) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(starting with Forex and Indian market traders. The product lets users upload screenshots) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(from their broker, automatically extracts trade details using OCR and AI, saves those) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(trades into a journal, and turns the journal into actionable analytics about performance,) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(psychology, setup quality, discipline, and repeated mistakes.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(The core product promise is:) Tj
+/FR 11 Tf
+1 0 0 1 76 636 Tm
+("Upload your trade screenshot. Edgecipline builds your journal, finds your) Tj
+/FR 11 Tf
+1 0 0 1 76 620 Tm
+(patterns, and helps you become a more disciplined trader.") Tj
+/FR 10 Tf
+1 0 0 1 62 604 Tm
+(The app is not just a record-keeping tool. It is designed to help traders understand why) Tj
+/FR 10 Tf
+1 0 0 1 62 590 Tm
+(they win, why they lose, when they break rules, which setups are actually working, and) Tj
+/FR 10 Tf
+1 0 0 1 62 576 Tm
+(what they should focus on next.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 3) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 1321 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(2. Problem Statement) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Retail traders often know they should journal, but most do not do it consistently because) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(manual journaling is slow, repetitive, and emotionally uncomfortable after losses. Even) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(when traders do journal, their records are usually incomplete and do not connect) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(execution behavior, psychology, setup rules, and P&L outcomes.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(As a result, traders struggle to answer important questions:) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Which market, session, setup, or instrument actually makes me money?) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Am I following my trading plan or trading emotionally?) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- How much money do FOMO, revenge trading, overconfidence, or broken rules cost me?) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Which mistakes repeat most often?) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- What should I improve next week?) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(Edgecipline reduces the friction of journaling by extracting trade data from screenshots,) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(then converts that data into practical coaching insights.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 4) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 1627 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(3. Target Users) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Primary Users) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Retail Forex traders who use platforms such as MT4, MT5, cTrader, or broker history) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(screenshots and want to improve consistency without manually entering every trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(Indian retail traders, especially NSE/BSE options and F&O traders using brokers such as) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(Zerodha, Upstox, Angel One, Dhan, Groww, Fyers, 5paisa, ICICI Direct, Kotak Securities,) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(and Paytm Money.) Tj
+/FB 12 Tf
+1 0 0 1 62 633 Tm
+(Secondary Users) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(Early-stage serious traders who are not yet profitable but are willing to review their) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(behavior.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(Small trading communities, mentors, or educators who want their students to build) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(journaling discipline.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(Trading coaches who may eventually use aggregated journal data to review student) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(performance.) Tj
+/FB 12 Tf
+1 0 0 1 62 532 Tm
+(Excluded Users For Version 1) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(Institutional trading desks.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(High-frequency or fully automated traders.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(Users who need direct broker sync as the only acceptable journaling method.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(Users seeking trade signals, copy trading, or financial advice.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 5) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 2619 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(4. User Personas) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Persona 1: The Inconsistent Retail Trader) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(This user takes trades frequently but does not maintain a reliable journal. They often) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(remember big wins and losses emotionally, but cannot identify patterns objectively. They) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(want quick answers and dislike manual admin work.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(Needs:) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Fast trade logging.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Clear P&L and win-rate views.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- Simple feedback on repeated mistakes.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Low-friction mobile experience.) Tj
+/FB 12 Tf
+1 0 0 1 62 591 Tm
+(Persona 2: The Discipline-Focused Trader) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(This user already has a strategy and rules, but struggles to follow them consistently.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(They care about process quality, not just outcome.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(Needs:) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Setup checklists.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Plan adherence analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Psychology and emotional tags.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Weekly review and discipline trend.) Tj
+/FB 12 Tf
+1 0 0 1 62 476 Tm
+(Persona 3: The Indian Options Trader) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(This user trades NIFTY, BANKNIFTY, CE/PE options, or intraday stocks and needs a product) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(that understands Indian market terminology, brokers, rupee P&L, lot sizes, expiry, strike) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(price, and option type.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(Needs:) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- Indian market mode.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- Broker-aware screenshot extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- Option-specific fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Indian analytics separate from Forex data.) Tj
+/FB 12 Tf
+1 0 0 1 62 347 Tm
+(Persona 4: The Mobile-First Trader) Tj
+/FR 10 Tf
+1 0 0 1 62 330 Tm
+(This user trades and reviews mostly from a phone. They want screenshot upload, journal) Tj
+/FR 10 Tf
+1 0 0 1 62 316 Tm
+(review, and quick insights without desktop complexity.) Tj
+/FR 10 Tf
+1 0 0 1 62 302 Tm
+(Needs:) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- PWA / Android app support.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- Fast mobile navigation.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- Upload from phone gallery.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- Push notifications and reminders.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 6) Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 820 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(5. Value Proposition) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Edgecipline saves traders time by turning screenshots into structured trade entries, then) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(uses the journal data to reveal behavioral and strategic patterns.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(Core value drivers:) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Less manual journaling.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- Better trading self-awareness.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Clearer discipline feedback.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Market-specific support for Forex and Indian traders.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- AI-assisted extraction and coaching.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Weekly review loop that encourages improvement.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 7) Tj
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 15 0 R >>
+endobj
+17 0 obj
+<< /Length 1581 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(6. Product Goals) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Business Goals) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Acquire early retail traders in India and Forex communities.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Convert free users into paid subscribers after they experience screenshot) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(  extraction value.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Build a defensible data layer around trade behavior, psychology, setups, and) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(  outcomes.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Establish Edgecipline as a discipline-first trading journal, not another signal) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(  app.) Tj
+/FB 12 Tf
+1 0 0 1 62 605 Tm
+(User Goals) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Log trades quickly.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Understand what is working and what is not.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Follow trading rules more consistently.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Reduce emotional and impulsive trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Review each week with specific improvement actions.) Tj
+/FB 12 Tf
+1 0 0 1 62 518 Tm
+(Product Principles) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Reduce journaling friction first.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Show insights only when enough data exists.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Separate Forex and Indian market data cleanly.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Coach discipline without pretending to predict the market.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Make every insight actionable.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 8) Tj
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 17 0 R >>
+endobj
+19 0 obj
+<< /Length 2832 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(7. Core Features) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Must-Have For MVP) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Authentication And Account Setup) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(Users must be able to register, log in, reset password, log in with Google, accept terms,) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(and maintain a secure authenticated session.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Email/password signup and login.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Google login.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- Forgot password and reset password.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Terms acceptance gate.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- Secure JWT session handling.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- User profile with subscription status.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(- A new user can create an account and reach the dashboard without manual support.) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(- Protected pages redirect unauthenticated users to login.) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(Market Mode Selection) Tj
+/FR 10 Tf
+1 0 0 1 62 507 Tm
+(Users must be able to work in either Forex mode or Indian Market mode, with separate) Tj
+/FR 10 Tf
+1 0 0 1 62 493 Tm
+(routes, models, analytics, and UI expectations.) Tj
+/FR 10 Tf
+1 0 0 1 62 479 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 465 Tm
+(- Global market toggle.) Tj
+/FR 10 Tf
+1 0 0 1 62 451 Tm
+(- Forex trade journal and analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 437 Tm
+(- Indian market trade journal and analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 423 Tm
+(- Indian mode supports options and intraday stocks.) Tj
+/FR 10 Tf
+1 0 0 1 62 409 Tm
+(- Currency and field labels adapt to market type.) Tj
+/FR 10 Tf
+1 0 0 1 62 395 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 381 Tm
+(- A user's Forex trades do not pollute Indian market analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 367 Tm
+(- Indian options fields such as strike price, option type, expiry, and broker are) Tj
+/FR 10 Tf
+1 0 0 1 62 353 Tm
+(  captured.) Tj
+/FR 10 Tf
+1 0 0 1 62 339 Tm
+(Screenshot Trade Upload) Tj
+/FR 10 Tf
+1 0 0 1 62 325 Tm
+(Users must be able to upload broker screenshots and have the system extract trade data) Tj
+/FR 10 Tf
+1 0 0 1 62 311 Tm
+(into editable trade entries.) Tj
+/FR 10 Tf
+1 0 0 1 62 297 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 283 Tm
+(- Upload image file.) Tj
+/FR 10 Tf
+1 0 0 1 62 269 Tm
+(- Confirm screenshot before extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 255 Tm
+(- Select broker when needed for Indian market extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 241 Tm
+(- Async OCR/AI processing.) Tj
+/FR 10 Tf
+1 0 0 1 62 227 Tm
+(- Processing status states: uploading, queued, processing, completed, failed.) Tj
+/FR 10 Tf
+1 0 0 1 62 213 Tm
+(- Reject non-trade images.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 9) Tj
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 19 0 R >>
+endobj
+21 0 obj
+<< /Length 2935 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Support single-trade and multi-trade extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Store extraction confidence and review state.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- Allow user to review/edit extracted data before saving.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- User can upload a valid screenshot, review extracted fields, and save to journal.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Invalid screenshots produce helpful error guidance.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- Extraction failure does not create misleading completed journal entries.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(Manual Trade Entry) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(Users must be able to log a trade manually when screenshot extraction is not available or) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(not desired.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Create trade without screenshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Capture pair/instrument, type, quantity/lot size, entry, exit, P&L, date,) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(  strategy, session, notes.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Capture Indian market-specific fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Capture psychology and setup checklist fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Users can maintain a journal even if AI extraction fails.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(Trade Journal) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(Users must be able to view, filter, edit, and delete logged trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- Trade list page.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- Trade detail page.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- Edit trade page.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- Delete trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- Paginated and filterable API.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- Separate Forex and Indian trade views.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(- Users can correct AI extraction mistakes after saving.) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(- Analytics update after trade create, update, or delete.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(Dashboard) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(Users must have a clear home base showing current trading state and next actions.) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(- Total trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(- Win rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(- Net P&L.) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(- Current streak.) Tj
+/FR 10 Tf
+1 0 0 1 62 224 Tm
+(- Equity curve.) Tj
+/FR 10 Tf
+1 0 0 1 62 210 Tm
+(- Today's intelligence summary.) Tj
+/FR 10 Tf
+1 0 0 1 62 196 Tm
+(- AI coach snapshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 182 Tm
+(- Quick actions: log trade, upload screenshot, run checklist, generate/open report.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 10) Tj
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 21 0 R >>
+endobj
+23 0 obj
+<< /Length 2720 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Onboarding welcome guide.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- A returning user can understand their current status in under 30 seconds.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(Analytics Overview) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(Users must be able to see performance analytics based on journal data.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- Summary stats.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- Weekly P&L.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- Best/worst instruments or pairs.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- Strategy performance.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Session/time behavior.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Risk-reward distribution.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Calendar P&L.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Drawdown view.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Separate Indian market analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Users can identify at least one profitable condition and one weak condition from) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(  their journal.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(Psychology And Discipline Tracking) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(Users must be able to attach behavioral context to trades and receive analytics from it.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- Entry basis: plan, emotion, impulsive, custom.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- Mood rating.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- Confidence level.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- Emotional tags such as FOMO, revenge, fear, greed, calm, focused, rushed.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- Mistake tags.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- Lesson field.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- Would-retake review.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(- Discipline score.) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(- Psychology analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(- Psychology cost calculator.) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(- Self-awareness score.) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(- Repeated mistakes page.) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(- Discipline trend.) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(- Revenge and tilt detection.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(- Users can see how psychological states and mistakes affect P&L.) Tj
+/FR 10 Tf
+1 0 0 1 62 224 Tm
+(Setup Strategies And Checklists) Tj
+/FR 10 Tf
+1 0 0 1 62 210 Tm
+(Users must be able to define trading setups and check whether a trade followed the setup) Tj
+/FR 10 Tf
+1 0 0 1 62 196 Tm
+(rules.) Tj
+/FR 10 Tf
+1 0 0 1 62 182 Tm
+(Requirements:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 11) Tj
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 23 0 R >>
+endobj
+25 0 obj
+<< /Length 2852 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Create setup strategy.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Add editable setup rules.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(- Attach setup checklist to a trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(- Calculate setup score.) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(- Save checklist tracking history.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(- Show checklist in upload and manual trade flows.) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- Users can measure plan adherence over time.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(AI Insights And Coaching) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(Users should receive summarized, plain-language insights when enough data exists.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- AI-generated or rule-generated insights.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- AI coach feed.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Trading DNA engine.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Pattern detection.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Actionable recommendation language.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Unlock states when data is insufficient.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Insights explain what happened, why it matters, and what to do next.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- The product avoids generic advice when there is not enough data.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(Weekly Reports) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(Users must be able to review weekly performance.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- Generate weekly report from trade history.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- Store weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- View reports in app.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- Email reports when email configuration is available.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- Include performance, discipline, and improvement highlights.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(- Users have a repeatable weekly review loop.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(Subscription And Payment) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(Users must be able to experience limited free value and pay to continue using premium) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(capabilities.) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(- Free plan with limited screenshot upload usage.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(- Monthly and yearly subscription support.) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(- Razorpay order creation and verification.) Tj
+/FR 10 Tf
+1 0 0 1 62 224 Tm
+(- Subscription status and expiry on user profile.) Tj
+/FR 10 Tf
+1 0 0 1 62 210 Tm
+(- Admin ability to manually activate subscriptions.) Tj
+/FR 10 Tf
+1 0 0 1 62 196 Tm
+(Success criteria:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 12) Tj
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 25 0 R >>
+endobj
+27 0 obj
+<< /Length 2042 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Free users understand when and why they need to subscribe.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(- Paid users can continue uploading without manual intervention.) Tj
+/FR 10 Tf
+1 0 0 1 62 714 Tm
+(Admin Console) Tj
+/FR 10 Tf
+1 0 0 1 62 700 Tm
+(Internal operators must be able to manage users, trades, payments, notifications,) Tj
+/FR 10 Tf
+1 0 0 1 62 686 Tm
+(feedback, and platform health.) Tj
+/FR 10 Tf
+1 0 0 1 62 672 Tm
+(Requirements:) Tj
+/FR 10 Tf
+1 0 0 1 62 658 Tm
+(- Separate admin login.) Tj
+/FR 10 Tf
+1 0 0 1 62 644 Tm
+(- User management.) Tj
+/FR 10 Tf
+1 0 0 1 62 630 Tm
+(- Subscription management.) Tj
+/FR 10 Tf
+1 0 0 1 62 616 Tm
+(- Trade review.) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Payment history.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Platform analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Feedback review.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Notification management.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(Success criteria:) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Founder/operator can support early users without database access.) Tj
+/FB 12 Tf
+1 0 0 1 62 518 Tm
+(Nice-To-Have For Version 1 Or Shortly After) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Push notification reminders.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Morning mentor notifications.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- More granular broker templates.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- More advanced setup image references.) Tj
+/FR 10 Tf
+1 0 0 1 62 445 Tm
+(- Community or mentor dashboards.) Tj
+/FR 10 Tf
+1 0 0 1 62 431 Tm
+(- Export to CSV/PDF.) Tj
+/FR 10 Tf
+1 0 0 1 62 417 Tm
+(- Calendar-based weekly review builder.) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- In-app subscription upgrade prompts with plan comparison.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- More polished mobile bottom navigation.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- AI-generated next-week checklist.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Advanced benchmark comparisons across user cohorts.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(- Trading plan document builder.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 13) Tj
+ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 27 0 R >>
+endobj
+29 0 obj
+<< /Length 3165 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(8. User Flow From Start To Finish) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(New User Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(1. User opens the app.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(2. App checks for a valid session.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(3. If unauthenticated, user is sent to login.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(4. User registers with email/password or signs in with Google.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(5. User accepts terms.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(6. User lands on dashboard.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(7. User sees onboarding guide and quick actions.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(8. User chooses market mode: Forex or Indian Market.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(9. User uploads first trade screenshot or logs a trade manually.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(10. App extracts trade fields or opens manual entry form.) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(11. User reviews trade details.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(12. User adds psychology, notes, setup, and checklist data.) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(13. User saves trade to journal.) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(14. Dashboard and analytics refresh.) Tj
+/FR 10 Tf
+1 0 0 1 62 507 Tm
+(15. User reviews performance, mistakes, and AI coach snapshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 493 Tm
+(16. User returns over time to log more trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 479 Tm
+(17. Once enough trades exist, deeper insights unlock.) Tj
+/FR 10 Tf
+1 0 0 1 62 465 Tm
+(18. User reviews weekly report and acts on next improvement focus.) Tj
+/FB 12 Tf
+1 0 0 1 62 451 Tm
+(Screenshot Upload Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(1. User selects Upload Screenshot.) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(2. User selects market mode.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(3. If Indian market, user selects broker and trade subtype where required.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(4. User uploads image.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(5. App shows confirmation preview.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(6. User confirms extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 350 Tm
+(7. Backend uploads image to storage and creates pending trade/job.) Tj
+/FR 10 Tf
+1 0 0 1 62 336 Tm
+(8. OCR/AI pipeline extracts structured trade data.) Tj
+/FR 10 Tf
+1 0 0 1 62 322 Tm
+(9. Client shows progress state.) Tj
+/FR 10 Tf
+1 0 0 1 62 308 Tm
+(10. Extraction completes.) Tj
+/FR 10 Tf
+1 0 0 1 62 294 Tm
+(11. User reviews one or more extracted trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 280 Tm
+(12. User edits incorrect fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 266 Tm
+(13. User adds psychology/checklist metadata.) Tj
+/FR 10 Tf
+1 0 0 1 62 252 Tm
+(14. User saves trade or saves all extracted trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 238 Tm
+(15. Trade appears in journal.) Tj
+/FB 12 Tf
+1 0 0 1 62 224 Tm
+(Manual Trade Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 207 Tm
+(1. User selects Log Trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 193 Tm
+(2. User enters core trade details.) Tj
+/FR 10 Tf
+1 0 0 1 62 179 Tm
+(3. User optionally selects setup strategy.) Tj
+/FR 10 Tf
+1 0 0 1 62 165 Tm
+(4. User completes checklist.) Tj
+/FR 10 Tf
+1 0 0 1 62 151 Tm
+(5. User adds psychology, mistake, lesson, and notes.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 14) Tj
+ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 29 0 R >>
+endobj
+31 0 obj
+<< /Length 1485 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(6. User saves trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(7. Dashboard and analytics update.) Tj
+/FB 12 Tf
+1 0 0 1 62 714 Tm
+(Analytics Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(1. User opens dashboard or analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(2. If trade count is low, user sees unlock states explaining what data is needed.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(3. If enough data exists, user sees performance metrics, patterns, psychology cost,) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(   discipline trends, and AI coach insights.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(4. User drills into specific sections such as psychology, trading DNA, repeated) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(   mistakes, patterns, or AI coach.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(5. User leaves with one practical improvement target.) Tj
+/FB 12 Tf
+1 0 0 1 62 599 Tm
+(Subscription Flow) Tj
+/FR 10 Tf
+1 0 0 1 62 582 Tm
+(1. User uses free screenshot upload allowance.) Tj
+/FR 10 Tf
+1 0 0 1 62 568 Tm
+(2. User attempts additional premium upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 554 Tm
+(3. App displays subscription-required message.) Tj
+/FR 10 Tf
+1 0 0 1 62 540 Tm
+(4. User selects plan.) Tj
+/FR 10 Tf
+1 0 0 1 62 526 Tm
+(5. Razorpay checkout opens.) Tj
+/FR 10 Tf
+1 0 0 1 62 512 Tm
+(6. Payment is verified by backend.) Tj
+/FR 10 Tf
+1 0 0 1 62 498 Tm
+(7. User subscription becomes active.) Tj
+/FR 10 Tf
+1 0 0 1 62 484 Tm
+(8. Screenshot uploads continue.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 15) Tj
+ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 31 0 R >>
+endobj
+33 0 obj
+<< /Length 2778 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(9. MVP Definition) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(The MVP should prove that traders will consistently log trades when screenshot extraction) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(removes friction, and that analytics/discipline insights are valuable enough to drive) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(retention and paid conversion.) Tj
+/FB 12 Tf
+1 0 0 1 62 678 Tm
+(MVP Must Include) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Auth and terms acceptance.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Forex and Indian market modes.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Screenshot upload with AI/OCR extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- Manual trade entry.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- Trade journal CRUD.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- Dashboard with core KPIs.) Tj
+/FR 10 Tf
+1 0 0 1 62 577 Tm
+(- Basic analytics: trade count, win rate, net P&L, equity curve, weekly P&L,) Tj
+/FR 10 Tf
+1 0 0 1 62 563 Tm
+(  pair/instrument performance, strategy performance.) Tj
+/FR 10 Tf
+1 0 0 1 62 549 Tm
+(- Setup checklist attached to trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 535 Tm
+(- Psychology fields attached to trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 521 Tm
+(- Discipline and mistake analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 507 Tm
+(- Basic AI coach or rules-based insight feed.) Tj
+/FR 10 Tf
+1 0 0 1 62 493 Tm
+(- Weekly report view.) Tj
+/FR 10 Tf
+1 0 0 1 62 479 Tm
+(- Subscription gating for screenshot uploads.) Tj
+/FR 10 Tf
+1 0 0 1 62 465 Tm
+(- Admin console for early support.) Tj
+/FR 10 Tf
+1 0 0 1 62 451 Tm
+(- Mobile-friendly PWA/Android wrapper.) Tj
+/FB 12 Tf
+1 0 0 1 62 437 Tm
+(MVP Can Be Rough But Functional) Tj
+/FR 10 Tf
+1 0 0 1 62 420 Tm
+(- AI insight copy does not need to be perfect.) Tj
+/FR 10 Tf
+1 0 0 1 62 406 Tm
+(- Charts can be simple.) Tj
+/FR 10 Tf
+1 0 0 1 62 392 Tm
+(- Broker extraction coverage can start with the most common brokers.) Tj
+/FR 10 Tf
+1 0 0 1 62 378 Tm
+(- Weekly emails can be enabled after in-app report generation works.) Tj
+/FR 10 Tf
+1 0 0 1 62 364 Tm
+(- Admin console can be utilitarian.) Tj
+/FB 12 Tf
+1 0 0 1 62 350 Tm
+(MVP Launch Criteria) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- A user can register, upload a valid screenshot, save a trade, and see analytics) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(  update.) Tj
+/FR 10 Tf
+1 0 0 1 62 305 Tm
+(- Indian and Forex data remain separated.) Tj
+/FR 10 Tf
+1 0 0 1 62 291 Tm
+(- Invalid screenshots fail gracefully.) Tj
+/FR 10 Tf
+1 0 0 1 62 277 Tm
+(- Manual trade entry works as a fallback.) Tj
+/FR 10 Tf
+1 0 0 1 62 263 Tm
+(- Payment verification activates subscription.) Tj
+/FR 10 Tf
+1 0 0 1 62 249 Tm
+(- Admin can resolve user subscription issues.) Tj
+/FR 10 Tf
+1 0 0 1 62 235 Tm
+(- No critical security issue allows users to access another user's trades.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 16) Tj
+ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 33 0 R >>
+endobj
+35 0 obj
+<< /Length 2727 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(10. Success Metrics) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Activation Metrics) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Account creation to first saved trade conversion.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Percentage of new users who upload a screenshot within first session.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Screenshot extraction completion rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Percentage of extracted trades saved after review.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Time from signup to first saved trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(Target:) Tj
+/FR 10 Tf
+1 0 0 1 62 619 Tm
+(- 60%+ of registered users save at least one trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 605 Tm
+(- 40%+ of new users try screenshot upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 591 Tm
+(- 80%+ of valid uploads complete successfully.) Tj
+/FB 12 Tf
+1 0 0 1 62 577 Tm
+(Engagement Metrics) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Trades logged per active user per week.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Weekly active users.) Tj
+/FR 10 Tf
+1 0 0 1 62 532 Tm
+(- Percentage of users returning to dashboard after first trade.) Tj
+/FR 10 Tf
+1 0 0 1 62 518 Tm
+(- Percentage of users viewing analytics after logging trades.) Tj
+/FR 10 Tf
+1 0 0 1 62 504 Tm
+(- Checklist completion rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 490 Tm
+(- Psychology field completion rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 476 Tm
+(- Weekly report views.) Tj
+/FR 10 Tf
+1 0 0 1 62 462 Tm
+(Target:) Tj
+/FR 10 Tf
+1 0 0 1 62 448 Tm
+(- Users who log 5+ trades are materially more likely to return the next week.) Tj
+/FR 10 Tf
+1 0 0 1 62 434 Tm
+(- 50%+ of active users view analytics at least once per week.) Tj
+/FB 12 Tf
+1 0 0 1 62 420 Tm
+(Retention Metrics) Tj
+/FR 10 Tf
+1 0 0 1 62 403 Tm
+(- D1, D7, D30 retention.) Tj
+/FR 10 Tf
+1 0 0 1 62 389 Tm
+(- Weekly returning users.) Tj
+/FR 10 Tf
+1 0 0 1 62 375 Tm
+(- Cohort retention by first successful screenshot upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 361 Tm
+(- Cohort retention by first analytics insight viewed.) Tj
+/FR 10 Tf
+1 0 0 1 62 347 Tm
+(Target:) Tj
+/FR 10 Tf
+1 0 0 1 62 333 Tm
+(- Successful screenshot upload should correlate with higher D7 retention.) Tj
+/FR 10 Tf
+1 0 0 1 62 319 Tm
+(- Users with 10+ saved trades should show strong weekly retention.) Tj
+/FB 12 Tf
+1 0 0 1 62 305 Tm
+(Monetization Metrics) Tj
+/FR 10 Tf
+1 0 0 1 62 288 Tm
+(- Free-to-paid conversion.) Tj
+/FR 10 Tf
+1 0 0 1 62 274 Tm
+(- Subscription checkout start rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 260 Tm
+(- Payment success rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 246 Tm
+(- Monthly recurring revenue.) Tj
+/FR 10 Tf
+1 0 0 1 62 232 Tm
+(- Churn rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 218 Tm
+(- Upload limit conversion rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 204 Tm
+(Target:) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 17) Tj
+ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 35 0 R >>
+endobj
+37 0 obj
+<< /Length 937 >>
+stream
+BT
+/FR 10 Tf
+1 0 0 1 62 742 Tm
+(- Free users who hit upload limit should convert at a meaningfully higher rate than) Tj
+/FR 10 Tf
+1 0 0 1 62 728 Tm
+(  users who do not.) Tj
+/FB 12 Tf
+1 0 0 1 62 714 Tm
+(Quality Metrics) Tj
+/FR 10 Tf
+1 0 0 1 62 697 Tm
+(- Extraction accuracy by broker and market type.) Tj
+/FR 10 Tf
+1 0 0 1 62 683 Tm
+(- Manual correction rate after extraction.) Tj
+/FR 10 Tf
+1 0 0 1 62 669 Tm
+(- Failed upload rate.) Tj
+/FR 10 Tf
+1 0 0 1 62 655 Tm
+(- Non-trade rejection accuracy.) Tj
+/FR 10 Tf
+1 0 0 1 62 641 Tm
+(- Average processing time.) Tj
+/FR 10 Tf
+1 0 0 1 62 627 Tm
+(- Support tickets per 100 uploads.) Tj
+/FR 10 Tf
+1 0 0 1 62 613 Tm
+(Target:) Tj
+/FR 10 Tf
+1 0 0 1 62 599 Tm
+(- Keep median extraction time low enough that users do not abandon the upload flow.) Tj
+/FR 10 Tf
+1 0 0 1 62 585 Tm
+(- Track broker-specific extraction issues to prioritize fixes.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 18) Tj
+ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 37 0 R >>
+endobj
+39 0 obj
+<< /Length 1581 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(11. What We Are Deliberately Not Building In Version 1) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(Version 1 should not attempt to become a full trading platform.) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(Not building:) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Live trading execution.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Broker account linking or automatic trade sync.) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- Buy/sell signals.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Copy trading.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Social feed or public trader profiles.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Community chat.) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(- Portfolio management across asset classes.) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- Tax filing.) Tj
+/FR 10 Tf
+1 0 0 1 62 580 Tm
+(- Advanced options strategy payoff modeling.) Tj
+/FR 10 Tf
+1 0 0 1 62 566 Tm
+(- Real-time market data terminal.) Tj
+/FR 10 Tf
+1 0 0 1 62 552 Tm
+(- Backtesting engine.) Tj
+/FR 10 Tf
+1 0 0 1 62 538 Tm
+(- Strategy marketplace.) Tj
+/FR 10 Tf
+1 0 0 1 62 524 Tm
+(- Funded account challenge management.) Tj
+/FR 10 Tf
+1 0 0 1 62 510 Tm
+(- Institutional risk desk features.) Tj
+/FR 10 Tf
+1 0 0 1 62 496 Tm
+(- Complex team permissions.) Tj
+/FR 10 Tf
+1 0 0 1 62 482 Tm
+(- White-label broker partnerships.) Tj
+/FR 10 Tf
+1 0 0 1 62 468 Tm
+(- Guaranteed financial advice or profit predictions.) Tj
+/FR 10 Tf
+1 0 0 1 62 454 Tm
+(The version one product should stay focused on journaling, extraction, behavioral) Tj
+/FR 10 Tf
+1 0 0 1 62 440 Tm
+(analytics, and discipline coaching.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 19) Tj
+ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 39 0 R >>
+endobj
+41 0 obj
+<< /Length 899 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(12. Key Assumptions) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(- Traders want to journal but avoid doing it because manual entry is too painful.) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(- Screenshot upload is a strong enough wedge to drive first-use activation.) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(- Traders will correct extracted fields if the app gets most fields right.) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Psychology and discipline insights are a stronger differentiator than generic P&L) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(  charts.) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- Indian traders are underserved by generic trading journals.) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- A limited free upload model can drive paid conversion.) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Mobile upload is important because many retail traders operate from phones.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 20) Tj
+ET
+endstream
+endobj
+42 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 41 0 R >>
+endobj
+43 0 obj
+<< /Length 2377 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(13. Risks And Mitigations) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Risk: AI Extraction Accuracy Is Inconsistent) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Store extraction confidence.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Mark low-confidence trades as needs review.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Allow easy user correction.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Track broker-specific accuracy.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Keep manual entry as fallback.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(Risk: Users Do Not Enter Psychology Data) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Make psychology fields lightweight.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Use chips, defaults, and optional fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Show clear analytics unlocked by psychology data.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Do not block trade saving.) Tj
+/FB 12 Tf
+1 0 0 1 62 532 Tm
+(Risk: Analytics Feel Generic) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Use unlock states until enough data exists.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- Tie insights to specific user data.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Prioritize "what to do next" over long explanations.) Tj
+/FB 12 Tf
+1 0 0 1 62 459 Tm
+(Risk: Traders Expect Signals) Tj
+/FR 10 Tf
+1 0 0 1 62 442 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- Position product clearly as a journal and discipline coach.) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(- Avoid language implying prediction, guaranteed profits, or financial advice.) Tj
+/FB 12 Tf
+1 0 0 1 62 400 Tm
+(Risk: Indian And Forex Complexity Slows Product) Tj
+/FR 10 Tf
+1 0 0 1 62 383 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 369 Tm
+(- Keep separate models and routes.) Tj
+/FR 10 Tf
+1 0 0 1 62 355 Tm
+(- Prioritize top brokers and common screenshot formats.) Tj
+/FR 10 Tf
+1 0 0 1 62 341 Tm
+(- Avoid overgeneralizing market logic too early.) Tj
+/FB 12 Tf
+1 0 0 1 62 327 Tm
+(Risk: Paid Conversion Is Weak) Tj
+/FR 10 Tf
+1 0 0 1 62 310 Tm
+(Mitigation:) Tj
+/FR 10 Tf
+1 0 0 1 62 296 Tm
+(- Make free value immediate.) Tj
+/FR 10 Tf
+1 0 0 1 62 282 Tm
+(- Gate the high-value extraction workflow, not basic manual journaling.) Tj
+/FR 10 Tf
+1 0 0 1 62 268 Tm
+(- Show users what insights unlock as they add data.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 21) Tj
+ET
+endstream
+endobj
+44 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 43 0 R >>
+endobj
+45 0 obj
+<< /Length 1836 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(14. Recommended V1 Roadmap) Tj
+/FB 12 Tf
+1 0 0 1 62 720 Tm
+(Phase 1: Reliable Journal Core) Tj
+/FR 10 Tf
+1 0 0 1 62 703 Tm
+(- Auth.) Tj
+/FR 10 Tf
+1 0 0 1 62 689 Tm
+(- Manual trade entry.) Tj
+/FR 10 Tf
+1 0 0 1 62 675 Tm
+(- Screenshot upload.) Tj
+/FR 10 Tf
+1 0 0 1 62 661 Tm
+(- Trade journal CRUD.) Tj
+/FR 10 Tf
+1 0 0 1 62 647 Tm
+(- Dashboard KPIs.) Tj
+/FR 10 Tf
+1 0 0 1 62 633 Tm
+(- Forex and Indian separation.) Tj
+/FB 12 Tf
+1 0 0 1 62 619 Tm
+(Phase 2: Discipline Layer) Tj
+/FR 10 Tf
+1 0 0 1 62 602 Tm
+(- Setup strategies.) Tj
+/FR 10 Tf
+1 0 0 1 62 588 Tm
+(- Trade checklist.) Tj
+/FR 10 Tf
+1 0 0 1 62 574 Tm
+(- Psychology fields.) Tj
+/FR 10 Tf
+1 0 0 1 62 560 Tm
+(- Mistake tagging.) Tj
+/FR 10 Tf
+1 0 0 1 62 546 Tm
+(- Discipline analytics.) Tj
+/FB 12 Tf
+1 0 0 1 62 532 Tm
+(Phase 3: Coaching And Review) Tj
+/FR 10 Tf
+1 0 0 1 62 515 Tm
+(- Trading DNA.) Tj
+/FR 10 Tf
+1 0 0 1 62 501 Tm
+(- Pattern detection.) Tj
+/FR 10 Tf
+1 0 0 1 62 487 Tm
+(- AI coach feed.) Tj
+/FR 10 Tf
+1 0 0 1 62 473 Tm
+(- Weekly reports.) Tj
+/FR 10 Tf
+1 0 0 1 62 459 Tm
+(- Self-awareness and psychology cost.) Tj
+/FB 12 Tf
+1 0 0 1 62 445 Tm
+(Phase 4: Monetization And Operations) Tj
+/FR 10 Tf
+1 0 0 1 62 428 Tm
+(- Subscription gating.) Tj
+/FR 10 Tf
+1 0 0 1 62 414 Tm
+(- Razorpay flow.) Tj
+/FR 10 Tf
+1 0 0 1 62 400 Tm
+(- Admin console.) Tj
+/FR 10 Tf
+1 0 0 1 62 386 Tm
+(- Feedback tooling.) Tj
+/FR 10 Tf
+1 0 0 1 62 372 Tm
+(- Notification preferences.) Tj
+/FB 12 Tf
+1 0 0 1 62 358 Tm
+(Phase 5: Mobile Polish) Tj
+/FR 10 Tf
+1 0 0 1 62 341 Tm
+(- PWA install flow.) Tj
+/FR 10 Tf
+1 0 0 1 62 327 Tm
+(- Android APK.) Tj
+/FR 10 Tf
+1 0 0 1 62 313 Tm
+(- Push reminders.) Tj
+/FR 10 Tf
+1 0 0 1 62 299 Tm
+(- Mobile bottom navigation.) Tj
+/FR 10 Tf
+1 0 0 1 62 285 Tm
+(- Faster upload/review loop.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 22) Tj
+ET
+endstream
+endobj
+46 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 45 0 R >>
+endobj
+47 0 obj
+<< /Length 1086 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(15. Open Product Questions) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(- Which market should be positioned first publicly: Indian options, Forex, or both?) Tj
+/FR 10 Tf
+1 0 0 1 62 706 Tm
+(- What is the exact free plan limit: one lifetime upload, one monthly upload, or) Tj
+/FR 10 Tf
+1 0 0 1 62 692 Tm
+(  limited number of trades?) Tj
+/FR 10 Tf
+1 0 0 1 62 678 Tm
+(- Should manual journaling remain free forever?) Tj
+/FR 10 Tf
+1 0 0 1 62 664 Tm
+(- Which brokers should be considered launch-critical?) Tj
+/FR 10 Tf
+1 0 0 1 62 650 Tm
+(- What extraction accuracy threshold is acceptable for beta launch?) Tj
+/FR 10 Tf
+1 0 0 1 62 636 Tm
+(- Should weekly reports be generated automatically or manually triggered in MVP?) Tj
+/FR 10 Tf
+1 0 0 1 62 622 Tm
+(- Should the AI coach be marketed as AI-powered from day one, or should the product) Tj
+/FR 10 Tf
+1 0 0 1 62 608 Tm
+(  lead with "discipline analytics"?) Tj
+/FR 10 Tf
+1 0 0 1 62 594 Tm
+(- What compliance disclaimer should appear around analytics and coaching?) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 23) Tj
+ET
+endstream
+endobj
+48 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 47 0 R >>
+endobj
+49 0 obj
+<< /Length 879 >>
+stream
+BT
+/FB 15 Tf
+1 0 0 1 62 742 Tm
+(16. Positioning Recommendation) Tj
+/FR 10 Tf
+1 0 0 1 62 720 Tm
+(For an early-stage startup, the strongest wedge is:) Tj
+/FR 11 Tf
+1 0 0 1 76 706 Tm
+("The trading journal that fills itself from your broker screenshots.") Tj
+/FR 10 Tf
+1 0 0 1 62 690 Tm
+(The broader product vision is:) Tj
+/FR 11 Tf
+1 0 0 1 76 676 Tm
+("A discipline operating system for retail traders.") Tj
+/FR 10 Tf
+1 0 0 1 62 660 Tm
+(Recommended MVP positioning:) Tj
+/FR 10 Tf
+1 0 0 1 62 646 Tm
+(- Lead with screenshot-to-journal automation.) Tj
+/FR 10 Tf
+1 0 0 1 62 632 Tm
+(- Differentiate with Indian market support and psychology analytics.) Tj
+/FR 10 Tf
+1 0 0 1 62 618 Tm
+(- Avoid sounding like a signal provider.) Tj
+/FR 10 Tf
+1 0 0 1 62 604 Tm
+(- Use discipline, review, and repeatability as the emotional promise.) Tj
+/FR 8 Tf
+1 0 0 1 62 34 Tm
+(Edgecipline PRD | 24) Tj
+ET
+endstream
+endobj
+50 0 obj
+<< /Type /Page /Parent 51 0 R /MediaBox [0 0 612 792] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 49 0 R >>
+endobj
+51 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R 46 0 R 48 0 R 50 0 R] /Count 24 >>
+endobj
+52 0 obj
+<< /Type /Catalog /Pages 51 0 R >>
+endobj
+xref
+0 53
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000000581 00000 n 
+0000000718 00000 n 
+0000000958 00000 n 
+0000001095 00000 n 
+0000002402 00000 n 
+0000002539 00000 n 
+0000003911 00000 n 
+0000004049 00000 n 
+0000005728 00000 n 
+0000005867 00000 n 
+0000008538 00000 n 
+0000008677 00000 n 
+0000009548 00000 n 
+0000009687 00000 n 
+0000011320 00000 n 
+0000011459 00000 n 
+0000014343 00000 n 
+0000014482 00000 n 
+0000017469 00000 n 
+0000017608 00000 n 
+0000020380 00000 n 
+0000020519 00000 n 
+0000023423 00000 n 
+0000023562 00000 n 
+0000025656 00000 n 
+0000025795 00000 n 
+0000029012 00000 n 
+0000029151 00000 n 
+0000030688 00000 n 
+0000030827 00000 n 
+0000033657 00000 n 
+0000033796 00000 n 
+0000036575 00000 n 
+0000036714 00000 n 
+0000037702 00000 n 
+0000037841 00000 n 
+0000039474 00000 n 
+0000039613 00000 n 
+0000040563 00000 n 
+0000040702 00000 n 
+0000043131 00000 n 
+0000043270 00000 n 
+0000045158 00000 n 
+0000045297 00000 n 
+0000046435 00000 n 
+0000046574 00000 n 
+0000047504 00000 n 
+0000047643 00000 n 
+0000047861 00000 n 
+trailer
+<< /Size 53 /Root 52 0 R >>
+startxref
+47912
+%%EOF

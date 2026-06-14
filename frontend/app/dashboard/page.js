@@ -3,10 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import {
-  BookOpen, BarChart2, Cpu, CheckSquare, Target, FileText, TrendingUp, ClipboardList,
-  Camera, Plus, Sparkles,
-} from "lucide-react";
+import { CheckSquare, FileText, Camera, Plus, Sparkles } from "lucide-react";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -17,145 +14,6 @@ import CreateTradeButton     from "@/features/dashboard/components/CreateTradeBu
 import OnboardingTour        from "@/features/dashboard/components/OnboardingTour";
 import { useDashboard }      from "@/features/dashboard/hooks/useDashboard";
 import { Skeleton }          from "@/features/shared";
-
-// ── Feature cards ─────────────────────────────────────────────────────────────
-const NAV_CARDS = [
-  {
-    id: "tour-card-journal",
-    href: "/trades",
-    Icon: BookOpen,
-    label: "Journal",
-    sub: "Browse all logged trades",
-    color: "#0D9E6E",
-    bg: "#F0FDF4",
-    tooltip: "Your complete trade log. View, filter, and review every trade you've entered. The foundation of all your analytics and improvement.",
-  },
-  {
-    id: "tour-card-analytics",
-    href: "/analytics",
-    Icon: BarChart2,
-    label: "Analytics",
-    sub: "In-depth performance charts",
-    color: "#B8860B",
-    bg: "#FFFBEB",
-    tooltip: "Deep-dive into your trading performance — win rates, drawdowns, R:R analysis, psychology breakdowns, and AI-generated insights.",
-  },
-  {
-    id: "tour-card-ai",
-    href: "/upload-trade",
-    Icon: Cpu,
-    label: "AI Extractor",
-    sub: "Import from screenshot",
-    color: "#EC4899",
-    bg: "#FDF2F8",
-    tooltip: "Screenshot your broker's trade confirmation and let AI automatically extract and log the trade details for you.",
-  },
-  {
-    id: "tour-card-checklist",
-    href: "/checklist",
-    Icon: CheckSquare,
-    label: "Checklist",
-    sub: "Pre-trade rule check",
-    color: "#6366F1",
-    bg: "#EEF2FF",
-    tooltip: "Run through your personal trading rules before entering a position. Builds discipline and reduces impulsive, emotional trades.",
-  },
-  {
-    id: "tour-card-setups",
-    href: "/setups",
-    Icon: Target,
-    label: "Setups",
-    sub: "Strategies & playbooks",
-    color: "#14B8A6",
-    bg: "#F0FDFA",
-    tooltip: "Document your trading strategies and playbooks. Tag trades with setups to track which ones are actually profitable over time.",
-  },
-  {
-    id: "tour-card-reports",
-    href: "/weekly-reports?market=Forex",
-    Icon: FileText,
-    label: "AI Reports",
-    sub: "Weekly coaching insights",
-    color: "#0D9E6E",
-    bg: "#F0FDF4",
-    tooltip: "Weekly AI-generated coaching reports based on your actual trades, patterns, psychology, and risk management habits.",
-  },
-  {
-    id: "tour-card-psychology-timeline",
-    href: "/psychology-timeline",
-    Icon: TrendingUp,
-    label: "Psychology Timeline",
-    sub: "Mindset evolution over time",
-    color: "#7C3AED",
-    bg: "#F5F3FF",
-    tooltip: "Track how your psychology score, self-awareness, and discipline evolve over time. Spot emotional patterns before they cost you money.",
-  },
-  {
-    id: "tour-card-discipline",
-    href: "/discipline",
-    Icon: ClipboardList,
-    label: "Discipline Analytics",
-    sub: "Rule compliance & setup quality",
-    color: "#0369A1",
-    bg: "#F0F9FF",
-    tooltip: "Understand which setup rules you follow, which you break most, and exactly how much each violation costs. Answer: 'Am I following my process?'",
-  },
-];
-
-// ── Feature card with tooltip ──────────────────────────────────────────────────
-function FeatureCard({ id, href, Icon, label, sub, color, bg, tooltip, delay }) {
-  const [showTip, setShowTip] = useState(false);
-  return (
-    <Link
-      id={id}
-      href={href}
-      className="feat-card"
-      onMouseEnter={() => setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}
-      style={{
-        background: "#FFFFFF",
-        borderRadius: 12,
-        border: "1px solid #E2E8F0",
-        padding: "18px 16px",
-        textDecoration: "none",
-        boxShadow: "0 1px 6px rgba(15,25,35,0.04)",
-        transition: "all 0.2s",
-        animation: `fadeUp 0.35s ease ${delay}s both`,
-        display: "flex", flexDirection: "column", gap: 12,
-        position: "relative",
-      }}
-    >
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", color }}>
-        <Icon size={20} strokeWidth={2} />
-      </div>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1923", marginBottom: 3 }}>{label}</div>
-        <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.4 }}>{sub}</div>
-      </div>
-      {tooltip && showTip && (
-        <div style={{
-          position: "absolute",
-          bottom: "calc(100% + 8px)",
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "#0F1923",
-          color: "#E2E8F0",
-          fontSize: 11,
-          padding: "10px 14px",
-          borderRadius: 10,
-          width: 210,
-          zIndex: 200,
-          lineHeight: 1.6,
-          pointerEvents: "none",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-        }}>
-          {tooltip}
-          <div style={{ position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)", width: 10, height: 10, background: "#0F1923", clipPath: "polygon(0 0, 100% 0, 50% 100%)" }} />
-        </div>
-      )}
-    </Link>
-  );
-}
 
 // ── Build KPI cards from API response ─────────────────────────────────────────
 function DashboardPanel({ title, subtitle, children, action, accent = "#0D9E6E" }) {
@@ -197,6 +55,17 @@ function QuickAction({ href, icon: Icon, label, sub, accent = "#0D9E6E" }) {
       </div>
     </Link>
   );
+}
+
+function greetingFor(hour) {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function firstName(full) {
+  if (!full) return "";
+  return String(full).trim().split(/\s+/)[0];
 }
 
 function buildStats(s) {
@@ -262,11 +131,13 @@ function buildStats(s) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent() {
-  const { stats, mounted, loading, showWelcome, closeWelcome: finishTour, selfAwareness, psychologyCost, tradingDNA } = useDashboard();
+  const { stats, mounted, loading, showWelcome, closeWelcome: finishTour, selfAwareness, psychologyCost, tradingDNA, profile } = useDashboard();
   const clock     = useClock();
   const statCards = buildStats(stats);
   const netPnl    = stats?.netPnL ?? stats?.totalProfit ?? 0;
-  const showSkeleton = mounted && loading;
+  // Show skeletons while auth is resolving OR while data is loading.
+  // Never show a full-page spinner — render the shell immediately.
+  const showSkeleton = !mounted || loading;
   const money = (n) => {
     const v = parseFloat(n || 0);
     return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}`;
@@ -292,21 +163,6 @@ function DashboardContent() {
       ? "Your next coaching priority is tightening the gap between trade quality and outcome review."
       : "Edgecipline will show a stronger coaching snapshot once more psychology and setup data is logged.";
 
-  if (!mounted) {
-    return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F4F2EE" }}>
-        <div style={{ textAlign: "center" }}>
-          <img src="/mainlogo1.png" alt="Edgecipline" style={{ width: 140, height: "auto", objectFit: "contain", marginBottom: 24, opacity: 0.85 }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <div style={{ width: 18, height: 18, border: "2.5px solid #E2E8F0", borderTopColor: "#0D9E6E", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.1em" }}>LOADING YOUR JOURNAL...</span>
-          </div>
-        </div>
-        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      </main>
-    );
-  }
-
   return (
     <div style={{
       minHeight: "100vh",
@@ -317,11 +173,7 @@ function DashboardContent() {
       color: "#0F1923",
       position: "relative",
     }}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-      <CandlestickBackground canvasId="dash-bg-canvas" />
+      {mounted && <CandlestickBackground canvasId="dash-bg-canvas" />}
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <PageHeader showMarketSwitcher showClock clock={clock} />
@@ -335,26 +187,33 @@ function DashboardContent() {
           boxSizing: "border-box",
         }}>
 
-          {/* ── Page title ───────────────────────────────────────── */}
+          {/* ── Greeting hero ─────────────────────────────────────── */}
           <div style={{
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: 24, flexWrap: "wrap", gap: 10,
-            opacity: mounted ? 1 : 0, transition: "opacity 0.4s",
+            marginBottom: 24, flexWrap: "wrap", gap: 12,
           }}>
-            <div>
-              <h1 style={{
-                fontSize: 20, fontWeight: 800, color: "#0F1923",
-                letterSpacing: "-0.02em", margin: 0,
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, color: "#94A3B8",
+                fontFamily: "'JetBrains Mono',monospace",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                marginBottom: 6,
               }}>
-                Dashboard
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+              </div>
+              <h1 style={{
+                fontSize: 26, fontWeight: 800, color: "#0F1923",
+                letterSpacing: "-0.025em", margin: 0, lineHeight: 1.15,
+              }}>
+                {greetingFor(new Date().getHours())}
+                {profile?.name ? <span style={{ color: "#0D9E6E" }}>, {firstName(profile.name)}</span> : ""}
               </h1>
               <p style={{
-                fontSize: 12, color: "#94A3B8",
-                fontFamily: "'JetBrains Mono',monospace",
-                margin: "4px 0 0", letterSpacing: "0.04em",
+                fontSize: 13, color: "#64748B",
+                margin: "6px 0 0",
               }}>
-                Overview of your trading activity
+                Here's your edge today.
               </p>
             </div>
             <div id="tour-create-trade">
@@ -617,17 +476,6 @@ function DashboardContent() {
             );
           })()}
 
-          {/* ── Feature cards grid ───────────────────────────────── */}
-          <div className="dash-nav-grid" style={{
-            display: "none",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 14,
-          }}>
-            {false && NAV_CARDS.map((c, i) => (
-              <FeatureCard key={c.href} {...c} delay={0.3 + i * 0.05} />
-            ))}
-          </div>
-
         </main>
       </div>
 
@@ -638,18 +486,12 @@ function DashboardContent() {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0);    }
         }
-        .feat-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 8px 20px rgba(15,25,35,0.08) !important;
-          border-color: #CBD5E0 !important;
-        }
         @media (max-width: 640px) {
           main { padding: 16px !important; }
           .dash-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .dashboard-focus-grid { grid-template-columns: 1fr !important; }
           .quick-actions-grid { grid-template-columns: 1fr !important; }
           .quick-action { min-height: 58px !important; }
-          .dash-nav-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
         @media (max-width: 360px) {
           .dash-kpi-grid { grid-template-columns: 1fr !important; }

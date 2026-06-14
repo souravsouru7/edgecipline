@@ -2,6 +2,7 @@ const Payment = require("../../models/Payment");
 const User = require("../../models/Users");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
+const { invalidateAuthCache } = require("../../services/authCacheService");
 
 /**
  * @desc    Get all payments for admin
@@ -71,6 +72,13 @@ exports.updatePaymentStatus = asyncHandler(async (req, res) => {
     }
 
   await payment.save();
+
+  // Status change may have flipped subscriptionStatus / subscriptionExpiry
+  // on the user. Invalidate so subscription guards see the fresh value.
+  if (payment.user) {
+    invalidateAuthCache(payment.user).catch(() => {});
+  }
+
   res.json({ message: "Payment status updated", payment });
 });
 

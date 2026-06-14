@@ -85,8 +85,10 @@ process.on("unhandledRejection", (reason) => {
 const { connectRedis } = require("./config/redis");
 const { startDataCleanupCron } = require("./jobs/dataCleanupCron");
 const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
+const { startSessionReminderCron } = require("./jobs/sessionReminderCron");
 const { startMorningMentorCron } = require("./jobs/morningMentorCron");
 const { startOcrWorker } = require("./workers/ocrWorker");
+const { startSmartNotificationWorker } = require("./workers/smartNotificationWorker");
 
 connectDB();
 connectRedis();
@@ -102,9 +104,33 @@ if (appConfig.env !== "production" && process.env.ENABLE_EMBEDDED_OCR_WORKER !==
   });
 }
 
+// Smart-notification worker runs in-process for dev + opt-in for production.
+// In production, set ENABLE_EMBEDDED_SMART_NOTIFICATION_WORKER=true to run it
+// alongside the API; otherwise run a dedicated worker process:
+//   node backend/workers/smartNotificationWorker.js
+const enableSmartWorker =
+  appConfig.env !== "production" ||
+  process.env.ENABLE_EMBEDDED_SMART_NOTIFICATION_WORKER === "true";
+
+if (enableSmartWorker && process.env.DISABLE_EMBEDDED_SMART_NOTIFICATION_WORKER !== "true") {
+  startSmartNotificationWorker({ initializeConnections: false, mode: "embedded" }).catch((error) => {
+    logger.error("Failed to start embedded smart-notification worker", {
+      error: error.message,
+      stack: error.stack,
+    });
+  });
+}
+
+logger.info("[Timezone] Server timezone configuration", {
+  timezoneOffsetHours: appConfig.timezoneOffsetHours,
+  currentUtc: new Date().toISOString(),
+  inferredLocal: new Date(Date.now() + appConfig.timezoneOffsetHours * 3600000).toISOString().replace("Z", " (local-approx)"),
+});
+
 // Weekly AI reports are generated on-demand only (user clicks Generate Report).
 // This cron only sends a lightweight reminder notification; it does not call AI.
 startWeeklyReportsCron();
+startSessionReminderCron();
 startMorningMentorCron();
 startDataCleanupCron();
 
@@ -179,7 +205,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Platform'],
 };
 
 // HTTPS redirect — must come before CORS so redirects are not blocked
@@ -292,6 +318,7 @@ app.use("/api/admin/users", require("./admin/routes/adminUserRoutes"));
 app.use("/api/admin/payments", require("./admin/routes/adminPaymentRoutes"));
 app.use("/api/admin/trades", require("./admin/routes/adminTradeRoutes"));
 app.use("/api/admin/notifications", require("./admin/routes/adminNotificationRoutes"));
+app.use("/api/admin/auth-cache-metrics", require("./admin/routes/adminCacheMetricsRoutes"));
 app.use("/api/admin/feedback", require("./admin/routes/adminFeedbackRoutes"));
 
 // User feedback submission

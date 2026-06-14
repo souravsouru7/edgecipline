@@ -32,8 +32,13 @@ const REFRESH_COOKIE_NAME = "sid";
 // Same-client refresh races can present the just-rotated token again before
 // the winning response updates cookies/state in every tab. Treat that as a
 // recoverable race instead of a token-family replay.
+//
+// Widened from 10s → 60s: on Capacitor Android, a backgrounded WebView can
+// hold a request mid-flight long after the foreground tab has refreshed.
+// 10s was producing false TOKEN_REPLAY_DETECTED → family revoke → forced
+// logout for users on slow mobile networks.
 const REFRESH_REUSE_GRACE_MS =
-  Number(process.env.REFRESH_REUSE_GRACE_MS) || 10_000;
+  Number(process.env.REFRESH_REUSE_GRACE_MS) || 60_000;
 
 // ---------------------------------------------------------------------------
 // Crypto helpers
