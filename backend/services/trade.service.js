@@ -7,6 +7,8 @@ const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
 const tradeLifecycleService = require("./tradeLifecycle.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { markOcrJobConfirmed } = require("./ocrJob.service");
+const { destroyImages } = require("../utils/cloudinaryHelpers");
+const { logger } = require("../utils/logger");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -273,9 +275,33 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     delete update.tradeDate;
   }
 
+  // If client is replacing the tradeImages array, diff against the existing
+  // array and destroy removed Cloudinary assets. We fire-and-forget so a
+  // Cloudinary outage doesn't block the update.
+  let removedImages = [];
+  if (Array.isArray(update.tradeImages)) {
+    const existing = await Trade.findOne({ _id: tradeId, user: userId })
+      .select("tradeImages")
+      .lean();
+    if (existing?.tradeImages?.length) {
+      const keepIds = new Set(
+        update.tradeImages
+          .map(img => img?.publicId)
+          .filter(Boolean)
+      );
+      removedImages = existing.tradeImages.filter(img => img.publicId && !keepIds.has(img.publicId));
+    }
+  }
+
   const trade = await tradeRepository.updateForexTradeByUser(tradeId, userId, update);
   if (!trade) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
+  }
+
+  if (removedImages.length > 0) {
+    destroyImages(removedImages).catch(err => {
+      logger.warn("Trade evidence cleanup failed", { tradeId, error: err.message });
+    });
   }
 
   await invalidateTradeCaches({

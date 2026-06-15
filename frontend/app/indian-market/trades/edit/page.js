@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 
 const C = {
   bull: "#0D9E6E",
@@ -109,6 +110,8 @@ function IndianEditTradeContent() {
   const { accountCreatedDate } = useUserProfile();
   const id = searchParams.get("id");
   const [formData, setFormData] = useState(null);
+  const evidenceRef = useRef(null);
+  const [committingEvidence, setCommittingEvidence] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dateError, setDateError] = useState("");
@@ -212,6 +215,20 @@ function IndianEditTradeContent() {
 
     setSaving(true);
     try {
+      // Upload pending evidence images first
+      let tradeImages = formData.tradeImages || [];
+      if (evidenceRef.current?.hasPending()) {
+        setCommittingEvidence(true);
+        try {
+          tradeImages = await evidenceRef.current.commitPending();
+        } catch {
+          setCommittingEvidence(false);
+          setSaving(false);
+          return;
+        }
+        setCommittingEvidence(false);
+      }
+
       const activeSetupRules = (formData.setupRules || [])
         .map((rule) => ({
           label: String(rule.label || "").trim(),
@@ -230,6 +247,7 @@ function IndianEditTradeContent() {
         id,
         {
           ...formData,
+          tradeImages,
           pair: derivedPair,
           stockSymbol: isEquity ? stockSymbol : formData.stockSymbol,
           exchange: isEquity ? (formData.exchange || "NSE") : formData.exchange,
@@ -642,6 +660,16 @@ function IndianEditTradeContent() {
                 </a>
               </div>
             ) : null}
+
+            <div style={{ marginBottom: 16 }}>
+              <TradeEvidenceSection
+                ref={evidenceRef}
+                value={formData.tradeImages || []}
+                onChange={imgs => setFormData(prev => ({ ...prev, tradeImages: imgs }))}
+                disabled={saving || committingEvidence}
+                accentColor="#0D9E6E"
+              />
+            </div>
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>

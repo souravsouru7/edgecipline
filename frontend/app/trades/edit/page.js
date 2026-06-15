@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
@@ -10,6 +10,7 @@ import PageHeader from "@/features/shared/components/PageHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import SetupChecklist from "@/features/trade/components/SetupChecklist";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS — Light Trading Theme
@@ -236,6 +237,8 @@ function EditTradePageContent() {
   const [strategies, setStrategies] = useState([]);
   const [setupsLoading, setSetupsLoading] = useState(false);
   const [setupRules, setSetupRules] = useState([]);
+  const evidenceRef = useRef(null);
+  const [committingEvidence, setCommittingEvidence] = useState(false);
 
   const fetchTrade = useCallback(async () => {
     if (resolvedParams?.id) {
@@ -352,6 +355,22 @@ function EditTradePageContent() {
     setDateError("");
     setSaving(true);
     try {
+      // Upload pending evidence images first so their URLs can be saved in
+      // the same update call. Without this, abandoning the save would leak
+      // uploaded blobs in Cloudinary.
+      let tradeImages = formData.tradeImages || [];
+      if (evidenceRef.current?.hasPending()) {
+        setCommittingEvidence(true);
+        try {
+          tradeImages = await evidenceRef.current.commitPending();
+        } catch {
+          setCommittingEvidence(false);
+          setSaving(false);
+          return;
+        }
+        setCommittingEvidence(false);
+      }
+
       // Send only editable fields — strip MongoDB internals (_id, __v, user,
       // createdAt, updatedAt) and the local screenshotPreview blob which can
       // be several MB and has no meaning on the server.
@@ -372,6 +391,7 @@ function EditTradePageContent() {
         riskRewardCustom:  formData.riskRewardCustom,
         screenshot:        formData.screenshot,
         imageUrl:          formData.imageUrl,
+        tradeImages,
         entryBasis:        formData.entryBasis,
         entryBasisCustom:  formData.entryBasisCustom,
         mood:              formData.mood,
@@ -857,13 +877,23 @@ function EditTradePageContent() {
                         />
                       ) : formData.screenshot ? (
                         <img 
-                          src={formData.screenshot} 
-                          alt="Current screenshot" 
+                          src={formData.screenshot}
+                          alt="Current screenshot"
                           style={{ maxHeight: 150, borderRadius: 8, border: "1px solid #E2E8F0" }}
                         />
                       ) : null}
                     </div>
                   )}
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <TradeEvidenceSection
+                    ref={evidenceRef}
+                    value={formData.tradeImages || []}
+                    onChange={imgs => setFormData(prev => ({ ...prev, tradeImages: imgs }))}
+                    disabled={saving || committingEvidence}
+                    accentColor="#0D9E6E"
+                  />
                 </div>
 
                 <div style={{ marginBottom: 16 }}>

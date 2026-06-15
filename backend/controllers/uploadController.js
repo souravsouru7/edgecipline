@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const uploadService = require("../services/upload.service");
+const { buildImageVariants } = require("../utils/cloudinaryHelpers");
 
 exports.uploadImage = asyncHandler(async (req, res) => {
   const result = await uploadService.submitTradeUpload({
@@ -28,6 +29,36 @@ exports.uploadScreenshotImage = asyncHandler(async (req, res) => {
     url: req.uploadedImage.imageUrl,
     publicId: req.uploadedImage.publicId,
   });
+});
+
+// Batch trade evidence image upload. Returns array of metadata per image
+// so the client can attach them to a trade in a subsequent create/update call.
+exports.uploadTradeEvidenceImages = asyncHandler(async (req, res) => {
+  if (!req.uploadedImages?.length) {
+    res.status(400).json({
+      status: "error",
+      message: "At least one image is required.",
+    });
+    return;
+  }
+
+  const now = new Date();
+  const payload = req.uploadedImages.map((img, idx) => {
+    const variants = buildImageVariants(img.imageUrl);
+    return {
+      url: img.imageUrl,
+      publicId: img.publicId,
+      fileName: img.originalName || "",
+      uploadedAt: now,
+      order: idx,
+      size: img.bytes || 0,
+      format: img.format || "",
+      thumbnailUrl: variants.thumbnailUrl,
+      mediumUrl: variants.mediumUrl,
+    };
+  });
+
+  res.status(201).json(payload);
 });
 
 exports.getUploadJobStatus = asyncHandler(async (req, res) => {

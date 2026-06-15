@@ -113,6 +113,28 @@ async function renderToBlob(source, targetWidth, targetHeight, quality) {
  *
  * Returns: { file, originalSize, compressedSize, compressionRatio, skipped, reason }
  */
+/**
+ * Compress an array of image files one at a time (low-memory friendly).
+ *
+ * Sequential is intentional: parallel canvas decodes can OOM on older Android
+ * devices. The throughput cost is small (compression is fast vs. upload).
+ *
+ * @returns {Promise<File[]>} array of compressed File objects in the same order
+ */
+export async function compressImages(files, options = {}) {
+  if (!Array.isArray(files) || files.length === 0) return [];
+  const results = [];
+  for (const f of files) {
+    try {
+      const out = await compressImage(f, options);
+      results.push(out?.file || f);
+    } catch {
+      results.push(f);
+    }
+  }
+  return results;
+}
+
 export async function compressImage(file, options = {}) {
   const opts = { ...DEFAULTS, ...options };
   const originalSize = file?.size || 0;

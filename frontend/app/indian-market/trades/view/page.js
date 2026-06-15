@@ -9,6 +9,7 @@ import { MARKETS } from "@/context/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import TradeEvidenceGallery from "@/features/trade/components/TradeEvidenceGallery";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -544,20 +545,14 @@ function IndianTradeDetailContent() {
           </div>
         </SectionCard>
 
-        {/* ── Screenshot ── */}
-        {trade.screenshot && (
-          <SectionCard title="TRADE SCREENSHOT" icon="📸">
-            <a href={trade.screenshot} target="_blank" rel="noopener noreferrer"
-              style={{ display: "block", borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
-              <img
-                src={trade.screenshot}
-                alt="Trade screenshot"
-                style={{ width: "100%", maxHeight: 340, objectFit: "contain", background: "#F1F5F9", display: "block" }}
-              />
-            </a>
-            <div style={{ marginTop: 8, fontSize: 11, color: C.muted, textAlign: "center", fontFamily: C.mono }}>
-              Tap to open full size ↗
-            </div>
+        {/* ── Trade Evidence (gallery: legacy screenshot + tradeImages array) ── */}
+        {(trade.screenshot || (trade.tradeImages && trade.tradeImages.length > 0)) && (
+          <SectionCard title="TRADE EVIDENCE" icon="📸">
+            <TradeEvidenceGallery
+              images={trade.tradeImages || []}
+              legacyScreenshot={trade.screenshot}
+              title=""
+            />
           </SectionCard>
         )}
 

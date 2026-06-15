@@ -5,6 +5,7 @@ import { getTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PageHeader from "@/features/shared/components/PageHeader";
+import TradeEvidenceGallery from "@/features/trade/components/TradeEvidenceGallery";
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS — Light Trading Theme
@@ -504,8 +505,8 @@ function TradeDetailContent() {
                   </p>
                 </div>
 
-                {/* Screenshot Card */}
-                {trade.screenshot && (
+                {/* Evidence Gallery (renders legacy screenshot + new tradeImages) */}
+                {(trade.screenshot || (trade.tradeImages && trade.tradeImages.length > 0)) && (
                   <div style={{
                     background: "#FFFFFF",
                     border: "1px solid #E2E8F0",
@@ -515,35 +516,12 @@ function TradeDetailContent() {
                     animation: "fadeUp 0.5s ease 0.35s both",
                   }}>
                     <div style={{ height: 3, background: "linear-gradient(90deg,#6366F1,#6366F122)" }}/>
-                    <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ color: "#94A3B8" }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                          <circle cx="8.5" cy="8.5" r="1.5"/>
-                          <polyline points="21 15 16 10 5 21"/>
-                        </svg>
-                      </span>
-                      <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ TRADE SCREENSHOT</div>
-                    </div>
                     <div style={{ padding: "18px 20px" }}>
-                      <a 
-                        href={trade.screenshot} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{ display: "block" }}
-                      >
-                        <img 
-                          src={trade.screenshot} 
-                          alt="Trade Screenshot" 
-                          style={{ 
-                            maxWidth: "100%", 
-                            maxHeight: 300, 
-                            borderRadius: 8,
-                            border: "1px solid #E2E8F0",
-                            cursor: "pointer"
-                          }} 
-                        />
-                      </a>
+                      <TradeEvidenceGallery
+                        images={trade.tradeImages || []}
+                        legacyScreenshot={trade.screenshot}
+                        title="◆ TRADE EVIDENCE"
+                      />
                     </div>
                   </div>
                 )}

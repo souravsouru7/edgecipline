@@ -47,6 +47,7 @@ export function useAddTrade(marketType, isIndianMarket) {
     riskRewardRatio: "",
     riskRewardCustom: "",
     screenshot: "",
+    tradeImages: [],
     // Indian Market Fields
     segment: "Equity",
     instrumentType: "EQUITY",
@@ -192,7 +193,7 @@ export function useAddTrade(marketType, isIndianMarket) {
   const addSetupRule = () => setSetupRules(p => [...p, { id: Date.now(), label: "", followed: false }]);
   const clearSetupRules = () => setSetupRules(p => p.map(r => ({ ...r, followed: false })));
 
-  const handleSubmit = (e, { accountCreatedDate } = {}) => {
+  const handleSubmit = (e, { accountCreatedDate, tradeOverrides = {} } = {}) => {
     if (e) e.preventDefault();
     if (submitLockRef.current || createTradeMutation.isPending) {
       return;
@@ -231,6 +232,9 @@ export function useAddTrade(marketType, isIndianMarket) {
       tradeDate: trade.tradeDate,
       riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
       riskRewardCustom: trade.riskRewardCustom?.trim() || "",
+      // Page-level overrides (e.g. tradeImages after async upload) win over
+      // the in-state snapshot to bypass setState's async closure issue.
+      ...tradeOverrides,
     };
 
     const activeRules = setupRules.filter(r => r.label?.trim());

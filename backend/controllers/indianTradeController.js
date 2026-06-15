@@ -7,6 +7,8 @@ const { evaluateSmartNotifications } = require("../services/smartNotificationEva
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
 const { markOcrJobConfirmed } = require("../services/ocrJob.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
+const { destroyImages } = require("../utils/cloudinaryHelpers");
+const { logger } = require("../utils/logger");
 
 function getPeriodStart(period) {
   const now = new Date();
@@ -331,6 +333,22 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     update.type = type.toUpperCase();
   }
 
+  // Diff tradeImages to identify removed Cloudinary assets for cleanup.
+  let removedImages = [];
+  if (Array.isArray(update.tradeImages)) {
+    const existing = await IndianTrade.findOne({ _id: req.params.id, user: req.user._id })
+      .select("tradeImages")
+      .lean();
+    if (existing?.tradeImages?.length) {
+      const keepIds = new Set(
+        update.tradeImages
+          .map(img => img?.publicId)
+          .filter(Boolean)
+      );
+      removedImages = existing.tradeImages.filter(img => img.publicId && !keepIds.has(img.publicId));
+    }
+  }
+
   const trade = await IndianTrade.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id, deletedAt: null },
     update,
@@ -342,6 +360,15 @@ exports.updateTrade = asyncHandler(async (req, res) => {
 
   if (!trade) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
+  }
+
+  if (removedImages.length > 0) {
+    destroyImages(removedImages).catch(err => {
+      logger.warn("Indian trade evidence cleanup failed", {
+        tradeId: req.params.id,
+        error: err.message,
+      });
+    });
   }
 
   await invalidateTradeCaches({

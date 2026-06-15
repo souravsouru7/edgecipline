@@ -11,6 +11,7 @@ import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -106,12 +107,15 @@ function IndianOptionsAddTradeContent() {
     emotionalTags: [],
     wouldRetake: "",
     tradeQuality: "",
+    tradeImages: [],
     stockSymbol: "",
     exchange: "NSE",
     sharesQty: "",
     sector: ""
   });
   const [loading, setLoading] = useState(false);
+  const evidenceRef = useRef(null);
+  const [committingEvidence, setCommittingEvidence] = useState(false);
   const isEquity = tradeSubType === "EQUITY";
   const [strategies, setStrategies] = useState([]);
   const [setupsLoading, setSetupsLoading] = useState(false);
@@ -341,6 +345,22 @@ function IndianOptionsAddTradeContent() {
     const setupScore = activeRules.length > 0 ? Math.round((followedCount / activeRules.length) * 100) : null;
     tradeData.setupRules = activeRules.map(({ label, followed }) => ({ label: label.trim(), followed }));
     tradeData.setupScore = setupScore;
+
+    // Upload pending evidence images (compresses each, then batches). The
+    // returned array overrides trade.tradeImages in the create payload to
+    // bypass setState's async closure timing.
+    let finalImages = trade.tradeImages || [];
+    if (evidenceRef.current?.hasPending()) {
+      setCommittingEvidence(true);
+      try {
+        finalImages = await evidenceRef.current.commitPending();
+      } catch {
+        setCommittingEvidence(false);
+        return;
+      }
+      setCommittingEvidence(false);
+    }
+    tradeData.tradeImages = finalImages;
 
     submitLockRef.current = true;
     setLoading(true);
@@ -718,6 +738,14 @@ function IndianOptionsAddTradeContent() {
               <textarea name="notes" placeholder="Setup, context, emotions..." value={trade.notes} onChange={handleChange} rows={3} maxLength={2000} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, resize: "vertical" }} />
               <div style={{ fontSize: 10, color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
             </div>
+
+            <TradeEvidenceSection
+              ref={evidenceRef}
+              value={trade.tradeImages || []}
+              onChange={imgs => setTrade(prev => ({ ...prev, tradeImages: imgs }))}
+              disabled={loading || committingEvidence}
+              accentColor="#0D9E6E"
+            />
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>

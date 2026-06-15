@@ -71,6 +71,31 @@ const tradeSchema = new mongoose.Schema(
       default: ""
     },
 
+    // Trade evidence images (multi-image gallery): entry, TradingView, MSS, exit, etc.
+    // Up to 20 per trade. Stored as Cloudinary URLs with derived thumb/medium variants.
+    tradeImages: {
+      type: [
+        new mongoose.Schema(
+          {
+            url:          { type: String, required: true },
+            publicId:     { type: String, default: "" },
+            fileName:     { type: String, default: "", maxlength: 200 },
+            uploadedAt:   { type: Date,   default: Date.now },
+            order:        { type: Number, default: 0 },
+            size:         { type: Number, default: 0 },
+            thumbnailUrl: { type: String, default: "" },
+            mediumUrl:    { type: String, default: "" },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+      validate: {
+        validator(arr) { return Array.isArray(arr) && arr.length <= 20; },
+        message: "tradeImages cannot exceed 20 items",
+      },
+    },
+
     marketType: {
       type: String,
       default: "Forex"

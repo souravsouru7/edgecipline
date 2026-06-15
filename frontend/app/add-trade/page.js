@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useRef } from "react";
+import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, Save, ArrowLeft } from "lucide-react";
+import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -38,6 +39,8 @@ function AddTradeContent() {
   const { currentMarket, getCurrencySymbol, isIndianMarket } = useMarket();
   const clock = useClock();
   const fileInputRef = useRef(null);
+  const evidenceRef = useRef(null);
+  const [committingEvidence, setCommittingEvidence] = useState(false);
 
   const {
     trade, setTrade, handleChange, handleStrategyChange, handleScreenshotChange,
@@ -47,7 +50,26 @@ function AddTradeContent() {
 
   const { accountCreatedDate } = useUserProfile();
   const bull = parseFloat(trade.profit || 0) >= 0;
-  const inProgress = uploading || isSaving;
+  const inProgress = uploading || isSaving || committingEvidence;
+
+  // Wrap form submit: upload pending evidence images first, then submit
+  // with the final tradeImages array passed as a direct override (bypasses
+  // setState async closure).
+  const onFormSubmit = async (e) => {
+    e.preventDefault();
+    let tradeImages = trade.tradeImages || [];
+    if (evidenceRef.current?.hasPending()) {
+      setCommittingEvidence(true);
+      try {
+        tradeImages = await evidenceRef.current.commitPending();
+      } catch {
+        setCommittingEvidence(false);
+        return;
+      }
+      setCommittingEvidence(false);
+    }
+    handleSubmit(e, { accountCreatedDate, tradeOverrides: { tradeImages } });
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923" }}>
@@ -69,7 +91,7 @@ function AddTradeContent() {
           </Link>
         </div>
 
-        <form onSubmit={(e) => handleSubmit(e, { accountCreatedDate })} style={{ display: "grid", gap: 24 }}>
+        <form onSubmit={onFormSubmit} style={{ display: "grid", gap: 24 }}>
           {/* ── Market Specific ── */}
           {isIndianMarket && (
             <SectionCard title="Market Segment" accentColor="#10B981">
@@ -274,9 +296,20 @@ function AddTradeContent() {
             </div>
           </SectionCard>
 
-          <button 
-            type="submit" 
-            disabled={inProgress} 
+          {/* ── Multi-image Trade Evidence ── */}
+          <SectionCard title="Trade Evidence" accentColor="#0D9E6E">
+            <TradeEvidenceSection
+              ref={evidenceRef}
+              value={trade.tradeImages || []}
+              onChange={imgs => setTrade(prev => ({ ...prev, tradeImages: imgs }))}
+              disabled={inProgress}
+              accentColor={isIndianMarket ? "#22C78E" : "#0D9E6E"}
+            />
+          </SectionCard>
+
+          <button
+            type="submit"
+            disabled={inProgress}
             style={{ 
               width: "100%", padding: "20px", borderRadius: 16, 
               background: "linear-gradient(135deg, #0D9E6E, #0F1923)", 

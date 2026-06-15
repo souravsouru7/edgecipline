@@ -231,11 +231,11 @@ function createUploadMiddleware({ fieldName, folderName, required = true }) {
 
 const MAX_SETUP_IMAGES = 20;
 
-function createMultiUploadMiddleware({ fieldName, maxCount, folderName }) {
+function createMultiUploadMiddleware({ fieldName, maxCount, folderName, fileSizeBytes }) {
   const upload = multer({
     storage: createCloudinaryStorage(folderName),
     limits: {
-      fileSize: appConfig.upload.maxFileSizeBytes,
+      fileSize: fileSizeBytes || appConfig.upload.maxFileSizeBytes,
       files: maxCount,
       fields: 20,
       parts: maxCount + 20,
@@ -313,10 +313,23 @@ const uploadSetupReferenceImages = createMultiUploadMiddleware({
   folderName: "setup-references",
 });
 
+const MAX_TRADE_EVIDENCE_IMAGES = 20;
+
+// Trade evidence post-compression target is 200-500KB; cap at 5MB to absorb
+// devices where browser-side compression underperforms or is skipped.
+const uploadTradeEvidenceImages = createMultiUploadMiddleware({
+  fieldName: "tradeImages",
+  maxCount: MAX_TRADE_EVIDENCE_IMAGES,
+  folderName: "trade-evidence",
+  fileSizeBytes: 5 * 1024 * 1024,
+});
+
 module.exports = {
   createUploadMiddleware,
+  createMultiUploadMiddleware,
   uploadFeedbackScreenshot,
   uploadSetupReferenceImage,
   uploadSetupReferenceImages,
+  uploadTradeEvidenceImages,
   uploadTradeImage,
 };
