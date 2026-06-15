@@ -1,15 +1,21 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
-import { fetchSetups, saveSetups, uploadSetupReferenceImage } from "@/services/setupApi";
+import { fetchSetups, saveSetups, uploadSetupReferenceImages } from "@/services/setupApi";
 import { useMarket } from "@/context/MarketContext";
 import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Trash2, X } from "lucide-react";
+
+const MAX_IMAGES = 20;
+
+function genId() {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
 
 export default function SetupStrategiesPage() {
   const router = useRouter();
@@ -19,18 +25,19 @@ export default function SetupStrategiesPage() {
   const [strategies, setStrategies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
   const [error, setError] = useState("");
   const [savedAt, setSavedAt] = useState(null);
   const [expandedIds, setExpandedIds] = useState(new Set());
+  // { [strategyId]: [{id, file, previewUrl}] }
+  const [pendingByStrategy, setPendingByStrategy] = useState({});
+
+  const totalPendingCount = Object.values(pendingByStrategy).reduce((s, a) => s + a.length, 0);
 
   const toggleExpand = (id) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
@@ -38,23 +45,18 @@ export default function SetupStrategiesPage() {
   useEffect(() => {
     if (!ready) return;
     setMounted(true);
-
     const load = async () => {
       try {
         const serverStrategies = await fetchSetups(currentMarket);
         if (Array.isArray(serverStrategies) && serverStrategies.length) {
-          const mapped = serverStrategies.map((s, sIdx) => ({
-            id: sIdx + 1,
+          setStrategies(serverStrategies.map((s, i) => ({
+            id: i + 1,
             name: s.name || "",
             rules: Array.isArray(s.rules)
-                ? s.rules.map((r, rIdx) => ({
-                    id: rIdx + 1,
-                    label: r.label || "",
-                  }))
-                : [],
-            referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages.slice(0, 5) : [],
-          }));
-          setStrategies(mapped);
+              ? s.rules.map((r, j) => ({ id: j + 1, label: r.label || "" }))
+              : [],
+            referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
+          })));
         } else {
           setStrategies([]);
         }
@@ -64,90 +66,177 @@ export default function SetupStrategiesPage() {
         setLoading(false);
       }
     };
-
     load();
   }, [ready, router, currentMarket]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(pendingByStrategy).flat().forEach(p => {
+        try { URL.revokeObjectURL(p.previewUrl); } catch {}
+      });
+    };
+  }, []);
+
+  // ── Strategy management ────────────────────────────────────────────────
 
   const addStrategy = () => {
     setError("");
     setStrategies(prev => {
       const nextId = (prev[prev.length - 1]?.id || 0) + 1;
-      return [
-        ...prev,
-        { id: nextId, name: "", rules: [], referenceImages: [] },
-      ];
+      return [...prev, { id: nextId, name: "", rules: [], referenceImages: [] }];
     });
   };
 
-  const updateStrategyName = (id, name) => {
-    setStrategies(prev => prev.map(s => (s.id === id ? { ...s, name } : s)));
-  };
-
-  const addRuleToStrategy = (strategyId) => {
-    setStrategies(prev =>
-      prev.map(s => {
-        if (s.id !== strategyId) return s;
-        const nextRuleId = (s.rules[s.rules.length - 1]?.id || 0) + 1;
-        return { ...s, rules: [...s.rules, { id: nextRuleId, label: "" }] };
-      })
-    );
-  };
-
-  const updateRuleLabel = (strategyId, ruleId, label) => {
-    setStrategies(prev =>
-      prev.map(s => {
-        if (s.id !== strategyId) return s;
-        return { ...s, rules: s.rules.map(r => (r.id === ruleId ? { ...r, label } : r)) };
-      })
-    );
-  };
+  const updateStrategyName = (id, name) =>
+    setStrategies(prev => prev.map(s => s.id === id ? { ...s, name } : s));
 
   const deleteStrategy = (strategyId) => {
+    const pending = pendingByStrategy[strategyId] || [];
+    pending.forEach(p => { try { URL.revokeObjectURL(p.previewUrl); } catch {} });
+    setPendingByStrategy(prev => {
+      const next = { ...prev };
+      delete next[strategyId];
+      return next;
+    });
     setStrategies(prev => prev.filter(s => s.id !== strategyId));
   };
 
-  const deleteRule = (strategyId, ruleId) => {
-    setStrategies(prev =>
-      prev.map(s => {
-        if (s.id !== strategyId) return s;
-        return { ...s, rules: s.rules.filter(r => r.id !== ruleId) };
-      })
-    );
+  // ── Rule management ────────────────────────────────────────────────────
+
+  const addRuleToStrategy = (strategyId) =>
+    setStrategies(prev => prev.map(s => {
+      if (s.id !== strategyId) return s;
+      const nextId = (s.rules[s.rules.length - 1]?.id || 0) + 1;
+      return { ...s, rules: [...s.rules, { id: nextId, label: "" }] };
+    }));
+
+  const updateRuleLabel = (strategyId, ruleId, label) =>
+    setStrategies(prev => prev.map(s =>
+      s.id !== strategyId ? s : { ...s, rules: s.rules.map(r => r.id === ruleId ? { ...r, label } : r) }
+    ));
+
+  const deleteRule = (strategyId, ruleId) =>
+    setStrategies(prev => prev.map(s =>
+      s.id !== strategyId ? s : { ...s, rules: s.rules.filter(r => r.id !== ruleId) }
+    ));
+
+  // ── Image management ───────────────────────────────────────────────────
+
+  const handleFilesSelected = (strategyId, fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!files.length) return;
+
+    const strategy = strategies.find(s => s.id === strategyId);
+    const uploadedCount = strategy?.referenceImages?.length || 0;
+    const pendingCount = (pendingByStrategy[strategyId] || []).length;
+    const remaining = MAX_IMAGES - uploadedCount - pendingCount;
+    if (remaining <= 0) {
+      setError(`Maximum ${MAX_IMAGES} images per strategy`);
+      return;
+    }
+    setError("");
+
+    const toAdd = files.slice(0, remaining).map(file => ({
+      id: genId(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setPendingByStrategy(prev => ({
+      ...prev,
+      [strategyId]: [...(prev[strategyId] || []), ...toAdd],
+    }));
   };
 
-  const handleReferenceImageChange = async (strategyId, file) => {
-    if (!file) return;
-    try {
-      setSaving(true);
-      setError("");
-      const uploaded = await uploadSetupReferenceImage(file);
-      setStrategies(prev =>
-        prev.map(s =>
-          s.id === strategyId
-            ? {
-                ...s,
-                referenceImages: [
-                  ...(Array.isArray(s.referenceImages) ? s.referenceImages : []),
-                  { url: uploaded.imageUrl || "", publicId: uploaded.publicId || "" },
-                ].filter(img => img.url).slice(0, 5),
-              }
-            : s
-        )
-      );
-    } catch (e) {
-      setError(e.message || "Failed to upload setup image");
-    } finally {
-      setSaving(false);
-    }
+  const removePendingImage = (strategyId, pendingId) => {
+    setPendingByStrategy(prev => {
+      const arr = prev[strategyId] || [];
+      const item = arr.find(p => p.id === pendingId);
+      if (item) { try { URL.revokeObjectURL(item.previewUrl); } catch {} }
+      const next = arr.filter(p => p.id !== pendingId);
+      return { ...prev, [strategyId]: next };
+    });
   };
+
+  const removeReferenceImage = (strategyId, imageIdx) =>
+    setStrategies(prev => prev.map(s =>
+      s.id !== strategyId ? s : {
+        ...s,
+        referenceImages: (s.referenceImages || []).filter((_, i) => i !== imageIdx),
+      }
+    ));
+
+  const moveReferenceImage = (strategyId, idx, dir) =>
+    setStrategies(prev => prev.map(s => {
+      if (s.id !== strategyId) return s;
+      const imgs = [...s.referenceImages];
+      const ni = idx + dir;
+      if (ni < 0 || ni >= imgs.length) return s;
+      [imgs[idx], imgs[ni]] = [imgs[ni], imgs[idx]];
+      return { ...s, referenceImages: imgs };
+    }));
+
+  const movePendingImage = (strategyId, pendingId, dir) =>
+    setPendingByStrategy(prev => {
+      const arr = [...(prev[strategyId] || [])];
+      const idx = arr.findIndex(p => p.id === pendingId);
+      if (idx < 0) return prev;
+      const ni = idx + dir;
+      if (ni < 0 || ni >= arr.length) return prev;
+      [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
+      return { ...prev, [strategyId]: arr };
+    });
+
+  // ── Save (upload pending → save all) ──────────────────────────────────
 
   const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    setUploadStatus(null);
+
     try {
-      setSaving(true);
-      setError("");
-      const payload = strategies.map(s => ({
+      let newStrategies = [...strategies];
+
+      if (totalPendingCount > 0) {
+        setUploadStatus({ uploaded: 0, total: totalPendingCount });
+
+        await Promise.all(
+          Object.entries(pendingByStrategy).map(async ([sid, pending]) => {
+            if (!pending.length) return;
+            const strategyId = Number(sid);
+            const files = pending.map(p => p.file);
+            const uploaded = await uploadSetupReferenceImages(files);
+            pending.forEach(p => { try { URL.revokeObjectURL(p.previewUrl); } catch {} });
+
+            newStrategies = newStrategies.map(s => {
+              if (s.id !== strategyId) return s;
+              return {
+                ...s,
+                referenceImages: [
+                  ...(s.referenceImages || []),
+                  ...(Array.isArray(uploaded) ? uploaded : [])
+                    .map(u => ({ url: u.imageUrl || "", publicId: u.publicId || "" }))
+                    .filter(img => img.url),
+                ].slice(0, MAX_IMAGES),
+              };
+            });
+
+            setUploadStatus(prev => prev
+              ? { ...prev, uploaded: prev.uploaded + files.length }
+              : null
+            );
+          })
+        );
+      }
+
+      setStrategies(newStrategies);
+      setPendingByStrategy({});
+      setUploadStatus(null);
+
+      const payload = newStrategies.map(s => ({
         name: s.name,
-        referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages.slice(0, 5) : [],
+        referenceImages: (s.referenceImages || []).slice(0, MAX_IMAGES),
         rules: (s.rules || []).map(r => ({ label: r.label })),
       }));
       await saveSetups(payload, currentMarket);
@@ -156,17 +245,8 @@ export default function SetupStrategiesPage() {
       setError(e.message || "Failed to save setups");
     } finally {
       setSaving(false);
+      setUploadStatus(null);
     }
-  };
-
-  const removeReferenceImage = (strategyId, imageIdx) => {
-    setStrategies(prev =>
-      prev.map(s =>
-        s.id === strategyId
-          ? { ...s, referenceImages: (s.referenceImages || []).filter((_, idx) => idx !== imageIdx) }
-          : s
-      )
-    );
   };
 
   if (!mounted) return null;
@@ -175,475 +255,75 @@ export default function SetupStrategiesPage() {
     <div className="sp-root">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
         * { box-sizing: border-box; }
-
-        .sp-root {
-          min-height: 100vh;
-          background: #F4F6F9;
-          font-family: 'Inter', sans-serif;
-          color: #0F1923;
-        }
-
-        /* -- Header -- */
-        .sp-header {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          background: #FFFFFF;
-          border-bottom: 1px solid #E8ECF0;
-          padding: 0 16px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-        .sp-header-left {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-width: 0;
-        }
-        .sp-back-btn {
-          flex-shrink: 0;
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
-          border: 1px solid #E8ECF0;
-          background: #F8FAFB;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: background 0.15s;
-        }
+        .sp-root { min-height: 100vh; background: #F4F6F9; font-family: 'Inter', sans-serif; color: #0F1923; }
+        .sp-header { position: sticky; top: 0; z-index: 50; background: #FFFFFF; border-bottom: 1px solid #E8ECF0; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .sp-header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .sp-back-btn { flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E8ECF0; background: #F8FAFB; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
         .sp-back-btn:hover { background: #EEF1F4; }
-        .sp-title {
-          font-size: 15px;
-          font-weight: 700;
-          color: #0F1923;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .sp-market-chip {
-          display: inline-flex;
-          align-items: center;
-          padding: 3px 8px;
-          border-radius: 6px;
-          background: #EEF9F4;
-          border: 1px solid #C6EEE0;
-          font-size: 10px;
-          font-family: 'JetBrains Mono', monospace;
-          color: #0D9E6E;
-          font-weight: 600;
-          white-space: nowrap;
-          flex-shrink: 0;
-        }
-        .sp-header-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-shrink: 0;
-        }
-        .sp-btn-dashboard {
-          height: 36px;
-          padding: 0 14px;
-          border-radius: 10px;
-          border: 1px solid #E8ECF0;
-          background: #F8FAFB;
-          color: #4A5568;
-          font-size: 12px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          text-decoration: none;
-          display: inline-flex;
-          align-items: center;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: background 0.15s;
-        }
+        .sp-title { font-size: 15px; font-weight: 700; color: #0F1923; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sp-market-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; background: #EEF9F4; border: 1px solid #C6EEE0; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #0D9E6E; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+        .sp-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .sp-btn-dashboard { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #E8ECF0; background: #F8FAFB; color: #4A5568; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
         .sp-btn-dashboard:hover { background: #EEF1F4; }
-        .sp-btn-save {
-          height: 36px;
-          padding: 0 16px;
-          border-radius: 10px;
-          border: none;
-          background: linear-gradient(135deg, #0D9E6E, #0BB866);
-          color: #FFFFFF;
-          font-size: 12px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: opacity 0.15s;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+        .sp-btn-save { height: 36px; padding: 0 16px; border-radius: 10px; border: none; background: linear-gradient(135deg, #0D9E6E, #0BB866); color: #FFFFFF; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; display: flex; align-items: center; gap: 6px; }
         .sp-btn-save:disabled { opacity: 0.55; cursor: default; }
-
-        /* -- Main -- */
-        .sp-main {
-          max-width: 720px;
-          margin: 0 auto;
-          padding: 20px 16px 40px;
-        }
-
-        /* -- Alert -- */
-        .sp-alert-error {
-          padding: 10px 14px;
-          border-radius: 10px;
-          background: #FEF2F2;
-          border: 1px solid #FECACA;
-          font-size: 13px;
-          color: #DC2626;
-          margin-bottom: 14px;
-        }
-        .sp-alert-success {
-          padding: 10px 14px;
-          border-radius: 10px;
-          background: #F0FDF4;
-          border: 1px solid #BBF7D0;
-          font-size: 13px;
-          color: #16A34A;
-          margin-bottom: 14px;
-        }
-
-        /* -- Section header -- */
-        .sp-section-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 16px;
-          gap: 12px;
-        }
-        .sp-section-title {
-          font-size: 13px;
-          font-weight: 700;
-          color: #0F1923;
-        }
-        .sp-section-sub {
-          font-size: 12px;
-          color: #8A97A6;
-          margin-top: 2px;
-        }
-        .sp-btn-add-strategy {
-          flex-shrink: 0;
-          height: 34px;
-          padding: 0 14px;
-          border-radius: 10px;
-          border: 1.5px dashed #0D9E6E;
-          background: transparent;
-          color: #0D9E6E;
-          font-size: 12px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-          white-space: nowrap;
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          transition: background 0.15s;
-        }
+        .sp-main { max-width: 720px; margin: 0 auto; padding: 20px 16px 40px; }
+        .sp-alert-error { padding: 10px 14px; border-radius: 10px; background: #FEF2F2; border: 1px solid #FECACA; font-size: 13px; color: #DC2626; margin-bottom: 14px; }
+        .sp-alert-success { padding: 10px 14px; border-radius: 10px; background: #F0FDF4; border: 1px solid #BBF7D0; font-size: 13px; color: #16A34A; margin-bottom: 14px; }
+        .sp-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+        .sp-section-title { font-size: 13px; font-weight: 700; color: #0F1923; }
+        .sp-section-sub { font-size: 12px; color: #8A97A6; margin-top: 2px; }
+        .sp-btn-add-strategy { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 10px; border: 1.5px dashed #0D9E6E; background: transparent; color: #0D9E6E; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: background 0.15s; }
         .sp-btn-add-strategy:hover { background: #EEF9F4; }
-
-        /* -- Strategy card -- */
-        .sp-card {
-          background: #FFFFFF;
-          border-radius: 14px;
-          border: 1px solid #E8ECF0;
-          overflow: hidden;
-          margin-bottom: 14px;
-          box-shadow: 0 1px 4px rgba(15,25,35,0.05);
-        }
-        .sp-card-header {
-          padding: 14px 16px 12px;
-          border-bottom: 1px solid #F1F4F8;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          cursor: pointer;
-          user-select: none;
-        }
+        .sp-card { background: #FFFFFF; border-radius: 14px; border: 1px solid #E8ECF0; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(15,25,35,0.05); }
+        .sp-card-header { padding: 14px 16px 12px; border-bottom: 1px solid #F1F4F8; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; user-select: none; }
         .sp-card-header:hover { background: #FAFBFC; }
-        .sp-chevron {
-          flex-shrink: 0;
-          width: 22px;
-          height: 22px;
-          border-radius: 6px;
-          background: #F1F4F8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: none;
-        }
+        .sp-chevron { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #F1F4F8; display: flex; align-items: center; justify-content: center; }
         .sp-chevron.open { transform: rotate(180deg); }
-        .sp-card-name-wrap {
-          flex: 1;
-          min-width: 0;
-        }
-        .sp-field-label {
-          font-size: 10px;
-          font-family: 'JetBrains Mono', monospace;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          color: #A0AEC0;
-          margin-bottom: 5px;
-        }
-        .sp-name-input {
-          width: 100%;
-          border: 1px solid #E8ECF0;
-          border-radius: 8px;
-          padding: 8px 11px;
-          font-size: 13px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          color: #0F1923;
-          background: #F8FAFB;
-          outline: none;
-          transition: border-color 0.15s, background 0.15s;
-        }
+        .sp-card-name-wrap { flex: 1; min-width: 0; }
+        .sp-field-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: 0.08em; color: #A0AEC0; margin-bottom: 5px; }
+        .sp-name-input { width: 100%; border: 1px solid #E8ECF0; border-radius: 8px; padding: 8px 11px; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; color: #0F1923; background: #F8FAFB; outline: none; transition: border-color 0.15s, background 0.15s; }
         .sp-name-input:focus { border-color: #0D9E6E; background: #FFFFFF; }
-        .sp-rules-badge {
-          flex-shrink: 0;
-          padding: 4px 10px;
-          border-radius: 20px;
-          background: #F1F4F8;
-          font-size: 11px;
-          font-family: 'JetBrains Mono', monospace;
-          font-weight: 600;
-          color: #64748B;
-          white-space: nowrap;
-        }
-
-        /* -- Images section -- */
-        .sp-images-section {
-          padding: 12px 16px;
-          border-bottom: 1px solid #F1F4F8;
-        }
-        .sp-images-row {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-          margin-top: 6px;
-        }
-        .sp-img-upload-btn {
-          height: 60px;
-          padding: 0 14px;
-          border-radius: 10px;
-          border: 1.5px dashed #CBD5E0;
-          background: #F8FAFB;
-          color: #64748B;
-          font-size: 11px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          transition: border-color 0.15s, background 0.15s;
-          white-space: nowrap;
-        }
-        .sp-img-upload-btn:hover { border-color: #0D9E6E; background: #EEF9F4; color: #0D9E6E; }
-        .sp-img-thumb {
-          position: relative;
-          flex-shrink: 0;
-        }
-        .sp-img-thumb img, .sp-img-thumb span {
-          border-radius: 10px;
-          display: block;
-        }
-        .sp-img-remove {
-          position: absolute;
-          top: -6px;
-          right: -6px;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          border: 2px solid #FFFFFF;
-          background: #EF4444;
-          color: #FFFFFF;
-          font-size: 9px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1;
-        }
-        .sp-img-remove svg,
-        .sp-rule-del svg,
-        .sp-btn-delete-setup svg {
-          flex-shrink: 0;
-        }
-        .sp-img-hint {
-          font-size: 11px;
-          color: #A0AEC0;
-        }
-
-        /* -- Rules section -- */
-        .sp-rules-section {
-          padding: 12px 16px;
-        }
-        .sp-rules-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 10px;
-        }
-        .sp-btn-add-rule {
-          height: 30px;
-          padding: 0 12px;
-          border-radius: 8px;
-          border: 1px solid #C6EEE0;
-          background: #EEF9F4;
-          color: #0D9E6E;
-          font-size: 11px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          transition: background 0.15s;
-        }
+        .sp-rules-badge { flex-shrink: 0; padding: 4px 10px; border-radius: 20px; background: #F1F4F8; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #64748B; white-space: nowrap; }
+        .sp-images-section { padding: 12px 16px; border-bottom: 1px solid #F1F4F8; }
+        .sp-images-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .sp-images-count { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #94A3B8; }
+        .sp-images-grid { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+        .sp-img-card { position: relative; flex-shrink: 0; }
+        .sp-img-card img { width: 88px; height: 68px; object-fit: cover; border-radius: 10px; display: block; }
+        .sp-img-card--uploaded img { border: 1px solid #E8ECF0; }
+        .sp-img-card--pending img { border: 2px dashed #0D9E6E; }
+        .sp-img-remove { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #FFFFFF; background: #EF4444; color: #FFFFFF; font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 2; }
+        .sp-img-move-row { position: absolute; bottom: 4px; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; }
+        .sp-img-move-btn { width: 20px; height: 18px; border-radius: 4px; border: none; background: rgba(15,25,35,0.58); color: #FFFFFF; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+        .sp-img-move-btn:hover { background: rgba(13,158,110,0.85); }
+        .sp-img-new-badge { position: absolute; top: 4px; left: 4px; background: #0D9E6E; color: #FFFFFF; font-size: 8px; font-weight: 800; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
+        .sp-img-add-btn { width: 88px; height: 68px; border-radius: 10px; border: 1.5px dashed #CBD5E0; background: #F8FAFB; color: #64748B; font-size: 10px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; transition: border-color 0.15s, background 0.15s; flex-shrink: 0; }
+        .sp-img-add-btn:hover { border-color: #0D9E6E; background: #EEF9F4; color: #0D9E6E; }
+        .sp-img-pending-hint { font-size: 11px; color: #0D9E6E; margin-top: 6px; font-weight: 500; }
+        .sp-img-empty-hint { font-size: 11px; color: #A0AEC0; margin-top: 4px; }
+        .sp-rules-section { padding: 12px 16px; }
+        .sp-rules-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .sp-btn-add-rule { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #C6EEE0; background: #EEF9F4; color: #0D9E6E; font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.15s; }
         .sp-btn-add-rule:hover { background: #D5F5E9; }
-        .sp-btn-delete-setup {
-          height: 30px;
-          padding: 0 12px;
-          border-radius: 8px;
-          border: 1px solid #FECACA;
-          background: #FEF2F2;
-          color: #DC2626;
-          font-size: 11px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          transition: background 0.15s;
-        }
+        .sp-btn-delete-setup { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid #FECACA; background: #FEF2F2; color: #DC2626; font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.15s; }
         .sp-btn-delete-setup:hover { background: #FEE2E2; }
-
-        .sp-rule-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 10px;
-          border-radius: 9px;
-          border: 1px solid #F1F4F8;
-          background: #FAFBFC;
-          margin-bottom: 6px;
-          transition: border-color 0.15s;
-        }
-        .sp-rule-row:focus-within {
-          border-color: #0D9E6E;
-          background: #FFFFFF;
-        }
-        .sp-rule-num {
-          width: 22px;
-          height: 22px;
-          border-radius: 6px;
-          background: #E8ECF0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-family: 'JetBrains Mono', monospace;
-          font-weight: 700;
-          color: #64748B;
-          flex-shrink: 0;
-        }
-        .sp-rule-input {
-          flex: 1;
-          border: none;
-          outline: none;
-          background: transparent;
-          font-size: 13px;
-          font-family: 'Inter', sans-serif;
-          color: #0F1923;
-          min-width: 0;
-        }
+        .sp-rule-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid #F1F4F8; background: #FAFBFC; margin-bottom: 6px; transition: border-color 0.15s; }
+        .sp-rule-row:focus-within { border-color: #0D9E6E; background: #FFFFFF; }
+        .sp-rule-num { width: 22px; height: 22px; border-radius: 6px; background: #E8ECF0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #64748B; flex-shrink: 0; }
+        .sp-rule-input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; font-family: 'Inter', sans-serif; color: #0F1923; min-width: 0; }
         .sp-rule-input::placeholder { color: #CBD5E0; }
-        .sp-rule-del {
-          width: 24px;
-          height: 24px;
-          border-radius: 6px;
-          border: 1px solid #FECACA;
-          background: #FEF2F2;
-          color: #DC2626;
-          font-size: 12px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          transition: background 0.15s;
-          line-height: 1;
-        }
+        .sp-rule-del { width: 24px; height: 24px; border-radius: 6px; border: 1px solid #FECACA; background: #FEF2F2; color: #DC2626; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; line-height: 1; }
         .sp-rule-del:hover { background: #FEE2E2; }
-
-        .sp-no-rules {
-          font-size: 12px;
-          color: #A0AEC0;
-          text-align: center;
-          padding: 12px 0 4px;
-        }
-
-        /* -- Empty state -- */
-        .sp-empty {
-          text-align: center;
-          padding: 48px 20px;
-          background: #FFFFFF;
-          border-radius: 14px;
-          border: 1.5px dashed #DDE2E8;
-        }
-        .sp-empty-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          background: #EEF9F4;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 12px;
-        }
-        .sp-empty-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #0F1923;
-          margin-bottom: 6px;
-        }
-        .sp-empty-sub {
-          font-size: 12px;
-          color: #8A97A6;
-          margin-bottom: 18px;
-        }
-        .sp-empty-btn {
-          height: 38px;
-          padding: 0 20px;
-          border-radius: 10px;
-          border: none;
-          background: linear-gradient(135deg, #0D9E6E, #0BB866);
-          color: #FFFFFF;
-          font-size: 13px;
-          font-weight: 600;
-          font-family: 'Inter', sans-serif;
-          cursor: pointer;
-        }
-
-        /* -- Skeleton -- */
-        .sp-skel-card {
-          background: #FFFFFF;
-          border-radius: 14px;
-          border: 1px solid #E8ECF0;
-          padding: 16px;
-          margin-bottom: 14px;
-        }
+        .sp-no-rules { font-size: 12px; color: #A0AEC0; text-align: center; padding: 12px 0 4px; }
+        .sp-empty { text-align: center; padding: 48px 20px; background: #FFFFFF; border-radius: 14px; border: 1.5px dashed #DDE2E8; }
+        .sp-empty-icon { width: 44px; height: 44px; border-radius: 12px; background: #EEF9F4; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+        .sp-empty-title { font-size: 14px; font-weight: 700; color: #0F1923; margin-bottom: 6px; }
+        .sp-empty-sub { font-size: 12px; color: #8A97A6; margin-bottom: 18px; }
+        .sp-empty-btn { height: 38px; padding: 0 20px; border-radius: 10px; border: none; background: linear-gradient(135deg, #0D9E6E, #0BB866); color: #FFFFFF; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; }
+        .sp-skel-card { background: #FFFFFF; border-radius: 14px; border: 1px solid #E8ECF0; padding: 16px; margin-bottom: 14px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
       {currentMarket === "Indian_Market" ? <IndianMarketHeader /> : <PageHeader />}
@@ -662,18 +342,15 @@ export default function SetupStrategiesPage() {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          className="sp-btn-save"
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <button type="button" className="sp-btn-save" onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}>
                 <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
               </svg>
-              Saving...
+              {uploadStatus
+                ? `Uploading ${uploadStatus.uploaded}/${uploadStatus.total}…`
+                : "Saving…"}
             </>
           ) : (
             <>
@@ -682,19 +359,19 @@ export default function SetupStrategiesPage() {
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
-              Save Setups
+              {totalPendingCount > 0
+                ? `Upload & Save (${totalPendingCount} image${totalPendingCount > 1 ? "s" : ""})`
+                : "Save Setups"}
             </>
           )}
         </button>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
       <main className="sp-main">
         {error && <div className="sp-alert-error">{error}</div>}
         {savedAt && !error && (
           <div className="sp-alert-success">
-            Setups saved successfully at {savedAt.toLocaleTimeString()}
+            Setups saved at {savedAt.toLocaleTimeString()}
           </div>
         )}
 
@@ -741,9 +418,13 @@ export default function SetupStrategiesPage() {
               strategies.map(strategy => {
                 const filledRules = strategy.rules.filter(r => r.label?.trim().length > 0).length;
                 const isExpanded = expandedIds.has(strategy.id);
+                const uploadedImgs = strategy.referenceImages || [];
+                const pendingImgs = pendingByStrategy[strategy.id] || [];
+                const totalImgs = uploadedImgs.length + pendingImgs.length;
+
                 return (
                   <div key={strategy.id} className="sp-card">
-                    {/* Card header - name */}
+                    {/* Card header */}
                     <div className="sp-card-header" onClick={() => toggleExpand(strategy.id)}>
                       <div className="sp-card-name-wrap">
                         <div className="sp-field-label">STRATEGY NAME</div>
@@ -765,104 +446,155 @@ export default function SetupStrategiesPage() {
 
                     {/* Collapsible body */}
                     {isExpanded && <>
-
-                    {/* Name input (inside expanded) */}
-                    <div style={{ padding: "12px 16px", borderBottom: "1px solid #F1F4F8" }} onClick={e => e.stopPropagation()}>
-                      <div className="sp-field-label">STRATEGY NAME</div>
-                      <input
-                        type="text"
-                        className="sp-name-input"
-                        value={strategy.name}
-                        onChange={e => updateStrategyName(strategy.id, e.target.value)}
-                        placeholder="e.g. London Breakout, NY Reversal..."
-                      />
-                    </div>
-
-                    {/* Reference images */}
-                    <div className="sp-images-section">
-                      <div className="sp-field-label">REFERENCE SCREENSHOTS</div>
-                      <div className="sp-images-row">
-                        {(strategy.referenceImages?.length || 0) < 5 && (
-                          <label className="sp-img-upload-btn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="3" width="18" height="18" rx="2" />
-                              <circle cx="8.5" cy="8.5" r="1.5" />
-                              <polyline points="21 15 16 10 5 21" />
-                            </svg>
-                            Add Image
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: "none" }}
-                              onChange={e => handleReferenceImageChange(strategy.id, e.target.files?.[0])}
-                            />
-                          </label>
-                        )}
-                        {(strategy.referenceImages || []).map((image, imageIdx) => (
-                          <div key={`${strategy.id}-${imageIdx}`} className="sp-img-thumb">
-                            <Image src={image.url} alt={`ref ${imageIdx + 1}`} width={80} height={60} style={{ objectFit: "cover", borderRadius: 10, border: "1px solid #E8ECF0", display: "block" }} unoptimized />
-                            <button
-                              type="button"
-                              className="sp-img-remove"
-                              aria-label="Remove reference image"
-                              title="Remove image"
-                              onClick={() => removeReferenceImage(strategy.id, imageIdx)}
-                            >
-                              <X size={11} strokeWidth={3} />
-                            </button>
-                          </div>
-                        ))}
-                        {(strategy.referenceImages?.length || 0) === 0 && (
-                          <span className="sp-img-hint">Add up to 5 reference screenshots</span>
-                        )}
+                      {/* Name input */}
+                      <div style={{ padding: "12px 16px", borderBottom: "1px solid #F1F4F8" }} onClick={e => e.stopPropagation()}>
+                        <div className="sp-field-label">STRATEGY NAME</div>
+                        <input
+                          type="text"
+                          className="sp-name-input"
+                          value={strategy.name}
+                          onChange={e => updateStrategyName(strategy.id, e.target.value)}
+                          placeholder="e.g. London Breakout, NY Reversal..."
+                        />
                       </div>
-                    </div>
 
-                    {/* Rules */}
-                    <div className="sp-rules-section">
-                      <div className="sp-rules-top">
-                        <div className="sp-field-label" style={{ margin: 0 }}>RULES CHECKLIST</div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button type="button" className="sp-btn-add-rule" onClick={() => addRuleToStrategy(strategy.id)}>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                            Add Rule
-                          </button>
-                          <button type="button" className="sp-btn-delete-setup" onClick={() => deleteStrategy(strategy.id)}>
-                            <Trash2 size={12} strokeWidth={2.4} />
-                            Delete
-                          </button>
+                      {/* Reference images */}
+                      <div className="sp-images-section">
+                        <div className="sp-images-label-row">
+                          <div className="sp-field-label" style={{ marginBottom: 0 }}>REFERENCE SCREENSHOTS</div>
+                          {totalImgs > 0 && (
+                            <span className="sp-images-count">{totalImgs}/{MAX_IMAGES}</span>
+                          )}
                         </div>
+
+                        <div className="sp-images-grid">
+                          {/* Uploaded images */}
+                          {uploadedImgs.map((img, imgIdx) => (
+                            <div key={`up-${imgIdx}`} className="sp-img-card sp-img-card--uploaded">
+                              <img src={img.url} alt={`ref ${imgIdx + 1}`} />
+                              <button
+                                type="button"
+                                className="sp-img-remove"
+                                title="Remove"
+                                onClick={() => removeReferenceImage(strategy.id, imgIdx)}
+                              >
+                                <X size={10} strokeWidth={3} />
+                              </button>
+                              {uploadedImgs.length > 1 && (
+                                <div className="sp-img-move-row">
+                                  {imgIdx > 0 && (
+                                    <button type="button" className="sp-img-move-btn" title="Move left" onClick={() => moveReferenceImage(strategy.id, imgIdx, -1)}>‹</button>
+                                  )}
+                                  {imgIdx < uploadedImgs.length - 1 && (
+                                    <button type="button" className="sp-img-move-btn" title="Move right" onClick={() => moveReferenceImage(strategy.id, imgIdx, 1)}>›</button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Pending (local preview) images */}
+                          {pendingImgs.map((pending, pIdx) => (
+                            <div key={pending.id} className="sp-img-card sp-img-card--pending">
+                              <img src={pending.previewUrl} alt={`pending ${pIdx + 1}`} />
+                              <div className="sp-img-new-badge">NEW</div>
+                              <button
+                                type="button"
+                                className="sp-img-remove"
+                                title="Remove"
+                                onClick={() => removePendingImage(strategy.id, pending.id)}
+                              >
+                                <X size={10} strokeWidth={3} />
+                              </button>
+                              {pendingImgs.length > 1 && (
+                                <div className="sp-img-move-row">
+                                  {pIdx > 0 && (
+                                    <button type="button" className="sp-img-move-btn" title="Move left" onClick={() => movePendingImage(strategy.id, pending.id, -1)}>‹</button>
+                                  )}
+                                  {pIdx < pendingImgs.length - 1 && (
+                                    <button type="button" className="sp-img-move-btn" title="Move right" onClick={() => movePendingImage(strategy.id, pending.id, 1)}>›</button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Add images button */}
+                          {totalImgs < MAX_IMAGES && (
+                            <label className="sp-img-add-btn">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21 15 16 10 5 21" />
+                              </svg>
+                              {totalImgs === 0 ? "Add Images" : "+ More"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                style={{ display: "none" }}
+                                onChange={e => {
+                                  handleFilesSelected(strategy.id, e.target.files);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {pendingImgs.length > 0 && (
+                          <div className="sp-img-pending-hint">
+                            {pendingImgs.length} image{pendingImgs.length > 1 ? "s" : ""} selected — will upload when you Save
+                          </div>
+                        )}
+                        {totalImgs === 0 && (
+                          <div className="sp-img-empty-hint">Select up to {MAX_IMAGES} reference screenshots</div>
+                        )}
                       </div>
 
-                      {strategy.rules.length === 0 ? (
-                        <div className="sp-no-rules">No rules yet - click Add Rule to get started.</div>
-                      ) : (
-                        strategy.rules.map(rule => (
-                          <div key={rule.id} className="sp-rule-row">
-                            <div className="sp-rule-num">{strategy.rules.indexOf(rule) + 1}</div>
-                            <input
-                              type="text"
-                              className="sp-rule-input"
-                              value={rule.label}
-                              onChange={e => updateRuleLabel(strategy.id, rule.id, e.target.value)}
-                              placeholder="Describe this rule..."
-                            />
-                            <button
-                              type="button"
-                              className="sp-rule-del"
-                              aria-label="Delete rule"
-                              title="Delete rule"
-                              onClick={() => deleteRule(strategy.id, rule.id)}
-                            >
-                              <Trash2 size={13} strokeWidth={2.4} />
+                      {/* Rules */}
+                      <div className="sp-rules-section">
+                        <div className="sp-rules-top">
+                          <div className="sp-field-label" style={{ margin: 0 }}>RULES CHECKLIST</div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button type="button" className="sp-btn-add-rule" onClick={() => addRuleToStrategy(strategy.id)}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                              Add Rule
+                            </button>
+                            <button type="button" className="sp-btn-delete-setup" onClick={() => deleteStrategy(strategy.id)}>
+                              <Trash2 size={12} strokeWidth={2.4} />
+                              Delete
                             </button>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        </div>
 
+                        {strategy.rules.length === 0 ? (
+                          <div className="sp-no-rules">No rules yet — click Add Rule to get started.</div>
+                        ) : (
+                          strategy.rules.map((rule, rIdx) => (
+                            <div key={rule.id} className="sp-rule-row">
+                              <div className="sp-rule-num">{rIdx + 1}</div>
+                              <input
+                                type="text"
+                                className="sp-rule-input"
+                                value={rule.label}
+                                onChange={e => updateRuleLabel(strategy.id, rule.id, e.target.value)}
+                                placeholder="Describe this rule..."
+                              />
+                              <button
+                                type="button"
+                                className="sp-rule-del"
+                                aria-label="Delete rule"
+                                onClick={() => deleteRule(strategy.id, rule.id)}
+                              >
+                                <Trash2 size={13} strokeWidth={2.4} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </>}
                   </div>
                 );

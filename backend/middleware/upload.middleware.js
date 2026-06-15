@@ -229,6 +229,66 @@ function createUploadMiddleware({ fieldName, folderName, required = true }) {
   };
 }
 
+const MAX_SETUP_IMAGES = 20;
+
+function createMultiUploadMiddleware({ fieldName, maxCount, folderName }) {
+  const upload = multer({
+    storage: createCloudinaryStorage(folderName),
+    limits: {
+      fileSize: appConfig.upload.maxFileSizeBytes,
+      files: maxCount,
+      fields: 20,
+      parts: maxCount + 20,
+    },
+    fileFilter: (_req, file, cb) => {
+      if (!isAllowedImage(file)) {
+        if (isHeicImage(file)) {
+          const error = new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname);
+          error.message = "HEIC/HEIF images are not supported. Please upload a JPEG, PNG, or WEBP screenshot.";
+          return cb(error);
+        }
+        return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
+      }
+      return cb(null, true);
+    },
+  });
+
+  return (req, res, next) => {
+    upload.array(fieldName, maxCount)(req, res, (error) => {
+      if (error) {
+        logger.warn("Multi-image upload rejected", {
+          path: req.originalUrl,
+          method: req.method,
+          error: error.message,
+          code: error.code,
+        });
+        return res.status(400).json({
+          status: "error",
+          message: formatUploadError(error),
+        });
+      }
+
+      if (!req.files?.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "At least one image file is required.",
+        });
+      }
+
+      req.uploadedImages = req.files.map(f => ({
+        imageUrl: f.path,
+        publicId: f.publicId,
+        bytes: f.bytes,
+        format: f.format,
+        originalName: sanitizeFilename(f.originalname),
+        mimeType: f.mimetype,
+      }));
+
+      return next();
+    });
+  };
+}
+
 const uploadTradeImage = createUploadMiddleware({
   fieldName: "image",
   folderName: "trades",
@@ -247,9 +307,16 @@ const uploadSetupReferenceImage = createUploadMiddleware({
   required: true,
 });
 
+const uploadSetupReferenceImages = createMultiUploadMiddleware({
+  fieldName: "images",
+  maxCount: MAX_SETUP_IMAGES,
+  folderName: "setup-references",
+});
+
 module.exports = {
   createUploadMiddleware,
   uploadFeedbackScreenshot,
   uploadSetupReferenceImage,
+  uploadSetupReferenceImages,
   uploadTradeImage,
 };

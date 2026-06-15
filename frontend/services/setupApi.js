@@ -15,8 +15,15 @@ export const uploadSetupReferenceImage = async (file) => {
   formData.append("image", file);
 
   return await apiClient.post(`/setups/image`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const uploadSetupReferenceImages = async (files) => {
+  const formData = new FormData();
+  Array.from(files).forEach(file => formData.append("images", file));
+
+  return await apiClient.post(`/setups/images`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
 };

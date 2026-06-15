@@ -20,6 +20,22 @@ const uploadSetupReferenceImage = asyncHandler(async (req, res) => {
   });
 });
 
+const uploadSetupReferenceImages = asyncHandler(async (req, res) => {
+  if (!req.uploadedImages?.length) {
+    res.status(400).json({ message: "At least one image file is required." });
+    return;
+  }
+
+  res.json(
+    req.uploadedImages.map(img => ({
+      imageUrl: img.imageUrl,
+      publicId: img.publicId,
+      bytes: img.bytes,
+      format: img.format,
+    }))
+  );
+});
+
 const saveSetups = asyncHandler(async (req, res) => {
   const created = await setupService.saveSetups(
     req.user._id,
@@ -33,4 +49,5 @@ module.exports = {
   getSetups,
   saveSetups,
   uploadSetupReferenceImage,
+  uploadSetupReferenceImages,
 };
