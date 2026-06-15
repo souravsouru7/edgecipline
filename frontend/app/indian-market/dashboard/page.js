@@ -14,6 +14,7 @@ import Link from "next/link";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { getTrades } from "@/services/tradeApi";
+import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import {
     ResponsiveContainer,
     AreaChart,
@@ -200,29 +201,6 @@ function CreateTradeButton() {
     );
 }
 
-/* ── Empty state ──────────────────────────────────────────────────────── */
-function EmptyState() {
-    return (
-        <div style={{ textAlign: "center", padding: "48px 24px", background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: `${C.bull}10`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.bull} strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: C.ink, marginBottom: 8 }}>Log your first trade to unlock your Edge.</div>
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 24 }}>Your dashboard will show P&L, win rate, equity curve, and AI intelligence once you start logging trades.</div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                <Link href="/indian-market/add-trade" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.bull, color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Log Options Trade
-                </Link>
-                <Link href="/indian-market/upload-trade" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${C.gold}15`, color: C.gold, borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 700, textDecoration: "none", border: `1px solid ${C.gold}30` }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    Upload Screenshot
-                </Link>
-            </div>
-        </div>
-    );
-}
-
 /* ── Skeleton strip ───────────────────────────────────────────────────── */
 function SkeletonStrip() {
     return (
@@ -254,6 +232,9 @@ export default function IndianMarketDashboard() {
     const [breakdown,    setBreakdown]    = useState(null);
     const [recentTrades, setRecentTrades] = useState([]);
     const [loading,      setLoading]      = useState(true);
+    const [mounted,      setMounted]      = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
         if (!ready) return;
@@ -288,7 +269,6 @@ export default function IndianMarketDashboard() {
     const recoveryFactor = parseFloat(drawdown?.recoveryFactor || 0);
     const profitFactor   = perf?.profitFactor === "Infinity" ? "∞" : parseFloat(perf?.profitFactor || 0).toFixed(2);
     const maxWinStreak   = perf?.maxWinStreak ?? 0;
-    const hasData        = !loading && totalTrades > 0;
 
     const tapeItems = recentTrades.slice(0, 6).map(t => {
         const pnl = Number(t.profit || 0);
@@ -309,11 +289,13 @@ export default function IndianMarketDashboard() {
     const hour = new Date().getHours();
 
     return (
-        <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.ink }}>
+        <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.ink, position: "relative" }}>
+            {mounted && <CandlestickBackground canvasId="im-dash-bg-canvas" />}
+            <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
             <IndianMarketHeader />
             <TickerTape items={tapeItems} />
 
-            <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px", boxSizing: "border-box" }}>
+            <main style={{ flex: 1, maxWidth: 1200, width: "100%", margin: "0 auto", padding: "24px 20px", boxSizing: "border-box" }}>
 
                 {/* ── Greeting row ────────────────────────────────── */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 12 }}>
@@ -332,9 +314,7 @@ export default function IndianMarketDashboard() {
                 {/* ── KPI grid ────────────────────────────────────── */}
                 {loading ? <SkeletonStrip /> : (
                     <>
-                        {!hasData ? <EmptyState /> : (
-                            <>
-                                <div className="im-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 18 }}>
+                        <div className="im-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 18 }}>
                                     <KpiCard
                                         label="TOTAL TRADES"
                                         value={totalTrades}
@@ -499,11 +479,26 @@ export default function IndianMarketDashboard() {
                                         </Panel>
                                     </div>
                                 )}
-                            </>
-                        )}
+
+                                {/* ── Recent Progress ──────────────────────────── */}
+                                <div style={{ marginTop: 18, marginBottom: 18 }}>
+                                    <Panel
+                                        title="Recent Progress"
+                                        subtitle="Growth, improvement, and milestones"
+                                        accent={C.purple}
+                                        action={<Link href="/weekly-reports?market=Indian_Market" style={{ fontSize: 11, fontWeight: 800, color: C.purple, textDecoration: "none", whiteSpace: "nowrap" }}>Weekly Report →</Link>}
+                                    >
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+                                            <Insight label="Timeline Preview" value={`${totalTrades} trades feeding your improvement history.`} tone={C.purple} />
+                                            <Insight label="Recent Improvement" value={planPct >= 70 ? "Plan adherence is well calibrated. Protect the streak." : totalTrades > 3 ? "The next improvement is cleaner pre-trade discipline." : "Add more trades to unlock improvement tracking."} tone={C.bull} />
+                                            <Insight label="Recent Milestone" value={topSetup ? `Your ${topSetup.setup} setup is your most active pattern.` : "Complete your first 5 trades to unlock setup milestones."} tone={C.gold} />
+                                        </div>
+                                    </Panel>
+                                </div>
                     </>
                 )}
             </main>
+            </div>
 
             <style jsx global>{`
                 @keyframes imTicker {

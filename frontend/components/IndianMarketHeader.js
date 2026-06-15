@@ -3,7 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
+import MobileUserDrawer from "@/features/shared/components/MobileUserDrawer";
+
+function getInitials(name) {
+  if (!name) return "T";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 import MarketSwitcher from "@/components/MarketSwitcher";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import apiClient from "@/services/apiClient";
@@ -20,10 +29,13 @@ const NAV_ITEMS = [
   { href: "/indian-market/discipline",             label: "Discipline" },
 ];
 
+const DRAWER_NAV_ITEMS = NAV_ITEMS.filter(n => n.href !== "/indian-market/add-trade");
+
 export default function IndianMarketHeader() {
   const router   = useRouter();
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { profile } = useUserProfile();
 
   const isActive = (href) => {
     const base = href.split("?")[0];
@@ -95,63 +107,23 @@ export default function IndianMarketHeader() {
           </button>
         </div>
 
-        {/* Mobile hamburger */}
-        <button className="im-hdr-mobile"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", cursor: "pointer", color: "#4A5568", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44 }}>
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        {/* Mobile avatar */}
+        <button
+          className="im-hdr-mobile"
+          onClick={() => setDrawerOpen(true)}
+          style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif", boxShadow: "0 4px 10px rgba(13,158,110,0.3)", flexShrink: 0 }}
+        >
+          {getInitials(profile?.name)}
         </button>
       </header>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div style={{
-          position: "fixed", top: 60, left: 0, right: 0, bottom: 0,
-          background: "#FFFFFF", zIndex: 999,
-          display: "flex", flexDirection: "column",
-          borderTop: "1px solid #E8EDF2",
-          overflowY: "auto",
-        }}>
-          <div style={{ padding: "24px 24px 0" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>NAVIGATION</div>
-            <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {NAV_ITEMS.map(n => {
-                const active = isActive(n.href);
-                return (
-                  <Link key={n.href} href={n.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    style={{
-                      fontSize: 16, fontWeight: active ? 700 : 500,
-                      color: active ? "#0D9E6E" : "#2D3748",
-                      textDecoration: "none",
-                      padding: "12px 16px", borderRadius: 8,
-                      background: active ? "rgba(13,158,110,0.06)" : "transparent",
-                    }}>
-                    {n.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div style={{ height: 1, background: "#E8EDF2", margin: "20px 0" }} />
-
-          <div style={{ padding: "0 24px" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>MARKET</div>
-            <MarketSwitcher />
-          </div>
-
-          <button onClick={handleLogout} style={{
-            margin: "auto 24px 32px",
-            display: "flex", alignItems: "center", gap: 10,
-            background: "#FFF5F5", border: "1px solid #FED7D7",
-            color: "#C53030", padding: "14px 20px",
-            borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: "pointer",
-          }}>
-            <LogOut size={18} /> Sign out
-          </button>
-        </div>
-      )}
+      <MobileUserDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onLogout={handleLogout}
+        profile={profile}
+        navItems={DRAWER_NAV_ITEMS}
+      />
 
       <style jsx>{`
         .im-hdr-link:hover {
@@ -168,7 +140,7 @@ export default function IndianMarketHeader() {
           .im-hdr-mobile  { display: flex !important; }
         }
         @media (min-width: 769px) {
-          .im-hdr-mobile { display: none !important; }
+          .im-hdr-mobile  { display: none !important; }
         }
       `}</style>
     </>

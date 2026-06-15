@@ -35,7 +35,7 @@ const HIDDEN_PATH_PREFIXES = [
 const FOREX_TABS = [
   { href: "/dashboard",    label: "Home",         Icon: LayoutDashboard },
   { href: "/trades",       label: "Journal",      Icon: BookOpen },
-  { href: "/add-trade",    label: "Add",          Icon: Plus,  primary: true },
+  { href: "/upload-trade", label: "Add",          Icon: Plus,  primary: true },
   { href: "/intelligence", label: "Intelligence", Icon: Brain },
   { href: "/profile",      label: "Profile",      Icon: User },
 ];
@@ -43,7 +43,7 @@ const FOREX_TABS = [
 const INDIAN_TABS = [
   { href: "/indian-market/dashboard", label: "Home",      Icon: LayoutDashboard },
   { href: "/indian-market/trades",    label: "Journal",   Icon: BookOpen },
-  { href: "/indian-market/add-trade", label: "Add",       Icon: Plus, primary: true },
+  { href: "/indian-market/upload-trade", label: "Add",     Icon: Plus, primary: true },
   { href: "/indian-market/analytics", label: "Analytics", Icon: Brain },
   { href: "/profile",                 label: "Profile",   Icon: User },
 ];

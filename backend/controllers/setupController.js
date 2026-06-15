@@ -2,7 +2,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const setupService = require("../services/setup.service");
 
 const getSetups = asyncHandler(async (req, res) => {
-  const strategies = await setupService.getSetups(req.user.id, req.query.marketType || "Forex");
+  const strategies = await setupService.getSetups(req.user._id, req.query.marketType || "Forex");
   res.json(strategies);
 });
 
@@ -22,7 +22,7 @@ const uploadSetupReferenceImage = asyncHandler(async (req, res) => {
 
 const saveSetups = asyncHandler(async (req, res) => {
   const created = await setupService.saveSetups(
-    req.user.id,
+    req.user._id,
     req.query.marketType || "Forex",
     req.body.strategies
   );

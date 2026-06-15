@@ -237,87 +237,103 @@ export default function IndianSetupStrategiesPage() {
     );
   };
 
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setError("");
+      const payload = strategies.map(s => ({
+        name: s.name,
+        referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
+        rules: (s.rules || []).map(r => ({ label: r.label })),
+      }));
+      await saveSetups(payload, MARKETS.INDIAN_MARKET);
+      setSavedAt(new Date());
+    } catch (e) {
+      setError(e.message || "Failed to save setups");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (!mounted) return null;
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#F0EEE9",
+      background: "#F4F6F9",
       fontFamily: "'Plus Jakarta Sans',sans-serif",
       color: "#0F1923",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
       <IndianMarketHeader />
 
-      {/* Page-level action bar */}
+      {/* Sticky action bar */}
       <div style={{
-        padding: "10px 20px",
-        borderBottom: "1px solid #E2E8F0",
-        background: "rgba(255,255,255,0.95)",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        padding: "0 16px",
+        borderBottom: "1px solid #E8ECF0",
+        background: "#FFFFFF",
+        height: 56,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         gap: 10,
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1923" }}>
-          NSE / BSE TRADING SETUPS - RULE CHECKLISTS
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                setIsSaving(true);
-                setError("");
-                const payload = strategies.map(s => ({
-                  name: s.name,
-                  referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
-                  rules: (s.rules || []).map(r => ({ label: r.label })),
-                }));
-                await saveSetups(payload, MARKETS.INDIAN_MARKET);
-                setSavedAt(new Date());
-              } catch (e) {
-                setError(e.message || "Failed to save setups");
-              } finally {
-                setIsSaving(false);
-              }
-            }}
-            disabled={isSaving || uploadingCount > 0}
-            style={{
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono',monospace",
-              letterSpacing: "0.08em",
-              padding: "7px 12px",
-              borderRadius: 999,
-              border: "1px solid #0D9E6E55",
-              background: isSaving || uploadingCount > 0 ? "#E2E8F0" : "linear-gradient(135deg,#0D9E6E,#22C78E)",
-              color: isSaving || uploadingCount > 0 ? "#64748B" : "#FFFFFF",
-              cursor: isSaving || uploadingCount > 0 ? "default" : "pointer",
-            }}
-          >
-            {isSaving ? "SAVING..." : uploadingCount > 0 ? `UPLOADING ${uploadingCount}...` : "SAVE SETUPS"}
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <Link
             href="/indian-market/dashboard"
             style={{
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono',monospace",
-              letterSpacing: "0.08em",
-              padding: "7px 11px",
-              borderRadius: 999,
-              border: "1px solid #E2E8F0",
-              background: "#F8FAFC",
-              color: "#4A5568",
+              flexShrink: 0,
+              width: 34, height: 34,
+              borderRadius: 10,
+              border: "1px solid #E8ECF0",
+              background: "#F8FAFB",
+              display: "flex", alignItems: "center", justifyContent: "center",
               textDecoration: "none",
+              color: "#0F1923",
             }}
           >
-            BACK TO DASHBOARD
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
           </Link>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0F1923", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Setup / Strategies
+            </div>
+          </div>
+          <span style={{
+            flexShrink: 0,
+            display: "inline-flex", alignItems: "center",
+            padding: "3px 8px", borderRadius: 6,
+            background: "#EEF9F4", border: "1px solid #C6EEE0",
+            fontSize: 10, fontFamily: "'JetBrains Mono',monospace",
+            color: "#0D9E6E", fontWeight: 600,
+          }}>
+            NSE / BSE
+          </span>
         </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving || uploadingCount > 0}
+          style={{
+            flexShrink: 0,
+            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 12, fontWeight: 700,
+            padding: "8px 16px", borderRadius: 10,
+            border: "none",
+            background: isSaving || uploadingCount > 0 ? "#E2E8F0" : "linear-gradient(135deg,#0D9E6E,#22C78E)",
+            color: isSaving || uploadingCount > 0 ? "#64748B" : "#FFFFFF",
+            cursor: isSaving || uploadingCount > 0 ? "default" : "pointer",
+            boxShadow: isSaving || uploadingCount > 0 ? "none" : "0 4px 12px rgba(13,158,110,0.25)",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          {isSaving ? "Saving…" : uploadingCount > 0 ? `Uploading ${uploadingCount}…` : "Save Setups"}
+        </button>
       </div>
 
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "22px 16px 30px" }}>
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "20px 16px 40px" }}>
         {error && (
           <div style={{ marginBottom: 12, padding: "8px 10px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FCA5A5", fontSize: 12, color: "#B91C1C" }}>
             {error}
@@ -329,8 +345,8 @@ export default function IndianSetupStrategiesPage() {
           </div>
         )}
         {loading ? (
-          <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#64748B" }}>
-            Loading setups...
+          <div style={{ padding: "60px 0", textAlign: "center", fontSize: 13, color: "#64748B" }}>
+            Loading setups…
           </div>
         ) : (
         <div style={{
@@ -340,34 +356,58 @@ export default function IndianSetupStrategiesPage() {
           padding: "18px 20px 14px",
           boxShadow: "0 2px 10px rgba(15,25,35,0.04)",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10 }}>
             <div>
-              <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
-                OPTIONS TRADING SETUP CHECKLISTS
-              </div>
-              <div style={{ fontSize: 11, color: "#64748B", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 4 }}>
-                Create each trading setup once, then add rules you expect to follow for it.
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#0F1923" }}>Your Strategies</div>
+              <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
+                Define rules for each setup to follow before entering a trade.
               </div>
             </div>
             <button
               type="button"
               onClick={addStrategy}
               style={{
-                fontSize: 10,
-                fontFamily: "'JetBrains Mono',monospace",
-                letterSpacing: "0.08em",
-                padding: "7px 11px",
-                borderRadius: 999,
-                border: "1px solid #0D9E6E33",
-                background: "rgba(13,158,110,0.04)",
+                flexShrink: 0,
+                fontSize: 12, fontWeight: 700,
+                padding: "8px 14px",
+                borderRadius: 10,
+                border: "1.5px dashed #0D9E6E",
+                background: "transparent",
                 color: "#0D9E6E",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
               }}
             >
-              + ADD TRADING SETUP
+              + Add Strategy
             </button>
           </div>
+
+          {strategies.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(13,158,110,0.08)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923", marginBottom: 6 }}>No strategies yet</div>
+              <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, marginBottom: 20 }}>
+                Create your first trading setup and add the rules you expect to follow before entering a trade.
+              </div>
+              <button
+                type="button"
+                onClick={addStrategy}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  background: "linear-gradient(135deg,#0D9E6E,#22C78E)",
+                  color: "#fff", borderRadius: 10,
+                  padding: "11px 20px", fontSize: 13, fontWeight: 700,
+                  border: "none", cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(13,158,110,0.25)",
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add First Strategy
+              </button>
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {strategies.map(strategy => {
