@@ -67,6 +67,10 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) {
             Log.w(TAG, "Could not configure WebView cookies in load(): " + e.getMessage());
         }
+        // Re-attempt notification intent navigation — bridge is now ready.
+        // On cold-start, handleNotificationIntent() in onCreate() bails early because
+        // getBridge() is null. load() fires once the bridge and WebView are fully init.
+        handleNotificationIntent(getIntent());
     }
 
     private void requestNotificationPermissionIfNeeded() {
