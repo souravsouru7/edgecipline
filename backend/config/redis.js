@@ -22,6 +22,12 @@ client.on("end",         () => console.warn("[Redis] Connection ended — all re
 client.on("error",  (err) => console.error("[Redis] Error:", err.message));
 
 const connectRedis = async () => {
+  // ioredis throws "already connecting/connected" if connect() is called while the
+  // client is already in connecting/ready state (e.g. BullMQ connected it first).
+  // Skip the call — the client is usable either way.
+  if (["connecting", "connect", "ready"].includes(client.status)) {
+    return;
+  }
   try {
     await client.connect();
     await client.ping();

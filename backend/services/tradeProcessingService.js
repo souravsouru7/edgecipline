@@ -105,6 +105,11 @@ function withTimeout(promise, message, timeoutMs = PROCESSING_TIMEOUT_MS) {
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(message)), timeoutMs);
   });
+  // Prevent the original promise from producing an unhandled rejection after
+  // the timeout wins the race. Without this, a Gemini Vision call that keeps
+  // running past the deadline eventually rejects with nothing catching it,
+  // which crashes the worker process and triggers a PM2 restart.
+  promise.catch(() => {});
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
