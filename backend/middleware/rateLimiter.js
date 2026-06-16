@@ -186,6 +186,15 @@ const statusRateLimiter = createRedisRateLimiter({
 // Strict limiter for destructive admin operations (delete, status toggle, plan extension).
 // Keyed per admin user (falls back to IP). 10 destructive ops per minute is enough for
 // any legitimate admin workflow; protects against accidental bulk loops or compromised sessions.
+// Max 10 issue reports per hour per user — protects against runaway loops or abuse,
+// while leaving headroom for a user genuinely hitting many problems in a single session.
+const issueReportRateLimiter = createRedisRateLimiter({
+  scope: "issue-report",
+  windowMs: 60 * 60 * 1000,
+  maxRequests: Number(process.env.ISSUE_REPORT_RATE_LIMIT_MAX_REQUESTS) || 10,
+  message: "Too many issue reports submitted. Please wait an hour before submitting more.",
+});
+
 const adminDestructiveRateLimiter = createRedisRateLimiter({
   scope: "admin-destructive",
   windowMs: 60 * 1000,
@@ -202,4 +211,5 @@ module.exports = {
   uploadRateLimiter,
   statusRateLimiter,
   adminDestructiveRateLimiter,
+  issueReportRateLimiter,
 };

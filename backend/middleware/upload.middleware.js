@@ -231,7 +231,7 @@ function createUploadMiddleware({ fieldName, folderName, required = true }) {
 
 const MAX_SETUP_IMAGES = 20;
 
-function createMultiUploadMiddleware({ fieldName, maxCount, folderName, fileSizeBytes }) {
+function createMultiUploadMiddleware({ fieldName, maxCount, folderName, fileSizeBytes, optional = false }) {
   const upload = multer({
     storage: createCloudinaryStorage(folderName),
     limits: {
@@ -262,6 +262,25 @@ function createMultiUploadMiddleware({ fieldName, maxCount, folderName, fileSize
           error: error.message,
           code: error.code,
         });
+        // Clean up any files that successfully uploaded to Cloudinary before the
+        // error occurred — prevents orphaned assets when a batch partially succeeds.
+        const successfulFiles = Array.isArray(req.files) ? req.files : [];
+        if (successfulFiles.length > 0) {
+          Promise.all(
+            successfulFiles
+              .filter((f) => f.publicId)
+              .map((f) =>
+                cloudinary.uploader
+                  .destroy(f.publicId, { resource_type: "image" })
+                  .catch((destroyErr) =>
+                    logger.warn("Failed to clean up partial upload", {
+                      publicId: f.publicId,
+                      error: destroyErr.message,
+                    })
+                  )
+              )
+          ).catch(() => {});
+        }
         return res.status(400).json({
           status: "error",
           message: formatUploadError(error),
@@ -269,6 +288,10 @@ function createMultiUploadMiddleware({ fieldName, maxCount, folderName, fileSize
       }
 
       if (!req.files?.length) {
+        if (optional) {
+          req.uploadedImages = [];
+          return next();
+        }
         return res.status(400).json({
           status: "error",
           message: "At least one image file is required.",
@@ -314,6 +337,7 @@ const uploadSetupReferenceImages = createMultiUploadMiddleware({
 });
 
 const MAX_TRADE_EVIDENCE_IMAGES = 20;
+const MAX_ISSUE_REPORT_IMAGES = 8;
 
 // Trade evidence post-compression target is 200-500KB; cap at 5MB to absorb
 // devices where browser-side compression underperforms or is skipped.
@@ -324,6 +348,16 @@ const uploadTradeEvidenceImages = createMultiUploadMiddleware({
   fileSizeBytes: 5 * 1024 * 1024,
 });
 
+// Issue-report screenshots are pre-compressed client-side; cap at 3MB per image.
+// Screenshots are optional — users can submit a description-only report.
+const uploadIssueReportImages = createMultiUploadMiddleware({
+  fieldName: "screenshots",
+  maxCount: MAX_ISSUE_REPORT_IMAGES,
+  folderName: "issue-reports",
+  fileSizeBytes: 3 * 1024 * 1024,
+  optional: true,
+});
+
 module.exports = {
   createUploadMiddleware,
   createMultiUploadMiddleware,
@@ -332,4 +366,6 @@ module.exports = {
   uploadSetupReferenceImages,
   uploadTradeEvidenceImages,
   uploadTradeImage,
+  uploadIssueReportImages,
+  MAX_ISSUE_REPORT_IMAGES,
 };

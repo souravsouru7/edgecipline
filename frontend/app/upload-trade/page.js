@@ -16,6 +16,7 @@ import { FormInput }         from "@/features/trade/components/FormInput";
 import { FormSelect }        from "@/features/trade/components/FormSelect";
 import { useUploadTrade }    from "@/features/trade/hooks/useUploadTrade";
 import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
+import OcrConfirmationBanner from "@/features/issues/OcrConfirmationBanner";
 
 // ── shared form constants ─────────────────────────────────────────────────────
 const ENTRY_BASIS  = ["Plan", "Impulsive", "Emotion", "Custom"];
@@ -849,6 +850,14 @@ function UploadTradeContent() {
                 CLEAR FORM
               </button>
             </div>
+          )}
+
+          {!loading && visibleTradeCount > 0 && (
+            <OcrConfirmationBanner
+              ocrData={trades.length > 1 ? null : (trade || trades[0])}
+              marketType={isInd ? "Indian_Market" : "Forex"}
+              module={isInd ? "upload-trade-indian" : "upload-trade-forex"}
+            />
           )}
 
           {!loading && visibleTradeCount > 0 && (

@@ -320,9 +320,11 @@ app.use("/api/admin/trades", require("./admin/routes/adminTradeRoutes"));
 app.use("/api/admin/notifications", require("./admin/routes/adminNotificationRoutes"));
 app.use("/api/admin/auth-cache-metrics", require("./admin/routes/adminCacheMetricsRoutes"));
 app.use("/api/admin/feedback", require("./admin/routes/adminFeedbackRoutes"));
+app.use("/api/admin/issues", require("./admin/routes/adminIssueRoutes"));
 
 // User feedback submission
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
+app.use("/api/issues", require("./routes/issueReportRoutes"));
 
 // Payment routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
