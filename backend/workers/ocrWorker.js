@@ -11,6 +11,31 @@ const { jobFailureTracker } = require("../utils/jobFailureTracker");
 
 let workerInstance = null;
 let shutdownHandlersBound = false;
+let crashGuardsBound = false;
+
+function bindCrashGuards() {
+  if (crashGuardsBound) return;
+
+  // Without these, a stray unhandled rejection from anywhere in the OCR
+  // pipeline (Gemini HTTP socket, Mongo write, timed-out promise that
+  // settles after the race) would crash the worker process and trigger a
+  // PM2 restart, leaving in-flight jobs stuck. Log and keep running.
+  process.on("unhandledRejection", (reason) => {
+    logger.error("OCR worker unhandled rejection (suppressed)", {
+      reason: reason?.message || String(reason),
+      stack: reason?.stack,
+    });
+  });
+
+  process.on("uncaughtException", (error) => {
+    logger.error("OCR worker uncaught exception (suppressed)", {
+      error: error?.message || String(error),
+      stack: error?.stack,
+    });
+  });
+
+  crashGuardsBound = true;
+}
 
 function bindShutdownHandlers() {
   if (shutdownHandlersBound) return;
@@ -98,6 +123,8 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
   if (workerInstance) {
     return workerInstance;
   }
+
+  bindCrashGuards();
 
   if (initializeConnections) {
     await connectDB();

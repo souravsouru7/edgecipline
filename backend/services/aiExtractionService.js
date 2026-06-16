@@ -3,7 +3,11 @@ const { logger } = require("../utils/logger");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 
-const GEMINI_EXTRACTION_TIMEOUT_MS = Math.max(TIMEOUT_CONFIG.aiTimeout, 90_000);
+// Cap the per-call Gemini Vision deadline so a slow Google response fails
+// fast and BullMQ can retry on a fresh connection instead of users waiting
+// 90s+ before seeing extracted data. AI_SERVICE_TIMEOUT_MS (default 45s)
+// is the single source of truth.
+const GEMINI_EXTRACTION_TIMEOUT_MS = TIMEOUT_CONFIG.aiTimeout || 45_000;
 
 const FOREX_VISION_PROMPT = `You are a trading data extraction specialist analyzing a Forex/CFD broker screenshot.
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
@@ -178,7 +182,7 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
   const marketType = options.marketType || "Forex";
   const isIndian = marketType === "Indian_Market";
   const isEquity = isIndian && options.tradeSubType === "EQUITY";
-  const timeoutMs = Math.max(TIMEOUT_CONFIG.aiTimeout || 45000, GEMINI_EXTRACTION_TIMEOUT_MS);
+  const timeoutMs = GEMINI_EXTRACTION_TIMEOUT_MS;
 
   try {
     let base64, mimeType;
