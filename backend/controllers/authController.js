@@ -85,10 +85,12 @@ function isCapacitorRequest(req) {
 function getAuthRequestDiagnostics(req) {
   return {
     origin: req.headers.origin || "",
+    referer: req.headers.referer || "",
     clientPlatform: req.headers["x-client-platform"] || "",
     userAgent: (req.headers["user-agent"] || "").slice(0, 120),
     isCapacitor: isCapacitorRequest(req),
     hasRefreshCookie: Boolean(req.cookies?.[REFRESH_COOKIE_NAME]),
+    cookieNames: Object.keys(req.cookies || {}),
   };
 }
 
@@ -393,7 +395,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   logger.info("[AUTH] refresh start", authDiagnostics);
 
   if (!rawToken) {
-    logger.warn("[AUTH] refresh failed: missing refresh cookie", authDiagnostics);
+    logger.warn("REFRESH_COOKIE_MISSING", authDiagnostics);
     throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
   }
 

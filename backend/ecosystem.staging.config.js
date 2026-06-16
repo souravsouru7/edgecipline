@@ -14,6 +14,7 @@ module.exports = {
         OCR_QUEUE_NAME: "ocrQueue-staging",
         OCR_SERVICE_TIMEOUT_MS: "180000",
         ADMIN_COOKIE_CROSS_SITE: "true",
+        COOKIE_CROSS_SITE: "true",
       },
       error_file: "./logs/pm2-staging-api-error.log",
       out_file: "./logs/pm2-staging-api-out.log",

@@ -366,9 +366,12 @@ app.use(errorHandler);
 
 const PORT = appConfig.port;
 
+const { getCookieConfigSummary } = require("./services/tokenService");
+
 const server = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   console.log(`Server running on port ${PORT}`);
+  logger.info("AUTH_COOKIE_CONFIG", getCookieConfigSummary());
 });
 
 // Graceful shutdown

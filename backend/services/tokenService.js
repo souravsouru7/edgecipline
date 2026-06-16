@@ -60,7 +60,28 @@ function hashToken(raw) {
 // Cookie options — sameSite/secure adapt to environment.
 // path: '/api/auth' ensures the cookie is ONLY sent to auth endpoints,
 // not to every /api/trades, /api/analytics, etc. request.
+//
+// COOKIE_CROSS_SITE=true forces SameSite=None; Secure=true on the web branch.
+// Required when the browser frontend lives on a different eTLD+1 from the API
+// (e.g. stratedge-stageing.vercel.app calling staging-api.stratedge.live).
+// Without this, browsers refuse to attach a Strict cookie on the cross-site
+// refresh POST, the server sees no cookie, returns 401, and the user is
+// silently logged out.
 // ---------------------------------------------------------------------------
+const COOKIE_CROSS_SITE =
+  String(process.env.COOKIE_CROSS_SITE || "").toLowerCase() === "true";
+
+function getWebCookieAttributes() {
+  const isProduction = appConfig.env === "production";
+  if (COOKIE_CROSS_SITE) {
+    return { secure: true, sameSite: "none" };
+  }
+  return {
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+  };
+}
+
 /**
  * @param {boolean} isCapacitor - true when the request originates from the Android
  * Capacitor app (Origin: capacitor://localhost). Capacitor makes cross-site requests
@@ -70,7 +91,6 @@ function hashToken(raw) {
  * logging the user out every time they kill and reopen the app.
  */
 function getCookieOptions(isCapacitor = false) {
-  const isProduction = appConfig.env === "production";
   if (isCapacitor) {
     return {
       httpOnly: true,
@@ -80,17 +100,17 @@ function getCookieOptions(isCapacitor = false) {
       path: "/api/auth",
     };
   }
+  const web = getWebCookieAttributes();
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
+    secure: web.secure,
+    sameSite: web.sameSite,
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
     path: "/api/auth",
   };
 }
 
 function getClearCookieOptions(isCapacitor = false) {
-  const isProduction = appConfig.env === "production";
   if (isCapacitor) {
     return {
       httpOnly: true,
@@ -99,11 +119,24 @@ function getClearCookieOptions(isCapacitor = false) {
       path: "/api/auth",
     };
   }
+  const web = getWebCookieAttributes();
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
+    secure: web.secure,
+    sameSite: web.sameSite,
     path: "/api/auth",
+  };
+}
+
+function getCookieConfigSummary() {
+  const web = getWebCookieAttributes();
+  return {
+    sameSite: web.sameSite,
+    secure: web.secure,
+    crossSiteEnabled: COOKIE_CROSS_SITE,
+    nodeEnv: appConfig.env,
+    capacitorSameSite: "none",
+    capacitorSecure: true,
   };
 }
 
@@ -223,6 +256,7 @@ module.exports = {
   hashToken,
   getCookieOptions,
   getClearCookieOptions,
+  getCookieConfigSummary,
   createRefreshToken,
   rotateRefreshToken,
   revokeRefreshToken,
