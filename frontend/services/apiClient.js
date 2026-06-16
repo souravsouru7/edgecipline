@@ -314,7 +314,11 @@ apiClient.interceptors.response.use(
 
     const { status } = error.response;
 
-    if (status === 403 && error.response.data?.errorCode === 'TERMS_NOT_ACCEPTED') {
+    if (
+      status === 403 &&
+      error.response.data?.errorCode === 'TERMS_NOT_ACCEPTED' &&
+      config?.skipTermsRedirect !== true
+    ) {
       handleTermsRequired();
       return Promise.reject(buildError(error));
     }
@@ -442,10 +446,15 @@ function handleUnauthenticated(reason = 'auth_required') {
   window.location.href = '/login';
 }
 
+let _redirectingToTerms = false;
+
 function handleTermsRequired() {
   if (typeof window === 'undefined') return;
+  if (_redirectingToTerms) return;
   const { pathname } = window.location;
   if (pathname === '/accept-terms' || pathname === '/login' || pathname === '/register') return;
+  _redirectingToTerms = true;
+  setTimeout(() => { _redirectingToTerms = false; }, 5000);
   window.location.href = '/accept-terms';
 }
 

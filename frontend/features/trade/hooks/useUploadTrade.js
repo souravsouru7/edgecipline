@@ -743,25 +743,20 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     retry: (failureCount, error) => error?.status === 404 ? false : failureCount < 3,
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
-      // Adaptive backoff: start fast (2s), ramp to 12s as job lingers.
-      // Keeps "feels instant" perception when OCR finishes quickly while
-      // avoiding stacked requests on slow networks.
       if (query.state.error) {
         return isTransientPollingError(query.state.error) ? 5000 : false;
       }
       const status = query.state.data?.status;
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
-      const fetches = query.state.dataUpdateCount + query.state.errorUpdateCount;
-      const base = Math.min(2000 + fetches * 1000, 12000);
-      const jitter = Math.random() * 500;
-      return base + jitter;
+      return 2500;
     },
   });
 
   // Effect to process data when polling finishes (once per upload id)
   useEffect(() => {
     const currentStatus = String(jobStatusQuery.data?.status || "").toUpperCase();
-    if (currentStatus === "COMPLETED" && jobStatusQuery.data?.data) {
+    const completedPayload = jobStatusQuery.data?.data;
+    if (currentStatus === "COMPLETED" && completedPayload) {
       const sourceId = uploadedJobId || jobId;
       if (!sourceId || processedTradeIdRef.current === sourceId) return;
 
@@ -774,13 +769,21 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       }
 
       processedTradeIdRef.current = sourceId;
-      applyProcessedTradeData(jobStatusQuery.data.data);
+      applyProcessedTradeData(completedPayload);
       setJobId("");
       if (activeToastId) {
         removeToast(activeToastId);
         setActiveToastId(null);
       }
       addToast("Trade details extracted successfully!", "success");
+      return;
+    }
+
+    if (currentStatus === "COMPLETED" && !completedPayload) {
+      clearOcrSession({ nextFile: null, clearError: false, cancelJob: false });
+      const message = "Extraction completed but no trade data was returned. Please upload a clearer broker screenshot and try again.";
+      setError(message);
+      addToast(message, "error");
       return;
     }
 
@@ -829,7 +832,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobStatusQuery.data?.status]);
+  }, [jobStatusQuery.data?.status, jobStatusQuery.data?.data]);
 
   // Stop polling only for definitive status errors. Transient mobile/network
   // timeouts should not discard an active OCR job after upload has succeeded.

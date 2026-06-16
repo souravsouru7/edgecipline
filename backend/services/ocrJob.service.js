@@ -179,25 +179,28 @@ async function getOcrJobStatus(userId, jobId) {
   const queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
 
   if (
-    !queueState &&
-    (job.status === "PENDING" || job.status === "PROCESSING")
+    (job.status === "PENDING" || job.status === "PROCESSING") &&
+    (!queueState || ["waiting", "delayed", "paused", "prioritized"].includes(queueState.state))
   ) {
     const ageMs = Date.now() - new Date(job.processingStartedAt || job.createdAt).getTime();
     const staleMs = job.status === "PROCESSING" ? STALE_PROCESSING_MS : STALE_PENDING_MS;
     if (ageMs >= staleMs) {
       const previousStatus = job.status;
       job.status = "FAILED";
-      job.error = "OCR queue job was lost before completion. Please upload the screenshot again.";
+      job.error = queueState
+        ? "OCR worker is not processing jobs right now. Please try again shortly."
+        : "OCR queue job was lost before completion. Please upload the screenshot again.";
       job.processedAt = new Date();
       await job.save();
-      logger.error("OCR job failed because BullMQ job is missing", {
+      logger.error("OCR job failed because queue job was not picked up in time", {
         jobId,
         queueJobId: job.queueJobId,
         userId: userId?.toString?.() || userId,
         previousStatus,
+        queueState: queueState?.state || null,
         ageMs,
       });
-      return serializeJob(job, null);
+      return serializeJob(job, queueState);
     }
   }
 
@@ -354,6 +357,12 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
     const latest = await OCRJob.findById(jobId);
     if (!latest || latest.status === "CANCELLED") {
       return latest ? serializeJob(latest) : result;
+    }
+    if (!result?.data) {
+      throw createNonRetryableOcrError(
+        "Extraction completed but no trade data was returned. Please upload a clearer broker screenshot and try again.",
+        "OCR_EMPTY_RESULT"
+      );
     }
 
     latest.status = "COMPLETED";

@@ -227,19 +227,18 @@ export function useLogin() {
     ensurePushRegistration().catch(() => {});
     queryClient.clear();
 
-    // Warm the dashboard cache while the router transitions — by the time the
-    // dashboard mounts, this request is already in-flight (or done) and
-    // useQuery dedups onto it. Eliminates the post-login white flash.
+    if (data.requiresTermsAcceptance) {
+      router.push("/accept-terms");
+      return;
+    }
+
+    // Warm the dashboard cache only after terms are already accepted. If this
+    // runs early, the terms gate returns 403 and triggers another redirect.
     queryClient.prefetchQuery({
       queryKey: ["dashboard", "snapshot"],
       queryFn: ({ signal }) => getDashboardSnapshot(signal),
       staleTime: 2 * 60 * 1000,
     }).catch(() => {});
-
-    if (data.requiresTermsAcceptance) {
-      router.push("/accept-terms");
-      return;
-    }
 
     // Restore destination saved by useRequireAuth (e.g. notification deep-link)
     const savedRedirect = typeof window !== "undefined"

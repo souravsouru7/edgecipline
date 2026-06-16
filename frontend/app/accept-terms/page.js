@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { clearAuthToken, getValidToken, hydrateAuthToken } from "@/utils/auth";
 import Link from "next/link";
 import { acceptTerms, logoutUser } from "@/services/api";
@@ -17,6 +18,7 @@ import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient
  */
 export default function AcceptTermsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [mounted, setMounted]         = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
@@ -65,8 +67,14 @@ export default function AcceptTermsPage() {
     setLoading(true);
     try {
       await acceptTerms();
+      queryClient.setQueryData(["userProfile"], (current) => ({
+        ...(current || {}),
+        requiresTermsAcceptance: undefined,
+      }));
+      queryClient.removeQueries({ queryKey: ["dashboard"], exact: false });
+      await queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       setSuccess(true);
-      setTimeout(() => router.push("/dashboard"), 1200);
+      setTimeout(() => router.replace("/dashboard"), 700);
     } catch (err) {
       setTermsError(err.message || "Something went wrong. Please try again.");
     } finally {

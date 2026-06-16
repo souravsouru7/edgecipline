@@ -90,5 +90,5 @@ export const resetOnboarding = async () => {
 
 // ── Terms & Privacy Policy acceptance ────────────────────────────────────────
 export const acceptTerms = async () => {
-  return await apiClient.post('/auth/accept-terms');
+  return await apiClient.post('/auth/accept-terms', undefined, { skipTermsRedirect: true });
 };
