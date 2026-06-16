@@ -152,6 +152,7 @@ const isAllowedProductionOrigin = (origin) => {
   const staticAllowedOrigins = new Set([
     "https://stratedge.live",
     "https://www.stratedge.live",
+    "https://stratedge-stageing.vercel.app",
   ]);
 
   if (staticAllowedOrigins.has(normalizedOrigin)) {
