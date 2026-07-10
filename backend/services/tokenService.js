@@ -20,7 +20,8 @@ const ApiError = require("../utils/ApiError");
 
 // Access token lives 15 minutes — small blast radius if stolen via XSS.
 // Configurable so you can increase in dev without code changes.
-const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
+const ACCESS_TOKEN_EXPIRY =
+  process.env.JWT_ACCESS_EXPIRES_IN || appConfig.jwt.expiresIn || "15m";
 
 // Refresh token lives 30 days. Rotation resets the window each use.
 const REFRESH_TOKEN_EXPIRY_MS =
@@ -170,12 +171,13 @@ async function createRefreshToken(userId, deviceInfo) {
  */
 async function rotateRefreshToken(rawToken, deviceInfo) {
   const tokenHash = hashToken(rawToken);
+  const rotatedAt = new Date();
 
   // Atomically mark the token as revoked. Returns the document as it was BEFORE the
   // update. Returns null if the token is already revoked or doesn't exist.
   const existing = await RefreshToken.findOneAndUpdate(
     { tokenHash, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: rotatedAt } },
     { new: false } // Return original (pre-update) document
   ).populate("userId", "_id role tokenVersion");
 
@@ -186,10 +188,23 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
 
     if (staleToken?.revokedAt) {
       const msSinceRotation = Date.now() - new Date(staleToken.revokedAt).getTime();
-      const sameUserAgent =
-        (staleToken.deviceInfo?.userAgent || "") === (deviceInfo?.userAgent || "");
+      const storedDeviceId = staleToken.deviceInfo?.deviceId || "";
+      const presentedDeviceId = deviceInfo?.deviceId || "";
 
-      if (sameUserAgent && msSinceRotation >= 0 && msSinceRotation <= REFRESH_REUSE_GRACE_MS) {
+      // Identity check for the same-client race:
+      //  - If the stored token has a deviceId, require an exact match. UA is
+      //    spoofable, so we do NOT fall back to UA in the modern path.
+      //  - Only when the stored token predates deviceId (legacy, ≤30 days old)
+      //    do we fall back to UA equality. Those tokens age out by themselves.
+      let sameClient;
+      if (storedDeviceId) {
+        sameClient = !!presentedDeviceId && storedDeviceId === presentedDeviceId;
+      } else {
+        sameClient =
+          (staleToken.deviceInfo?.userAgent || "") === (deviceInfo?.userAgent || "");
+      }
+
+      if (sameClient && msSinceRotation >= 0 && msSinceRotation <= REFRESH_REUSE_GRACE_MS) {
         throw new ApiError(
           409,
           "Refresh already completed by another request. Please retry.",
@@ -225,19 +240,31 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
 
   // Issue replacement token in the same family (rotation chain).
   const newRaw = crypto.randomBytes(48).toString("hex");
-  await RefreshToken.create({
-    userId: userId._id,
-    tokenHash: hashToken(newRaw),
-    family: existing.family,
-    deviceInfo,
-    expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
-  });
+  try {
+    await RefreshToken.create({
+      userId: userId._id,
+      tokenHash: hashToken(newRaw),
+      family: existing.family,
+      deviceInfo,
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
+    });
+  } catch (error) {
+    // Do not strand the session if replacement persistence fails after the
+    // old token was atomically claimed. Match the exact timestamp so another
+    // rotation or revocation can never be undone accidentally.
+    await RefreshToken.updateOne(
+      { _id: existing._id, revokedAt: rotatedAt },
+      { $set: { revokedAt: null } }
+    ).catch(() => {});
+    throw error;
+  }
 
   return {
     newRawToken: newRaw,
     userId: userId._id,
     role: userId.role,
     tokenVersion: userId.tokenVersion,
+    family: existing.family,
   };
 }
 

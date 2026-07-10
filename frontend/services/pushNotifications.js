@@ -3,7 +3,7 @@
 import {
   registerDeviceToken,
   unregisterDeviceToken,
-  trackNotificationOpen,
+  trackNotificationDelivered,
   trackNotificationAction,
 } from "@/services/notificationApi";
 import { Capacitor } from "@capacitor/core";
@@ -26,11 +26,13 @@ const STORAGE_KEYS = {
   retryCount: "edgecipline:pushRetryCount",
   lastAttempt: "edgecipline:pushLastAttempt",
   registeredForUser: "edgecipline:pushRegisteredForUser",
+  lastRegisteredAt: "edgecipline:pushLastRegisteredAt",
 };
 
 // True exponential backoff: 2, 4, 8, 16, 32 seconds. Max 5 attempts.
 const RETRY_DELAYS_MS = [2000, 4000, 8000, 16000, 32000];
 const MAX_REGISTRATION_ATTEMPTS = RETRY_DELAYS_MS.length;
+const REGISTRATION_HEARTBEAT_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Module state ────────────────────────────────────────────────────────────
 let channelSetupPromise = null;
@@ -72,6 +74,14 @@ function rememberFcmToken(token) {
   storageSet(STORAGE_KEYS.token, token);
 }
 function getStoredFcmToken() { return lastFcmToken || storageGet(STORAGE_KEYS.token, ""); }
+function getDeviceId() {
+  let deviceId = storageGet("edgecipline:device-id", "");
+  if (!deviceId) {
+    deviceId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    storageSet("edgecipline:device-id", deviceId);
+  }
+  return deviceId;
+}
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -118,6 +128,7 @@ const NOTIFICATION_CHANNELS = [
   { id: "edgecipline_coaching",   name: "Coaching",             description: "Confidence and discipline reinforcement messages", importance: 3, visibility: 0, sound: null,      lights: false, vibration: false, lightColor: "#3B82F6" },
   { id: "edgecipline_session",    name: "Session Reminders",    description: "London, New York, and Asian session start reminders", importance: 4, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#8B5CF6" },
   { id: "edgecipline_checklist",  name: "Pre-Trade Checklist",  description: "Daily interactive checklist in the notification shade", importance: 5, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#0D9E6E" },
+  { id: "edgecipline_ocr",        name: "OCR Results",          description: "Trade screenshot processing completion and failure alerts", importance: 4, visibility: 0, sound: "default", lights: true, vibration: true, lightColor: "#0EA5E9" },
 ];
 
 // Channels are independent of auth, permission, and registration. They must
@@ -188,9 +199,15 @@ export async function registerDeviceTokenWithRetry(token, options = {}) {
       }
 
       try {
-        await registerDeviceToken({ token, platform: "android", appVersion: "1.0" });
+        await registerDeviceToken({
+          token,
+          platform: "android",
+          appVersion: process.env.NEXT_PUBLIC_APP_VERSION || "1.0",
+          deviceId: getDeviceId(),
+        });
         setPendingRegistration(false);
         setBackendRegistered(true);
+        storageSet(STORAGE_KEYS.lastRegisteredAt, new Date().toISOString());
         setRetryCount(0);
         logger.info("FCM_TOKEN_REGISTERED", { attempt });
         return true;
@@ -237,7 +254,12 @@ export async function ensurePushRegistration() {
     return false;
   }
 
-  if (storageBool(STORAGE_KEYS.backendRegistered) && !storageBool(STORAGE_KEYS.pending)) {
+  const lastRegisteredAt = Date.parse(storageGet(STORAGE_KEYS.lastRegisteredAt, ""));
+  const heartbeatFresh = Number.isFinite(lastRegisteredAt)
+    && Date.now() - lastRegisteredAt < REGISTRATION_HEARTBEAT_MS;
+  if (storageBool(STORAGE_KEYS.backendRegistered)
+      && !storageBool(STORAGE_KEYS.pending)
+      && heartbeatFresh) {
     return true;
   }
 
@@ -311,6 +333,7 @@ export function getPushDiagnostics() {
     pendingRegistration: storageBool(STORAGE_KEYS.pending),
     retryCount: Number(storageGet(STORAGE_KEYS.retryCount, "0")) || 0,
     lastAttempt: storageGet(STORAGE_KEYS.lastAttempt, null),
+    lastRegisteredAt: storageGet(STORAGE_KEYS.lastRegisteredAt, null),
     registeredForUser: storageGet(STORAGE_KEYS.registeredForUser, null),
   };
 }
@@ -422,7 +445,7 @@ export async function initializePushNotifications() {
       await PushNotifications.addListener("pushNotificationReceived", (notification) => {
         window.dispatchEvent(new CustomEvent("edgecipline:push", { detail: notification }));
         const notificationId = notification?.data?.notificationId;
-        if (notificationId) trackNotificationOpen(notificationId).catch(() => {});
+        if (notificationId) trackNotificationDelivered(notificationId).catch(() => {});
       })
     );
 

@@ -25,6 +25,10 @@ const CACHE_PROJECTION = [
   "subscriptionStatus",
   "subscriptionPlan",
   "subscriptionExpiry",
+  // Trial subdoc — required by utils/premium.isPremium() to keep trial users
+  // premium after the first request. Omitting this silently flips trial
+  // users back to free on every cache hit.
+  "trial",
   "termsAcceptance",
   "hasSeenWelcomeGuide",
   "isOnboardingCompleted",
@@ -61,7 +65,9 @@ function snapshotAuthCacheMetrics() {
   const avgLookupMs =
     metrics.totalLookupCount === 0
       ? 0
-      : Number((Number(metrics.totalLookupNs) / metrics.totalLookupCount / 1e6).toFixed(3));
+      : Number((
+        Number(metrics.totalLookupNs / BigInt(metrics.totalLookupCount)) / 1e6
+      ).toFixed(3));
 
   return {
     cacheHits:        metrics.hits,

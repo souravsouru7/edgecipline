@@ -244,6 +244,31 @@ function computePsychologyAnalytics(trades = []) {
   const totalTrackedTrades = trades.filter((trade) => trade.mood != null || trade.confidence || trade.wouldRetake || (Array.isArray(trade.emotionalTags) && trade.emotionalTags.length)).length;
   const planTrades = trades.filter((trade) => trade.entryBasis === "Plan").length;
   const calmTrades = trades.filter((trade) => Array.isArray(trade.emotionalTags) && (trade.emotionalTags.includes("Calm") || trade.emotionalTags.includes("Focused"))).length;
+  const totalTrades = trades.length;
+
+  // Revenge trading: a trade taken same-day as a previous loss where the
+  // new risk is >1.5× the prior risk. Mirrors the Indian-market logic so
+  // both markets report the same metric.
+  let revengeCount = 0;
+  for (let i = 1; i < trades.length; i++) {
+    const prev = trades[i - 1];
+    const curr = trades[i];
+    const prevLoss = (prev.profit || 0) < 0;
+    const prevRisk = prev.entryPrice && prev.stopLoss ? Math.abs(prev.entryPrice - prev.stopLoss) : 0;
+    const currRisk = curr.entryPrice && curr.stopLoss ? Math.abs(curr.entryPrice - curr.stopLoss) : 0;
+    const sameDay = new Date(prev.tradeDate || prev.createdAt).toDateString() ===
+                    new Date(curr.tradeDate || curr.createdAt).toDateString();
+    if (prevLoss && sameDay && prevRisk > 0 && currRisk > prevRisk * 1.5) revengeCount++;
+  }
+  const noRevengePct = totalTrades ? ((totalTrades - revengeCount) / totalTrades) * 100 : 100;
+
+  const goodMoodTradesCount = trades.filter((t) => t.mood != null && t.mood >= 3).length;
+  const moodTrackedTrades = trades.filter((t) => t.mood != null).length;
+  const goodMoodPct = moodTrackedTrades > 0 ? (goodMoodTradesCount / moodTrackedTrades) * 100 : 50;
+
+  const retakeYes = trades.filter((t) => t.wouldRetake === "Yes").length;
+  const retakeTracked = trades.filter((t) => t.wouldRetake === "Yes" || t.wouldRetake === "No").length;
+  const wouldRetakePct = retakeTracked > 0 ? (retakeYes / retakeTracked) * 100 : 50;
 
   return {
     moodAnalysis,
@@ -253,9 +278,9 @@ function computePsychologyAnalytics(trades = []) {
     scoreBreakdown: {
       planAdherencePct: trades.length ? ((planTrades / trades.length) * 100).toFixed(1) : "0.0",
       calmTradingPct: trades.length ? ((calmTrades / trades.length) * 100).toFixed(1) : "0.0",
-      noRevengePct: "100.0",
-      goodMoodPct: "50.0",
-      wouldRetakePct: "50.0",
+      noRevengePct: noRevengePct.toFixed(1),
+      goodMoodPct: goodMoodPct.toFixed(1),
+      wouldRetakePct: wouldRetakePct.toFixed(1),
     },
     wouldRetakeAnalysis: {
       yes: bucketStats(trades.filter((trade) => trade.wouldRetake === "Yes")),
@@ -288,18 +313,27 @@ exports.getAnalyticsSnapshot = asyncHandler(async (req, res) => {
   const period = String(req.query.period || "weekly");
   const dateRange = resolveDateRange(req.query.days);
 
-  const [snapshot, performanceSnapshot, distributionSnapshot, qualitySnapshot, pnlBreakdown, timelineSnapshot, disciplineSummary] = await Promise.all([
+  // The in-memory snapshot already computes performance and timeline from the
+  // same bounded trade set. Reusing them removes two full collection scans.
+  const [snapshot, distributionSnapshot, qualitySnapshot, pnlBreakdown, disciplineSummary] = await Promise.all([
     analyticsSnapshotService.getSnapshot({ userId, market: marketType, instrumentType, dateRange, period, includeTrades: true }),
-    analyticsSnapshotService.getPerformanceSnapshot({ userId, market: marketType, instrumentType, dateRange }),
     analyticsSnapshotService.getTradeDistributionSnapshot({ userId, market: marketType, instrumentType, dateRange }),
     analyticsSnapshotService.getTradeQualitySnapshot({ userId, market: marketType, instrumentType, dateRange }),
     analyticsSnapshotService.getPnlBreakdownSnapshot({ userId, market: marketType, instrumentType, dateRange }),
-    analyticsSnapshotService.getTimelineSnapshot({ userId, market: marketType, instrumentType, dateRange, period }),
     analyticsSnapshotService.getDisciplineSummarySnapshot({ userId, market: marketType, instrumentType, dateRange }),
   ]);
 
-  const performance = performanceSnapshot.performance || snapshot.performance || {};
-  const trades = Array.isArray(snapshot.trades) ? snapshot.trades : [];
+  const performance = snapshot.performance || {};
+  // Hard cap on snapshot trades before they hit the 4 downstream compute
+  // functions (riskReward, timeAnalysis, drawdown, psychology — each O(N)).
+  // Without this guard, a runaway snapshot would spend 4× the iteration cost
+  // on every refresh.
+  const SNAPSHOT_TRADE_CAP = 10000;
+  const rawTrades = Array.isArray(snapshot.trades) ? snapshot.trades : [];
+  const trades = rawTrades.length > SNAPSHOT_TRADE_CAP
+    ? rawTrades.slice(0, SNAPSHOT_TRADE_CAP)
+    : rawTrades;
+  const tradesTruncated = rawTrades.length > SNAPSHOT_TRADE_CAP;
   const aiInsights = {
     insights: buildCoachFeed(snapshot, marketType).insights?.map((item) => item.title || item.insight).filter(Boolean) || [],
     recommendations: buildCoachFeed(snapshot, marketType).insights?.map((item) => item.recommendation).filter(Boolean) || [],
@@ -337,18 +371,19 @@ exports.getAnalyticsSnapshot = asyncHandler(async (req, res) => {
     selfAwareness: snapshot.selfAwareness,
     psychologyCost: snapshot.psychologyCost,
     patterns: snapshot.patterns,
-    timeline: timelineSnapshot.timeline,
-    timelineSource: timelineSnapshot.timeline,
+    timeline: snapshot.timeline,
+    timelineSource: snapshot.timeline,
     coachFeed: buildCoachFeed(snapshot, marketType),
     cache: {
       snapshot: snapshot.cache,
-      performance: performanceSnapshot.cache,
+      performance: snapshot.cache,
       distribution: distributionSnapshot.cache,
       quality: qualitySnapshot.cache,
       pnlBreakdown: pnlBreakdown.cache,
-      timeline: timelineSnapshot.cache,
+      timeline: snapshot.cache,
       discipline: disciplineSummary.cache,
     },
+    tradesTruncated,
   };
 
   res.json(response);

@@ -49,8 +49,8 @@ const INDIAN_TABS = [
 ];
 
 const NAV_HEIGHT = 64;
-const ACCENT = "#0D9E6E";
-const MUTED = "#94A3B8";
+const ACCENT = "var(--color-primary)";
+const MUTED = "var(--color-text-disabled)";
 
 function MobileBottomNav() {
   const pathname = usePathname() || "";
@@ -76,12 +76,9 @@ function MobileBottomNav() {
           right: 0,
           bottom: 0,
           zIndex: 900,
-          background: "rgba(255,255,255,0.96)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderTop: "1px solid #E8EDF2",
+          background: "rgba(240,238,233,0.97)",
+          borderTop: "1px solid var(--color-border-subtle)",
           paddingBottom: "env(safe-area-inset-bottom)",
-          display: "flex",
           justifyContent: "space-around",
           alignItems: "stretch",
           height: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom))`,
@@ -119,8 +116,8 @@ function MobileBottomNav() {
                     height: 50,
                     borderRadius: "50%",
                     background: ACCENT,
-                    color: "#FFFFFF",
-                    boxShadow: "0 8px 20px rgba(13,158,110,0.35)",
+                    color: "var(--color-surface)",
+                    boxShadow: "0 8px 20px var(--color-primary-shadow)",
                     transform: "translateY(-12px)",
                   }}
                 >
@@ -147,7 +144,7 @@ function MobileBottomNav() {
                 color: active ? ACCENT : MUTED,
                 fontSize: 10.5,
                 fontWeight: active ? 700 : 500,
-                fontFamily: "'Plus Jakarta Sans',sans-serif",
+                fontFamily: "var(--font-plus-jakarta-sans)",
                 letterSpacing: "0.01em",
                 minWidth: 0,
                 height: NAV_HEIGHT,

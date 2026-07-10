@@ -49,6 +49,11 @@ const indianTradeSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    // Materialized tradeDate/createdAt fallback used by indexed list queries.
+    effectiveTradeDate: {
+      type: Date,
+      default: Date.now,
+    },
     notes: String,
 
     riskRewardRatio: { type: String, enum: ["1:1", "1:1.5", "1:2", "1:3", "1:4", "1:5", "custom", ""], default: "" },
@@ -195,6 +200,12 @@ const indianTradeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+indianTradeSchema.pre("validate", function syncEffectiveTradeDate() {
+  if (this.isModified("tradeDate") || !this.effectiveTradeDate) {
+    this.effectiveTradeDate = this.tradeDate || this.createdAt || new Date();
+  }
+});
+
 // ─── 2026-06 INDEX CLEANUP ──────────────────────────────────────────────────
 // Dropped: { user: 1, createdAt: -1 }  — covered by {user:1, instrumentType:1, deletedAt:1, createdAt:-1, _id:-1}
 // Dropped: { user: 1, tradeDate: -1 }  — covered by {user:1, instrumentType:1, deletedAt:1, tradeDate:-1, _id:-1}
@@ -210,6 +221,8 @@ indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: -1, _id: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, tradeDate: 1, createdAt: 1 });
 indianTradeSchema.index({ user: 1, deletedAt: 1, createdAt: -1, _id: -1 });
 indianTradeSchema.index({ user: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 });
+indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
 indianTradeSchema.index({ user: 1, instrumentType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
 indianTradeSchema.index({ deletedAt: 1 }, { sparse: true });

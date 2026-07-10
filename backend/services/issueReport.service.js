@@ -3,9 +3,10 @@ const IssueReport = require("../models/IssueReport");
 const User = require("../models/Users");
 const ApiError = require("../utils/ApiError");
 const adminPushService = require("./adminPushService");
-const { notifyUser } = require("./notificationService");
+const { enqueueNotificationDelivery } = require("../queues/smartNotificationQueue");
 const { logger } = require("../utils/logger");
 const cloudinary = require("../config/cloudinary");
+const { buildPagination } = require("../utils/apiResponse");
 
 const ALLOWED_CATEGORIES = new Set(IssueReport.ISSUE_CATEGORIES);
 const ALLOWED_MARKETS = new Set(IssueReport.MARKET_TYPES);
@@ -20,15 +21,33 @@ function generateIssueCode() {
 
 function sanitizeOcrSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return null;
-  const allowed = ["symbol", "entry", "exit", "stopLoss", "quantity", "profit", "tradeType", "date"];
-  const clean = {};
-  for (const key of allowed) {
-    if (snapshot[key] !== undefined && snapshot[key] !== null) {
-      const v = snapshot[key];
-      if (typeof v === "string") clean[key] = v.slice(0, 200);
-      else if (typeof v === "number" && Number.isFinite(v)) clean[key] = v;
-      else if (typeof v === "boolean") clean[key] = v;
+  const allowed = [
+    "symbol", "pair", "stockSymbol", "entry", "entryPrice", "exit", "exitPrice",
+    "stopLoss", "takeProfit", "quantity", "sharesQty", "lotSize", "profit", "pnl",
+    "tradeType", "type", "optionType", "strikePrice", "date", "tradeDate",
+  ];
+  const sanitizeValues = (values) => {
+    if (!values || typeof values !== "object") return null;
+    if (Array.isArray(values)) return values.slice(0, 20).map(sanitizeValues).filter(Boolean);
+    const result = {};
+    for (const key of allowed) {
+      const value = values[key];
+      if (typeof value === "string") result[key] = value.slice(0, 200);
+      else if (typeof value === "number" && Number.isFinite(value)) result[key] = value;
+      else if (typeof value === "boolean") result[key] = value;
     }
+    return Object.keys(result).length ? result : null;
+  };
+  const clean = {};
+  const flat = sanitizeValues(snapshot);
+  if (flat) Object.assign(clean, flat);
+  const extractedValues = sanitizeValues(snapshot.extractedValues);
+  const correctedValues = sanitizeValues(snapshot.correctedValues);
+  if (extractedValues) clean.extractedValues = extractedValues;
+  if (correctedValues) clean.correctedValues = correctedValues;
+  if (typeof snapshot.broker === "string") clean.broker = snapshot.broker.slice(0, 50);
+  if (Number.isFinite(Number(snapshot.extractionConfidence))) {
+    clean.extractionConfidence = Math.max(0, Math.min(100, Number(snapshot.extractionConfidence)));
   }
   return Object.keys(clean).length ? clean : null;
 }
@@ -127,52 +146,52 @@ async function createIssue({ user, body, uploadedImages = [] }) {
     }
   }
 
-  // Generate a unique issueCode; retry on collision (extremely rare with 6-char random).
-  let issueCode;
-  let attempts = 0;
-  while (attempts < 5) {
+  // Generate a unique issueCode and insert in one step. The exists()+create()
+  // pattern races under concurrency (two requests can each see "not exists"
+  // then both insert the same code). Catch 11000 duplicate-key and retry.
+  // Requires a unique index on IssueReport.issueCode.
+  let issue;
+  const MAX_CODE_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
     const candidate = generateIssueCode();
-    // eslint-disable-next-line no-await-in-loop
-    const exists = await IssueReport.exists({ issueCode: candidate });
-    if (!exists) {
-      issueCode = candidate;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      issue = await IssueReport.create({
+        issueCode: candidate,
+        user: user._id,
+        email: user.email || "",
+        marketType,
+        module,
+        issueCategory,
+        description,
+        screenshots,
+        tradeId: body.tradeId || null,
+        ocrDataSnapshot: ocrSnapshot,
+        appVersion,
+        platform,
+        deviceInfo,
+        status: "OPEN",
+        timeline: [
+          {
+            status: "OPEN",
+            at: new Date(),
+            note: body.submissionId ? `submissionId:${body.submissionId}` : "",
+          },
+        ],
+      });
       break;
+    } catch (error) {
+      const isDup = error?.code === 11000 && /issueCode/.test(error?.message || "");
+      if (!isDup) {
+        await destroyUploadedScreenshots(uploadedImages);
+        throw error;
+      }
+      // else: collision on issueCode — pick a new one and retry.
     }
-    attempts += 1;
   }
-  if (!issueCode) {
+  if (!issue) {
     await destroyUploadedScreenshots(uploadedImages);
     throw new ApiError(500, "Could not allocate issue code", "INTERNAL_ERROR");
-  }
-
-  let issue;
-  try {
-    issue = await IssueReport.create({
-      issueCode,
-      user: user._id,
-      email: user.email || "",
-      marketType,
-      module,
-      issueCategory,
-      description,
-      screenshots,
-      tradeId: body.tradeId || null,
-      ocrDataSnapshot: ocrSnapshot,
-      appVersion,
-      platform,
-      deviceInfo,
-      status: "OPEN",
-      timeline: [
-        {
-          status: "OPEN",
-          at: new Date(),
-          note: body.submissionId ? `submissionId:${body.submissionId}` : "",
-        },
-      ],
-    });
-  } catch (error) {
-    await destroyUploadedScreenshots(uploadedImages);
-    throw error;
   }
 
   // Fire-and-forget admin push — never block the user's response on it.
@@ -186,16 +205,25 @@ async function createIssue({ user, body, uploadedImages = [] }) {
 }
 
 async function listUserIssues(userId, query = {}) {
-  const limit = Math.min(Number(query.limit) || 25, 100);
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 50;
   const filter = { user: userId };
   if (query.status && ALLOWED_STATUSES.has(query.status)) filter.status = query.status;
   if (query.category && ALLOWED_CATEGORIES.has(query.category)) filter.issueCategory = query.category;
 
-  return IssueReport.find(filter)
-    .select("issueCode marketType module issueCategory description status createdAt updatedAt fixedAt fixedVersion screenshots")
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  const [items, total] = await Promise.all([
+    IssueReport.find(filter)
+      .select("issueCode marketType module issueCategory description status createdAt updatedAt fixedAt fixedVersion screenshots")
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    IssueReport.countDocuments(filter),
+  ]);
+  return {
+    items,
+    pagination: buildPagination({ page, limit, total }),
+  };
 }
 
 async function getUserIssue(userId, issueId) {
@@ -205,7 +233,8 @@ async function getUserIssue(userId, issueId) {
 }
 
 async function listAllIssues(query = {}) {
-  const limit = Math.min(Number(query.limit) || 50, 200);
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 50;
   const filter = {};
   if (query.status && ALLOWED_STATUSES.has(query.status)) filter.status = query.status;
   if (query.category && ALLOWED_CATEGORIES.has(query.category)) filter.issueCategory = query.category;
@@ -216,11 +245,19 @@ async function listAllIssues(query = {}) {
     if (query.from) filter.createdAt.$gte = new Date(query.from);
     if (query.to) filter.createdAt.$lte = new Date(query.to);
   }
-  return IssueReport.find(filter)
-    .populate("user", "name email role")
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  const [items, total] = await Promise.all([
+    IssueReport.find(filter)
+      .populate("user", "name email role")
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    IssueReport.countDocuments(filter),
+  ]);
+  return {
+    items,
+    pagination: buildPagination({ page, limit, total }),
+  };
 }
 
 async function getIssueForAdmin(issueId) {
@@ -253,7 +290,7 @@ async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, no
   // Notify reporter when transitioning to FIXED — once.
   if (status === "FIXED" && prevStatus !== "FIXED" && !issue.fixNotificationSent) {
     try {
-      await notifyUser(issue.user, {
+      await enqueueNotificationDelivery({ userId: issue.user, notification: {
         type: "issue_fixed",
         title: "✅ Issue Fixed",
         body:
@@ -270,7 +307,7 @@ async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, no
         sourceType: "issue_report",
         sourceId: issue._id,
         dedupeKey: `issue_fixed:${issue._id.toString()}`,
-      });
+      } });
       issue.fixNotificationSent = true;
       await issue.save();
     } catch (error) {

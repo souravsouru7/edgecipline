@@ -24,9 +24,22 @@ const NotificationHistorySchema = new mongoose.Schema(
         "morning_mentor",
         "weekly_ai_insight",
         "weekly_report_reminder",
+        "ocr_completed",
+        "ocr_failed",
+        "issue_fixed",
+        "admin_issue_report",
         "payment",
         "feedback",
         "system",
+        // Subscription Rescue Funnel — one type per touchpoint so prefs +
+        // analytics can target the funnel without string matching.
+        "renewal_d_minus_7",
+        "renewal_d_minus_3",
+        "renewal_d_minus_1",
+        "renewal_d_plus_0",
+        "winback_d_plus_3",
+        "winback_d_plus_7",
+        "winback_d_plus_14",
       ],
     },
     title: { type: String, required: true },
@@ -54,7 +67,7 @@ const NotificationHistorySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["created", "sent", "failed", "partial", "skipped"],
+      enum: ["created", "sending", "sent", "failed", "partial", "skipped"],
       default: "created",
     },
     isRead: {
@@ -69,6 +82,18 @@ const NotificationHistorySchema = new mongoose.Schema(
     sentAt: {
       type: Date,
       default: null,
+    },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+    deliveryLeaseUntil: {
+      type: Date,
+      default: null,
+    },
+    deliveryAttemptCount: {
+      type: Number,
+      default: 0,
     },
     openedAt: {
       type: Date,
@@ -90,11 +115,37 @@ const NotificationHistorySchema = new mongoose.Schema(
         type: [String],
         default: [],
         validate: {
-          validator: (arr) => arr.length <= 100,
-          message: "invalidTokens may not exceed 100 entries",
+          validator: (arr) => arr.length <= 500,
+          message: "invalidTokens may not exceed 500 entries",
         },
       },
       error: { type: String, default: "" },
+      acceptedTokenIds: {
+        type: [String],
+        default: [],
+        validate: {
+          validator: (arr) => arr.length <= 500,
+          message: "acceptedTokenIds may not exceed 500 entries",
+        },
+      },
+      transientFailures: {
+        type: [mongoose.Schema.Types.Mixed],
+        default: [],
+        validate: {
+          validator: (arr) => arr.length <= 500,
+          message: "transientFailures may not exceed 500 entries",
+        },
+      },
+      permanentFailures: {
+        type: [mongoose.Schema.Types.Mixed],
+        default: [],
+        validate: {
+          validator: (arr) => arr.length <= 500,
+          message: "permanentFailures may not exceed 500 entries",
+        },
+      },
+      transientFailureCount: { type: Number, default: 0 },
+      permanentFailureCount: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

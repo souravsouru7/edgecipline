@@ -8,6 +8,7 @@ import PageHeader            from "@/features/shared/components/PageHeader";
 import { useQuery }          from "@tanstack/react-query";
 import { getPsychologyTimeline } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { useRouter }         from "next/navigation";
 import {
   ComposedChart,
@@ -224,7 +225,7 @@ function PsychologyTimelineContent() {
   const { data, isLoading } = useQuery({
     queryKey: ["psychologyTimeline", period, days],
     queryFn:  ({ signal }) => getPsychologyTimeline("Forex", period, days, signal),
-    staleTime: 5 * 60 * 1000,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
     enabled: mounted,
   });
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProfile, loginUser, googleLogin } from "@/services/api";
+import apiClient from "@/services/apiClient";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { clearAuthToken, getValidToken, hydrateAuthToken, setAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
@@ -19,6 +20,44 @@ import {
   initializePushNotifications,
   onUserLoggedIn,
 } from "@/services/pushNotifications";
+
+// ---------------------------------------------------------------------------
+// Post-login destination
+// ---------------------------------------------------------------------------
+// Asks the backend where this user belongs. The order matters:
+//
+//   1. Hit `/api/onboarding` first — this triggers the lazy backfill on the
+//      server so any pre-existing account (created before the new funnel
+//      shipped) gets its flags mirrored from its trades / setups before we
+//      check them.
+//   2. Use `isPreActivated` (server-derived from the legacy completion bit)
+//      or all six funnel flags as the gate to `/dashboard`.
+//   3. Fall back to `/auth/me/preferences` if the onboarding endpoint isn't
+//      reachable (e.g. transient 5xx). Falls back to `/dashboard` on any
+//      error — the redirect is opportunistic and must never block sign-in.
+async function resolveLandingPath() {
+  try {
+    const state = await apiClient.get("/onboarding");
+    if (state?.isPreActivated) return "/dashboard";
+    if (state?.funnel?.isComplete) return "/dashboard";
+    return "/onboarding";
+  } catch {
+    // Onboarding endpoint failed — try the lighter preferences endpoint so
+    // existing users who don't hit /onboarding still skip the wizard.
+    try {
+      const prefs = await apiClient.get("/auth/me/preferences");
+      if (prefs?.isOnboardingCompleted) return "/dashboard";
+      const o = prefs?.onboarding || {};
+      const corePassed =
+        o.welcomeSeen && o.marketSelected && o.styleSelected &&
+        o.setupAdded && (o.tradeAdded || o.tradeSkipped) && o.firstInsightSeen;
+      if (corePassed) return "/dashboard";
+      return "/onboarding";
+    } catch {
+      return "/dashboard";
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // In-app / WebView browser detection
@@ -122,7 +161,7 @@ export function useLogin() {
         if (idToken) {
           const data = await googleLogin(idToken);
           if (data && !cancelled) {
-            handleAuthSuccess(data);
+            await handleAuthSuccess(data);
             return;
           }
         }
@@ -143,7 +182,11 @@ export function useLogin() {
           return;
         } catch (err) {
           const status = err?.status;
-          if (status === 401 || status === 403) {
+          if (err?.data?.errorCode === "TERMS_NOT_ACCEPTED") {
+            if (!cancelled) router.push("/accept-terms");
+            return;
+          }
+          if (status === 401) {
             // Server explicitly rejected the token — safe to clear it
             if (!cancelled) await clearAuthToken();
           } else if (status !== 429 && status != null) {
@@ -185,10 +228,10 @@ export function useLogin() {
             sessionStorage.removeItem("auth_redirect");
             router.push(savedRedirect);
           } else {
-            router.push("/dashboard");
+            router.push(await resolveLandingPath());
           }
         } catch {
-          router.push(savedRedirect || "/dashboard");
+          router.push(savedRedirect || await resolveLandingPath());
           if (savedRedirect) sessionStorage.removeItem("auth_redirect");
         }
         return;
@@ -248,7 +291,9 @@ export function useLogin() {
       sessionStorage.removeItem("auth_redirect");
       router.push(savedRedirect);
     } else {
-      router.push("/dashboard");
+      // New users go to /onboarding; returning users go straight to /dashboard.
+      // resolveLandingPath() reads the user's onboarding state from the server.
+      router.push(await resolveLandingPath());
     }
   };
 
@@ -276,9 +321,9 @@ export function useLogin() {
       if (!idToken) return null;
       return googleLogin(idToken);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (!data) return;
-      handleAuthSuccess(data);
+      await handleAuthSuccess(data);
     },
     onError: (err) => {
       triggerShake();

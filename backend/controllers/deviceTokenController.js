@@ -12,6 +12,8 @@ exports.registerDeviceToken = asyncHandler(async (req, res) => {
 
   const trimmed = token.trim();
   const now = new Date();
+  const normalizedDeviceId = String(deviceId || "").trim().slice(0, 100);
+  const previous = await DeviceToken.findOne({ token: trimmed }).select("user deviceId enabled").lean();
 
   // Upsert THIS token to {enabled: true, owned by req.user}. Also clears
   // failureCount and revokedAt so a previously-revoked token can be revived
@@ -23,7 +25,7 @@ exports.registerDeviceToken = asyncHandler(async (req, res) => {
         user: req.user._id,
         token: trimmed,
         platform,
-        deviceId,
+        deviceId: normalizedDeviceId,
         appVersion,
         enabled: true,
         revokedAt: null,
@@ -41,25 +43,35 @@ exports.registerDeviceToken = asyncHandler(async (req, res) => {
   //
   // The 60s buffer protects multi-device users — a token registered <60s ago
   // is treated as belonging to a different active device on the same account.
-  const staleCutoff = new Date(now.getTime() - 60_000);
-  const stale = await DeviceToken.updateMany(
-    {
-      user: req.user._id,
-      platform,
-      token: { $ne: trimmed },
-      enabled: true,
-      lastSeenAt: { $lt: staleCutoff },
-    },
-    { $set: { enabled: false, revokedAt: now } }
-  );
+  const stale = normalizedDeviceId
+    ? await DeviceToken.updateMany(
+        {
+          user: req.user._id,
+          platform,
+          deviceId: normalizedDeviceId,
+          token: { $ne: trimmed },
+          enabled: true,
+        },
+        { $set: { enabled: false, revokedAt: now } }
+      )
+    : { modifiedCount: 0 };
 
   if (stale.modifiedCount > 0) {
-    logger.info("[DeviceToken] disabled stale siblings", {
+    logger.info("FCM_ROTATED", {
       userId: req.user._id?.toString?.(),
       platform,
       disabledCount: stale.modifiedCount,
     });
   }
+
+  logger.info("FCM_REGISTERED", {
+    userId: String(req.user._id),
+    deviceTokenId: String(deviceToken._id),
+    notificationType: null,
+    platform,
+    timezone: req.body.timezone || null,
+    reassignedFromUser: previous?.user && String(previous.user) !== String(req.user._id),
+  });
 
   res.status(201).json({ success: true, deviceTokenId: deviceToken._id });
 });
@@ -70,10 +82,20 @@ exports.unregisterDeviceToken = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Device token is required", "VALIDATION_ERROR");
   }
 
-  await DeviceToken.findOneAndUpdate(
+  const disabled = await DeviceToken.findOneAndUpdate(
     { token: token.trim(), user: req.user._id },
     { enabled: false, revokedAt: new Date() }
   );
+
+  if (disabled) {
+    logger.info("FCM_DISABLED", {
+      userId: String(req.user._id),
+      deviceTokenId: String(disabled._id),
+      notificationType: null,
+      platform: disabled.platform,
+      timezone: req.body.timezone || null,
+    });
+  }
 
   res.json({ success: true });
 });

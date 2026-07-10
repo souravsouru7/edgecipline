@@ -7,6 +7,7 @@ import { clearAuthToken, getValidToken, hydrateAuthToken } from "@/utils/auth";
 import Link from "next/link";
 import { acceptTerms, logoutUser } from "@/services/api";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { onUserLoggedOut } from "@/services/pushNotifications";
 
 /**
  * /accept-terms
@@ -326,6 +327,7 @@ export default function AcceptTermsPage() {
               type="button"
               onClick={async () => {
                 try {
+                  await onUserLoggedOut();
                   await logoutUser();
                 } catch {
                   // Still clear client state and leave the gate if the network is unavailable.

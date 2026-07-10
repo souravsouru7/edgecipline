@@ -27,6 +27,7 @@ jest.mock('../../middleware/rateLimiter', () => {
 
 jest.mock('../../config/redis', () => ({
   connectRedis: jest.fn(),
+  isRedisReady: jest.fn(() => false),
   client: {
     get:  jest.fn().mockResolvedValue(null),
     set:  jest.fn().mockResolvedValue('OK'),
@@ -119,6 +120,11 @@ const authUser = {
   tokenVersion: 0,
   subscriptionStatus: 'active',
   freeUploadUsed: false,
+  termsAcceptance: {
+    acceptedTerms: true,
+    acceptedPrivacy: true,
+    termsVersion: 'v1.0',
+  },
 };
 
 function bearerToken(userOverrides = {}) {
@@ -132,7 +138,12 @@ function bearerToken(userOverrides = {}) {
 
 // Mock User.findById to return authUser (used by protect middleware)
 beforeEach(() => {
-  User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(authUser) });
+  const query = {
+    select: jest.fn(),
+    lean: jest.fn().mockResolvedValue(authUser),
+  };
+  query.select.mockReturnValue(query);
+  User.findById.mockReturnValue(query);
 });
 
 // ---------------------------------------------------------------------------
@@ -235,12 +246,48 @@ describe('GET /api/trades — pagination', () => {
       { _id: VALID_TRADE_ID, symbol: 'EURUSD', profit: 100 },
     ];
 
-    tradeService.getTrades.mockResolvedValueOnce(mockTrades);
+    tradeService.getTrades.mockResolvedValueOnce({
+      items: mockTrades,
+      pagination: {
+        page: 1,
+        limit: 10,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
 
     const res = await request(app)
       .get('/api/trades?page=1&limit=10')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: mockTrades,
+      pagination: {
+        page: 1,
+        limit: 10,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+    expect(tradeService.getTrades).toHaveBeenCalledWith(
+      TEST_USER_ID,
+      { page: 1, limit: 10, period: 'all' }
+    );
+  });
+
+  test('rejects an excessive page size before calling the service', async () => {
+    const res = await request(app)
+      .get('/api/trades?page=1&limit=101')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.errorCode).toBe('VALIDATION_ERROR');
+    expect(tradeService.getTrades).not.toHaveBeenCalled();
   });
 });

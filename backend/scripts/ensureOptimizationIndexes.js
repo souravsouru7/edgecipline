@@ -12,6 +12,8 @@ const Notification = require("../models/Notification");
 const ChecklistTracking = require("../models/ChecklistTracking");
 const User = require("../models/Users");
 const RefreshToken = require("../models/RefreshToken");
+const Payment = require("../models/Payment");
+const Feedback = require("../models/Feedback");
 
 async function createIndexes(model, indexes) {
   for (const [keys, options] of indexes) {
@@ -27,6 +29,7 @@ async function main() {
   await connectDB();
 
   await createIndexes(Trade, [
+    [{ user: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 }],
     [{ user: 1, marketType: 1, deletedAt: 1, createdAt: -1, _id: -1 }],
     [{ user: 1, marketType: 1, deletedAt: 1, tradeDate: -1, _id: -1 }],
     [{ user: 1, marketType: 1, deletedAt: 1, status: 1, tradeDate: -1 }],
@@ -36,6 +39,8 @@ async function main() {
   ]);
 
   await createIndexes(IndianTrade, [
+    [{ user: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 }],
+    [{ user: 1, instrumentType: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 }],
     [{ user: 1, instrumentType: 1, createdAt: -1, _id: -1 }],
     [{ user: 1, instrumentType: 1, tradeDate: -1, _id: -1 }],
     [{ user: 1, instrumentType: 1, tradeDate: 1, createdAt: 1 }],
@@ -45,7 +50,7 @@ async function main() {
 
   await createIndexes(WeeklyReport, [
     [{ user: 1, marketType: 1, weekStart: -1 }],
-    [{ user: 1, marketType: 1, generatedAt: -1 }],
+    [{ user: 1, marketType: 1, periodType: 1, createdAt: -1 }],
   ]);
 
   await createIndexes(SetupStrategy, [
@@ -53,13 +58,14 @@ async function main() {
   ]);
 
   await createIndexes(Notification, [
-    [{ active: 1, createdAt: -1 }],
-    [{ targetAudience: 1, active: 1, createdAt: -1 }],
+    [{ createdAt: -1 }],
+    [{ userId: 1, createdAt: -1 }],
+    [{ userId: 1, isRead: 1 }],
   ]);
 
   await createIndexes(ChecklistTracking, [
     [{ user: 1, createdAt: -1 }],
-    [{ user: 1, checklistType: 1, createdAt: -1 }],
+    [{ user: 1, market: 1, createdAt: -1 }],
   ]);
 
   await createIndexes(User, [
@@ -67,9 +73,19 @@ async function main() {
     [{ role: 1, createdAt: -1 }],
   ]);
 
+  await createIndexes(Payment, [
+    [{ createdAt: -1 }],
+    [{ status: 1, createdAt: -1 }],
+  ]);
+
+  await createIndexes(Feedback, [
+    [{ createdAt: -1 }],
+    [{ status: 1, createdAt: -1 }],
+  ]);
+
   await createIndexes(RefreshToken, [
-    [{ user: 1, revokedAt: 1, expiresAt: 1 }],
-    [{ expiresAt: 1 }, { expireAfterSeconds: 0 }],
+    [{ userId: 1, revokedAt: 1, expiresAt: 1 }],
+    [{ expiresAt: 1 }, { expireAfterSeconds: 86400 }],
   ]);
 
   await mongoose.connection.close();

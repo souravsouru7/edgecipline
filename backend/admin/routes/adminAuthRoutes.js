@@ -9,7 +9,7 @@ const { authRateLimiter } = require("../../middleware/rateLimiter");
 router.post("/login", authRateLimiter, adminLogin);
 
 // POST /api/admin/auth/logout — clears the admin session cookie
-router.post("/logout", adminLogout);
+router.post("/logout", adminAuth, adminLogout);
 
 // POST /api/admin/auth/logout-all — revokes all admin sessions by bumping tokenVersion
 router.post("/logout-all", adminAuth, logoutAllAdmin);

@@ -46,5 +46,12 @@ const NotificationDebugLogSchema = new mongoose.Schema(
 );
 
 NotificationDebugLogSchema.index({ user: 1, type: 1 }, { unique: true });
+// TTL on updatedAt: a stale debug row (no new evaluation in 30 days) is no
+// longer useful and the collection should not retain rows for users who
+// stopped trading. Mongoose `timestamps: true` maintains `updatedAt`.
+NotificationDebugLogSchema.index(
+  { updatedAt: 1 },
+  { expireAfterSeconds: 30 * 24 * 60 * 60 }
+);
 
 module.exports = mongoose.model("NotificationDebugLog", NotificationDebugLogSchema);

@@ -10,29 +10,27 @@ const {
     updateTrade,
     deleteTrade,
     restoreTrade,
-    debugTrades,
 } = require("../controllers/tradeController");
 
 const { protect } = require("../middleware/authMiddleware");
 const { statusRateLimiter } = require("../middleware/rateLimiter");
-const { validateNumbers } = require("../middleware/validateNumbers");
-const { validateObjectId } = require("../middleware/validateObjectId");
+const { validateRequest } = require("../middleware/validateRequest");
+const { tradeSchemas } = require("../validation/schemas");
 
-router.get("/debug", protect, debugTrades);
-router.post("/", protect, validateNumbers, createTrade);
-router.post("/batch", protect, validateNumbers, createTradesBatch);
+router.post("/", protect, validateRequest(tradeSchemas.create), createTrade);
+router.post("/batch", protect, validateRequest(tradeSchemas.batchCreate), createTradesBatch);
 
-router.get("/", protect, getTrades);
+router.get("/", protect, validateRequest(tradeSchemas.list), getTrades);
 
-router.get("/status/:id", protect, statusRateLimiter, validateObjectId("id"), getTradeStatus);
+router.get("/status/:id", protect, statusRateLimiter, validateRequest(tradeSchemas.getById), getTradeStatus);
 
-router.get("/:id", protect, validateObjectId("id"), getTrade);
+router.get("/:id", protect, validateRequest(tradeSchemas.getById), getTrade);
 
-router.put("/:id", protect, validateObjectId("id"), validateNumbers, updateTrade);
+router.put("/:id", protect, validateRequest(tradeSchemas.update), updateTrade);
 
-router.post("/:id/restore", protect, validateObjectId("id"), restoreTrade);
+router.post("/:id/restore", protect, validateRequest(tradeSchemas.getById), restoreTrade);
 
-router.delete("/:id", protect, validateObjectId("id"), deleteTrade);
+router.delete("/:id", protect, validateRequest(tradeSchemas.getById), deleteTrade);
 
 
 module.exports = router;

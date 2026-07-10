@@ -185,16 +185,14 @@ input[type="submit"] {
   position: sticky;
   top: 0;
   z-index: 100;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: rgba(240, 238, 233, 0.97);
 }
 
 .sticky-footer {
   position: sticky;
   bottom: 0;
   z-index: 100;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: rgba(240, 238, 233, 0.97);
 }
 
 /* Account for safe area on notch devices */
@@ -236,6 +234,31 @@ input[type="submit"] {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+}
+
+/* ── Tablet Layout (769px – 1024px) ─────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Slightly tighter padding on tablet than desktop */
+  [style*="padding:*32"],
+  [style*="padding:*28"] {
+    padding: 20px !important;
+  }
+
+  /* Nav items should still be reachable on tablet */
+  nav a, nav button {
+    min-height: 44px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* ── Wide-screen max-width containment (>1440px) ────────── */
+@media (min-width: 1441px) {
+  .page-content-max {
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 

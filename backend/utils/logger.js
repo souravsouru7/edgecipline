@@ -21,10 +21,10 @@ const logLevels = {
 winston.addColors(logLevels.colors);
 
 const SENSITIVE_KEY_PATTERN =
-  /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers|body|email)/i;
+  /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers)/i;
 
-const SENSITIVE_VALUE_PATTERN =
-  /(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/g;
+const SENSITIVE_VALUE_PATTERN_SOURCE =
+  String.raw`(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`;
 
 function redactValue(value, key = "") {
   if (SENSITIVE_KEY_PATTERN.test(key)) {
@@ -32,7 +32,10 @@ function redactValue(value, key = "") {
   }
 
   if (typeof value === "string") {
-    return value.replace(SENSITIVE_VALUE_PATTERN, "[REDACTED]");
+    return value.replace(
+      new RegExp(SENSITIVE_VALUE_PATTERN_SOURCE, "g"),
+      "[REDACTED]"
+    );
   }
 
   if (Array.isArray(value)) {

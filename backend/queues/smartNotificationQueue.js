@@ -6,6 +6,7 @@ const { logger } = require("../utils/logger");
 // ─── Identity ────────────────────────────────────────────────────────────────
 const SMART_NOTIFICATION_QUEUE_NAME = appConfig.smartNotificationQueue.name;
 const SMART_NOTIFICATION_JOB_NAME = "runSmartChecks";
+const DELIVER_NOTIFICATION_JOB_NAME = "deliverNotification";
 
 // ─── Queue ───────────────────────────────────────────────────────────────────
 //
@@ -22,8 +23,8 @@ const smartNotificationQueue = new Queue(SMART_NOTIFICATION_QUEUE_NAME, {
   defaultJobOptions: {
     // Retain completed jobs for 1h (drains naturally) and failed jobs for 24h
     // so an operator can inspect the failure window.
-    removeOnComplete: { age: 60 * 60 },
-    removeOnFail:     { age: 24 * 60 * 60 },
+    removeOnComplete: { age: 60 * 60, count: 10000 },
+    removeOnFail:     { age: 7 * 24 * 60 * 60, count: 10000 },
     attempts:         appConfig.smartNotificationQueue.attempts,
     backoff: {
       type:  "exponential",
@@ -50,7 +51,7 @@ async function enqueueSmartNotificationChecks(payload) {
   // jobId guarantees idempotency — submitting the same trade twice (e.g.
   // duplicate trade-save call from a retried API request) reuses the existing
   // BullMQ job rather than running the checks twice.
-  const jobId = `sn:${tradeId}`;
+  const jobId = `sn-${tradeId}`;
 
   const existing = await smartNotificationQueue.getJob(jobId);
   if (existing) {
@@ -66,6 +67,33 @@ async function enqueueSmartNotificationChecks(payload) {
   );
 
   logger.info("SMART_QUEUE_ENQUEUED", { jobId, userId, tradeId, marketType });
+  return job;
+}
+
+async function enqueueNotificationDelivery({ userId, notification }) {
+  const normalizedUserId = userId?.toString?.() || userId;
+  const dedupeKey = String(notification?.dedupeKey || "").trim();
+  if (!normalizedUserId || !dedupeKey || !notification?.type || !notification?.title || !notification?.body) {
+    const error = new Error("notification delivery requires userId, type, title, body, and dedupeKey");
+    error.code = "NOTIFICATION_QUEUE_INVALID_PAYLOAD";
+    throw error;
+  }
+
+  const safeDedupeKey = Buffer.from(dedupeKey).toString("base64url").slice(0, 180);
+  const jobId = `notify-${safeDedupeKey}`;
+  const existing = await smartNotificationQueue.getJob(jobId);
+  if (existing) return existing;
+
+  const job = await smartNotificationQueue.add(
+    DELIVER_NOTIFICATION_JOB_NAME,
+    { userId: normalizedUserId, notification },
+    { jobId }
+  );
+  logger.info("NOTIFICATION_QUEUE_ENQUEUED", {
+    jobId,
+    userId: normalizedUserId,
+    notificationType: notification.type,
+  });
   return job;
 }
 
@@ -110,7 +138,9 @@ smartNotificationQueue.on("error", (error) => {
 module.exports = {
   SMART_NOTIFICATION_QUEUE_NAME,
   SMART_NOTIFICATION_JOB_NAME,
+  DELIVER_NOTIFICATION_JOB_NAME,
   smartNotificationQueue,
   enqueueSmartNotificationChecks,
+  enqueueNotificationDelivery,
   getSmartNotificationQueueMetrics,
 };

@@ -82,11 +82,13 @@ async function extractTextWithVision(imageBuffer) {
   const processedBuffer = await preprocessImageForVision(imageBuffer);
 
   try {
-    // Run both modes; on mobile screenshots sometimes textDetection performs better
+    // documentTextDetection is the more general-purpose mode; run it first.
+    // textDetection often produces better results on mobile screenshots, but
+    // is only worth the second API call (cost ~2×) when the first result is
+    // either empty or low-confidence. Skip the redundant call when doc mode
+    // already returned a high-confidence text.
+    const VISION_HIGH_CONFIDENCE = 0.9;
     const [docResult] = await visionClient.documentTextDetection({
-      image: { content: processedBuffer },
-    });
-    const [textResult] = await visionClient.textDetection({
       image: { content: processedBuffer },
     });
 
@@ -95,6 +97,13 @@ async function extractTextWithVision(imageBuffer) {
       docResult?.fullTextAnnotation?.pages?.[0]?.confidence ??
       docResult?.fullTextAnnotation?.confidence ??
       0;
+
+    let textResult = null;
+    if (!docText || docConf < VISION_HIGH_CONFIDENCE) {
+      [textResult] = await visionClient.textDetection({
+        image: { content: processedBuffer },
+      });
+    }
 
     const textText = textResult?.fullTextAnnotation?.text || "";
     const textConf =

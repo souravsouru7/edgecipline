@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Trade = require("../models/Trade");
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
+const { pickForexTradeFields } = require("../utils/tradeFieldAllowlist");
 
 const TRADE_LIST_PROJECTION = [
   "pair",
@@ -15,6 +16,7 @@ const TRADE_LIST_PROJECTION = [
   "entryBasis",
   "entryBasisCustom",
   "tradeDate",
+  "effectiveTradeDate",
   "status",
   "marketType",
   "createdAt",
@@ -26,10 +28,6 @@ const TRADE_LIST_PROJECTION = [
   "ocrJobId",
   "ocrAttempts",
 ].join(" ");
-
-const TRADE_LIST_PROJECT_STAGE = TRADE_LIST_PROJECTION
-  .split(" ")
-  .reduce((projection, field) => ({ ...projection, [field]: 1 }), { _id: 1 });
 
 const TRADE_STATUS_PROJECTION = [
   "pair",
@@ -100,19 +98,24 @@ const WEEKLY_TRADE_PROJECTION = [
 ].join(" ");
 
 async function createTrade(data) {
-  return Trade.create(data);
+  const tradeDate = data.tradeDate || data.createdAt || new Date();
+  return Trade.create({ ...data, effectiveTradeDate: tradeDate });
 }
 
 async function createTrades(data) {
-  return Trade.insertMany(data, { ordered: true });
+  const docs = data.map((trade) => ({
+    ...trade,
+    effectiveTradeDate: trade.tradeDate || trade.createdAt || new Date(),
+  }));
+  return Trade.insertMany(docs, { ordered: true });
 }
 
 function userMatch(userId) {
   const id = userId?.toString?.() || String(userId || "");
-  if (mongoose.Types.ObjectId.isValid(id)) {
-    return { $in: [new mongoose.Types.ObjectId(id), id] };
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new TypeError("A valid user ObjectId is required");
   }
-  return userId;
+  return new mongoose.Types.ObjectId(id);
 }
 
 function visibleForexQuery(userId, extra = {}) {
@@ -130,28 +133,30 @@ async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
   const query = visibleForexQuery(userId);
 
   if (dateFrom instanceof Date) {
-    query.$or = [
-      { tradeDate: { $gte: dateFrom } },
-      { tradeDate: null, createdAt: { $gte: dateFrom } },
-    ];
+    query.effectiveTradeDate = { $gte: dateFrom };
   }
 
   const hasPagination = typeof page === "number" && typeof limit === "number";
-  const tradeQuery = hasPagination
-    ? Trade.aggregate([
-        { $match: query },
-        { $addFields: { effectiveTradeDate: { $ifNull: ["$tradeDate", "$createdAt"] } } },
-        { $sort: { effectiveTradeDate: -1, _id: -1 } },
-        { $skip: Math.max(0, (page - 1) * limit) },
-        { $limit: limit },
-        { $project: TRADE_LIST_PROJECT_STAGE },
-      ])
-    : Trade.find(query)
-        .sort({ createdAt: -1, _id: -1 })
-        .select(TRADE_LIST_PROJECTION)
-        .lean();
+  const tradeQuery = Trade.find(query)
+    .sort({ effectiveTradeDate: -1, _id: -1 });
 
-  return tradeQuery;
+  if (hasPagination) {
+    tradeQuery
+      .skip(Math.max(0, (page - 1) * limit))
+      .limit(limit);
+  }
+
+  return tradeQuery
+    .select(TRADE_LIST_PROJECTION)
+    .lean();
+}
+
+async function countForexTradesByUser(userId, { dateFrom } = {}) {
+  const query = visibleForexQuery(userId);
+  if (dateFrom instanceof Date) {
+    query.effectiveTradeDate = { $gte: dateFrom };
+  }
+  return Trade.countDocuments(query);
 }
 
 async function countTradesDebug(userId) {
@@ -178,10 +183,15 @@ async function findForexTradeByUser(tradeId, userId) {
 }
 
 async function updateForexTradeByUser(tradeId, userId, update, options = {}) {
+  const safeUpdate = pickForexTradeFields(update);
+  const { derivedProfit, ...mongooseOptions } = options;
+  if (derivedProfit !== undefined) {
+    safeUpdate.profit = derivedProfit;
+  }
   return Trade.findOneAndUpdate(
     { _id: tradeId, user: userId, marketType: { $ne: "Indian_Market" }, deletedAt: null },
-    update,
-    { returnDocument: "after", lean: true, ...options }
+    safeUpdate,
+    { returnDocument: "after", lean: true, runValidators: true, ...mongooseOptions }
   );
 }
 
@@ -193,10 +203,6 @@ async function deleteForexTradeByUser(tradeId, userId) {
     deletedSource: "user",
     marketFilter: { marketType: { $ne: "Indian_Market" } },
   });
-}
-
-async function updateTradeById(tradeId, update, options = {}) {
-  return Trade.findByIdAndUpdate(tradeId, update, { returnDocument: "after", ...options });
 }
 
 async function findTradeByIdAndUser(tradeId, userId) {
@@ -223,6 +229,7 @@ async function findTradesForWeeklyWindow(userId, startDate, endDate) {
 }
 
 module.exports = {
+  countForexTradesByUser,
   countTradesDebug,
   createTrade,
   createTrades,
@@ -232,5 +239,4 @@ module.exports = {
   findTradeByIdAndUser,
   findTradesForWeeklyWindow,
   updateForexTradeByUser,
-  updateTradeById,
 };

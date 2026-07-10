@@ -29,15 +29,15 @@ function LoginPageContent() {
       </div>
 
       {/* Header */}
-      <header style={{ position: "relative", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 60, background: "rgba(255,255,255,0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid #E2E8F0", boxShadow: "0 1px 12px rgba(15,25,35,0.06)" }}>
+      <header style={{ position: "relative", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 60, background: "rgba(240,238,233,0.97)", borderBottom: "1px solid var(--color-border)", boxShadow: "0 1px 12px rgba(15,25,35,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 168, height: 44, display: "flex", alignItems: "center" }}>
             <img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} />
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 20, padding: "5px 14px" }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0D9E6E", animation: "blink 1.2s ease-in-out infinite" }} />
-          <span style={{ fontSize: 10, letterSpacing: "0.1em", color: "#0D9E6E", fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>AI ENGINE ACTIVE</span>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-primary)", animation: "blink 1.2s ease-in-out infinite" }} />
+          <span style={{ fontSize: 10, letterSpacing: "0.1em", color: "var(--color-primary)", fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>AI ENGINE ACTIVE</span>
         </div>
       </header>
 
@@ -50,9 +50,9 @@ function LoginPageContent() {
           {/* Preview stats pills */}
           <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
             {PREVIEW_STATS.map((s, i) => (
-              <div key={s.label} style={{ flex: 1, background: "rgba(255,255,255,0.7)", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", textAlign: "center", backdropFilter: "blur(8px)", boxShadow: "0 1px 6px rgba(15,25,35,0.06)", animation: `fadeUp 0.5s ease ${i * 0.07}s both` }}>
+              <div key={s.label} style={{ flex: 1, background: "rgba(255,255,255,0.92)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "10px 12px", textAlign: "center", boxShadow: "0 1px 6px rgba(15,25,35,0.06)", animation: `fadeUp 0.5s ease ${i * 0.07}s both` }}>
                 <div style={{ fontSize: 8, color: "#94A3B8", letterSpacing: "0.1em", marginBottom: 4, fontFamily: "'JetBrains Mono',monospace" }}>{s.label}</div>
-                <div style={{ fontSize: 14, color: s.bull ? "#0D9E6E" : "#B8860B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{s.val}</div>
+                <div style={{ fontSize: 14, color: s.bull ? "var(--color-primary)" : "#B8860B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{s.val}</div>
               </div>
             ))}
           </div>

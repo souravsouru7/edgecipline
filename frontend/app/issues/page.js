@@ -32,7 +32,7 @@ export default function MyIssuesPage() {
     setError(null);
     try {
       const resp = await listMyIssues();
-      setIssues(resp?.issues || []);
+      setIssues(Array.isArray(resp) ? resp : resp?.issues || []);
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || "Could not load issues.");
     } finally {

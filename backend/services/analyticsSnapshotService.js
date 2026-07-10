@@ -19,7 +19,12 @@ const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 
 const SNAPSHOT_CACHE_TTL_SECONDS = Number(process.env.ANALYTICS_SNAPSHOT_TTL_SECONDS || 600);
-const SNAPSHOT_LIMIT = Number(process.env.ANALYTICS_SNAPSHOT_LIMIT || 50000);
+// Bound CPU, memory, and response construction even if an unsafe environment
+// override is supplied. The newest trades are retained when the cap is hit.
+const SNAPSHOT_LIMIT = Math.min(
+  10000,
+  Math.max(100, Number(process.env.ANALYTICS_SNAPSHOT_LIMIT) || 10000)
+);
 const AGGREGATE_CACHE_TTL_SECONDS = Number(process.env.ANALYTICS_AGGREGATE_TTL_SECONDS || 300);
 const SLOW_AGGREGATE_MS = Number(process.env.SLOW_ANALYTICS_AGGREGATE_MS || 750);
 
@@ -42,6 +47,7 @@ const SNAPSHOT_TRADE_PROJECTION = [
   "session",
   "strategy",
   "tradeDate",
+  "effectiveTradeDate",
   "createdAt",
   "segment",
   "instrumentType",
@@ -57,6 +63,12 @@ const SNAPSHOT_TRADE_PROJECTION = [
   "entryBasis",
   "wouldRetake",
   "tradeQuality",
+  // status is only set on the Forex Trade collection (enum: pending /
+  // processing / completed / failed). Indian trades have no status field.
+  // Including it here is additive — older consumers that don't read it are
+  // unaffected, and consumers that DO care (Trading DNA) can filter
+  // pending/processing/failed entries out of analytics.
+  "status",
 ].join(" ");
 
 function computePerformanceMetrics(trades, marketLabel) {
@@ -68,7 +80,7 @@ function buildDateQuery(dateRange) {
   const range = {};
   if (dateRange.from) range.$gte = dateRange.from;
   if (dateRange.to) range.$lte = dateRange.to;
-  return { tradeDate: range };
+  return { effectiveTradeDate: range };
 }
 
 function buildMatchQuery({ userId, market, instrumentType, dateRange }) {
@@ -149,28 +161,32 @@ async function loadTrades({ userId, market, instrumentType, dateRange }) {
       loadTrades({ userId, market: "Forex", dateRange }),
       loadTrades({ userId, market: "Indian_Market", instrumentType, dateRange }),
     ]);
-    return [...forexTrades, ...indianTrades].sort((a, b) => {
-      const left = new Date(a.tradeDate || a.createdAt || 0).getTime();
-      const right = new Date(b.tradeDate || b.createdAt || 0).getTime();
-      return left - right;
-    });
+    return [...forexTrades, ...indianTrades]
+      .sort((a, b) => {
+        const left = new Date(a.effectiveTradeDate || a.tradeDate || a.createdAt || 0).getTime();
+        const right = new Date(b.effectiveTradeDate || b.tradeDate || b.createdAt || 0).getTime();
+        return left - right;
+      })
+      .slice(-SNAPSHOT_LIMIT);
   }
 
   if (marketLabel === "Indian_Market") {
     const query = buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange });
 
-    return IndianTrade.find(query)
-      .sort({ tradeDate: 1, createdAt: 1, _id: 1 })
+    const trades = await IndianTrade.find(query)
+      .sort({ effectiveTradeDate: -1, _id: -1 })
       .select(SNAPSHOT_TRADE_PROJECTION)
       .lean()
       .limit(SNAPSHOT_LIMIT);
+    return trades.reverse();
   }
 
-  return Trade.find(buildMatchQuery({ userId, market: marketLabel, dateRange }))
-    .sort({ tradeDate: 1, createdAt: 1, _id: 1 })
+  const trades = await Trade.find(buildMatchQuery({ userId, market: marketLabel, dateRange }))
+    .sort({ effectiveTradeDate: -1, _id: -1 })
     .select(SNAPSHOT_TRADE_PROJECTION)
     .lean()
     .limit(SNAPSHOT_LIMIT);
+  return trades.reverse();
 }
 
 async function aggregatePerformance({ userId, market = "Forex", instrumentType, dateRange } = {}) {

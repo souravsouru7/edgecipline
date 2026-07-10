@@ -132,8 +132,8 @@ function JournalPreview() {
   const item = feedItems[active];
   return (
     <div style={{
-      background:"rgba(255,255,255,0.75)", backdropFilter:"blur(10px)",
-      border:"1px solid #E2E8F0", borderRadius:10,
+      background:"rgba(255,255,255,0.96)",
+      border:"1px solid var(--color-border)", borderRadius:10,
       padding:"14px 16px", marginBottom:20,
       boxShadow:"0 2px 10px rgba(15,25,35,0.06)",
       animation:"fadeUp 0.5s ease 0s both",
@@ -201,7 +201,7 @@ export default function RegisterPage() {
       .then(idToken => { if (idToken) return googleLogin(idToken); })
       .then(data => {
         if (!data?.token) return;
-        setAuthToken(data.token);
+        await setAuthToken(data.token);
         router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
       })
       .catch(err => alert("Google login failed: " + (err?.message || err)));
@@ -236,7 +236,7 @@ export default function RegisterPage() {
         acceptedPrivacy: true,
       });
       if (data.token) {
-        setAuthToken(data.token);
+        await setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {
@@ -273,7 +273,7 @@ export default function RegisterPage() {
       if (!idToken) return;
       const data = await googleLogin(idToken);
       if (data.token) {
-        setAuthToken(data.token);
+        await setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {
@@ -340,8 +340,8 @@ export default function RegisterPage() {
         position:"relative", zIndex:20,
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"0 24px", height:60,
-        background:"rgba(255,255,255,0.92)", backdropFilter:"blur(20px)",
-        borderBottom:"1px solid #E2E8F0",
+        background:"rgba(240,238,233,0.97)",
+        borderBottom:"1px solid var(--color-border)",
         boxShadow:"0 1px 12px rgba(15,25,35,0.06)",
       }}>
         {/* Logo */}

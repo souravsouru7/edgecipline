@@ -1,41 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
   getAdminNotifications, 
   markAdminNotificationAsRead, 
-  markAllAdminNotificationsAsRead 
+  markAllAdminNotificationsAsRead,
+  clearAdminSession,
 } from "@/services/adminApi";
 
 export default function AdminHeader({ title, subtitle }) {
   const router = useRouter();
-  const [adminName, setAdminName] = useState("");
+  const [adminName] = useState(() =>
+    typeof window === "undefined"
+      ? "Admin"
+      : localStorage.getItem("adminName") || "Admin"
+  );
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  useEffect(() => {
-    const name = localStorage.getItem("adminName") || "Admin";
-    setAdminName(name);
-    fetchNotifications();
-
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const data = await getAdminNotifications();
       if (Array.isArray(data)) setNotifications(data);
     } catch (err) {
       console.error("Notifications error:", err);
     }
-  };
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    localStorage.removeItem("adminRole");
-    localStorage.removeItem("adminName");
+  useEffect(() => {
+    const initialFetch = setTimeout(fetchNotifications, 0);
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => {
+      clearTimeout(initialFetch);
+      clearInterval(interval);
+    };
+  }, [fetchNotifications]);
+
+  const handleLogout = async () => {
+    await clearAdminSession();
     router.push("/admin/login");
   };
 

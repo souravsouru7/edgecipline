@@ -6,6 +6,7 @@ import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useQuery } from "@tanstack/react-query";
 import { getDisciplineAnalytics } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -92,7 +93,7 @@ function DisciplineContent() {
     queryKey: ["discipline", market, period, days],
     queryFn: ({ signal }) => getDisciplineAnalytics(market, period, days, "", signal),
     enabled: mounted,
-    staleTime: 90_000,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
   });
 
   if (!mounted || isLoading) return <LoadingSkeleton />;

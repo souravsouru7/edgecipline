@@ -23,7 +23,7 @@ function generateAdminToken(user) {
   return jwt.sign(
     { id: String(user._id), role: user.role, tokenVersion: user.tokenVersion ?? 0 },
     ADMIN_JWT_SECRET,
-    { expiresIn: ADMIN_TOKEN_EXPIRY }
+    { algorithm: "HS256", expiresIn: ADMIN_TOKEN_EXPIRY }
   );
 }
 
@@ -70,7 +70,8 @@ exports.adminLogin = asyncHandler(async (req, res) => {
 
   // Always run bcrypt compare to prevent timing attacks that reveal whether
   // the email exists. Use a dummy hash when the user is not found.
-  const DUMMY_HASH = "$2b$10$invalidsaltinvalidsaltinvalidsal" + "tXXXXXXXXXXXXXXXXXXXX";
+  const DUMMY_HASH =
+    "$2b$10$uoTOWGbsKyWDN1ii2upYa.rZCuba0WtgqWY8QO31i.FuwmsP7kKQ.";
   const candidateHash = (user?.password && user.authProvider !== "google" && user.role === "admin")
     ? user.password
     : DUMMY_HASH;
@@ -107,7 +108,6 @@ exports.adminLogin = asyncHandler(async (req, res) => {
     name: user.name,
     email: user.email,
     role: user.role,
-    token,
   });
 });
 

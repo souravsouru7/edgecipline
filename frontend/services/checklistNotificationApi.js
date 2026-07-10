@@ -14,9 +14,12 @@ async function authFetch(path, options = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Request failed");
+    throw new Error(err.error?.message || err.message || "Request failed");
   }
-  return res.json();
+  const payload = await res.json();
+  return payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
+    ? payload.data
+    : payload;
 }
 
 export const getChecklistNotificationSettings = (market = "Forex") =>

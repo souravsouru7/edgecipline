@@ -39,6 +39,25 @@ module.exports = {
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",
       max_size: "100M",
       retain: 10,
+    },
+    {
+      name: "stratedge-trading-dna-worker",
+      script: "./workers/tradingDnaWorker.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "production"
+      },
+      error_file: "./logs/pm2-trading-dna-worker-error.log",
+      out_file: "./logs/pm2-trading-dna-worker-out.log",
+      log_file: "./logs/pm2-trading-dna-worker-combined.log",
+      time: true,
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      max_size: "100M",
+      retain: 10,
     }
   ]
 };

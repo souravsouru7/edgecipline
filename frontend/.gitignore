@@ -37,10 +37,8 @@ yarn-error.log*
 # vercel
 .vercel
 
-# capacitor (mobile only - not for web/vercel)
-/android/
-/ios/
-capacitor.config.ts
+# Capacitor native projects are source. Their generated/local files are
+# ignored by the platform-specific .gitignore files.
 
 # typescript
 *.tsbuildinfo

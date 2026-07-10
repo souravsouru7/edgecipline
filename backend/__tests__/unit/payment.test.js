@@ -30,6 +30,9 @@ jest.mock('../../models/Users', () => ({
   findByIdAndUpdate: jest.fn().mockResolvedValue({}),
 }));
 
+const mockOrderFetch = jest.fn();
+const mockPaymentFetch = jest.fn();
+
 // Razorpay constructor mock — prevents real HTTP calls in createOrder
 jest.mock('razorpay', () =>
   jest.fn().mockImplementation(() => ({
@@ -40,7 +43,9 @@ jest.mock('razorpay', () =>
         currency: 'INR',
         receipt:  'rcpt_test',
       }),
+      fetch: mockOrderFetch,
     },
+    payments: { fetch: mockPaymentFetch },
   }))
 );
 
@@ -82,10 +87,12 @@ const mockUser = (overrides = {}) => ({
 
 // Build a chainable findOne mock: Payment.findOne(...).select(...).lean() => value
 function paymentFindOneMock(value) {
+  const chain = {
+    session: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(value),
+  };
   return {
-    select: jest.fn().mockReturnValue({
-      lean: jest.fn().mockResolvedValue(value),
-    }),
+    select: jest.fn().mockReturnValue(chain),
   };
 }
 
@@ -103,6 +110,21 @@ beforeEach(() => {
   mockSession.commitTransaction.mockClear();
   mockSession.abortTransaction.mockClear();
   mockSession.endSession.mockClear();
+  mockOrderFetch.mockResolvedValue({
+    id: ORDER_ID,
+    amount: 15000,
+    currency: 'INR',
+    status: 'paid',
+    notes: { userId: '507f1f77bcf86cd799439011', planType: '3_months' },
+  });
+  mockPaymentFetch.mockResolvedValue({
+    id: PAYMENT_ID,
+    order_id: ORDER_ID,
+    amount: 15000,
+    currency: 'INR',
+    status: 'captured',
+    captured: true,
+  });
 });
 
 afterAll(() => {
@@ -205,7 +227,7 @@ describe('verifyPayment', () => {
     await verifyPayment(req, res, next);
 
     expect(next.mock.calls[0][0].statusCode).toBe(400);
-    expect(next.mock.calls[0][0].errorCode).toBe('VALIDATION_ERROR');
+    expect(next.mock.calls[0][0].errorCode).toBe('PAYMENT_INTEGRITY_CHECK_FAILED');
     // No DB calls — rejected before reaching them
     expect(Payment.findOne).not.toHaveBeenCalled();
   });
@@ -231,5 +253,39 @@ describe('verifyPayment', () => {
 
     // Server always uses PLAN_AMOUNTS["3_months"] = 150, not the client value
     expect(capturedAmount).toBe(150);
+  });
+
+  test.each([
+    ['uncaptured payment', { status: 'authorized', captured: false }],
+    ['underpaid payment', { amount: 100 }],
+    ['payment attached to another order', { order_id: 'order_other' }],
+  ])('rejects %s returned by Razorpay', async (_name, overrides) => {
+    mockPaymentFetch.mockResolvedValueOnce({
+      id: PAYMENT_ID,
+      order_id: ORDER_ID,
+      amount: 15000,
+      currency: 'INR',
+      status: 'captured',
+      captured: true,
+      ...overrides,
+    });
+    const next = jest.fn();
+    await verifyPayment({ body: validBody(), user: authUser }, mockRes(), next);
+    expect(next.mock.calls[0][0].errorCode).toBe('PAYMENT_INTEGRITY_CHECK_FAILED');
+    expect(Payment.create).not.toHaveBeenCalled();
+  });
+
+  test('rejects an order created for another user', async () => {
+    mockOrderFetch.mockResolvedValueOnce({
+      id: ORDER_ID,
+      amount: 15000,
+      currency: 'INR',
+      status: 'paid',
+      notes: { userId: '507f1f77bcf86cd799439099', planType: '3_months' },
+    });
+    const next = jest.fn();
+    await verifyPayment({ body: validBody(), user: authUser }, mockRes(), next);
+    expect(next.mock.calls[0][0].errorCode).toBe('PAYMENT_INTEGRITY_CHECK_FAILED');
+    expect(Payment.create).not.toHaveBeenCalled();
   });
 });

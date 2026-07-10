@@ -1,6 +1,12 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 
+const DEFAULT_MAX_SNAPSHOT_BYTES = 200_000;
+const configuredMaxSnapshotBytes = Number(process.env.GEMINI_MAX_SNAPSHOT_BYTES);
+const MAX_SNAPSHOT_BYTES = Number.isSafeInteger(configuredMaxSnapshotBytes)
+  ? Math.min(1_000_000, Math.max(1024, configuredMaxSnapshotBytes))
+  : DEFAULT_MAX_SNAPSHOT_BYTES;
+
 function getGeminiClient() {
   const apiKey = appConfig.ai.geminiApiKey;
   if (!apiKey) {
@@ -94,6 +100,17 @@ function buildFallbackFeedback(snapshot, weekLabel) {
 }
 
 async function generateWeeklyFeedback({ snapshot, weekLabel }) {
+  const snapshotJson = JSON.stringify(snapshot);
+  if (typeof snapshotJson !== "string") {
+    throw new Error("[Gemini] Snapshot must be a JSON-serializable object");
+  }
+  const snapshotBytes = Buffer.byteLength(snapshotJson, "utf8");
+  if (snapshotBytes > MAX_SNAPSHOT_BYTES) {
+    throw new Error(
+      `[Gemini] Snapshot exceeds the ${MAX_SNAPSHOT_BYTES}-byte prompt limit`
+    );
+  }
+
   const genAI = getGeminiClient();
   // Use a stable default Gemini model name; can be overridden via GEMINI_MODEL.
   const modelName = appConfig.ai.geminiModel;
@@ -158,7 +175,7 @@ Return ONLY valid JSON (no markdown, no backticks, no explanation outside the JS
 
 Week: ${weekLabel}
 Snapshot JSON:
-${JSON.stringify(snapshot)}
+${snapshotJson}
 `;
 
   try {
@@ -204,5 +221,5 @@ ${JSON.stringify(snapshot)}
   }
 }
 
-module.exports = { generateWeeklyFeedback };
+module.exports = { MAX_SNAPSHOT_BYTES, generateWeeklyFeedback };
 

@@ -24,6 +24,8 @@ const refreshTokenSchema = new mongoose.Schema(
     deviceInfo: {
       userAgent: { type: String, default: "" },
       ip: { type: String, default: "" },
+      deviceId: { type: String, default: "", maxlength: 100 },
+      sessionId: { type: String, default: "", maxlength: 100 },
     },
     expiresAt: {
       type: Date,

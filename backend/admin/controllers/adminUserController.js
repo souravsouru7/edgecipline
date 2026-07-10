@@ -1,6 +1,7 @@
 const User = require("../../models/Users");
 const Trade = require("../../models/Trade");
 const IndianTrade = require("../../models/IndianTrade");
+const MissionAssignment = require("../../models/MissionAssignment");
 const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
 const { logger } = require("../../utils/logger");
@@ -16,7 +17,7 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
   const skip = (page - 1) * limit;
 
-  const filter = { role: { $ne: "admin" } };
+  const filter = { role: "user" };
   const [users, total] = await Promise.all([
     User.find(filter).select("-password").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     User.countDocuments(filter),
@@ -56,11 +57,12 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Cannot delete an admin user", "FORBIDDEN");
   }
 
-    // Delete associated data
+    // Delete all user data — add new collections here when they accumulate user data
     await Promise.all([
       Trade.deleteMany({ user: user._id }),
       IndianTrade.deleteMany({ user: user._id }),
-      User.findByIdAndDelete(user._id)
+      MissionAssignment.deleteMany({ user: user._id }),
+      User.findByIdAndDelete(user._id),
     ]);
 
   // Drop the auth cache — any in-flight JWT for this user must now fail.
@@ -150,11 +152,25 @@ exports.extendUserPlan = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.getExpiredUsers = asyncHandler(async (req, res) => {
+  // Hard cap. Response stays a flat array (frontend depends on Array.isArray)
+  // but no longer pulls every expired user in one query. Optional ?page=&limit=
+  // for a future paginated UI.
+  const MAX_PAGE_SIZE = 200;
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit, 10) || MAX_PAGE_SIZE, 1),
+    MAX_PAGE_SIZE
+  );
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
   const now = new Date();
   const expiredUsers = await User.find({
     role: { $ne: "admin" },
     subscriptionExpiry: { $lt: now }
-  }).sort({ subscriptionExpiry: -1 }).lean();
+  })
+    .sort({ subscriptionExpiry: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
 
   res.json(expiredUsers);
 });

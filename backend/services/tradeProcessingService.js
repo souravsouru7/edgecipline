@@ -25,16 +25,29 @@ const {
   isTradeRelatedContent,
 } = require("./extractionQualityService");
 const { logger } = require("../utils/logger");
+const { captureOperationalError } = require("../config/sentry");
 const { appConfig } = require("../config");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
+const {
+  analyzeImageQuality,
+  buildConfidenceReport,
+  detectBroker: detectIntelligentBroker,
+  detectMarket,
+  marketMismatchMessage,
+} = require("./ocrIntelligenceService");
 
 const PROCESSING_TIMEOUT_MS = appConfig.timeouts.processingTimeoutMs;
+const OCR_TIMEOUT_MS = appConfig.timeouts.ocrTimeout;
+const AI_TIMEOUT_MS = appConfig.timeouts.aiTimeout;
 const CONFIDENCE_ZONES = {
   rejectMax: 9,
   reviewMax: 59,
 };
 const MAX_OCR_TEXT_LENGTH = 50_000;
 const MAX_AI_RESPONSE_LENGTH = 50_000;
+// JSON-byte cap on the parsedData payload written to ExtractionLog. Without
+// this a multi-trade page can produce 100K+ doc and bloat BSON storage.
+const MAX_PARSED_DATA_BYTES = 200_000;
 
 function createProcessingCancelledError(message = "OCR job cancelled") {
   const error = new Error(message);
@@ -53,6 +66,26 @@ async function runCancellationCheck(checkCancellation, stage) {
 function truncateField(value, maxLength) {
   const s = String(value || "");
   return s.length > maxLength ? s.slice(0, maxLength) : s;
+}
+
+// Returns the value if its serialised size is within the cap; otherwise
+// returns a small marker explaining the truncation. Prevents oversized
+// parsedData payloads from being written to ExtractionLog / OCRJob.
+function capJsonPayload(value, maxBytes) {
+  if (value == null) return value;
+  let serialised;
+  try {
+    serialised = JSON.stringify(value);
+  } catch {
+    return { truncated: true, reason: "unserialisable" };
+  }
+  if (serialised.length <= maxBytes) return value;
+  return {
+    truncated: true,
+    reason: "size_cap_exceeded",
+    bytes: serialised.length,
+    sample: serialised.slice(0, 1000),
+  };
 }
 
 function logExtractedTrades({ tradeId, stage, parsedTrade, parsedTrades }) {
@@ -277,8 +310,34 @@ function mergeEquityAiData(parsedTrade, aiData) {
   return merged;
 }
 
+// Cloudinary hostnames the worker is allowed to fetch from. Only these hosts
+// can deliver image bytes to the OCR pipeline — without an allowlist a crafted
+// job payload could point the worker at cloud-metadata endpoints (e.g.
+// 169.254.169.254) or arbitrary internal hosts (SSRF).
+const ALLOWED_IMAGE_HOSTS = new Set([
+  "res.cloudinary.com",
+  "cloudinary.com",
+]);
+
+function assertSafeImageUrl(imageUrl) {
+  let parsed;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    throw new Error("Image URL is not a valid URL");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error(`Image URL must use https (got ${parsed.protocol})`);
+  }
+  if (!ALLOWED_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`Image host not allowed: ${parsed.hostname}`);
+  }
+  return parsed.toString();
+}
+
 async function downloadImageBuffer(imageUrl) {
-  const res = await withTimeout(fetch(imageUrl), "Image download", 30000);
+  const safeUrl = assertSafeImageUrl(imageUrl);
+  const res = await withTimeout(fetch(safeUrl), "Image download", 30000);
   if (!res.ok) throw new Error(`Image download failed: ${res.status}`);
   const mimeType = res.headers.get("content-type")?.split(";")[0] || "image/jpeg";
   const arrayBuffer = await res.arrayBuffer();
@@ -287,12 +346,12 @@ async function downloadImageBuffer(imageUrl) {
 
 // Returns { text, buffer, mimeType, ocrFailed } — always returns the image buffer so
 // Gemini Vision can reuse it without a second download, even when OCR itself fails.
-async function runOcrWithRetry(imagePath) {
+async function runOcrWithRetry(imagePath, preloadedImage = null) {
   // Download the image once upfront — separate from OCR so the buffer is always
   // available to the caller even if Tesseract/Vision times out.
   let imageBuffer, imageMimeType;
   try {
-    const result = await downloadImageBuffer(imagePath);
+    const result = preloadedImage || await downloadImageBuffer(imagePath);
     imageBuffer = result.buffer;
     imageMimeType = result.mimeType;
   } catch (error) {
@@ -307,7 +366,7 @@ async function runOcrWithRetry(imagePath) {
       const result = await withTimeout(
         extractTextWithVision(imageBuffer),
         "Google Vision OCR timeout",
-        PROCESSING_TIMEOUT_MS
+        OCR_TIMEOUT_MS
       );
       if (result?.text && result.text.trim().length > 20) {
         logger.info("OCR: Google Cloud Vision succeeded", { textLength: result.text.length });
@@ -321,15 +380,20 @@ async function runOcrWithRetry(imagePath) {
     }
   }
 
-  // 2. Tesseract — last resort
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      logger.info(`OCR: Tesseract attempt ${attempt}`);
-      const text = await withTimeout(extractText(imageBuffer), "Processing timeout");
-      return { text, buffer: imageBuffer, mimeType: imageMimeType };
-    } catch (error) {
-      logger.error(`OCR: Tesseract attempt ${attempt} failed`, { attempt, error: error.message });
+  // 2. Tesseract — skip if Gemini Vision is configured (it runs as primary downstream
+  //    and is faster + more accurate; Tesseract only adds latency here).
+  if (!appConfig.ai.geminiApiKey) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        logger.info(`OCR: Tesseract attempt ${attempt}`);
+        const text = await withTimeout(extractText(imageBuffer), "Tesseract OCR timeout", OCR_TIMEOUT_MS);
+        return { text, buffer: imageBuffer, mimeType: imageMimeType };
+      } catch (error) {
+        logger.error(`OCR: Tesseract attempt ${attempt} failed`, { attempt, error: error.message });
+      }
     }
+  } else {
+    logger.info("OCR: Tesseract skipped — Gemini Vision will handle extraction");
   }
 
   // OCR exhausted — return empty text but keep the buffer for Gemini Vision
@@ -361,7 +425,8 @@ async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, inclu
               marketType,
               includeRawResponse,
             }),
-        "Processing timeout"
+        "AI extraction timeout",
+        AI_TIMEOUT_MS
       );
 
       // If AI returned nothing or couldn't be parsed, we treat it as non-fatal.
@@ -391,6 +456,10 @@ async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, inclu
   logger.warn(`AI extraction failed after retries | marketType=${marketType}`, {
     marketType,
     lastError: lastError?.message,
+  });
+  captureOperationalError(lastError || new Error("AI extraction returned no result"), {
+    subsystem: "ai",
+    tags: { market_type: marketType, event: "retries_exhausted" },
   });
   return null;
 }
@@ -538,6 +607,37 @@ function mergeGenericAiData(parsedTrade, aiData) {
   };
 }
 
+function isStrongForexOcrTrade(trade) {
+  if (!trade || typeof trade !== "object") return false;
+  const hasPair = Boolean(trade.pair);
+  const hasAction = Boolean(normalizeTradeType(trade.type || trade.action));
+  const hasLot = Number.isFinite(Number(trade.lotSize ?? trade.quantity)) && Number(trade.lotSize ?? trade.quantity) > 0;
+  const hasEntry = Number.isFinite(Number(trade.entryPrice)) && Number(trade.entryPrice) > 0;
+  const hasExit = Number.isFinite(Number(trade.exitPrice)) && Number(trade.exitPrice) > 0;
+  const hasPnl = trade.profit != null && Number.isFinite(Number(trade.profit));
+  return hasPair && hasAction && hasLot && hasEntry && hasExit && hasPnl;
+}
+
+function shouldPreferForexOcrRows(ocrTrades, visionTrades, visionTrade) {
+  const strongOcrTrades = Array.isArray(ocrTrades) ? ocrTrades.filter(isStrongForexOcrTrade) : [];
+  if (strongOcrTrades.length === 0) return false;
+
+  const strongVisionTrades = Array.isArray(visionTrades) ? visionTrades.filter(isStrongForexOcrTrade) : [];
+  if (strongOcrTrades.length > 1 && strongOcrTrades.length >= strongVisionTrades.length) return true;
+
+  const ocrPair = String(strongOcrTrades[0]?.pair || "").toUpperCase();
+  const visionPair = String(visionTrade?.pair || strongVisionTrades[0]?.pair || "").toUpperCase();
+  return Boolean(ocrPair && visionPair && ocrPair !== visionPair);
+}
+
+function addForexBrokerHint(trade, broker) {
+  if (!trade) return trade;
+  return {
+    ...trade,
+    broker: trade.broker || broker || "",
+  };
+}
+
 function omitUndefinedFields(obj) {
   return Object.fromEntries(
     Object.entries(obj).filter(([, value]) => value !== undefined)
@@ -555,8 +655,9 @@ function buildTradeUpdate({
   needsReview,
   validationFailures,
 }) {
-  const tradeDateUpdate = trade.tradeDate
-    ? { tradeDate: trade.tradeDate }
+  const resolvedTradeDate = parsedTrade?.tradeDate || trade.tradeDate;
+  const tradeDateUpdate = resolvedTradeDate
+    ? { tradeDate: resolvedTradeDate, effectiveTradeDate: resolvedTradeDate }
     : {};
 
   return omitUndefinedFields({
@@ -592,7 +693,7 @@ function buildTradeUpdate({
     extractionConfidence: confidenceScore ?? 0,
     isValid,
     needsReview,
-    parsedData: {
+    parsedData: capJsonPayload({
       parsedTrade,
       validation: {
         isValid,
@@ -600,21 +701,27 @@ function buildTradeUpdate({
         confidenceScore: confidenceScore ?? 0,
       },
       ...(Array.isArray(parsedTrades) && parsedTrades.length > 0 ? { parsedTrades } : {}),
-    },
+    }, MAX_PARSED_DATA_BYTES),
     status: "completed",
     error: needsReview ? (validationFailures.join(", ") || "Needs manual review") : null,
     processedAt: new Date(),
   });
 }
 
-async function logExtraction({ trade, extractedText, parsedTrade, parsedTrades, aiUsed, errorMessage }) {
+async function logExtraction({ trade, extractedText, parsedTrade, parsedTrades, aiUsed, errorMessage, broker = "", extractionConfidence = 0, needsReview = true }) {
   try {
     await ExtractionLog.create({
       user: trade.user,
-      imageUrl: trade.imageUrl || trade.screenshot,
+      imageUrl: trade.imageUrl || trade.screenshot || trade.uploadedImage?.imageUrl,
       marketType: trade.marketType || "Forex",
+      broker,
+      extractionConfidence,
+      needsReview,
       extractedText,
-      parsedData: parsedTrades && parsedTrades.length > 0 ? { parsedTrade, parsedTrades } : parsedTrade,
+      parsedData: capJsonPayload(
+        parsedTrades && parsedTrades.length > 0 ? { parsedTrade, parsedTrades } : parsedTrade,
+        MAX_PARSED_DATA_BYTES
+      ),
       isSuccess: !errorMessage,
       aiUsed: !!aiUsed,
       errorMessage: errorMessage || undefined,
@@ -710,10 +817,23 @@ async function processTradeUpload({
     let ocrSkipped = false;
     let ocrImageBuffer = null;
     let ocrImageMimeType = "image/jpeg";
+    let imageQuality = null;
 
     await runCancellationCheck(checkCancellation, "before-ocr");
     try {
-      const ocrResult = await runOcrWithRetry(sourceImage);
+      const downloadedImage = await downloadImageBuffer(sourceImage);
+      imageQuality = await analyzeImageQuality(downloadedImage.buffer);
+      if (!imageQuality.acceptable) {
+        const qualityError = new Error(
+          "Screenshot quality is poor. Please upload a clear, uncropped screenshot with the complete trade details visible."
+        );
+        qualityError.code = "IMAGE_QUALITY_TOO_LOW";
+        qualityError.nonRetryable = true;
+        qualityError.details = imageQuality;
+        throw qualityError;
+      }
+
+      const ocrResult = await runOcrWithRetry(sourceImage, downloadedImage);
       await runCancellationCheck(checkCancellation, "after-ocr");
       extractedText = ocrResult.text;
       ocrImageBuffer = ocrResult.buffer;
@@ -723,6 +843,7 @@ async function processTradeUpload({
         logger.warn(`OCR text extraction failed | tradeId=${processingId} | image buffer retained for Gemini Vision`, { tradeId: processingId });
       }
     } catch (error) {
+      if (error.code === "IMAGE_QUALITY_TOO_LOW") throw error;
       // Image download itself failed — no buffer available
       ocrSkipped = true;
       logger.warn(`OCR failed (image unreachable) | tradeId=${processingId} | falling back to AI-only extraction`, {
@@ -735,7 +856,19 @@ async function processTradeUpload({
     await runCancellationCheck(checkCancellation, "before-parsing");
     // Treat as weak if OCR was skipped or produced too little text
     const weakOcr = ocrSkipped || isWeakOcrText(cleanedText);
-    const broker = detectBrokerPattern(cleanedText, trade.broker || undefined);
+    const broker = detectIntelligentBroker(
+      cleanedText,
+      detectBrokerPattern(cleanedText, trade.broker || undefined)
+    );
+    const marketDetection = detectMarket(cleanedText);
+    const mismatch = marketMismatchMessage(marketType, marketDetection.market);
+    if (mismatch && marketDetection.confidence >= 60) {
+      const marketError = new Error(mismatch);
+      marketError.code = "WRONG_MARKET_TYPE";
+      marketError.nonRetryable = true;
+      marketError.details = marketDetection;
+      throw marketError;
+    }
 
     logger.info(`OCR output | tradeId=${processingId}`, {
       tradeId: processingId,
@@ -838,8 +971,10 @@ async function processTradeUpload({
               tradeSubType,
               imageBuffer: ocrImageBuffer,
               imageMimeType: ocrImageMimeType,
+              brokerHint: broker,
             }),
-            "Gemini Vision timeout"
+            "Gemini Vision timeout",
+            AI_TIMEOUT_MS
           );
           await runCancellationCheck(checkCancellation, "after-gemini-vision");
           if (visionData) break;
@@ -886,6 +1021,20 @@ async function processTradeUpload({
           parsedTrades = Array.isArray(aiData?.trades) && aiData.trades.length > 0
             ? aiData.trades.map((t) => mergeGenericAiData({}, t))
             : [];
+
+          const ocrForexTrades = safeParseForexTradesFromOCR(cleanedText);
+          if (shouldPreferForexOcrRows(ocrForexTrades, parsedTrades, parsedTrade)) {
+            logger.warn(`Forex OCR override applied over Gemini Vision | tradeId=${tradeId}`, {
+              tradeId,
+              ocrCount: ocrForexTrades.length,
+              visionCount: parsedTrades.length,
+              ocrFirstPair: ocrForexTrades[0]?.pair || null,
+              visionPair: parsedTrade?.pair || null,
+            });
+            parsedTrades = ocrForexTrades.map((t) => addForexBrokerHint(t, aiData?.broker || broker));
+            parsedTrade = parsedTrades[0];
+            geminiVisionUsed = false;
+          }
         }
 
         logExtractedTrades({ tradeId, stage: "Gemini Vision extraction", parsedTrade, parsedTrades });
@@ -1115,6 +1264,19 @@ async function processTradeUpload({
       quality.score <= CONFIDENCE_ZONES.reviewMax ||
       (marketType === "Indian_Market" && multiIndianValidation && !multiIndianValidation.isValid);
 
+    const confidenceReport = buildConfidenceReport({
+      quality: imageQuality,
+      broker,
+      marketDetection: {
+        ...marketDetection,
+        requestedMarket: marketType,
+        matches: !mismatch,
+      },
+      extractionScore: quality.score,
+      validation: finalValidation,
+      trades: Array.isArray(parsedTrades) && parsedTrades.length ? parsedTrades : [parsedTrade],
+    });
+
     logExtractedTrades({
       tradeId,
       stage: "Final extraction",
@@ -1135,6 +1297,16 @@ async function processTradeUpload({
     if (!persistTrade) {
       await runCancellationCheck(checkCancellation, "before-result-return");
       const resultJobId = ocrJobId || tradeRecord?._id?.toString?.() || jobId || processingId;
+      await logExtraction({
+        trade,
+        extractedText: cleanedText,
+        parsedTrade,
+        parsedTrades,
+        aiUsed: !!aiData,
+        broker: broker || aiData?.broker || parsedTrade?.broker || "",
+        extractionConfidence: confidenceReport.score,
+        needsReview: needsReview || confidenceReport.decision !== "AUTO_APPROVED",
+      });
       return {
         jobId: resultJobId,
         status: "completed",
@@ -1149,12 +1321,16 @@ async function processTradeUpload({
           extractedText: cleanedText,
           marketType,
           tradeSubType: marketType === "Indian_Market" ? tradeSubType : trade.tradeSubType || "",
-          extractionConfidence: quality.score ?? 0,
-          needsReview,
+          brokerType: broker || aiData?.broker || parsedTrade?.broker || null,
+          detectedMarket: marketDetection.market,
+          imageQuality,
+          extractionConfidence: confidenceReport.score,
+          confidenceReport,
+          needsReview: needsReview || confidenceReport.decision !== "AUTO_APPROVED",
           validation: {
             isValid: finalValidation.isValid,
             failures: finalValidation.failures,
-            confidenceScore: quality.score ?? 0,
+            confidenceScore: confidenceReport.score,
           },
         },
       };

@@ -8,8 +8,14 @@ const OCR_JOB_NAME = "processOcrJob";
 const ocrQueue = new Queue(OCR_QUEUE_NAME, {
   connection: bullmqConnection,
   defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 1000,
+    removeOnComplete: {
+      age: appConfig.ocrQueue.completedRetentionAgeSeconds,
+      count: appConfig.ocrQueue.completedRetentionCount,
+    },
+    removeOnFail: {
+      age: appConfig.ocrQueue.failedRetentionAgeSeconds,
+      count: appConfig.ocrQueue.failedRetentionCount,
+    },
     attempts: appConfig.ocrQueue.attempts,
     backoff: {
       type: "exponential",

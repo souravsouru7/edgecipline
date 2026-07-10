@@ -160,8 +160,7 @@ describe('POST /api/admin/auth/login', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ role: 'admin', email: 'admin@stratedge.com' });
-    expect(() => jwt.verify(res.body.token, ADMIN_JWT_SECRET)).not.toThrow();
-    expect(() => jwt.verify(res.body.token, JWT_SECRET)).toThrow();
+    expect(res.body).not.toHaveProperty('token');
     const cookies = res.headers['set-cookie'] || [];
     expect(cookies.some(c => c.startsWith('admin_sid='))).toBe(true);
   });
@@ -241,6 +240,10 @@ describe('POST /api/admin/auth/login', () => {
 
 describe('POST /api/admin/auth/logout', () => {
   test('clears admin session cookie', async () => {
+    User.findById.mockReturnValueOnce({
+      select: jest.fn().mockResolvedValue(adminDoc()),
+    });
+
     const res = await request(app)
       .post('/api/admin/auth/logout')
       .set('Cookie', adminCookie());

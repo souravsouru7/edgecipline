@@ -297,6 +297,10 @@ describe("OCR job workflow", () => {
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
         findOne: jest.fn().mockResolvedValue(jobDoc),
+        findOneAndUpdate: jest.fn().mockImplementation(async (_filter, update) => {
+          Object.assign(jobDoc, update.$set);
+          return jobDoc;
+        }),
       },
     }));
     jest.doMock("../../queues/ocrQueue", () => ({
@@ -324,7 +328,101 @@ describe("OCR job workflow", () => {
     expect(jobDoc.status).toBe("FAILED");
     expect(jobDoc.attemptsMade).toBe(1);
     expect(jobDoc.processedAt).toBeInstanceOf(Date);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test("completed Mongo OCRJob remains queryable after BullMQ removes the job", async () => {
+    const jobDoc = {
+      _id: { toString: () => validJobId },
+      user: validUserId,
+      status: "COMPLETED",
+      queueJobId: validJobId,
+      attemptsMade: 1,
+      extractedData: { parsedTrade: { pair: "EURUSD" } },
+      extractionConfidence: 92,
+      error: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      processedAt: new Date("2026-01-01T00:01:00.000Z"),
+      expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+    const getOcrJobSnapshot = jest.fn().mockResolvedValue(null);
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: { findOne: jest.fn().mockResolvedValue(jobDoc) },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot,
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../config/cloudinary", () => ({ uploader: { destroy: jest.fn() } }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { getOcrJobStatus } = require("../../services/ocrJob.service");
+    const result = await getOcrJobStatus(validUserId, validJobId);
+
+    expect(result.status).toBe("COMPLETED");
+    expect(result.data).toEqual(jobDoc.extractedData);
+    expect(result.queueState).toBeNull();
+    expect(getOcrJobSnapshot).not.toHaveBeenCalled();
+  });
+
+  test("stale Mongo OCRJob with a missing queue record is re-enqueued", async () => {
+    const jobDoc = {
+      _id: { toString: () => validJobId },
+      user: validUserId,
+      status: "PROCESSING",
+      queueJobId: validJobId,
+      queueRecoveryAttempts: 0,
+      attemptsMade: 1,
+      uploadedImage: { imageUrl: "https://example.test/image.png" },
+      marketType: "Forex",
+      broker: "",
+      error: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      processingStartedAt: new Date("2026-01-01T00:00:01.000Z"),
+      expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    };
+    const recoveredDoc = {
+      ...jobDoc,
+      status: "PENDING",
+      queueRecoveryAttempts: 1,
+      processingStartedAt: null,
+      attemptsMade: 0,
+    };
+    const enqueueOcrJob = jest.fn().mockResolvedValue({ id: validJobId, name: "processOcrJob" });
+    const getOcrJobSnapshot = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ state: "waiting", attemptsMade: 0 });
+
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findOne: jest.fn().mockResolvedValue(jobDoc),
+        findOneAndUpdate: jest.fn().mockResolvedValue(recoveredDoc),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob,
+      getOcrJobSnapshot,
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../config/cloudinary", () => ({ uploader: { destroy: jest.fn() } }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { getOcrJobStatus } = require("../../services/ocrJob.service");
+    const result = await getOcrJobStatus(validUserId, validJobId);
+
+    expect(result.status).toBe("PENDING");
+    expect(result.queueState).toBe("waiting");
+    expect(enqueueOcrJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: validJobId,
+      userId: validUserId,
+    }));
   });
 
   test("status polling requeues one legacy Trade not found OCR failure", async () => {
@@ -623,6 +721,7 @@ describe("OCR job workflow", () => {
       evaluateSmartNotifications: jest.fn().mockResolvedValue(undefined),
     }));
     jest.doMock("../../services/ocrJob.service", () => ({
+      getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
       markOcrJobConfirmed,
     }));
 

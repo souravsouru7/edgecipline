@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { clearAdminSession, getAdminProfile, hasAdminSession } from "@/services/adminApi";
+import { getAdminProfile } from "@/services/adminApi";
 
 /**
  * Admin Layout – Route Protection
  * Wraps all /admin/* pages (except /admin/login).
- * Verifies admin token via API call, redirects to /admin/login if unauthorized.
+ * Verifies the admin cookie session via API, redirects if unauthorized.
  */
 export default function AdminLayout({ children }) {
   const router = useRouter();
@@ -24,12 +24,6 @@ export default function AdminLayout({ children }) {
     }
 
     const verifyAdmin = async () => {
-      if (!hasAdminSession()) {
-        router.replace("/admin/login");
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const profile = await getAdminProfile();
         if (profile && profile.role === "admin") {

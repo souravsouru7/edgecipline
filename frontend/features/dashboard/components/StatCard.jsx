@@ -1,9 +1,10 @@
 "use client";
 
 import { memo, useCallback, useState } from "react";
+import Link from "next/link";
 import { Skeleton } from "@/features/shared";
 
-function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = false, tooltip }) {
+function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = false, tooltip, href }) {
   const [showTip, setShowTip] = useState(false);
   const handleEnter = useCallback(() => setShowTip(true), []);
   const handleLeave = useCallback(() => setShowTip(false), []);
@@ -31,13 +32,19 @@ function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = f
   }
 
   const displayValue = (value !== undefined && value !== null && !Number.isNaN(value)) ? value : (value || 0);
+  const Wrapper = href ? Link : "div";
+  const wrapperProps = href ? { href, style: { textDecoration: "none", color: "inherit" } } : {};
   return (
-    <div
+    <Wrapper
+      {...wrapperProps}
       style={{
         background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0",
         flex: "1 1 160px", overflow: "visible",
         boxShadow: "0 2px 12px rgba(15,25,35,0.06), 0 1px 3px rgba(15,25,35,0.04)",
         animation: `fadeUp 0.5s ease ${delay}s both`, position: "relative",
+        display: "block", color: "inherit", textDecoration: "none",
+        cursor: href ? "pointer" : "default",
+        ...(wrapperProps.style || {}),
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
@@ -83,7 +90,7 @@ function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = f
           <div style={{ position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)", width: 10, height: 10, background: "#0F1923", clipPath: "polygon(0 0, 100% 0, 50% 100%)" }} />
         </div>
       )}
-    </div>
+    </Wrapper>
   );
 }
 

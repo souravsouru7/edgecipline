@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,11 @@ import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { MARKETS } from "@/context/MarketContext";
 import { useToast } from "@/features/shared/components/ui/Toast";
-import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import {
+  invalidateTradeDependentQueries,
+  TRADE_QUERY_FRESHNESS_OPTIONS,
+} from "@/utils/queryInvalidation";
+import { markOnboardingStep } from "@/services/api";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -24,6 +28,8 @@ const getTodayInputValue = () => {
  */
 export function useAddTrade(marketType, isIndianMarket) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
@@ -90,6 +96,7 @@ export function useAddTrade(marketType, isIndianMarket) {
       }
       return [];
     },
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
   });
 
   // 2. Submit Trade via useMutation
@@ -97,11 +104,18 @@ export function useAddTrade(marketType, isIndianMarket) {
     mutationFn: (data) => createTrade(data, marketType),
     onSuccess: () => {
       invalidateTradeDependentQueries(queryClient);
-      
+
       addToast("Trade created and synced successfully!", "success");
-      
+
+      markOnboardingStep("tradeAdded", true).catch(() => {});
+
       setTimeout(() => {
-        router.push(marketType === MARKETS.INDIAN_MARKET ? "/indian-market/dashboard" : "/dashboard");
+        const isInd = marketType === MARKETS.INDIAN_MARKET;
+        if (onboardingMode) {
+          router.push(isInd ? "/indian-market/trades?onboarding=1" : "/trades?onboarding=1");
+          return;
+        }
+        router.push(isInd ? "/indian-market/dashboard" : "/dashboard");
       }, 1000);
     },
     onError: (err) => {

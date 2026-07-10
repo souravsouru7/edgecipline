@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { X, Upload, AlertCircle, CheckCircle2, Loader2, Trash2, WifiOff } from "lucide-react";
 import { submitIssueReport, ISSUE_CATEGORIES } from "@/services/issueApi";
 import { useToast } from "@/features/shared/components/ui/Toast";
+import FocusTrap from "@/features/shared/components/FocusTrap";
 
 const MAX_SCREENSHOTS = 8;
 const MAX_DESCRIPTION = 4000;
@@ -238,10 +239,10 @@ export default function IssueReportModal({
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(2, 6, 16, 0.72)",
-          backdropFilter: "blur(4px)",
+          background: "rgba(2, 6, 16, 0.78)",
         }}
       />
+      <FocusTrap>
       <div
         role="dialog"
         aria-modal="true"
@@ -546,6 +547,7 @@ export default function IssueReportModal({
           animation: spin 0.9s linear infinite;
         }
       `}</style>
+      </FocusTrap>
     </div>
   );
 }

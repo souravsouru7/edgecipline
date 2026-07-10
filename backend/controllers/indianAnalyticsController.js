@@ -61,6 +61,17 @@ const userQuery = (req) => {
   return { user: req.user._id, instrumentType, deletedAt: null };
 };
 
+// Hard cap on trades pulled into Node memory by any single analytics endpoint.
+// Beyond this we'd risk OOM on power users. TODO(perf): migrate aggregations
+// to $group pipelines so the cap can be removed.
+const ANALYTICS_TRADE_CAP = 10000;
+
+// IST is UTC+5:30. We bucket all Indian-market timestamps in IST, never in
+// the server's local zone (servers run UTC; local methods misbucket trades
+// near IST midnight). Shift the wall-clock to IST then use getUTC* methods.
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+const toIst = (d) => new Date(new Date(d).getTime() + IST_OFFSET_MS);
+
 // ========== BASIC ANALYTICS ==========
 
 exports.getSummary = asyncHandler(async (req, res) => {
@@ -78,6 +89,7 @@ exports.getSummary = asyncHandler(async (req, res) => {
       totalTrades: performance.totalTrades,
       totalProfit: fixed(performance.grossPnL),
       netProfit: fixed(performance.netPnL),
+      netPnL: fixed(performance.netPnL),
       winRate: fixed(performance.winRate, 1),
       avgTrade: fixed(performance.avgPnL),
       avgWin: fixed(performance.avgWin),
@@ -128,7 +140,7 @@ exports.getPnLBreakdown = asyncHandler(async (req, res) => {
 
 exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
     const tradesWithRR = trades.filter(t => t.stopLoss && t.takeProfit && t.entryPrice);
 
     const winningTrades = trades.filter(t => t.profit > 0);
@@ -233,7 +245,7 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 
 exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
 
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
@@ -292,15 +304,15 @@ exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
 
 exports.getTimeAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const byMonth = {};
     const byDate = {};
     trades.forEach(t => {
-      const date = new Date(t.tradeDate || t.createdAt);
-      const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const date = toIst(t.tradeDate || t.createdAt);
+      const key = `${monthNames[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+      const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
       if (!byMonth[key]) byMonth[key] = { total: 0, wins: 0, losses: 0, profit: 0, avgProfit: 0 };
       if (!byDate[dateKey]) byDate[dateKey] = { total: 0, wins: 0, losses: 0, profit: 0 };
       byMonth[key].total++;
@@ -333,7 +345,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     };
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     trades.forEach(t => {
-      const day = dayNames[new Date(t.tradeDate || t.createdAt).getDay()];
+      const day = dayNames[toIst(t.tradeDate || t.createdAt).getUTCDay()];
       if (byDay[day]) {
         byDay[day].total++;
         if (t.profit > 0) byDay[day].wins++;
@@ -453,7 +465,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
 
 exports.getTradeQuality = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
 
     const rrRanges = [
       { label: "0-0.5R", min: 0, max: 0.5, trades: [] },
@@ -518,7 +530,7 @@ exports.getTradeQuality = asyncHandler(async (req, res) => {
 
 exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
 
     if (trades.length === 0) {
       return res.json({
@@ -577,7 +589,7 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
 
 exports.getAIInsights = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
 
     if (trades.length < 5) {
       return res.json({
@@ -657,7 +669,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
     const dayStats = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0 };
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     trades.forEach(t => {
-      const day = dayNames[new Date(t.tradeDate || t.createdAt).getDay()];
+      const day = dayNames[toIst(t.tradeDate || t.createdAt).getUTCDay()];
       if (dayStats[day] !== undefined) dayStats[day] += t.profit || 0;
     });
     const bestDay = Object.entries(dayStats).reduce((a, b) => (a[1] > b[1] ? a : b));
@@ -700,9 +712,11 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
     const weeklyPlan = {};
     trades.forEach(t => {
-      const d = new Date(t.tradeDate || t.createdAt);
-      const year = d.getFullYear();
-      const week = Math.ceil(((d - new Date(year, 0, 1)) / 86400000 + d.getDay() + 1) / 7);
+      const d = toIst(t.tradeDate || t.createdAt);
+      const year = d.getUTCFullYear();
+      const week = Math.ceil(
+        ((d - Date.UTC(year, 0, 1)) / 86400000 + d.getUTCDay() + 1) / 7
+      );
       const key = `${year}-W${week}`;
       if (!weeklyPlan[key]) weeklyPlan[key] = { total: 0, plan: 0, pnl: 0 };
       weeklyPlan[key].total += 1;
@@ -874,7 +888,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
 exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
 
     const totalTrades = trades.length;
     const totalProfit = trades.reduce((acc, t) => acc + (t.profit || 0), 0);
@@ -957,7 +971,7 @@ exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
 
 exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 });
+    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
 
     if (trades.length === 0) {
       return res.json({
@@ -1188,4 +1202,3 @@ exports.getPsychologyCost = asyncHandler(async (req, res) => {
     throw new ApiError(500, error.message);
   }
 });
-

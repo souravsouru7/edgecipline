@@ -4,11 +4,24 @@ const { TRADE_CACHE_EVENTS, getTradeCacheVersion, invalidateTradeCaches } = requ
 const Trade = require("../models/Trade");
 const tradeRepository = require("../repositories/trade.repository");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
+const { onTradeSaved, onTradeDeleted, onTradeUpdated } = require("./missionProgressService");
+const streakService = require("./streak.service");
+const onboardingService = require("./onboardingService");
+const { handleStreakEvents } = require("./streakNotification.service");
 const tradeLifecycleService = require("./tradeLifecycle.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
-const { markOcrJobConfirmed } = require("./ocrJob.service");
+const {
+  getOcrConfirmationTrades,
+  markOcrJobConfirmed,
+} = require("./ocrJob.service");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
 const { logger } = require("../utils/logger");
+const { pickForexTradeFields } = require("../utils/tradeFieldAllowlist");
+const {
+  deriveForexProfit,
+  trustedOcrProfitForTrade,
+} = require("../utils/tradeProfit");
+const { buildPagination } = require("../utils/apiResponse");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -55,15 +68,26 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
 
-  const { ocrJobId, ...tradePayload } = payload;
+  const ocrJobId = payload.ocrJobId;
+  const tradePayload = pickForexTradeFields(payload);
+  const derivedProfit = deriveForexProfit(tradePayload);
+  if (derivedProfit !== null) {
+    tradePayload.profit = derivedProfit;
+  } else if (ocrJobId) {
+    const extractedTrades = await getOcrConfirmationTrades(userId, ocrJobId, "Forex");
+    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades);
+    if (trustedProfit !== null) tradePayload.profit = trustedProfit;
+  }
+  const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
   const trade = await tradeRepository.createTrade({
     ...tradePayload,
     type: normalizeTradeType(payload.type),
-    tradeDate: normalizeTradeDate(payload.tradeDate, { accountCreatedAt }),
+    tradeDate: normalizedTradeDate,
+    effectiveTradeDate: normalizedTradeDate,
     user: userId,
-    status: payload.status || "completed",
-    error: payload.error ?? null,
-    processedAt: payload.processedAt || new Date(),
+    status: "completed",
+    error: null,
+    processedAt: new Date(),
   });
 
   await invalidateTradeCaches({
@@ -79,6 +103,16 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     marketType: "Forex",
     collection: "forex",
   });
+  await updateStreaksForTrade(userId, trade);
+  onTradeSaved(userId, trade).catch(err =>
+    logger.warn("MISSION_PROGRESS_TRADE_SAVE_FAILED", { error: err?.message })
+  );
+  // Onboarding activation: stamp first-trade timestamps and flip the
+  // tradeAdded flag. Fire-and-forget so a failed write never breaks the
+  // trade save — the dashboard derivation will catch up regardless.
+  onboardingService
+    .markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
+    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
   if (ocrJobId) {
     await markOcrJobConfirmed(userId, ocrJobId, {
       tradeId: trade._id,
@@ -88,7 +122,25 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
   return trade;
 }
 
-function buildCreateTradeDocument(userId, payload, { accountCreatedAt } = {}) {
+// Record the trade into the daily discipline index and recompute streaks.
+// Side-effects only (push notifications) are fire-and-forget — streak math
+// errors should never break a trade save.
+async function updateStreaksForTrade(userId, trade) {
+  try {
+    const result = await streakService.recordTradeAndRecompute(userId, trade);
+    handleStreakEvents(userId, result.events).catch((err) =>
+      logger.warn("STREAK_EVENTS_HANDLER_FAILED", { error: err?.message })
+    );
+  } catch (err) {
+    logger.warn("STREAK_UPDATE_FAILED", { userId: String(userId), error: err?.message });
+  }
+}
+
+function buildCreateTradeDocument(
+  userId,
+  payload,
+  { accountCreatedAt, extractedTrades = [], tradeIndex = 0 } = {}
+) {
   if (!payload.pair) {
     throw new ApiError(400, "Pair is required", "VALIDATION_ERROR");
   }
@@ -99,15 +151,24 @@ function buildCreateTradeDocument(userId, payload, { accountCreatedAt } = {}) {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
 
-  const { ocrJobId, ...tradePayload } = payload;
+  const tradePayload = pickForexTradeFields(payload);
+  const derivedProfit = deriveForexProfit(tradePayload);
+  if (derivedProfit !== null) {
+    tradePayload.profit = derivedProfit;
+  } else {
+    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
+    if (trustedProfit !== null) tradePayload.profit = trustedProfit;
+  }
+  const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
   return {
     ...tradePayload,
     type: normalizeTradeType(payload.type),
-    tradeDate: normalizeTradeDate(payload.tradeDate, { accountCreatedAt }),
+    tradeDate: normalizedTradeDate,
+    effectiveTradeDate: normalizedTradeDate,
     user: userId,
-    status: payload.status || "completed",
-    error: payload.error ?? null,
-    processedAt: payload.processedAt || new Date(),
+    status: "completed",
+    error: null,
+    processedAt: new Date(),
   };
 }
 
@@ -121,7 +182,14 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
   }
 
   const ocrJobId = payload.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
-  const docs = trades.map((trade) => buildCreateTradeDocument(userId, trade, { accountCreatedAt }));
+  const extractedTrades = ocrJobId
+    ? await getOcrConfirmationTrades(userId, ocrJobId, "Forex")
+    : [];
+  const docs = trades.map((trade, tradeIndex) => buildCreateTradeDocument(userId, trade, {
+    accountCreatedAt,
+    extractedTrades,
+    tradeIndex,
+  }));
   const createdTrades = await tradeRepository.createTrades(docs);
 
   await invalidateTradeCaches({
@@ -142,12 +210,31 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
       collection: "forex",
     });
   }
+  // Index every trade individually for streak purposes — bulk imports may
+  // span multiple days and we want each day's entry to reflect reality.
+  for (const t of createdTrades) {
+    try { await streakService.recordTradeEvent(userId, t); } catch (e) {
+      logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+    }
+  }
+  try {
+    const recompute = await streakService.recomputeStreaks(userId);
+    handleStreakEvents(userId, recompute.events).catch(() => {});
+  } catch (e) {
+    logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
+  }
 
   if (ocrJobId && createdTrades[0]) {
     await markOcrJobConfirmed(userId, ocrJobId, {
       tradeId: createdTrades[0]._id,
       collection: "forex",
     });
+  }
+
+  if (createdTrades.length > 0) {
+    onboardingService
+      .markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
+      .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
   }
 
   return {
@@ -159,20 +246,25 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
 
 async function getTrades(userId, query) {
   const period = String(query.period || "all").toLowerCase();
-  const page   = Math.max(1, parseInt(query.page,  10) || 1);
-  const limit  = Math.min(200, Math.max(1, parseInt(query.limit, 10) || 50));
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 50;
   const periodStart = getPeriodStart(period);
   const version = await getTradeCacheVersion(userId);
   const key = buildCacheKey("trades", userId, `version=${version}`, "list", `period=${period}&page=${page}&limit=${limit}`);
   const startedAt = Date.now();
-  const { data: trades } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
-    const rows = await tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit });
-    return rows
-      .map((trade) => ({
+  const { data: result } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
+    const [rows, total] = await Promise.all([
+      tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit }),
+      tradeRepository.countForexTradesByUser(userId, { dateFrom: periodStart }),
+    ]);
+    return {
+      items: rows.map((trade) => ({
         ...trade,
         symbol: trade.pair ?? null,
         pnl: trade.profit ?? 0,
-      }));
+      })),
+      pagination: buildPagination({ page, limit, total }),
+    };
   });
   const duration = Date.now() - startedAt;
 
@@ -180,7 +272,7 @@ async function getTrades(userId, query) {
     console.warn(`[Performance] Slow DB query detected in getTrades: ${duration}ms`);
   }
 
-  return trades;
+  return result;
 }
 
 async function getTrade(userId, tradeId) {
@@ -262,17 +354,41 @@ function resolveTradeDateFromPayload(payload, { accountCreatedAt } = {}) {
 }
 
 async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) {
-  const update = Object.fromEntries(
-    Object.entries({ ...payload }).filter(([, value]) => value !== undefined)
-  );
+  const update = pickForexTradeFields(payload);
   if (payload.type) {
     update.type = normalizeTradeType(payload.type);
   }
   const normalizedTradeDate = resolveTradeDateFromPayload(payload, { accountCreatedAt });
   if (normalizedTradeDate !== undefined) {
     update.tradeDate = normalizedTradeDate;
+    update.effectiveTradeDate = normalizedTradeDate;
   } else {
     delete update.tradeDate;
+  }
+  if (Object.keys(update).length === 0) {
+    throw new ApiError(400, "No editable trade fields provided", "VALIDATION_ERROR");
+  }
+
+  const profitBasisFields = [
+    "profit", "pair", "type", "entryPrice", "exitPrice",
+    "lotSize", "quantity", "commission", "swap",
+  ];
+  const shouldDeriveProfit = profitBasisFields.some((field) =>
+    Object.prototype.hasOwnProperty.call(payload, field)
+  );
+
+  // Load the current calculation inputs when the P&L basis changes. The same
+  // query also supplies tradeImages for cleanup when that array is replaced.
+  let existing = null;
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages)) {
+    existing = await Trade.findOne({ _id: tradeId, user: userId })
+      .select("pair type entryPrice exitPrice lotSize quantity commission swap tradeImages")
+      .lean();
+  }
+
+  let derivedProfit;
+  if (shouldDeriveProfit) {
+    derivedProfit = deriveForexProfit({ ...(existing || {}), ...update });
   }
 
   // If client is replacing the tradeImages array, diff against the existing
@@ -280,9 +396,6 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
   // Cloudinary outage doesn't block the update.
   let removedImages = [];
   if (Array.isArray(update.tradeImages)) {
-    const existing = await Trade.findOne({ _id: tradeId, user: userId })
-      .select("tradeImages")
-      .lean();
     if (existing?.tradeImages?.length) {
       const keepIds = new Set(
         update.tradeImages
@@ -293,7 +406,14 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     }
   }
 
-  const trade = await tradeRepository.updateForexTradeByUser(tradeId, userId, update);
+  const trade = shouldDeriveProfit
+    ? await tradeRepository.updateForexTradeByUser(
+        tradeId,
+        userId,
+        update,
+        { derivedProfit }
+      )
+    : await tradeRepository.updateForexTradeByUser(tradeId, userId, update);
   if (!trade) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
@@ -317,6 +437,12 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     marketType: "Forex",
     collection: "forex",
   });
+  // Edit may have added a setupScore or changed setupRules — refresh the
+  // discipline index for the affected day and recompute. Idempotent.
+  await updateStreaksForTrade(userId, trade);
+  onTradeSaved(userId, trade).catch(err =>
+    logger.warn("MISSION_PROGRESS_TRADE_UPDATE_FAILED", { error: err?.message })
+  );
   return trade;
 }
 
@@ -340,6 +466,9 @@ async function deleteTrade(userId, tradeId) {
     tradeId,
     source: "manual_delete",
   });
+  onTradeDeleted(userId, trade).catch(err =>
+    logger.warn("MISSION_PROGRESS_TRADE_DELETE_FAILED", { error: err?.message })
+  );
   return { message: "Trade deleted", tradeId: trade._id, deletedAt: trade.deletedAt };
 }
 

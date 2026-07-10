@@ -17,6 +17,7 @@ import MarketSwitcher from "@/components/MarketSwitcher";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import apiClient from "@/services/apiClient";
 import { clearAuthToken } from "@/utils/auth";
+import { onUserLoggedOut } from "@/services/pushNotifications";
 
 const NAV_ITEMS = [
   { href: "/indian-market/dashboard", label: "Dashboard" },
@@ -43,6 +44,7 @@ export default function IndianMarketHeader() {
   };
 
   const handleLogout = async () => {
+    await onUserLoggedOut();
     try { await apiClient.post("/auth/logout"); } catch {}
     await clearAuthToken();
     await signOutFirebase();
@@ -55,9 +57,8 @@ export default function IndianMarketHeader() {
         position: "sticky", top: 0, zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 20px", height: 60,
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(16px)",
-        borderBottom: "1px solid #E8EDF2",
+        background: "rgba(240,238,233,0.97)",
+        borderBottom: "1px solid var(--color-border-subtle)",
         boxShadow: "0 1px 0 rgba(15,25,35,0.06)",
       }}>
 
@@ -79,7 +80,7 @@ export default function IndianMarketHeader() {
                 <Link key={n.href} href={n.href} className="im-hdr-link"
                   style={{
                     fontSize: 13, fontWeight: active ? 700 : 500,
-                    color: active ? "#0D9E6E" : "#4A5568",
+                    color: active ? "var(--color-primary)" : "#4A5568",
                     textDecoration: "none",
                     padding: "6px 12px", borderRadius: 6,
                     fontFamily: "'Plus Jakarta Sans',sans-serif",
@@ -128,10 +129,10 @@ export default function IndianMarketHeader() {
       <style jsx>{`
         .im-hdr-link:hover {
           background: rgba(13,158,110,0.06) !important;
-          color: #0D9E6E !important;
+          color: var(--color-primary) !important;
         }
         .im-hdr-logout:hover {
-          color: #D63B3B !important;
+          color: var(--color-error) !important;
           border-color: rgba(214,59,59,0.3) !important;
           background: rgba(214,59,59,0.05) !important;
         }

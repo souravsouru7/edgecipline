@@ -8,16 +8,17 @@ const {
 } = require("../../controllers/issueReportController");
 const { adminAuth } = require("../../middleware/adminAuth");
 const { adminDestructiveRateLimiter } = require("../../middleware/rateLimiter");
-const { validateObjectId } = require("../../middleware/validateObjectId");
+const { validateRequest } = require("../../middleware/validateRequest");
+const { issueSchemas } = require("../../validation/schemas");
 
 router.get("/analytics/summary", adminAuth, adminGetAnalytics);
-router.get("/", adminAuth, adminListIssues);
-router.get("/:id", adminAuth, validateObjectId("id"), adminGetIssue);
+router.get("/", adminAuth, validateRequest(issueSchemas.adminList), adminListIssues);
+router.get("/:id", adminAuth, validateRequest(issueSchemas.getById), adminGetIssue);
 router.patch(
   "/:id/status",
   adminAuth,
   adminDestructiveRateLimiter,
-  validateObjectId("id"),
+  validateRequest(issueSchemas.adminUpdate),
   adminUpdateIssueStatus
 );
 

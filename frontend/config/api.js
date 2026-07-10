@@ -1,39 +1,13 @@
-const DEFAULT_REMOTE_API_BASE_URL = "https://staging-api.stratedge.live";
-// const DEFAULT_REMOTE_API_BASE_URL = "http://localhost:5000";
-const isCapacitorRuntime = () => {
-  return typeof window !== "undefined" && !!window.Capacitor;
-};
+import { validateEnvironment } from "./environment";
 
-const isLocalhostUrl = (value) => {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value);
-};
-
-function normalizeApiBaseUrl(value) {
-  const raw = String(value || "").trim();
-  
-
-  if (!raw) {
-    return DEFAULT_REMOTE_API_BASE_URL;
-  }
-
-  const cleaned = raw.replace(/^\/+/, "").replace(/\/+$/, "");
-  const hasScheme = raw.startsWith("http://") || raw.startsWith("https://");
-  const isExplicitLocalhost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cleaned);
-
-
-  const normalized = hasScheme
-    ? raw.replace(/\/+$/, "")
-    : `${isExplicitLocalhost ? "http" : "https"}://${cleaned}`;
-
-  // Guard against env vars that include the /api suffix.
-  const withoutApiSuffix = normalized.replace(/\/api$/i, "");
-
-  if (isCapacitorRuntime() && isLocalhostUrl(withoutApiSuffix)) {
-    return DEFAULT_REMOTE_API_BASE_URL;
-  }
-
-  return withoutApiSuffix;
+let environment;
+try {
+  environment = validateEnvironment();
+} catch {
+  // EnvironmentGuard renders the actionable startup error. Empty URLs ensure
+  // no request can escape before that guard takes over.
+  environment = { apiBaseUrl: "", apiUrl: "" };
 }
 
-export const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
-export const API_URL = `${API_BASE_URL}/api`;
+export const API_BASE_URL = environment.apiBaseUrl;
+export const API_URL = environment.apiUrl;

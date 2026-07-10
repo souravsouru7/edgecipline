@@ -92,12 +92,12 @@ async function safeNotify(userId, payload) {
   try {
     return await notificationService.notifyUser(userId, payload);
   } catch (error) {
-    logger.warn("Smart notification failed to notify", {
+    logger.warn("Smart notification delivery will be retried", {
       userId: userId?.toString?.(),
       type:   payload.type,
       error:  error.message,
     });
-    return null;
+    throw error;
   }
 }
 
@@ -460,7 +460,11 @@ async function checkRepeatedMistake({ userId, trade, collection, marketType, tim
   const Model   = getTradeModel(collection);
   const timestamp = getTradeTimestamp(trade);
   const weekStart = getWeekStart(timestamp, timezone);
-  const regex   = new RegExp(`^${String(trade.mistakeTag).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+  // Cap raw mistakeTag length before building the regex — bounds ReDoS risk
+  // from a degenerate user-supplied tag. The DB still stores the full value;
+  // we just don't compile a 10K-character regex from it.
+  const rawTag = String(trade.mistakeTag).trim().slice(0, 200);
+  const regex  = new RegExp(`^${rawTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
   const count   = await Model.countDocuments({
     ...baseTradeQuery(userId, collection, marketType),
     tradeDate:  { $gte: weekStart },

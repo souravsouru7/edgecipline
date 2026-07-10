@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "saas-mvp-launcher",
+  "owner": "lactuphong",
+  "repo": "antigravity-awesome-skills",
+  "path": "plugins/antigravity-awesome-skills-claude/skills/saas-mvp-launcher",
+  "branch": "main",
+  "sha": "1fb70affd80e6241c00f6b8bbd940a7e1e391c49",
+  "source": "manual"
+}

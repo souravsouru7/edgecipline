@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { captureApiFailure } from '@/utils/monitoring';
 import { API_URL } from '@/config/api';
 import {
   clearAuthToken,
@@ -10,6 +11,14 @@ import {
 } from '@/utils/auth';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const unwrapApiEnvelope = (payload) =>
+  payload?.success === true && Object.prototype.hasOwnProperty.call(payload, 'data')
+    ? payload.data
+    : payload;
+
+const getApiError = (payload) => payload?.error || payload || {};
+const getApiErrorCode = (payload) => getApiError(payload)?.code || payload?.errorCode;
 
 // ---------------------------------------------------------------------------
 // L14: Client-side sliding-window rate limiter
@@ -80,6 +89,27 @@ const refreshClient = axios.create({
 });
 
 function applyNativeClientHeaders(config = {}) {
+  const getStableId = (storage, key) => {
+    if (typeof window === 'undefined') return 'server';
+    try {
+      let value = storage.getItem(key);
+      if (!value) {
+        value = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        storage.setItem(key, value);
+      }
+      return value;
+    } catch {
+      return 'storage-unavailable';
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    config.headers = {
+      ...(config.headers || {}),
+      'X-Device-ID': getStableId(window.localStorage, 'edgecipline:device-id'),
+      'X-Session-ID': getStableId(window.sessionStorage, 'edgecipline:session-id'),
+    };
+  }
   if (isNativeCapacitor()) {
     config.headers = {
       ...(config.headers || {}),
@@ -175,9 +205,9 @@ function publishRefreshSuccess(token) {
   }
 }
 
-async function waitForPeerRefresh(timeoutMs = REFRESH_WAIT_TIMEOUT_MS) {
+async function waitForPeerRefresh(timeoutMs = REFRESH_WAIT_TIMEOUT_MS, excludeToken = null) {
   const existing = getValidToken() || await hydrateAuthToken();
-  if (existing) return Promise.resolve(existing);
+  if (existing && existing !== excludeToken) return Promise.resolve(existing);
 
   ensureAuthSync();
   return new Promise((resolve) => {
@@ -188,7 +218,8 @@ async function waitForPeerRefresh(timeoutMs = REFRESH_WAIT_TIMEOUT_MS) {
 
     function done(token) {
       clearTimeout(timer);
-      resolve(token || getValidToken() || null);
+      const resolved = token || getValidToken() || null;
+      resolve(resolved === excludeToken ? null : resolved);
     }
 
     _peerRefreshWaiters.push(done);
@@ -244,7 +275,7 @@ export function isAuthRefreshTransientError(error) {
 
 function isTerminalRefreshFailure(error) {
   const status = error?.response?.status || error?.status;
-  const errorCode = error?.response?.data?.errorCode || error?.data?.errorCode;
+  const errorCode = getApiErrorCode(error?.response?.data || error?.data);
   return (
     status === 401 ||
     status === 403 ||
@@ -300,12 +331,13 @@ apiClient.interceptors.request.use(
 // ---------------------------------------------------------------------------
 apiClient.interceptors.response.use(
   // Unwrap response.data so callers receive the payload directly
-  (response) => response.data,
+  (response) => unwrapApiEnvelope(response.data),
 
   async (error) => {
     const config = error.config;
 
     if (!error.response) {
+      captureApiFailure(error);
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       return Promise.reject(
         new Error(isTimeout ? 'Request timed out. Please try again.' : 'Network error. Please check your connection.')
@@ -316,7 +348,7 @@ apiClient.interceptors.response.use(
 
     if (
       status === 403 &&
-      error.response.data?.errorCode === 'TERMS_NOT_ACCEPTED' &&
+      getApiErrorCode(error.response.data) === 'TERMS_NOT_ACCEPTED' &&
       config?.skipTermsRedirect !== true
     ) {
       handleTermsRequired();
@@ -330,7 +362,7 @@ apiClient.interceptors.response.use(
       // Never auto-retry credential endpoints — retrying burns more rate-limit budget
       // and provides no benefit (a 429 on login means the user is locked out, not that
       // the request should be transparently retried).
-      if (isAuthEntryPath(config.url)) {
+      if (isAuthEntryPath(config.url) || config.skipRateLimitRetry === true) {
         return Promise.reject(buildError(error));
       }
 
@@ -376,7 +408,7 @@ apiClient.interceptors.response.use(
         // all share one refresh request instead of each firing independently.
         // Without this, concurrent refreshes trigger replay-attack detection on
         // the backend and the entire token family gets revoked, logging the user out.
-        const newToken = await silentRefresh();
+        const newToken = await silentRefresh({ force: true });
 
         if (!newToken) throw new Error('No token in refresh response');
 
@@ -401,6 +433,7 @@ apiClient.interceptors.response.use(
       }
     }
 
+    captureApiFailure(error);
     return Promise.reject(buildError(error));
   }
 );
@@ -416,10 +449,17 @@ function parseRetryAfter(headers) {
 
 function buildError(axiosError) {
   const res = axiosError.response;
-  const msg = res?.data?.message || `Request failed with status ${res?.status ?? 'unknown'}`;
+  const apiError = getApiError(res?.data);
+  const msg = apiError?.message || `Request failed with status ${res?.status ?? 'unknown'}`;
   const err = new Error(msg);
   err.status = res?.status;
-  err.data = res?.data;
+  err.data = {
+    ...(res?.data || {}),
+    message: apiError?.message,
+    errorCode: apiError?.code || res?.data?.errorCode,
+    details: apiError?.details || res?.data?.details,
+    requestId: apiError?.requestId || res?.data?.requestId,
+  };
   err.retryAfterSeconds = parseRetryAfter(res?.headers);
   return err;
 }
@@ -464,16 +504,16 @@ function handleTermsRequired() {
 let _refreshInFlight = null;
 
 async function executeRefreshRequest() {
-  console.info('[Auth] refresh:start', {
+  console.info('AUTH_REFRESH_START', {
     at: new Date().toISOString(),
     tokenState: getAuthDiagnostics(),
   });
   const res = await refreshClient.post('/auth/refresh');
-  const token = res.data?.token;
+  const token = unwrapApiEnvelope(res.data)?.token;
   if (token) {
     await setAuthToken(token);
     publishRefreshSuccess(token);
-    console.info('[Auth] refresh:success', {
+    console.info('AUTH_REFRESH_SUCCESS', {
       at: new Date().toISOString(),
       tokenState: getAuthDiagnostics(),
     });
@@ -489,7 +529,7 @@ async function executeRefreshRequest() {
 function isRefreshRace(error) {
   return (
     error?.response?.status === 409 &&
-    error?.response?.data?.errorCode === 'REFRESH_TOKEN_RACE'
+    getApiErrorCode(error?.response?.data) === 'REFRESH_TOKEN_RACE'
   );
 }
 
@@ -498,13 +538,13 @@ function isRefreshRace(error) {
  * Returns the new access token string or null if no valid session exists.
  * Concurrent callers share the same in-flight request rather than racing.
  */
-export function silentRefresh() {
+export function silentRefresh({ force = false } = {}) {
   console.info('[Auth] silentRefresh:start', {
     at: new Date().toISOString(),
     tokenState: getAuthDiagnostics(),
   });
   const existing = getValidToken();
-  if (existing) {
+  if (existing && !force) {
     console.info('[Auth] silentRefresh:existing-token', {
       at: new Date().toISOString(),
       tokenState: getAuthDiagnostics(),
@@ -515,10 +555,11 @@ export function silentRefresh() {
 
   _refreshInFlight = (async () => {
     let lockOwner = false;
+    const tokenBeforeRefresh = existing;
 
     try {
-      const hydrated = await hydrateAuthToken();
-      if (hydrated) {
+      const hydrated = force ? null : await hydrateAuthToken();
+      if (hydrated && !force) {
         console.info('[Auth] silentRefresh:hydrated-token', {
           at: new Date().toISOString(),
           tokenState: getAuthDiagnostics(),
@@ -529,7 +570,7 @@ export function silentRefresh() {
       lockOwner = tryAcquireRefreshLock();
 
       if (!lockOwner) {
-        const peerToken = await waitForPeerRefresh();
+        const peerToken = await waitForPeerRefresh(REFRESH_WAIT_TIMEOUT_MS, tokenBeforeRefresh);
         if (peerToken) return peerToken;
 
         lockOwner = tryAcquireRefreshLock();
@@ -540,7 +581,7 @@ export function silentRefresh() {
       } catch (error) {
         if (isRefreshRace(error)) {
           console.warn('[Auth] refresh:race', { at: new Date().toISOString() });
-          const peerToken = await waitForPeerRefresh();
+          const peerToken = await waitForPeerRefresh(REFRESH_WAIT_TIMEOUT_MS, tokenBeforeRefresh);
           if (peerToken) return peerToken;
 
           await sleep(250);
@@ -548,7 +589,7 @@ export function silentRefresh() {
         }
         if (!isTerminalRefreshFailure(error)) {
           const reason = getRefreshFailureReason(error);
-          console.warn('[Auth] refresh:transient-failure', {
+          console.warn(reason.includes('timed out') ? 'AUTH_REFRESH_TIMEOUT' : 'AUTH_REFRESH_FAILED', {
             at: new Date().toISOString(),
             status: error?.response?.status || error?.status || 0,
             reason,
@@ -559,7 +600,7 @@ export function silentRefresh() {
         console.warn('[Auth] refresh:terminal-failure', {
           at: new Date().toISOString(),
           status: error?.response?.status || error?.status || 0,
-          errorCode: error?.response?.data?.errorCode || error?.data?.errorCode,
+          errorCode: getApiErrorCode(error?.response?.data || error?.data),
           tokenState: getAuthDiagnostics(),
         });
         return null;

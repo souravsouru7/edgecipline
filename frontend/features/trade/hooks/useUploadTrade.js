@@ -12,6 +12,7 @@ import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { markOnboardingStep } from "@/services/api";
 
 const DEFAULT_SETUP_RULES = [];
 const OCR_STORAGE_KEY_PATTERN = /(ocr|upload.*trade|trade.*upload|extracted|draft)/i;
@@ -386,6 +387,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [showCustomRR, setShowCustomRR]       = useState(false);
   const [setupRules, setSetupRules]           = useState(DEFAULT_SETUP_RULES);
   const [extractedText, setExtractedText]     = useState("");
+  const [extractionInsights, setExtractionInsights] = useState(null);
   const [activeToastId, setActiveToastId]     = useState(null);
   const [preExtractDate, setPreExtractDate]   = useState(getTodayInputValue());
   const [isCancellingUpload, setIsCancellingUpload] = useState(false);
@@ -584,6 +586,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     setSaved(false);
     setSetupRules(DEFAULT_SETUP_RULES);
     setExtractedText("");
+    setExtractionInsights(null);
     if (clearError) setError(null);
     if (resetDate) setPreExtractDate(getTodayInputValue());
     if (!keepFile) setFile(nextFile);
@@ -658,7 +661,18 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       payload?.parsedData?.parsedTrades || payload?.parsedTrades || []
     );
     const imageUrl = payload?.imageUrl || payload?.screenshot || "";
-    const withStatusTradeDate = (row = {}) => ({ ...row, tradeDate: preExtractDate || undefined });
+    setExtractionInsights({
+      brokerType: payload?.brokerType || null,
+      detectedMarket: payload?.detectedMarket || null,
+      imageQuality: payload?.imageQuality || null,
+      confidenceReport: payload?.confidenceReport || null,
+      needsReview: Boolean(payload?.needsReview),
+      extractedValues: parsedTradesPayload.length ? parsedTradesPayload : p,
+    });
+    const withStatusTradeDate = (row = {}) => ({
+      ...row,
+      tradeDate: row.tradeDate || preExtractDate || undefined,
+    });
     setExtractedText(payload?.extractedText || "");
 
     if (isInd) {
@@ -885,7 +899,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           updated[idx] = true;
           if (updated.every(Boolean)) {
              savedRef.current = true;
-             setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
+             {
+            markOnboardingStep("tradeAdded", true).catch(() => {});
+            const onboardingMode = searchParams?.get("onboarding") === "1";
+            const journalRoute = isInd ? "/indian-market/trades" : "/trades";
+            const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
+            setTimeout(() => router.push(dest), 1200);
+          }
           }
           return updated;
         });
@@ -895,7 +915,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         setUploadedJobId(null);
         processedTradeIdRef.current = null;
         userEditedFormRef.current = false;
-        setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
+        {
+            markOnboardingStep("tradeAdded", true).catch(() => {});
+            const onboardingMode = searchParams?.get("onboarding") === "1";
+            const journalRoute = isInd ? "/indian-market/trades" : "/trades";
+            const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
+            setTimeout(() => router.push(dest), 1200);
+          }
       }
     },
     onError: (err) => {
@@ -1101,7 +1127,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   return {
     file, setFile: handleFileSelect, trade, setTrade, trades, savedTrades, loading, error, setError,
-    extractedText, strategies, setupsLoading, jobId, processingStatus, mounted, saved,
+    extractedText, extractionInsights, strategies, setupsLoading, jobId, processingStatus, mounted, saved,
     showCustomRR, setShowCustomRR, broker, setBroker, setupRules, isInd, marketType,
     tradeCount, tradeSubType, setTradeSubType,
     savingAll: saveTradeMutation.isPending || isBatchSaving,
@@ -1124,7 +1150,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         tradeDate: trade.tradeDate,
       });
     },
-    saveIndianTrade: (idx) => {
+    saveExtractedTrade: (idx) => {
       if (saveTradeMutation.isPending || savedTrades[idx]) return;
       const row = trades[idx];
       if (!canSaveTrade(row)) return;
@@ -1218,7 +1244,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           invalidateTradeDependentQueries(queryClient);
           removeToast(toastId);
           addToast(`${batchPayload.length} trades imported successfully!`, "success");
-          setTimeout(() => router.push(isInd ? "/indian-market/trades" : "/trades"), 1200);
+          {
+            markOnboardingStep("tradeAdded", true).catch(() => {});
+            const onboardingMode = searchParams?.get("onboarding") === "1";
+            const journalRoute = isInd ? "/indian-market/trades" : "/trades";
+            const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
+            setTimeout(() => router.push(dest), 1200);
+          }
         } catch (err) {
           removeToast(toastId);
           addToast(err?.message || "Batch import failed. Please review and try again.", "error");

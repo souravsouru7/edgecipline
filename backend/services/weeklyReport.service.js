@@ -2,6 +2,7 @@ const ApiError = require("../utils/ApiError");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 const { generateWeeklyFeedback } = require("./geminiService");
+const { onWeeklyReportSaved } = require("./missionProgressService");
 const weeklyReportRepository = require("../repositories/weeklyReport.repository");
 const analyticsSnapshotService = require("./analyticsSnapshotService");
 const { notifyWeeklyInsight } = require("./smartNotificationEvaluator");
@@ -369,6 +370,8 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
         error: notificationError.message,
       });
     }
+    const weekKey = `${updatedReport.weekStart?.toISOString?.()?.slice?.(0, 10) || "unknown"}`;
+    onWeeklyReportSaved(userId, weekKey).catch(() => {});
     return updatedReport;
   } catch (aiError) {
     logger.warn("[WeeklyReport] AI generation failed, saving report without AI feedback", { error: aiError.message });

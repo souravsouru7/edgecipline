@@ -46,6 +46,11 @@ function timeoutMiddleware(req, res, next) {
         timeout: `${timeout}ms`,
       });
     }
+    // Tear down the underlying socket so the handler's outstanding DB queries
+    // and external calls actually stop consuming resources after the client
+    // has been told their request timed out. Without this, a slow handler
+    // keeps running to completion off-screen.
+    try { req.socket?.destroy(); } catch { /* ignore */ }
   }, timeout);
 
   // Clean up timeout when response finishes
@@ -93,6 +98,7 @@ function timeoutMiddleware(req, res, next) {
             timeout: `${newMs}ms`,
           });
         }
+        try { req.socket?.destroy(); } catch { /* ignore */ }
       }, newMs);
     },
   };

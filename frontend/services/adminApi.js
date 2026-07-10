@@ -1,17 +1,7 @@
 import { API_URL as BASE_URL } from "@/config/api";
 
-const ADMIN_TOKEN_KEY = "admin_token";
-
-const getAdminToken = () => {
-  if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(ADMIN_TOKEN_KEY);
-};
-
-/** True when a Bearer token is stored (required for cross-origin admin UI). */
-export const hasAdminSession = () => Boolean(getAdminToken());
 export const clearAdminSession = async () => {
   if (typeof window === "undefined") return;
-  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem("adminName");
   try {
     await fetch(`${BASE_URL}/admin/auth/logout`, {
@@ -28,25 +18,24 @@ const handleResponse = async (res) => {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
       if (typeof window !== "undefined") {
-        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
         localStorage.removeItem("adminName");
       }
     }
-    throw new Error(data.message || `Request failed with status ${res.status}`);
+    throw new Error(data.error?.message || data.message || `Request failed with status ${res.status}`);
   }
-  return res.json();
+  const payload = await res.json();
+  return payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
+    ? payload.data
+    : payload;
 };
 
-/** Shared fetch wrapper — sends Bearer token if available, falls back to cookie. */
+/** Shared fetch wrapper for the httpOnly admin cookie session. */
 const adminFetch = (url, options = {}) => {
-  const token = getAdminToken();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   return fetch(`${BASE_URL}${url}`, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...authHeader,
       ...(options.headers || {}),
     },
   });
@@ -55,18 +44,14 @@ const adminFetch = (url, options = {}) => {
 /**
  * Admin Login
  * POST /api/admin/auth/login
- * Stores the returned JWT in sessionStorage for subsequent requests.
+ * The server establishes the session in an httpOnly cookie.
  */
 export const adminLogin = async ({ email, password }) => {
   const res = await adminFetch("/admin/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  const data = await handleResponse(res);
-  if (data?.token && typeof window !== "undefined") {
-    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
-  }
-  return data;
+  return handleResponse(res);
 };
 
 /**
@@ -74,9 +59,6 @@ export const adminLogin = async ({ email, password }) => {
  * GET /api/admin/auth/me
  */
 export const getAdminProfile = async () => {
-  if (!getAdminToken()) {
-    throw new Error("No admin session");
-  }
   const res = await adminFetch("/admin/auth/me");
   return handleResponse(res);
 };

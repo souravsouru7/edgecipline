@@ -17,6 +17,9 @@ const blockedPathPatterns = [
   /\.log$/i,
   /(^|\/)(tmp|temp|cache|artifacts|uploads|backups|scratch|reports)\//i,
   /\.(apk|aab|ipa|tsbuildinfo)$/i,
+  /\.(jks|keystore|p12|pfx)$/i,
+  /(^|\/)(local|keystore)\.properties$/i,
+  /(^|\/)android\.zip$/i,
   /uri_output\.txt$/i,
 ];
 
@@ -35,6 +38,11 @@ const secretPatterns = [
   { name: "Google API key", pattern: /AIza[0-9A-Za-z_-]{20,}/ },
   { name: "OpenAI API key", pattern: /sk-[A-Za-z0-9_-]{20,}/ },
   { name: "Private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  {
+    name: "Android signing password",
+    pattern: /\b(?:storePassword|keyPassword|MYAPP_RELEASE_(?:STORE|KEY)_PASSWORD)\s*=\s*(?!replace_|<|$)\S+/i,
+  },
+  { name: "Razorpay test key fallback", pattern: /\brzp_test_[0-9A-Za-z]+\b/ },
   {
     name: "Assigned secret-like value",
     pattern:
@@ -65,6 +73,9 @@ for (const file of trackedFiles) {
   }
 
   const fullPath = path.join(repoRoot, file);
+  if (!fs.existsSync(fullPath)) {
+    continue;
+  }
   const buffer = fs.readFileSync(fullPath);
   if (isProbablyBinary(buffer)) {
     continue;

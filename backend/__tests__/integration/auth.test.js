@@ -32,6 +32,7 @@ jest.mock('../../middleware/rateLimiter', () => {
 // Mock Redis client (used by timeout middleware and others)
 jest.mock('../../config/redis', () => ({
   connectRedis: jest.fn(),
+  isRedisReady: jest.fn(() => false),
   client: {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue('OK'),
@@ -113,7 +114,7 @@ const chainQuery = (value) => {
   const q = {};
   const methods = ['select', 'lean', 'sort', 'limit', 'skip', 'populate'];
   methods.forEach((m) => { q[m] = jest.fn().mockReturnValue(q); });
-  q.select.mockResolvedValue(value);
+  q.select.mockReturnValue(q);
   q.then    = (res, rej) => Promise.resolve(value).then(res, rej);
   q.catch   = (rej)      => Promise.resolve(value).catch(rej);
   q.finally = (fn)       => Promise.resolve(value).finally(fn);
@@ -322,7 +323,7 @@ describe('GET /api/auth/me', () => {
 
   test('valid Bearer token → 200 with user profile', async () => {
     const user = userDoc();
-    User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(user) });
+    User.findById.mockReturnValue(chainQuery(user));
 
     const token = jwt.sign(
       { id: TEST_USER_ID, role: 'user', tokenVersion: 0 },

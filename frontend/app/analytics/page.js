@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { markOnboardingStep } from "@/services/api";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
@@ -304,6 +305,9 @@ function buildPsychologyAnalyticsInterpretation({ moodRows, confRows, tagRows, w
 function AnalyticsContent({ section = "overview" }) {
   const isOverview = section === "overview";
   const queryClient = useQueryClient();
+  useEffect(() => {
+    if (isOverview) markOnboardingStep("analyticsSeen", true).catch(() => {});
+  }, [isOverview]);
   const {
     loading,
     coreLoading,

@@ -16,6 +16,8 @@
     "mojibake:fix-known": "node scripts/auditMojibakeRecords.js --fix-known",
     "security:scan": "node ../scripts/security-scan.js",
     "indexes:optimize": "node scripts/ensureOptimizationIndexes.js",
+    "indexes:audit": "node scripts/syncIndexes.js",
+    "indexes:backfill-effective-date": "node scripts/backfillEffectiveTradeDate.js",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:restart": "pm2 restart ecosystem.config.js",
     "pm2:stop": "pm2 stop ecosystem.config.js",
@@ -51,8 +53,10 @@
     "resend": "^6.12.4",
     "sharp": "^0.34.5",
     "streamifier": "^0.1.1",
+    "swagger-ui-express": "^5.0.1",
     "tesseract.js": "^7.0.0",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

@@ -40,5 +40,22 @@ module.exports = {
       time: true,
       merge_logs: true,
     },
+    {
+      name: "stratedge-staging-trading-dna-worker",
+      script: "./workers/tradingDnaWorker.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "production",
+        TRADING_DNA_QUEUE_NAME: "tradingDnaQueue-staging",
+      },
+      error_file: "./logs/pm2-staging-trading-dna-worker-error.log",
+      out_file: "./logs/pm2-staging-trading-dna-worker-out.log",
+      log_file: "./logs/pm2-staging-trading-dna-worker-combined.log",
+      time: true,
+      merge_logs: true,
+    },
   ],
 };

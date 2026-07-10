@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const ApiError = require("../utils/ApiError");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { captureOperationalError } = require("../config/sentry");
 
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
@@ -51,6 +52,18 @@ function errorHandler(err, req, res, next) {
     ? "Something went wrong"
     : normalizedError?.message || "Request failed";
 
+  if (/\/api\/auth\/(login|register|google)$/.test(req.originalUrl.split("?")[0])) {
+    logger.warn("AUTH_LOGIN_FAILURE", {
+      userId: null,
+      deviceId: String(req.headers["x-device-id"] || "").slice(0, 100) || null,
+      sessionId: String(req.headers["x-session-id"] || "").slice(0, 100) || null,
+      tokenFamilyId: null,
+      platform: String(req.headers["x-client-platform"] || "web").slice(0, 30),
+      statusCode,
+      errorCode,
+    });
+  }
+
   // Suppress noisy but expected 401s on /auth/refresh — no cookie = expected client probe,
   // not a real error worth logging every page load.
   const isSilentRefreshProbe =
@@ -59,22 +72,42 @@ function errorHandler(err, req, res, next) {
     (errorCode === "AUTH_REQUIRED" || errorCode === "REFRESH_TOKEN_EXPIRED");
 
   if (!isSilentRefreshProbe) {
+    // Stack traces are useful in dev and in CI logs, but in prod they get
+    // shipped to log aggregators that externalize internal file paths and
+    // module names. Sentry already captures the full stack for server errors
+    // below — the local log line doesn't need to duplicate it in prod.
+    const includeStack = appConfig.env !== "production";
     logger[isServerError ? "error" : "warn"](`Error in ${req.method} ${req.originalUrl}`, {
       statusCode,
       errorCode,
       message: normalizedError?.message,
-      stack: normalizedError?.stack,
+      ...(includeStack ? { stack: normalizedError?.stack } : {}),
       route: req.originalUrl,
       method: req.method,
       userAgent: req.get("user-agent"),
       ip: req.ip,
+      requestId: req.requestId,
     });
+    if (isServerError) {
+      captureOperationalError(normalizedError, {
+        subsystem: "express",
+        tags: {
+          error_code: errorCode,
+          method: req.method,
+          route: req.originalUrl.split("?")[0],
+          request_id: req.requestId,
+        },
+        extra: { statusCode, requestId: req.requestId, ip: req.ip },
+        userId: req.user?._id,
+      });
+    }
   }
 
   const payload = {
     status: "error",
     message: responseMessage,
     errorCode,
+    requestId: req.requestId,
   };
 
   if (normalizedError?.details) {

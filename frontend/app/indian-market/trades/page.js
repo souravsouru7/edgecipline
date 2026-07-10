@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { markOnboardingStep } from "@/services/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import OnboardingCompleteDialog from "@/features/onboarding/components/OnboardingCompleteDialog";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import { calculatePerformanceMetrics } from "@/utils/metricEngine";
@@ -511,6 +513,15 @@ export default function IndianTradesPage() {
   const queryClient = useQueryClient();
   const { ready } = useRequireAuth();
   const { currentMarket } = useMarket();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
+  const [completionDismissed, setCompletionDismissed] = useState(false);
+  const showOnboardingComplete = onboardingMode && !completionDismissed;
+
+  useEffect(() => {
+    if (!ready) return;
+    markOnboardingStep("journalSeen", true).catch(() => {});
+  }, [ready]);
   const [trades, setTrades]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -586,6 +597,32 @@ export default function IndianTradesPage() {
 
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
+        {onboardingMode && (
+          <div style={{
+            padding: "14px 16px", borderRadius: 12,
+            background: "linear-gradient(135deg, rgba(34,199,142,0.1), rgba(13,158,110,0.04))",
+            border: "1px solid rgba(34,199,142,0.3)",
+            marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: "rgba(34,199,142,0.2)", color: "#0D9E6E",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 900,
+            }}>🎉</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
+                ACTIVATION COMPLETE - YOUR JOURNAL
+              </div>
+              <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
+                Nice — you logged your first trade!
+              </div>
+              <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55 }}>
+                Every trade lives here. Filter by setup, date, or result. The more you log, the smarter your analytics get.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Page title + CTA */}
         <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -674,6 +711,12 @@ export default function IndianTradesPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+      {showOnboardingComplete && (
+        <OnboardingCompleteDialog
+          onClose={() => setCompletionDismissed(true)}
+          onDashboard={() => router.replace("/dashboard?onboarded=1")}
+        />
+      )}
 
       <style>{`
         @keyframes ticker    { from{transform:translateX(0)} to{transform:translateX(-50%)} }

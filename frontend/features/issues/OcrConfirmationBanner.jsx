@@ -16,18 +16,25 @@ import IssueReporterButton from "./IssueReporterButton";
  *   marketType    — "Forex" | "Indian_Market"
  *   module        — e.g. "upload-trade-forex"
  */
-export default function OcrConfirmationBanner({ ocrData, marketType, module }) {
-  if (!ocrData) return null;
+export default function OcrConfirmationBanner({ ocrData, insights, marketType, module }) {
+  if (!ocrData && !insights) return null;
+
+  const confidence = insights?.confidenceReport;
+  const decisionLabel = confidence?.decision === "AUTO_APPROVED"
+    ? "High confidence"
+    : confidence?.decision === "REVIEW_RECOMMENDED"
+      ? "Review recommended"
+      : "Verification required";
 
   const chips = [
-    ["Symbol", ocrData.symbol || ocrData.pair],
-    ["Entry", ocrData.entry ?? ocrData.entryPrice],
-    ["Exit", ocrData.exit ?? ocrData.exitPrice],
-    ["Stop Loss", ocrData.stopLoss],
-    ["Quantity", ocrData.quantity],
-    ["P/L", ocrData.profit],
-    ["Date", ocrData.date || ocrData.tradeDate],
-    ["Type", ocrData.tradeType || ocrData.type],
+    ["Symbol", ocrData?.symbol || ocrData?.pair],
+    ["Entry", ocrData?.entry ?? ocrData?.entryPrice],
+    ["Exit", ocrData?.exit ?? ocrData?.exitPrice],
+    ["Stop Loss", ocrData?.stopLoss],
+    ["Quantity", ocrData?.quantity],
+    ["P/L", ocrData?.profit],
+    ["Date", ocrData?.date || ocrData?.tradeDate],
+    ["Type", ocrData?.tradeType || ocrData?.type],
   ].filter(([, v]) => v !== undefined && v !== null && v !== "");
 
   return (
@@ -80,6 +87,23 @@ export default function OcrConfirmationBanner({ ocrData, marketType, module }) {
         </div>
       )}
 
+      {confidence && (
+        <div style={{ marginBottom: 12, padding: "9px 10px", borderRadius: 8, background: "rgba(15, 23, 42, 0.55)", color: "#cbd5e1", fontSize: 12 }}>
+          <strong>{confidence.score}/100 - {decisionLabel}</strong>
+          {insights?.brokerType && <span> | Broker: {insights.brokerType}</span>}
+          {insights?.imageQuality?.issues?.length > 0 && (
+            <div style={{ marginTop: 5, color: "#f59e0b" }}>
+              Image checks: {insights.imageQuality.issues.join(", ").replaceAll("_", " ")}
+            </div>
+          )}
+          {confidence.logic?.some((item) => item.failures?.length || item.warnings?.length) && (
+            <div style={{ marginTop: 5, color: "#f59e0b" }}>
+              Trade logic requires manual verification before saving.
+            </div>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -98,7 +122,12 @@ export default function OcrConfirmationBanner({ ocrData, marketType, module }) {
           defaultCategory="OCR_EXTRACTION"
           defaultModule={module || "ocr-extraction"}
           marketType={marketType || "Unknown"}
-          ocrDataSnapshot={ocrData}
+          ocrDataSnapshot={{
+            extractedValues: insights?.extractedValues || ocrData || {},
+            correctedValues: ocrData || {},
+            broker: insights?.brokerType,
+            extractionConfidence: confidence?.score,
+          }}
         />
       </div>
     </div>

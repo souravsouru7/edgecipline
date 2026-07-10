@@ -52,8 +52,11 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <a href="#main-content" className="skip-to-content">Skip to main content</a>
         <Providers>
-          {children}
+          <div id="main-content">
+            {children}
+          </div>
           <MobileBottomNav />
         </Providers>
         <script

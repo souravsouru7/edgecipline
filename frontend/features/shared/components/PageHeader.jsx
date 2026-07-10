@@ -3,13 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { CreditCard, LogOut } from "lucide-react";
 import MarketSwitcher from "@/components/MarketSwitcher";
+import PricingModal from "@/components/PricingModal";
+import TrialCountdownBanner from "@/components/TrialCountdownBanner";
+import RescueBanner from "@/components/RescueBanner";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import apiClient from "@/services/apiClient";
 import { clearAuthToken } from "@/utils/auth";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import MobileUserDrawer from "./MobileUserDrawer";
+import { onUserLoggedOut } from "@/services/pushNotifications";
 
 function getInitials(name) {
   if (!name) return "T";
@@ -39,9 +43,11 @@ export default function PageHeader({
   const router   = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
 
   const handleLogout = async () => {
+    await onUserLoggedOut();
     try { await apiClient.post("/auth/logout"); } catch {}
     await clearAuthToken();
     await signOutFirebase();
@@ -52,13 +58,14 @@ export default function PageHeader({
 
   return (
     <>
+      <TrialCountdownBanner onUpgrade={() => setPricingOpen(true)} />
+      <RescueBanner onUpgrade={() => setPricingOpen(true)} />
       <header style={{
         position: "sticky", top: 0, zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 20px", height: 60,
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(16px)",
-        borderBottom: "1px solid #E8EDF2",
+        background: "rgba(240,238,233,0.97)",
+        borderBottom: "1px solid var(--color-border-subtle)",
         boxShadow: "0 1px 0 rgba(15,25,35,0.06)",
       }}>
 
@@ -78,12 +85,12 @@ export default function PageHeader({
                 <Link key={n.href} href={n.href} id={tourId} className="hdr-link"
                   style={{
                     fontSize: 13, fontWeight: active ? 700 : 500,
-                    color: active ? "#0D9E6E" : "#4A5568",
+                    color: active ? "var(--color-primary)" : "var(--color-text-secondary)",
                     textDecoration: "none",
                     padding: "6px 12px", borderRadius: 6,
-                    fontFamily: "'Plus Jakarta Sans',sans-serif",
+                    fontFamily: "var(--font-plus-jakarta-sans)",
                     transition: "all 0.15s",
-                    background: active ? "rgba(13,158,110,0.08)" : "transparent",
+                    background: active ? "var(--color-primary-bg)" : "transparent",
                   }}>
                   {n.label}
                 </Link>
@@ -91,15 +98,15 @@ export default function PageHeader({
             })}
           </nav>
 
-          <div style={{ width: 1, height: 20, background: "#E2E8F0", margin: "0 8px" }} />
+          <div style={{ width: 1, height: 20, background: "var(--color-border)", margin: "0 8px" }} />
 
           {showMarketSwitcher && <span id="tour-market-switcher"><MarketSwitcher /></span>}
 
           {showClock && clock && (
             <div style={{
               fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
-              color: "#64748B", background: "#F8FAFC",
-              border: "1px solid #E2E8F0", borderRadius: 6,
+              color: "var(--color-text-muted)", background: "var(--color-surface-hover)",
+              border: "1px solid var(--color-border)", borderRadius: 6,
               padding: "4px 10px", marginLeft: 8,
             }}>
               {clock}
@@ -108,12 +115,27 @@ export default function PageHeader({
 
           {rightSlot}
 
+          <button
+            onClick={() => setPricingOpen(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              height: 36, marginLeft: 8, padding: "0 12px",
+              background: "var(--color-dark)", border: "1px solid var(--color-dark)",
+              borderRadius: 8, cursor: "pointer", color: "var(--color-surface)",
+              fontSize: 12, fontWeight: 700,
+              fontFamily: "var(--font-plus-jakarta-sans)",
+            }}
+          >
+            <CreditCard size={15} />
+            Upgrade
+          </button>
+
           <button onClick={handleLogout} title="Logout" style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             width: 36, height: 36, marginLeft: 8,
-            background: "transparent", border: "1px solid #E2E8F0",
+            background: "transparent", border: "1px solid var(--color-border)",
             borderRadius: 8, cursor: "pointer",
-            color: "#94A3B8", transition: "all 0.15s",
+            color: "var(--color-text-disabled)", transition: "all 0.15s",
           }} className="hdr-logout">
             <LogOut size={15} />
           </button>
@@ -123,7 +145,7 @@ export default function PageHeader({
         <button
           className="hdr-mobile"
           onClick={() => setDrawerOpen(true)}
-          style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif", boxShadow: "0 4px 10px rgba(13,158,110,0.3)", flexShrink: 0 }}
+          style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,var(--color-primary),var(--color-primary-light))", color: "var(--color-surface)", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-plus-jakarta-sans)", boxShadow: "0 4px 10px var(--color-primary-shadow)", flexShrink: 0 }}
         >
           {getInitials(profile?.name)}
         </button>
@@ -136,17 +158,38 @@ export default function PageHeader({
         profile={profile}
         navItems={NAV_LINKS}
         extraSlot={showMarketSwitcher ? <MarketSwitcher /> : null}
+        paymentSlot={(
+          <button
+            onClick={() => { setDrawerOpen(false); setPricingOpen(true); }}
+            style={{
+              width: "100%", height: 46,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+              background: "var(--color-dark)", border: "none", color: "var(--color-surface)",
+              borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer",
+              fontFamily: "var(--font-plus-jakarta-sans)",
+            }}
+          >
+            <CreditCard size={16} />
+            Upgrade plan
+          </button>
+        )}
+      />
+
+      <PricingModal
+        isOpen={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        onSuccess={() => router.refresh()}
       />
 
       <style jsx>{`
         .hdr-link:hover {
-          background: rgba(13,158,110,0.06) !important;
-          color: #0D9E6E !important;
+          background: var(--color-primary-bg) !important;
+          color: var(--color-primary) !important;
         }
         .hdr-logout:hover {
-          color: #D63B3B !important;
-          border-color: rgba(214,59,59,0.3) !important;
-          background: rgba(214,59,59,0.05) !important;
+          color: var(--color-error) !important;
+          border-color: var(--color-error-border) !important;
+          background: var(--color-error-bg) !important;
         }
         @media (max-width: 768px) {
           .hdr-desktop { display: none !important; }

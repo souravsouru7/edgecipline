@@ -56,7 +56,7 @@ const protect = asyncHandler(async (req, res, next) => {
   // ─── 1. ALWAYS verify the JWT signature + expiry first ─────────────────────
   let decoded;
   try {
-    decoded = jwt.verify(token, appConfig.jwt.secret);
+    decoded = jwt.verify(token, appConfig.jwt.secret, { algorithms: ["HS256"] });
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       console.warn(`[Security] Expired token | path=${req.originalUrl} | ip=${req.ip}`);
@@ -76,7 +76,11 @@ const protect = asyncHandler(async (req, res, next) => {
     ({ user } = await loadAuthUser(decoded.id));
   } catch (error) {
     logger.error("AUTH_CACHE_ERROR", { phase: "load", error: error?.message });
-    throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+    throw new ApiError(
+      503,
+      "Authentication service temporarily unavailable",
+      "AUTH_SERVICE_UNAVAILABLE"
+    );
   }
 
   if (!user) {
@@ -90,7 +94,7 @@ const protect = asyncHandler(async (req, res, next) => {
   // cache so the next request loads a fresh copy with the new version; the
   // old JWT then fails this check.
   if (
-    decoded.tokenVersion !== undefined &&
+    decoded.tokenVersion === undefined ||
     decoded.tokenVersion !== user.tokenVersion
   ) {
     console.warn(`[Security] Stale token (version mismatch) | path=${req.originalUrl} | ip=${req.ip}`);

@@ -9,24 +9,6 @@ content = content.replace(
   'import { getTrade, updateTrade } from "@/services/tradeApi";\nimport { uploadTradeImage } from "@/services/uploadApi";'
 );
 
-// Replace the upload logic block
-const oldUploadBlock = `                      try {
-                        const formDataUpload = new FormData();
-                        formDataUpload.append("image", file);
-
-                        const res = await fetch("http://localhost:5000/api/upload", {
-                          method: "POST",
-                          body: formDataUpload
-                        });
-
-                        if (res.ok) {
-                          const data = await res.json();
-                          setFormData(prev => ({ ...prev, screenshot: data.url }));
-                        }
-                      } catch (err) {
-                        console.error("Upload error:", err);
-                      }`;
-                      
 const newUploadBlock = `                      try {
                         const data = await uploadTradeImage({ file, marketType: "Forex" });
                         setFormData(prev => ({ ...prev, screenshot: data.screenshotUrl || data.url }));

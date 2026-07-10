@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import AskCoachButton from "@/features/coach-chat/components/AskCoachButton";
 
 // ── Category config ──────────────────────────────────────────────────────────
 
@@ -177,6 +178,15 @@ function InsightCard({ insight, currency, onDismiss }) {
       <p style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, margin: "0 0 8px 0" }}>
         {insight.insight}
       </p>
+
+      {/* Ask Coach — opens chat anchored to this specific insight */}
+      <div style={{ marginBottom: 8 }}>
+        <AskCoachButton
+          variant="ghost"
+          anchor={{ kind: "insight", refId: insight.id, label: insight.title }}
+          defaultPrompt={`Tell me more about this insight: "${insight.title}". Why does it apply to me right now?`}
+        />
+      </div>
 
       {/* Expandable section */}
       <button

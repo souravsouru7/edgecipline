@@ -32,6 +32,7 @@ async function cleanupFailedUpload({ jobId, uploadedImage, userId, error }) {
 
 async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
   let jobId = null;
+  let claimedFreeUpload = false;
 
   try {
     if (!user) {
@@ -44,13 +45,18 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       user.subscriptionExpiry &&
       new Date(user.subscriptionExpiry) > now;
 
-    if (!isSubscribed && user.freeUploadUsed) {
-      throw new ApiError(
-        403,
-        "Subscription required",
-        "PAYMENT_REQUIRED",
-        "You have used your free upload. Please subscribe for Rs 150 for 3 months to continue."
-      );
+    if (!isSubscribed) {
+      // Atomic claim before any work: prevents two concurrent requests from
+      // both passing a stale `user.freeUploadUsed === false` check.
+      claimedFreeUpload = await userRepository.claimFreeUpload(user._id);
+      if (!claimedFreeUpload) {
+        throw new ApiError(
+          403,
+          "Subscription required",
+          "PAYMENT_REQUIRED",
+          "You have used your free upload. Please subscribe for Rs 150 for 3 months to continue."
+        );
+      }
     }
 
     if (!uploadedImage?.imageUrl) {
@@ -107,24 +113,24 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
     });
     jobId = job.jobId;
 
-    if (!isSubscribed) {
-      try {
-        await userRepository.markFreeUploadUsed(user._id);
-      } catch (flagErr) {
-        logger.error("Failed to mark free upload used; OCR job still processing", {
-          userId: user._id,
-          jobId,
-          error: flagErr.message,
-        });
-      }
-    }
-
     return {
       success: true,
       jobId,
       status: "PENDING",
     };
   } catch (error) {
+    // If we claimed the free upload but never managed to enqueue the job,
+    // release the claim so the user isn't billed-by-loss for our failure.
+    if (claimedFreeUpload && !jobId) {
+      try {
+        await userRepository.releaseFreeUpload(user._id);
+      } catch (releaseErr) {
+        logger.error("Failed to release free upload claim after error", {
+          userId: user._id,
+          error: releaseErr.message,
+        });
+      }
+    }
     await cleanupFailedUpload({
       jobId,
       uploadedImage,

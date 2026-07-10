@@ -74,11 +74,17 @@ function normalizeMongoUri(value) {
 }
 
 const jwtSecrets = requireDistinctSecrets("JWT_SECRET", "ADMIN_JWT_SECRET");
+const { parseTrustProxy } = require("./trustProxy");
 
 const appConfig = {
   env: process.env.NODE_ENV || "development",
   port: readNumber("PORT", 5000),
   logLevel: process.env.LOG_LEVEL || "info",
+  proxy: {
+    trust: parseTrustProxy(process.env.TRUST_PROXY, {
+      isProduction: (process.env.NODE_ENV || "development") === "production",
+    }),
+  },
   mongoUri: normalizeMongoUri(requireEnv("MONGO_URI")),
   mongoDnsServers: readList("MONGO_DNS_SERVERS"),
   jwt: {
@@ -100,10 +106,16 @@ const appConfig = {
     attempts: readNumber("OCR_JOB_ATTEMPTS", 3),
     backoffMs: readNumber("OCR_JOB_BACKOFF_MS", 5000),
     initialDelayMs: readNumber("OCR_JOB_INITIAL_DELAY_MS", 2000),
+    completedRetentionAgeSeconds: readNumber("OCR_COMPLETED_RETENTION_AGE_SECONDS", 24 * 60 * 60),
+    completedRetentionCount: readNumber("OCR_COMPLETED_RETENTION_COUNT", 10000),
+    failedRetentionAgeSeconds: readNumber("OCR_FAILED_RETENTION_AGE_SECONDS", 7 * 24 * 60 * 60),
+    failedRetentionCount: readNumber("OCR_FAILED_RETENTION_COUNT", 10000),
+    maxRecoveryAttempts: readNumber("OCR_QUEUE_RECOVERY_ATTEMPTS", 2),
   },
   ocrWorker: {
     concurrency: readNumber("OCR_WORKER_CONCURRENCY", 5),
     lockDurationMs: readNumber("OCR_WORKER_LOCK_DURATION_MS", 300000),
+    maxStalledCount: readNumber("OCR_WORKER_MAX_STALLED_COUNT", 2),
   },
   smartNotificationQueue: {
     name:           process.env.SMART_NOTIFICATION_QUEUE_NAME || "smartNotificationsQueue",
@@ -111,6 +123,27 @@ const appConfig = {
     backoffMs:      readNumber("SMART_NOTIFICATION_BACKOFF_MS", 3000),
     concurrency:    readNumber("SMART_NOTIFICATION_WORKER_CONCURRENCY", 8),
     lockDurationMs: readNumber("SMART_NOTIFICATION_LOCK_DURATION_MS", 60000),
+  },
+  tradingDnaQueue: {
+    name:                         process.env.TRADING_DNA_QUEUE_NAME || "tradingDnaQueue",
+    attempts:                     readNumber("TRADING_DNA_JOB_ATTEMPTS", 2),
+    backoffMs:                    readNumber("TRADING_DNA_JOB_BACKOFF_MS", 10000),
+    // Keep completed jobs for 5 min — long enough for the frontend to poll
+    // the final state once, short enough that the queue doesn't accumulate.
+    // Final report is persisted in Mongo regardless.
+    completedRetentionAgeSeconds: readNumber("TRADING_DNA_COMPLETED_RETENTION_AGE_SECONDS", 300),
+    completedRetentionCount:      readNumber("TRADING_DNA_COMPLETED_RETENTION_COUNT", 1000),
+    failedRetentionAgeSeconds:    readNumber("TRADING_DNA_FAILED_RETENTION_AGE_SECONDS", 7 * 24 * 60 * 60),
+    failedRetentionCount:         readNumber("TRADING_DNA_FAILED_RETENTION_COUNT", 1000),
+  },
+  tradingDnaWorker: {
+    // Concurrency 2 by default — each job calls Gemini, which is the real
+    // bottleneck. Bump per-replica if Gemini quota allows.
+    concurrency:    readNumber("TRADING_DNA_WORKER_CONCURRENCY", 2),
+    // Generation takes 30–90s; keep the lock comfortably above the upper end
+    // so a slow Gemini response does not mark the job as stalled.
+    lockDurationMs: readNumber("TRADING_DNA_WORKER_LOCK_DURATION_MS", 180000),
+    maxStalledCount: readNumber("TRADING_DNA_WORKER_MAX_STALLED_COUNT", 1),
   },
   upload: {
     maxFileSizeBytes: readNumber("UPLOAD_MAX_FILE_SIZE_BYTES", 2 * 1024 * 1024),
@@ -142,12 +175,45 @@ const appConfig = {
     timezone: process.env.MORNING_MENTOR_TIMEZONE || "Asia/Kolkata",
     timezoneOffsetHours: readNumber("MORNING_MENTOR_TIMEZONE_OFFSET_HOURS", 5.5),
   },
+  subscriptionExpiry: {
+    enabled: readBoolean("ENABLE_SUBSCRIPTION_EXPIRY_CRON", true),
+    schedule: process.env.SUBSCRIPTION_EXPIRY_CRON || "0 * * * *",
+    batchSize: readNumber("SUBSCRIPTION_EXPIRY_BATCH_SIZE", 500),
+  },
+  // Hourly rescue funnel — checks all 7 touchpoint windows on each run.
+  // Idempotency is enforced by the RescueDispatch unique index, so multiple
+  // instances are safe; the distributed lock is only an efficiency win.
+  subscriptionRescue: {
+    enabled: readBoolean("ENABLE_SUBSCRIPTION_RESCUE_CRON", true),
+    schedule: process.env.SUBSCRIPTION_RESCUE_CRON || "15 * * * *",
+    batchSize: readNumber("SUBSCRIPTION_RESCUE_BATCH_SIZE", 200),
+  },
+  streakProtector: {
+    enabled: readBoolean("ENABLE_STREAK_PROTECTOR_CRON", true),
+    // Default 21:00 IST — late enough that an active trader has logged,
+    // early enough to act before midnight breaks the streak.
+    schedule: process.env.STREAK_PROTECTOR_CRON || "0 21 * * *",
+    timezone: process.env.STREAK_PROTECTOR_TIMEZONE || "Asia/Kolkata",
+    // Minimum streak length that qualifies for a protective nudge. We don't
+    // nag users with a 1- or 2-day streak — premature reminders erode trust.
+    minStreak: readNumber("STREAK_PROTECTOR_MIN_STREAK", 3),
+  },
+  reflectionReminder: {
+    enabled: readBoolean("ENABLE_REFLECTION_REMINDER_CRON", true),
+    // Default 19:30 IST — markets are closed, dinner crowd, before the user
+    // disengages for the night. Window the next cron firing must beat: 23:59.
+    schedule: process.env.REFLECTION_REMINDER_CRON || "30 19 * * *",
+    timezone: process.env.REFLECTION_REMINDER_TIMEZONE || "Asia/Kolkata",
+    concurrency: readNumber("REFLECTION_REMINDER_CRON_CONCURRENCY", 0),
+  },
   cron: {
     // Default 50; per-cron override via {CRON_NAME}_CONCURRENCY env vars.
     concurrency:              readNumber("CRON_CONCURRENCY", 50),
     morningMentorConcurrency: readNumber("MORNING_MENTOR_CRON_CONCURRENCY", 0),
     weeklyReportsConcurrency: readNumber("WEEKLY_REPORTS_CRON_CONCURRENCY", 0),
     sessionReminderConcurrency: readNumber("SESSION_REMINDER_CRON_CONCURRENCY", 0),
+    streakProtectorConcurrency: readNumber("STREAK_PROTECTOR_CRON_CONCURRENCY", 0),
+    reflectionReminderConcurrency: readNumber("REFLECTION_REMINDER_CRON_CONCURRENCY", 0),
   },
   cors: {
     allowedOrigins: (process.env.ALLOWED_ORIGINS || "")
@@ -185,6 +251,7 @@ const appConfig = {
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID || "",
     keySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
   },
   resend: {
     apiKey: process.env.RESEND_API_KEY || "",

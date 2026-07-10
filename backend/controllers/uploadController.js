@@ -71,7 +71,17 @@ exports.cancelUploadJob = asyncHandler(async (req, res) => {
   res.json(jobStatus);
 });
 
-exports.getUploadQueueHealth = asyncHandler(async (_req, res) => {
+exports.getUploadQueueHealth = asyncHandler(async (req, res) => {
   const health = await uploadService.getUploadQueueHealth();
-  res.status(health.queueReady ? 200 : 503).json(health);
+  const status = health.queueReady ? 200 : 503;
+
+  // Non-admin callers get a sanitized readiness probe — they don't need to
+  // see per-state job counts. Admins get the full picture.
+  if (req.user?.role !== "admin") {
+    return res.status(status).json({
+      redisReady: health.redisReady,
+      queueReady: health.queueReady,
+    });
+  }
+  res.status(status).json(health);
 });

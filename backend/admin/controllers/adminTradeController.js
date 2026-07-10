@@ -2,6 +2,8 @@ const Trade = require("../../models/Trade");
 const IndianTrade = require("../../models/IndianTrade");
 const ExtractionLog = require("../../models/ExtractionLog");
 const asyncHandler = require("../../utils/asyncHandler");
+const ApiError = require("../../utils/ApiError");
+const tradeRepository = require("../../repositories/trade.repository");
 
 /**
  * @desc    Get all trades across all markets (Forex + Indian)
@@ -14,8 +16,10 @@ exports.getAllTrades = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const [forexTrades, indianTrades, totalForex, totalIndian] = await Promise.all([
-    Trade.find().populate("user", "name email").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-    IndianTrade.find().populate("user", "name email").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    // ObjectId order is creation order and uses MongoDB's built-in _id index,
+    // avoiding global createdAt indexes on the write-heavy trade collections.
+    Trade.find().populate("user", "name email").sort({ _id: -1 }).skip(skip).limit(limit).lean(),
+    IndianTrade.find().populate("user", "name email").sort({ _id: -1 }).skip(skip).limit(limit).lean(),
     Trade.countDocuments(),
     IndianTrade.countDocuments(),
   ]);
@@ -36,7 +40,22 @@ exports.getAllTrades = asyncHandler(async (req, res) => {
 exports.getExtractionLogs = asyncHandler(async (req, res) => {
   const logs = await ExtractionLog.find()
     .populate("user", "name email")
-    .sort({ createdAt: -1 })
+    .sort({ _id: -1 })
     .limit(100);
   res.json(logs);
+});
+
+/**
+ * @desc    Inspect visibility counts for one explicitly selected user
+ * @route   GET /api/admin/trades/debug?userId=<ObjectId>
+ * @access  Private/Admin
+ */
+exports.getTradeDebug = asyncHandler(async (req, res) => {
+  const { userId } = req.query;
+  if (!/^[0-9a-fA-F]{24}$/.test(String(userId || ""))) {
+    throw new ApiError(400, "A valid target userId is required", "VALIDATION_ERROR");
+  }
+
+  const counts = await tradeRepository.countTradesDebug(userId);
+  res.json(counts);
 });

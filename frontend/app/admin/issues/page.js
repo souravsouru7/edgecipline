@@ -44,7 +44,7 @@ export default function AdminIssuesPage() {
         }),
         adminGetIssueAnalytics(),
       ]);
-      setIssues(list?.issues || []);
+      setIssues(Array.isArray(list) ? list : list?.issues || []);
       setAnalytics(summary || null);
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || "Failed to load issues.");

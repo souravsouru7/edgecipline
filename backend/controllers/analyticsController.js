@@ -120,12 +120,19 @@ exports.getWeeklyStats = asyncHandler(async (req, res) => {
 // ============================================
 
 // 1. Risk/Reward Analysis
+//
+// TODO(perf): migrate the scalar aggregates to a $group pipeline like
+// getPerformanceMetrics. Until then we cap at ANALYTICS_TRADE_CAP and surface
+// `truncated: true` so the client can warn the user when the aggregate is
+// incomplete instead of silently returning skewed numbers.
+const ANALYTICS_TRADE_CAP = 10000;
 exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     const trades = await Trade.find(query).lean()
       .select("profit stopLoss takeProfit entryPrice riskRewardRatio riskRewardCustom")
-      .limit(10000);
+      .limit(ANALYTICS_TRADE_CAP);
+    const truncated = trades.length === ANALYTICS_TRADE_CAP;
 
     const tradesWithRR = trades.filter(t => t.stopLoss && t.takeProfit && t.entryPrice);
 
@@ -233,7 +240,8 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
       avgWin: avgWin.toFixed(2),
       avgLoss: avgLoss.toFixed(2),
       expectancy,
-      winRate: winRate.toFixed(1)
+      winRate: winRate.toFixed(1),
+      truncated,
     });
   } catch (error) {
     handleAnalyticsError(error);
@@ -343,12 +351,16 @@ exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
 });
 
 // 4. Time Analysis (Fixed)
+//
+// TODO(perf): bucket aggregation can move to a $group pipeline. Until then we
+// cap at ANALYTICS_TRADE_CAP and surface `truncated` in the response.
 exports.getTimeAnalysis = asyncHandler(async (req, res) => {
   try {
     const query = forexQuery(req);
     let trades = await Trade.find(query).lean()
       .select("profit tradeDate createdAt session")
-      .limit(10000);
+      .limit(ANALYTICS_TRADE_CAP);
+    const truncated = trades.length === ANALYTICS_TRADE_CAP;
 
     // Optional date range filter for "byDay/byHour" style widgets.
     // range=all (default) | range=thisWeek
@@ -570,7 +582,8 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
       bestHourWinRate: bestHourWinRate[1].total > 0 ? { hour: bestHourWinRate[0], winRate: bestHourWinRate[1].winRate } : null,
       bestSession: bestSession[1].total > 0 ? { name: bestSession[0], profit: parseFloat(bestSession[1].profit).toFixed(2), winRate: bestSession[1].winRate, trades: bestSession[1].total } : null,
       worstSession: (worstSession[1].total > 0 && worstSession[0] !== bestSession[0]) ? { name: worstSession[0], profit: parseFloat(worstSession[1].profit).toFixed(2), winRate: worstSession[1].winRate, trades: worstSession[1].total } : null,
-      bestSessionWR: bestSessionWR[1].total > 0 ? { name: bestSessionWR[0], winRate: bestSessionWR[1].winRate, trades: bestSessionWR[1].total } : null
+      bestSessionWR: bestSessionWR[1].total > 0 ? { name: bestSessionWR[0], winRate: bestSessionWR[1].winRate, trades: bestSessionWR[1].total } : null,
+      truncated,
     });
   } catch (error) {
     handleAnalyticsError(error);

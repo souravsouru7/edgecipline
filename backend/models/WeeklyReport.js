@@ -10,6 +10,7 @@ const weeklyReportSchema = new mongoose.Schema(
     },
     marketType: {
       type: String,
+      enum: ["Forex", "Indian_Market"],
       default: "Forex",
       index: true,
     },

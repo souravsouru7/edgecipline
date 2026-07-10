@@ -1,11 +1,13 @@
 jest.mock("../../repositories/trade.repository", () => ({
   createTrades: jest.fn(),
+  updateForexTradeByUser: jest.fn(),
 }));
 
 jest.mock("../../utils/cacheUtils", () => ({
   TRADE_CACHE_EVENTS: {
     BULK_IMPORT: "bulk_import",
     OCR_SAVE: "ocr_save",
+    EDIT: "edit",
   },
   getTradeCacheVersion: jest.fn(),
   invalidateTradeCaches: jest.fn(),
@@ -16,6 +18,7 @@ jest.mock("../../services/smartNotificationEvaluator", () => ({
 }));
 
 jest.mock("../../services/ocrJob.service", () => ({
+  getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
   markOcrJobConfirmed: jest.fn(),
 }));
 
@@ -90,5 +93,82 @@ describe("tradeService.createTradesBatch", () => {
 
     expect(tradeRepository.createTrades).not.toHaveBeenCalled();
     expect(invalidateTradeCaches).not.toHaveBeenCalled();
+  });
+
+  it("strips protected fields from OCR-confirmed batch trades", async () => {
+    tradeRepository.createTrades.mockImplementation(async (docs) =>
+      docs.map((doc, index) => ({ ...doc, _id: `trade-${index + 1}` }))
+    );
+
+    await tradeService.createTradesBatch("user-1", {
+      ocrJobId: "ocr-1",
+      trades: [{
+        pair: "EURUSD",
+        type: "BUY",
+        tradeDate: "2026-06-01",
+        notes: "allowed",
+        user: "attacker-user",
+        marketType: "Indian_Market",
+        createdAt: "2000-01-01",
+        updatedAt: "2000-01-01",
+        deletedAt: "2000-01-01",
+        ocrJobId: "attacker-job",
+        subscriptionStatus: "active",
+        paymentStatus: "paid",
+        tokenVersion: 0,
+        role: "admin",
+        processedAt: "2000-01-01",
+        extractionConfidence: 100,
+      }],
+    }, { accountCreatedAt: new Date("2026-01-01") });
+
+    const [doc] = tradeRepository.createTrades.mock.calls[0][0];
+    expect(doc).toEqual(expect.objectContaining({
+      user: "user-1",
+      pair: "EURUSD",
+      notes: "allowed",
+      status: "completed",
+      processedAt: expect.any(Date),
+    }));
+    expect(doc).not.toHaveProperty("marketType");
+    expect(doc).not.toHaveProperty("createdAt");
+    expect(doc).not.toHaveProperty("updatedAt");
+    expect(doc).not.toHaveProperty("deletedAt");
+    expect(doc).not.toHaveProperty("ocrJobId");
+    expect(doc).not.toHaveProperty("role");
+    expect(doc).not.toHaveProperty("extractionConfidence");
+  });
+
+  it("allows a Forex edit but never forwards protected fields", async () => {
+    tradeRepository.updateForexTradeByUser.mockResolvedValue({ _id: "trade-1", notes: "allowed" });
+
+    await tradeService.updateTrade("user-1", "trade-1", {
+      notes: "allowed",
+      user: "user-2",
+      marketType: "Indian_Market",
+      createdAt: "2000-01-01",
+      deletedAt: "2000-01-01",
+      ocrJobId: "attacker-job",
+      processedAt: "2000-01-01",
+      extractionConfidence: 100,
+      role: "admin",
+      tokenVersion: 0,
+    });
+
+    expect(tradeRepository.updateForexTradeByUser).toHaveBeenCalledWith(
+      "trade-1",
+      "user-1",
+      { notes: "allowed" }
+    );
+  });
+
+  it("rejects a Forex update containing only protected fields", async () => {
+    await expect(tradeService.updateTrade("user-1", "trade-1", {
+      user: "user-2",
+      role: "admin",
+      processedAt: "2000-01-01",
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    expect(tradeRepository.updateForexTradeByUser).not.toHaveBeenCalled();
   });
 });

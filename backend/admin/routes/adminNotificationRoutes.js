@@ -8,12 +8,13 @@ const {
 } = require("../../controllers/notificationController");
 const { getNotificationAnalytics, getQueueMetrics } = require("../controllers/adminNotificationAnalyticsController");
 const { adminAuth } = require("../../middleware/adminAuth");
+const { validateObjectId } = require("../../middleware/validateObjectId");
 
 router.get("/analytics",     adminAuth, getNotificationAnalytics);
 router.get("/queue-metrics", adminAuth, getQueueMetrics);
 router.get("/", adminAuth, getNotifications);
 router.post("/custom", adminAuth, sendCustomNotification);
-router.patch("/:id/read", adminAuth, markAsRead);
+router.patch("/:id/read", adminAuth, validateObjectId("id"), markAsRead);
 router.post("/read-all", adminAuth, markAllAsRead);
 
 module.exports = router;

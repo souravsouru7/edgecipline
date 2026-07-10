@@ -31,7 +31,7 @@ const adminAuth = asyncHandler(async (req, res, next) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+    decoded = jwt.verify(token, ADMIN_JWT_SECRET, { algorithms: ["HS256"] });
   } catch (error) {
     throw new ApiError(401, "Not authorized, token failed", "INVALID_TOKEN");
   }
@@ -43,7 +43,7 @@ const adminAuth = asyncHandler(async (req, res, next) => {
 
   // tokenVersion check — ensures tokens are invalidated after password reset / logout-all
   if (
-    decoded.tokenVersion !== undefined &&
+    decoded.tokenVersion === undefined ||
     decoded.tokenVersion !== user.tokenVersion
   ) {
     throw new ApiError(401, "Session expired, please login again", "TOKEN_INVALIDATED");

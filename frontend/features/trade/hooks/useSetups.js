@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchSetups } from "@/services/setupApi";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 
 /**
  * useSetups
@@ -31,7 +32,7 @@ export function useSetups(marketType) {
       }
       return [];
     },
-    staleTime: 0,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
     enabled: !!marketType,
   });
 

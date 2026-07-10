@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 // useEffect + useRef used in UploadTradeContent for auto-scroll to psychology after extraction
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Link from "next/link";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
@@ -397,7 +397,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
   };
 
   const handleSave = async () => {
-    if (isMulti) await state.saveIndianTrade(tradeIdx);
+    if (isMulti) await state.saveExtractedTrade(tradeIdx);
     else         await state.saveTrade();
   };
 
@@ -720,6 +720,8 @@ function UploadTradeContent() {
   const state   = useUploadTrade({ accountCreatedDate });
   const clock   = useClock();
   const router  = useRouter();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const { isInd, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax } = state;
   const visibleTradeCount = trades.length > 1 ? trades.length : tradeCount;
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
@@ -768,6 +770,25 @@ function UploadTradeContent() {
         <TickerTape />
 
         <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box", animation: "fadeUp 0.45s ease both" }}>
+          {onboardingMode && (
+            <div style={{
+              padding: "14px 16px", borderRadius: 12,
+              background: "linear-gradient(135deg, rgba(34,199,142,0.08), rgba(13,158,110,0.04))",
+              border: "1px solid rgba(34,199,142,0.3)",
+              marginBottom: 18,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+                STEP 2 OF 3 · LOG YOUR FIRST TRADE
+              </div>
+              <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
+                Upload a <strong>broker screenshot</strong> (MT4/MT5, Zerodha, Upstox, etc.) — our AI reads it and fills in pair, entry, exit, and P&L for you. Review, hit <strong>Save</strong>, and we&apos;ll take you to your journal.
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
+                Prefer typing it in? <Link href="/add-trade?onboarding=1" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
+              </div>
+            </div>
+          )}
+
           {/* Page heading */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -855,6 +876,7 @@ function UploadTradeContent() {
           {!loading && visibleTradeCount > 0 && (
             <OcrConfirmationBanner
               ocrData={trades.length > 1 ? null : (trade || trades[0])}
+              insights={state.extractionInsights}
               marketType={isInd ? "Indian_Market" : "Forex"}
               module={isInd ? "upload-trade-indian" : "upload-trade-forex"}
             />

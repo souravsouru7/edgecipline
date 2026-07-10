@@ -1,15 +1,18 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
 import TradeTable            from "@/features/trade/components/TradeTable";
 import EmptyState            from "@/features/trade/components/EmptyState";
 import DeleteModal           from "@/features/trade/components/DeleteModal";
+import OnboardingCompleteDialog from "@/features/onboarding/components/OnboardingCompleteDialog";
 import { useTrades }         from "@/features/trade/hooks/useTrades";
 import { Skeleton }          from "@/features/shared";
+import { markOnboardingStep } from "@/services/api";
 
 const FILTER_OPTIONS = ["ALL", "LONG", "SHORT"];
 const PERIOD_OPTIONS = [
@@ -27,6 +30,18 @@ function TradesContent() {
     handlers: { setFilter, setPeriod, setSearch, setDeleteTarget, confirmDelete, cancelDelete },
   } = useTrades();
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
+  const [completionDismissed, setCompletionDismissed] = useState(false);
+  const showOnboardingComplete = onboardingMode && !completionDismissed;
+
+  // Mark "journal viewed" once the page has actually rendered.
+  useEffect(() => {
+    if (!mounted) return;
+    markOnboardingStep("journalSeen", true).catch(() => {});
+  }, [mounted]);
+
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -37,6 +52,33 @@ function TradesContent() {
         <TickerTape />
 
         <main style={{ flex: 1, maxWidth: 1200, width: "100%", margin: "0 auto", padding: "28px 24px" }}>
+          {onboardingMode && (
+            <div style={{
+              padding: "14px 16px", borderRadius: 12,
+              background: "linear-gradient(135deg, rgba(34,199,142,0.1), rgba(13,158,110,0.04))",
+              border: "1px solid rgba(34,199,142,0.3)",
+              marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12,
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: "rgba(34,199,142,0.2)", color: "#0D9E6E",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18, fontWeight: 900,
+              }}>🎉</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
+                  ACTIVATION COMPLETE - YOUR JOURNAL
+                </div>
+                <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
+                  Nice — you logged your first trade!
+                </div>
+                <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55 }}>
+                  This is your journal — every trade lives here. Filter by setup, date, or result. The more you log, the smarter your analytics get.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Page title */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "all 0.5s" }}>
             <div>
@@ -106,6 +148,12 @@ function TradesContent() {
       {/* Delete modal */}
       {deleteTarget && (
         <DeleteModal trade={deleteTarget} onConfirm={confirmDelete} onCancel={cancelDelete} />
+      )}
+      {showOnboardingComplete && (
+        <OnboardingCompleteDialog
+          onClose={() => setCompletionDismissed(true)}
+          onDashboard={() => router.replace("/dashboard?onboarded=1")}
+        />
       )}
 
       <style>{`

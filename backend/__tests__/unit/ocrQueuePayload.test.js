@@ -8,13 +8,12 @@ describe("OCR queue payload validation", () => {
     const add = jest.fn().mockResolvedValue({ id: "job-1", name: "processOcrJob" });
     const getJob = jest.fn().mockResolvedValue(existingJob);
 
-    jest.doMock("bullmq", () => ({
-      Queue: jest.fn().mockImplementation(() => ({
+    const Queue = jest.fn().mockImplementation(() => ({
         add,
         getJob,
         on: jest.fn(),
-      })),
-    }));
+      }));
+    jest.doMock("bullmq", () => ({ Queue }));
     jest.doMock("../../config", () => ({
       appConfig: {
         ocrQueue: {
@@ -22,6 +21,10 @@ describe("OCR queue payload validation", () => {
           attempts: 3,
           backoffMs: 100,
           initialDelayMs: 0,
+          completedRetentionAgeSeconds: 86400,
+          completedRetentionCount: 10000,
+          failedRetentionAgeSeconds: 604800,
+          failedRetentionCount: 10000,
         },
       },
     }));
@@ -35,6 +38,7 @@ describe("OCR queue payload validation", () => {
     return {
       add,
       getJob,
+      Queue,
       queue: require("../../queues/ocrQueue"),
     };
   }
@@ -76,5 +80,16 @@ describe("OCR queue payload validation", () => {
         jobId: "507f1f77bcf86cd799439011",
       }),
     );
+  });
+
+  test("retains completed and failed BullMQ records by age and count", () => {
+    const { Queue } = loadQueue();
+
+    expect(Queue).toHaveBeenCalledWith("ocr-test", expect.objectContaining({
+      defaultJobOptions: expect.objectContaining({
+        removeOnComplete: { age: 86400, count: 10000 },
+        removeOnFail: { age: 604800, count: 10000 },
+      }),
+    }));
   });
 });

@@ -4,30 +4,34 @@ const notificationService = require("./notificationService");
 const { appConfig } = require("../config");
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
+//
+// All time bucketing is parameterised by an `offsetHours` argument. The cron
+// SHOULD pass each user's preferred offset; today the User model has no
+// timezone field, so callers fall back to the configured default (5.5 = IST).
+// TODO: add `User.timezoneOffsetHours` and have sendMorningMentor read it.
 
-function getOffsetMs() {
-  const offsetHours = appConfig.morningMentor?.timezoneOffsetHours ?? appConfig.timezoneOffsetHours ?? 5.5;
-  return offsetHours * 60 * 60 * 1000;
+function getDefaultOffsetHours() {
+  return appConfig.morningMentor?.timezoneOffsetHours ?? appConfig.timezoneOffsetHours ?? 5.5;
 }
 
-// Local day-of-week (0=Sun … 6=Sat) adjusted for server timezone offset
-function getLocalDayOfWeek() {
-  return new Date(Date.now() + getOffsetMs()).getUTCDay();
+function toOffsetMs(offsetHours) {
+  const hrs = Number.isFinite(Number(offsetHours)) ? Number(offsetHours) : getDefaultOffsetHours();
+  return hrs * 60 * 60 * 1000;
 }
 
-// YYYY-MM-DD in local timezone — used as deduplication key
-function getLocalDateKey() {
-  return new Date(Date.now() + getOffsetMs()).toISOString().slice(0, 10);
+function getLocalDayOfWeek(offsetHours) {
+  return new Date(Date.now() + toOffsetMs(offsetHours)).getUTCDay();
 }
 
-// UTC start/end of yesterday in local timezone
-function getYesterdayRange() {
-  const offsetMs = getOffsetMs();
+function getLocalDateKey(offsetHours) {
+  return new Date(Date.now() + toOffsetMs(offsetHours)).toISOString().slice(0, 10);
+}
+
+function getYesterdayRange(offsetHours) {
+  const offsetMs = toOffsetMs(offsetHours);
   const localNow = new Date(Date.now() + offsetMs);
-  // Midnight of today in local time (stored as UTC offset)
   const localTodayMidnight = new Date(localNow);
   localTodayMidnight.setUTCHours(0, 0, 0, 0);
-  // Shift back to real UTC for DB query
   return {
     start: new Date(localTodayMidnight.getTime() - 24 * 60 * 60 * 1000 - offsetMs),
     end:   new Date(localTodayMidnight.getTime() - 1 - offsetMs),
@@ -221,10 +225,13 @@ const NO_TRADE_MESSAGES = [
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-async function sendMorningMentor(userId) {
-  const dayOfWeek = getLocalDayOfWeek(); // 0=Sun, 6=Sat
+async function sendMorningMentor(userId, options = {}) {
+  // offsetHours can be supplied by the caller (cron) once per-user TZ is
+  // stored on the user record. Until then, all users get the default.
+  const offsetHours = options.offsetHours;
+  const dayOfWeek = getLocalDayOfWeek(offsetHours);
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const dateKey   = getLocalDateKey();
+  const dateKey   = getLocalDateKey(offsetHours);
   const dedupeKey = `morning-mentor:${userId}:${dateKey}`;
 
   // ── Weekend ────────────────────────────────────────────────────────────────
@@ -243,7 +250,7 @@ async function sendMorningMentor(userId) {
   }
 
   // ── Fetch yesterday's trades ───────────────────────────────────────────────
-  const { start, end } = getYesterdayRange();
+  const { start, end } = getYesterdayRange(offsetHours);
   const FIELDS = { profit: 1, stopLoss: 1, setupScore: 1, mood: 1, emotionalTags: 1, entryBasis: 1, tradeDate: 1, createdAt: 1 };
 
   const [forexTrades, indianTrades] = await Promise.all([

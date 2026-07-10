@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import * as Sentry from "@sentry/nextjs";
 import { getProfile } from "@/services/api";
 
 const toDateString = (iso) => {
@@ -17,6 +19,11 @@ export function useUserProfile() {
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
+
+  useEffect(() => {
+    const userId = data?._id || data?.id;
+    Sentry.setUser(userId ? { id: String(userId) } : null);
+  }, [data?._id, data?.id]);
 
   return {
     profile: data,

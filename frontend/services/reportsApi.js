@@ -15,7 +15,7 @@ const handleResponse = async (res) => {
     let errorMessage = `Request failed with status ${res.status}`;
     try {
       const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.message || errorMessage;
+      errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
     } catch (e) {
       // ignore
     }
@@ -23,7 +23,10 @@ const handleResponse = async (res) => {
     err.status = res.status;
     throw err;
   }
-  return res.json();
+  const payload = await res.json();
+  return payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
+    ? payload.data
+    : payload;
 };
 
 export const listWeeklyReports = async (limit = 12, marketType = "Forex") => {

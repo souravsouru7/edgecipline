@@ -32,6 +32,10 @@ export const trackNotificationOpen = (id) => {
   return apiClient.post(`/notifications/${id}/opened`);
 };
 
+export const trackNotificationDelivered = (id) => {
+  return apiClient.post(`/notifications/${id}/delivered`);
+};
+
 export const trackNotificationAction = (id, actionType) => {
   return apiClient.post(`/notifications/${id}/action`, { actionType });
 };

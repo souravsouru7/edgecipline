@@ -5,32 +5,14 @@ dns.setDefaultResultOrder("ipv4first");
 require("dotenv").config();
 
 // Sentry must be initialized before any other require so it can instrument all modules.
-const Sentry = require("@sentry/node");
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || "development",
-    // Capture 100% of transactions in production; lower this (e.g. 0.2) once traffic grows.
-    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
-    // Don't send events in test/development unless DSN is explicitly set.
-    enabled: !!process.env.SENTRY_DSN,
-    // M3: Scrub auth cookies and Authorization headers before sending to Sentry
-    beforeSend(event) {
-      if (event.request) {
-        if (event.request.cookies) {
-          event.request.cookies = "[Filtered]";
-        }
-        if (event.request.headers) {
-          const h = { ...event.request.headers };
-          if (h.authorization) h.authorization = "[Filtered]";
-          if (h.cookie) h.cookie = "[Filtered]";
-          event.request.headers = h;
-        }
-      }
-      return event;
-    },
-  });
-}
+const {
+  Sentry,
+  bindFatalHandlers,
+  flushSentry,
+  initSentry,
+  requestSentryContext,
+} = require("./config/sentry");
+initSentry({ processName: "api" });
 
 // Register global handlers before any module imports so that synchronous throws
 // and unhandled rejections from requires (config, DB, etc.) are captured rather
@@ -53,28 +35,33 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
+const swaggerUi = require("swagger-ui-express");
 
 const connectDB = require("./config/db");
 const { appConfig } = require("./config");
 const {
+  getRateLimiterHealth,
   globalRateLimiter,
-  statusRateLimiter,
 } = require("./middleware/rateLimiter");
 const { sanitizeInput } = require("./middleware/sanitizeInput");
 const { errorHandler } = require("./middleware/errorHandler");
 const { logger, stream } = require("./utils/logger");
 const { timeoutMiddleware } = require("./middleware/timeout");
+const { requestContext } = require("./middleware/requestContext");
+const { standardizeResponse } = require("./middleware/standardizeResponse");
+const openApiDocument = require("./docs/openapi");
 
-// Upgrade global error handlers now that the structured logger is available.
+// Replace the early console-only guards with Sentry-aware fatal handlers.
 process.removeAllListeners("uncaughtException");
 process.removeAllListeners("unhandledRejection");
+bindFatalHandlers({ logger, processName: "api" });
 
-process.on("uncaughtException", (error) => {
+if (false) process.on("uncaughtException", (error) => {
   logger.error("Uncaught Exception — process will exit", { error: error.message, stack: error.stack });
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason) => {
+if (false) process.on("unhandledRejection", (reason) => {
   logger.error("Unhandled Rejection — process will exit", {
     reason: reason instanceof Error ? reason.message : String(reason),
     stack: reason instanceof Error ? reason.stack : undefined,
@@ -82,11 +69,16 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-const { connectRedis } = require("./config/redis");
+const { connectRedis, isRedisReady } = require("./config/redis");
 const { startDataCleanupCron } = require("./jobs/dataCleanupCron");
 const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
 const { startSessionReminderCron } = require("./jobs/sessionReminderCron");
 const { startMorningMentorCron } = require("./jobs/morningMentorCron");
+const { startSubscriptionExpiryCron } = require("./jobs/subscriptionExpiryCron");
+const { startSubscriptionRescueCron } = require("./jobs/subscriptionRescueCron");
+const { startStreakProtectorCron } = require("./jobs/streakProtectorCron");
+const { startReflectionReminderCron } = require("./jobs/reflectionReminderCron");
+const { startMissionProgressCron } = require("./jobs/missionProgressCron");
 const { startOcrWorker } = require("./workers/ocrWorker");
 const { startSmartNotificationWorker } = require("./workers/smartNotificationWorker");
 
@@ -132,9 +124,20 @@ logger.info("[Timezone] Server timezone configuration", {
 startWeeklyReportsCron();
 startSessionReminderCron();
 startMorningMentorCron();
+startSubscriptionExpiryCron();
+startSubscriptionRescueCron();
+startStreakProtectorCron();
+startReflectionReminderCron();
+startMissionProgressCron();
 startDataCleanupCron();
 
 const app = express();
+
+// req.ip, req.ips, req.protocol, rate-limit keys, and security logs all depend
+// on this boundary. Production requires an explicit TRUST_PROXY value.
+app.set("trust proxy", appConfig.proxy.trust);
+app.use(requestContext);
+app.use(requestSentryContext);
 
 const normalizeOrigin = (value) => {
   if (!value) return "";
@@ -206,7 +209,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Platform'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Platform', 'X-Request-ID', 'X-Device-ID', 'X-Session-ID'],
 };
 
 // HTTPS redirect — must come before CORS so redirects are not blocked
@@ -260,6 +263,8 @@ app.use((req, res, next) => {
       status: res.statusCode,
       duration: `${duration}ms`,
       userAgent: req.get('user-agent'),
+      requestId: req.requestId,
+      ip: req.ip,
     };
 
     if (res.statusCode >= 500) {
@@ -279,10 +284,39 @@ app.use((req, res, next) => {
   next();
 });
 
+// Razorpay webhook signature verification requires the exact raw request body.
+// Mount this before express.json(), sanitization, and auth middleware.
+app.use(
+  "/api/payments/webhook",
+  standardizeResponse,
+  express.raw({ type: "application/json", limit: "1mb" }),
+  require("./routes/razorpayWebhookRoutes")
+);
+
 app.use(express.json({ limit: "1mb" }));
 
 // Parse cookies — required for httpOnly refresh-token cookie
 app.use(cookieParser());
+
+// Interactive and machine-readable API contract. The route-specific CSP
+// allows Swagger UI's bundled assets without weakening API responses.
+app.get("/api/docs/openapi.json", (_req, res) => res.json(openApiDocument));
+app.use(
+  "/api/docs",
+  (_req, res, next) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
+      "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+    );
+    next();
+  },
+  swaggerUi.serve,
+  swaggerUi.setup(openApiDocument, {
+    customSiteTitle: "StratEdge API",
+    swaggerOptions: { persistAuthorization: true },
+  })
+);
 
 // Prevent browsers from caching API responses
 app.use("/api", (_req, res, next) => {
@@ -291,6 +325,9 @@ app.use("/api", (_req, res, next) => {
   res.set("Expires", "0");
   next();
 });
+
+// Every JSON response under /api uses the same success/error envelope.
+app.use("/api", standardizeResponse);
 
 // Apply global input sanitization (body, query, params)
 app.use(sanitizeInput);
@@ -303,14 +340,19 @@ app.use(globalRateLimiter);
 // Applying a single strict limiter at the router level caused 429s on frequent /me calls.
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/trades", require("./routes/tradeRoutes"));
-app.use("/api/trade", statusRateLimiter, require("./routes/tradeStatusRoutes"));
 app.use("/api/setups", require("./routes/setupRoutes"));
 app.use("/api/checklists", require("./routes/checklistRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/analytics", require("./routes/analyticsRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/reports", require("./routes/weeklyReportRoutes"));
+app.use("/api/trading-dna", require("./routes/tradingDnaRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/streaks", require("./routes/streakRoutes"));
+app.use("/api/reflections", require("./routes/reflectionRoutes"));
+app.use("/api/coach", require("./routes/coachRoutes"));
+app.use("/api/onboarding", require("./routes/onboardingRoutes"));
+app.use("/api/missions", require("./routes/missionRoutes"));
 
 // Admin routes (completely separate workspace)
 app.use("/api/admin/auth", require("./admin/routes/adminAuthRoutes"));
@@ -322,6 +364,7 @@ app.use("/api/admin/notifications", require("./admin/routes/adminNotificationRou
 app.use("/api/admin/auth-cache-metrics", require("./admin/routes/adminCacheMetricsRoutes"));
 app.use("/api/admin/feedback", require("./admin/routes/adminFeedbackRoutes"));
 app.use("/api/admin/issues", require("./admin/routes/adminIssueRoutes"));
+app.use("/api/admin/missions", require("./admin/routes/adminMissionRoutes"));
 
 // User feedback submission
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
@@ -329,6 +372,12 @@ app.use("/api/issues", require("./routes/issueReportRoutes"));
 
 // Payment routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
+
+// Trial & smart-paywall routes (7-day premium trial)
+app.use("/api/trial", require("./routes/trialRoutes"));
+
+// Subscription rescue funnel — renewal banners + analytics beacons
+app.use("/api/rescue", require("./routes/rescueRoutes"));
 
 // Profile routes (FCM token registration)
 app.use("/api/profile", require("./routes/profileRoutes"));
@@ -345,9 +394,23 @@ app.get("/health", (_req, res) => {
   const mongoose = require("mongoose");
   const dbState = mongoose.connection.readyState; // 1 = connected
   if (dbState !== 1) {
-    return res.status(503).json({ status: "unhealthy", db: "disconnected" });
+    return res.status(503).json({
+      status: "unhealthy",
+      db: "disconnected",
+      redis: isRedisReady() ? "connected" : "disconnected",
+      rateLimiter: getRateLimiterHealth(),
+    });
   }
-  res.json({ status: "ok", db: "connected", uptime: process.uptime() });
+  const redisReady = isRedisReady();
+  const rateLimiter = getRateLimiterHealth();
+  const degraded = !redisReady || rateLimiter.degraded;
+  return res.status(degraded ? 503 : 200).json({
+    status: degraded ? "degraded" : "ok",
+    db: "connected",
+    redis: redisReady ? "connected" : "disconnected",
+    rateLimiter,
+    uptime: process.uptime(),
+  });
 });
 
 
@@ -384,6 +447,7 @@ const shutdown = async (signal) => {
       await mongoose.connection.close();
       const { client } = require("./config/redis");
       await client.quit();
+      await flushSentry(2000);
     } catch (e) {
       logger.error("Shutdown cleanup error", { error: e.message });
     }

@@ -8,6 +8,7 @@ const {
   getMe,
   getMyPreferences,
   updateMyPreferences,
+  updateOnboardingStep,
   acceptTerms,
   forgotPassword,
   verifyOTP,
@@ -61,5 +62,6 @@ router.post("/accept-terms",         protect, profileRateLimiter, acceptTerms);
 router.get("/me",                    protect, profileRateLimiter, getMe);
 router.get("/me/preferences",        protect, profileRateLimiter, getMyPreferences);
 router.patch("/me/preferences",      protect, profileRateLimiter, updateMyPreferences);
+router.patch("/me/onboarding",       protect, profileRateLimiter, updateOnboardingStep);
 
 module.exports = router;

@@ -2,37 +2,40 @@ const notificationService = require("../services/notificationService");
 const NotificationDebugLog = require("../models/NotificationDebugLog");
 const NotificationHistory = require("../models/NotificationHistory");
 const asyncHandler = require("../utils/asyncHandler");
+const { paginated, success } = require("../utils/apiResponse");
 
 exports.listNotifications = asyncHandler(async (req, res) => {
-  // M18: Clamp limit to a safe range
-  const rawLimit = parseInt(req.query.limit, 10);
-  const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 20;
-  const notifications = await notificationService.listUserNotifications(req.user._id, {
-    limit,
-    unreadOnly: req.query.unreadOnly === "true",
-  });
-  res.json(notifications);
+  const result = await notificationService.listUserNotifications(
+    req.user._id,
+    req.validated.query
+  );
+  paginated(res, result.items, result.pagination);
 });
 
 exports.markAsRead = asyncHandler(async (req, res) => {
   const notification = await notificationService.markAsRead(req.user._id, req.params.id);
-  res.json(notification);
+  success(res, notification);
 });
 
 exports.markAllAsRead = asyncHandler(async (req, res) => {
   const result = await notificationService.markAllAsRead(req.user._id);
-  res.json(result);
+  success(res, result, { message: "Notifications marked as read" });
 });
 
 exports.trackOpen = asyncHandler(async (req, res) => {
   const notification = await notificationService.trackOpen(req.user._id, req.params.id);
-  res.json({ success: true, notification });
+  success(res, notification);
+});
+
+exports.trackDelivered = asyncHandler(async (req, res) => {
+  const notification = await notificationService.trackDelivered(req.user._id, req.params.id);
+  success(res, notification);
 });
 
 exports.trackAction = asyncHandler(async (req, res) => {
   const { actionType } = req.body;
   const notification = await notificationService.trackAction(req.user._id, req.params.id, actionType);
-  res.json({ success: true, notification });
+  success(res, notification);
 });
 
 // GET /api/notifications/debug/setup-discipline/latest

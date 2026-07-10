@@ -4,11 +4,33 @@ const { TRADE_CACHE_EVENTS, invalidateTradeCaches } = require("../utils/cacheUti
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { evaluateSmartNotifications } = require("../services/smartNotificationEvaluator");
+const streakService = require("../services/streak.service");
+const onboardingService = require("../services/onboardingService");
+const { handleStreakEvents } = require("../services/streakNotification.service");
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
-const { markOcrJobConfirmed } = require("../services/ocrJob.service");
+
+async function updateStreaksForIndianTrade(userId, trade) {
+  try {
+    const result = await streakService.recordTradeAndRecompute(userId, trade);
+    handleStreakEvents(userId, result.events).catch((err) =>
+      logger.warn("STREAK_EVENTS_HANDLER_FAILED", { error: err?.message })
+    );
+  } catch (err) {
+    logger.warn("STREAK_UPDATE_FAILED", { userId: String(userId), error: err?.message });
+  }
+}
+const {
+  getOcrConfirmationTrades,
+  markOcrJobConfirmed,
+} = require("../services/ocrJob.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
 const { logger } = require("../utils/logger");
+const { pickIndianTradeFields } = require("../utils/tradeFieldAllowlist");
+const {
+  deriveIndianProfit,
+  trustedOcrProfitForTrade,
+} = require("../utils/tradeProfit");
 
 function getPeriodStart(period) {
   const now = new Date();
@@ -34,10 +56,10 @@ function getPeriodStart(period) {
 
 function userMatch(userId) {
   const id = userId?.toString?.() || String(userId || "");
-  if (mongoose.Types.ObjectId.isValid(id)) {
-    return { $in: [new mongoose.Types.ObjectId(id), id] };
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(401, "Invalid authenticated user ID", "INVALID_USER_ID");
   }
-  return userId;
+  return new mongoose.Types.ObjectId(id);
 }
 
 const INDIAN_TRADE_LIST_PROJECTION = [
@@ -56,6 +78,7 @@ const INDIAN_TRADE_LIST_PROJECTION = [
   "entryBasisCustom",
   "createdAt",
   "tradeDate",
+  "effectiveTradeDate",
   "instrumentType",
   "segment",
   "tradeType",
@@ -65,10 +88,6 @@ const INDIAN_TRADE_LIST_PROJECTION = [
   "sector",
   "strikePrice",
 ].join(" ");
-
-const INDIAN_TRADE_LIST_PROJECT_STAGE = INDIAN_TRADE_LIST_PROJECTION
-  .split(" ")
-  .reduce((projection, field) => ({ ...projection, [field]: 1 }), { _id: 1 });
 
 function parseFiniteNumber(value) {
   if (value == null) return null;
@@ -83,8 +102,13 @@ function parseFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function buildIndianTradeDocument(userId, payload, { accountCreatedAt } = {}) {
-  const { pair, type, underlying, strikePrice, optionType, tradeDate, instrumentType, stockSymbol, sharesQty } = payload;
+function buildIndianTradeDocument(
+  userId,
+  payload,
+  { accountCreatedAt, extractedTrades = [], tradeIndex = 0 } = {}
+) {
+  const editablePayload = pickIndianTradeFields(payload);
+  const { pair, type, underlying, strikePrice, optionType, tradeDate, instrumentType, stockSymbol, sharesQty } = editablePayload;
 
   if (!type) {
     throw new ApiError(400, "Type (BUY/SELL) is required", "VALIDATION_ERROR");
@@ -112,7 +136,7 @@ function buildIndianTradeDocument(userId, payload, { accountCreatedAt } = {}) {
     if (normalizedSharesQty == null || normalizedSharesQty <= 0) {
       throw new ApiError(400, "Shares quantity is required for equity trades", "VALIDATION_ERROR");
     }
-    payload.sharesQty = normalizedSharesQty;
+    editablePayload.sharesQty = normalizedSharesQty;
   }
 
   let symbol = pair;
@@ -131,14 +155,14 @@ function buildIndianTradeDocument(userId, payload, { accountCreatedAt } = {}) {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
 
-  const { ocrJobId, ...body } = payload;
   const tradeData = {
-    ...body,
+    ...editablePayload,
     pair: symbol,
     type: type.toUpperCase(),
     tradeDate: normalizeTradeDate(tradeDate, { accountCreatedAt }),
     user: userId,
   };
+  tradeData.effectiveTradeDate = tradeData.tradeDate;
   if (!isEquity) {
     tradeData.optionType = ot;
     tradeData.instrumentType = "OPTION";
@@ -149,13 +173,25 @@ function buildIndianTradeDocument(userId, payload, { accountCreatedAt } = {}) {
     tradeData.tradeType = "INTRADAY";
   }
 
+  const derivedProfit = deriveIndianProfit(tradeData);
+  if (derivedProfit !== null) {
+    tradeData.profit = derivedProfit;
+  } else {
+    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
+    if (trustedProfit !== null) tradeData.profit = trustedProfit;
+  }
+
   return tradeData;
 }
 
 exports.createTrade = asyncHandler(async (req, res) => {
   const ocrJobId = req.body?.ocrJobId || null;
+  const extractedTrades = ocrJobId
+    ? await getOcrConfirmationTrades(req.user._id, ocrJobId, "Indian_Market")
+    : [];
   const tradeData = buildIndianTradeDocument(req.user._id, req.body, {
     accountCreatedAt: req.user.createdAt,
+    extractedTrades,
   });
   const trade = await IndianTrade.create(tradeData);
 
@@ -172,6 +208,10 @@ exports.createTrade = asyncHandler(async (req, res) => {
     marketType: "Indian_Market",
     collection: "indian",
   });
+  await updateStreaksForIndianTrade(req.user._id, trade);
+  onboardingService
+    .markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
+    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
   if (ocrJobId) {
     await markOcrJobConfirmed(req.user._id, ocrJobId, {
       tradeId: trade._id,
@@ -192,10 +232,35 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   }
 
   const ocrJobId = req.body?.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
-  const docs = trades.map((trade) => buildIndianTradeDocument(req.user._id, trade, {
+  const extractedTrades = ocrJobId
+    ? await getOcrConfirmationTrades(req.user._id, ocrJobId, "Indian_Market")
+    : [];
+  const docs = trades.map((trade, tradeIndex) => buildIndianTradeDocument(req.user._id, trade, {
     accountCreatedAt: req.user.createdAt,
+    extractedTrades,
+    tradeIndex,
   }));
-  const createdTrades = await IndianTrade.insertMany(docs, { ordered: true });
+
+  // Atomic: insertMany + markOcrJobConfirmed in one transaction. If the OCR
+  // confirm fails the trades roll back, preventing a half-written batch with
+  // an un-confirmed job. Cache invalidation and notification dispatch run
+  // AFTER commit since they touch external systems (Redis, queues).
+  const session = await mongoose.startSession();
+  let createdTrades;
+  try {
+    await session.withTransaction(async () => {
+      createdTrades = await IndianTrade.insertMany(docs, { ordered: true, session });
+      if (ocrJobId && createdTrades[0]) {
+        await markOcrJobConfirmed(req.user._id, ocrJobId, {
+          tradeId: createdTrades[0]._id,
+          collection: "indian",
+          session,
+        });
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
 
   await invalidateTradeCaches({
     userId: req.user._id,
@@ -215,12 +280,16 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
       collection: "indian",
     });
   }
-
-  if (ocrJobId && createdTrades[0]) {
-    await markOcrJobConfirmed(req.user._id, ocrJobId, {
-      tradeId: createdTrades[0]._id,
-      collection: "indian",
-    });
+  for (const t of createdTrades) {
+    try { await streakService.recordTradeEvent(req.user._id, t); } catch (e) {
+      logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+    }
+  }
+  try {
+    const recompute = await streakService.recomputeStreaks(req.user._id);
+    handleStreakEvents(req.user._id, recompute.events).catch(() => {});
+  } catch (e) {
+    logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
   }
 
   res.status(201).json({
@@ -247,10 +316,7 @@ exports.getTrades = asyncHandler(async (req, res) => {
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
   if (periodStart) {
-    query.$or = [
-      { tradeDate: { $gte: periodStart } },
-      { tradeDate: null, createdAt: { $gte: periodStart } },
-    ];
+    query.effectiveTradeDate = { $gte: periodStart };
   }
 
   // Cursor: { date: ISO string, id: ObjectId hex } from previous page tail.
@@ -259,30 +325,19 @@ exports.getTrades = asyncHandler(async (req, res) => {
     ? new mongoose.Types.ObjectId(req.query.cursorId)
     : null;
 
-  const pipeline = [
-    { $match: query },
-    { $addFields: { effectiveTradeDate: { $ifNull: ["$tradeDate", "$createdAt"] } } },
-  ];
-
   // Cursor predicate: strictly past the previous tail on the same sort.
   if (cursorDate && cursorId) {
-    pipeline.push({
-      $match: {
-        $or: [
-          { effectiveTradeDate: { $lt: cursorDate } },
-          { effectiveTradeDate: cursorDate, _id: { $lt: cursorId } },
-        ],
-      },
-    });
+    query.$or = [
+      { effectiveTradeDate: { $lt: cursorDate } },
+      { effectiveTradeDate: cursorDate, _id: { $lt: cursorId } },
+    ];
   }
 
-  pipeline.push(
-    { $sort: { effectiveTradeDate: -1, _id: -1 } },
-    { $limit: limit + 1 },                  // +1 to detect "has more"
-    { $project: INDIAN_TRADE_LIST_PROJECT_STAGE }
-  );
-
-  const rows = await IndianTrade.aggregate(pipeline);
+  const rows = await IndianTrade.find(query)
+    .sort({ effectiveTradeDate: -1, _id: -1 })
+    .limit(limit + 1)
+    .select(INDIAN_TRADE_LIST_PROJECTION)
+    .lean();
   const hasMore = rows.length > limit;
   const trades = hasMore ? rows.slice(0, limit) : rows;
 
@@ -324,21 +379,48 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Type must be BUY or SELL", "VALIDATION_ERROR");
   }
 
-  const update = { ...req.body };
+  const update = pickIndianTradeFields(req.body);
   delete update.tradeDate;
   if (tradeDate != null && String(tradeDate).trim() !== "") {
     update.tradeDate = normalizeTradeDate(tradeDate, { accountCreatedAt: req.user.createdAt });
+    update.effectiveTradeDate = update.tradeDate;
   }
   if (type) {
     update.type = type.toUpperCase();
+  }
+  if (Object.keys(update).length === 0) {
+    throw new ApiError(400, "No editable trade fields provided", "VALIDATION_ERROR");
+  }
+
+  const profitBasisFields = [
+    "profit", "type", "entryPrice", "exitPrice", "instrumentType",
+    "sharesQty", "quantity", "lotSize", "brokerage", "sttTaxes",
+  ];
+  const shouldDeriveProfit = profitBasisFields.some((field) =>
+    Object.prototype.hasOwnProperty.call(req.body, field)
+  );
+
+  let existing = null;
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages)) {
+    existing = await IndianTrade.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+      deletedAt: null,
+    })
+      .select(
+        "type entryPrice exitPrice instrumentType sharesQty quantity lotSize " +
+        "brokerage sttTaxes tradeImages"
+      )
+      .lean();
+  }
+
+  if (shouldDeriveProfit) {
+    update.profit = deriveIndianProfit({ ...(existing || {}), ...update });
   }
 
   // Diff tradeImages to identify removed Cloudinary assets for cleanup.
   let removedImages = [];
   if (Array.isArray(update.tradeImages)) {
-    const existing = await IndianTrade.findOne({ _id: req.params.id, user: req.user._id })
-      .select("tradeImages")
-      .lean();
     if (existing?.tradeImages?.length) {
       const keepIds = new Set(
         update.tradeImages
@@ -384,6 +466,7 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     marketType: "Indian_Market",
     collection: "indian",
   });
+  await updateStreaksForIndianTrade(req.user._id, trade);
 
   res.json(trade);
 });
@@ -394,7 +477,7 @@ exports.deleteTrade = asyncHandler(async (req, res) => {
     userId: req.user._id,
     deletedBy: req.user._id,
     deleteReason: req.body?.deleteReason || "",
-    deletedSource: req.body?.deletedSource || "user",
+    deletedSource: "user",
     options: { lean: true },
   });
 

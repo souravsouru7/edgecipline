@@ -10,8 +10,9 @@ const FROM_ADDRESS = appConfig.resend.from;
 
 exports.sendOTPEmail = async (email, otp) => {
   if (!appConfig.resend.apiKey) {
-    logger.warn("RESEND_API_KEY missing — logging OTP to console (dev only)");
-    logger.info(`[DEV] OTP for ${email}: ${otp}`);
+    logger.warn("RESEND_API_KEY missing — OTP email was not sent", {
+      recipientConfigured: Boolean(email),
+    });
     return true;
   }
 
@@ -37,6 +38,85 @@ exports.sendOTPEmail = async (email, otp) => {
   if (error) {
     logger.error("Resend OTP email failed", { email, error: error.message });
     throw new Error("Failed to send OTP email");
+  }
+
+  return true;
+};
+
+// Subscription Rescue Funnel — one templated function for all 7 touchpoints.
+// `intro` is the touchpoint-specific opener written by subscriptionRescueService.
+// `context` is the rescue context payload; we render the metric block from it
+// so every email shows the user their *own* numbers, not generic copy.
+//
+// Required fields on `context`:
+//   disciplineStreak, longestStreak, tradesLogged, weeklyReportsCount,
+//   bestSetup ({ name, winRate } | null), latestInsightLine (string | null)
+exports.sendRescueEmail = async ({ to, userName, touchpoint, subject, intro, context }) => {
+  if (!appConfig.resend.apiKey) {
+    logger.warn("RESEND_API_KEY missing — skipping rescue email", { touchpoint });
+    return true;
+  }
+
+  const metricRow = (label, value) => `
+    <tr>
+      <td style="padding:8px 12px;color:#64748B;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #EEF2F6;">${label}</td>
+      <td style="padding:8px 12px;color:#0F1923;font-size:18px;font-weight:700;text-align:right;border-bottom:1px solid #EEF2F6;">${value}</td>
+    </tr>`;
+
+  const rows = [];
+  if (context.disciplineStreak > 0) rows.push(metricRow("Discipline streak", `${context.disciplineStreak} days`));
+  if (context.tradesLogged > 0)     rows.push(metricRow("Trades logged", String(context.tradesLogged)));
+  if (context.bestSetup)            rows.push(metricRow("Best setup", `${context.bestSetup.name} · ${context.bestSetup.winRate}%`));
+  if (context.weeklyReportsCount)   rows.push(metricRow("Weekly reports", String(context.weeklyReportsCount)));
+  if (context.longestStreak > 0 && context.longestStreak !== context.disciplineStreak) {
+    rows.push(metricRow("Longest streak", `${context.longestStreak} days`));
+  }
+
+  const insightBlock = context.latestInsightLine
+    ? `<div style="background:#F8FAFC;border-left:3px solid #0D9E6E;padding:14px 16px;margin:20px 0;font-style:italic;color:#475569;font-size:14px;line-height:1.55;">"${context.latestInsightLine}"</div>`
+    : "";
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px 24px;background:#FFFFFF;color:#0F1923;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <h2 style="color:#0D9E6E;margin:0;letter-spacing:0.04em;">STRATEDGE</h2>
+      </div>
+
+      <p style="font-size:15px;line-height:1.55;margin:0 0 12px;">Hi ${userName || "trader"},</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;color:#334155;">${intro}</p>
+
+      ${rows.length > 0
+        ? `<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #E2E8F0;border-radius:10px;border-collapse:separate;border-spacing:0;margin:8px 0 20px;">${rows.join("")}</table>`
+        : ""}
+
+      ${insightBlock}
+
+      <div style="text-align:center;margin:28px 0 12px;">
+        <a href="https://stratedge.live/pricing"
+           style="background:#0F1923;color:#22C78E;padding:14px 32px;text-decoration:none;border-radius:10px;font-weight:800;font-size:15px;letter-spacing:0.02em;display:inline-block;">
+          REACTIVATE PREMIUM
+        </a>
+      </div>
+      <p style="text-align:center;color:#94A3B8;font-size:11px;margin:0;">₹50/month · Cancel anytime · Your data stays exactly where it is</p>
+
+      <hr style="border:none;border-top:1px solid #E2E8F0;margin:28px 0 16px;" />
+      <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">
+        You're receiving this because you have notifications enabled for your Stratedge account.<br />
+        Manage preferences in <a href="https://stratedge.live/profile" style="color:#64748B;">Settings</a>.
+      </p>
+    </div>
+  `;
+
+  const { error } = await getResendClient().emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject,
+    html,
+  });
+
+  if (error) {
+    logger.error("Resend rescue email failed", { to, touchpoint, error: error.message });
+    throw new Error("Failed to send rescue email");
   }
 
   return true;

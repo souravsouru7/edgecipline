@@ -4,6 +4,14 @@ const NotificationHistory = require("../models/NotificationHistory");
 const NotificationPreference = require("../models/NotificationPreference");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { logger } = require("../utils/logger");
+const { buildPagination } = require("../utils/apiResponse");
+
+function requireUserId(userId) {
+  if (!userId) {
+    throw new TypeError("A user ID is required for notification access");
+  }
+  return userId;
+}
 
 // ─── Channel map ──────────────────────────────────────────────────────────────
 // Each type maps to one of 5 premium channels defined in the Android app.
@@ -21,6 +29,13 @@ const TYPE_CHANNEL = {
   confidence_reminder:    "edgecipline_coaching",
   session_reminder:       "edgecipline_session",
   morning_mentor:         "edgecipline_coaching",
+  ocr_completed:          "edgecipline_ocr",
+  ocr_failed:             "edgecipline_ocr",
+  streak_milestone:       "edgecipline_coaching",
+  streak_at_risk:         "edgecipline_coaching",
+  streak_broken:          "edgecipline_coaching",
+  evening_reflection:     "edgecipline_coaching",
+  mission_update:         "edgecipline_coaching",
 };
 
 // Per-channel accent colours (hex) shown in the notification LED + icon tint
@@ -30,6 +45,7 @@ const CHANNEL_COLOR = {
   edgecipline_insights:   "#0D9E6E", // green     — growth / positive
   edgecipline_coaching:   "#3B82F6", // blue      — calm / wisdom
   edgecipline_session:    "#8B5CF6", // purple    — focus / preparation
+  edgecipline_ocr:        "#0EA5E9",
 };
 
 // ─── Preference gate ──────────────────────────────────────────────────────────
@@ -46,12 +62,25 @@ const SMART_TYPE_TO_PREF = {
   confidence_reminder:    "smartCoach",
   session_reminder:       "sessionReminders",
   morning_mentor:         "morningMentor",
+  streak_milestone:       "streakProtection",
+  streak_at_risk:         "streakProtection",
+  streak_broken:          "streakProtection",
+  evening_reflection:     "eveningReflection",
+  mission_update:         "smartCoach",
 };
 
 const INVALID_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
 ]);
+const TRANSIENT_FCM_CODES = new Set([
+  "messaging/internal-error",
+  "messaging/server-unavailable",
+  "messaging/quota-exceeded",
+  "messaging/message-rate-exceeded",
+  "messaging/device-message-rate-exceeded",
+]);
+const DELIVERY_LEASE_MS = 2 * 60 * 1000;
 
 const DEFAULT_QUIET_HOURS_TIMEZONE = "Asia/Kolkata";
 const QUIET_HOURS_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -154,13 +183,13 @@ function isBlockedByQuietHours(prefs, userId, type, now = new Date()) {
   const start = parseQuietHoursTime(prefs.quietHours.start);
   const end = parseQuietHoursTime(prefs.quietHours.end);
   if (!start || !end) {
-    logger.warn("[QuietHours] malformed quiet hours; skipping enforcement", {
+    logger.error("QUIET_HOURS_CONFIGURATION_INVALID", {
       userId,
       type,
       start: prefs.quietHours.start,
       end: prefs.quietHours.end,
     });
-    return false;
+    return true;
   }
 
   const timezone = resolveQuietHoursTimezone(prefs.quietHours.timezone, userId, type);
@@ -169,13 +198,13 @@ function isBlockedByQuietHours(prefs, userId, type, now = new Date()) {
   try {
     ({ localTime, minutesSinceMidnight } = getLocalQuietHoursTime(now, timezone));
   } catch (error) {
-    logger.warn("[QuietHours] local time resolution failed; skipping enforcement", {
+    logger.error("QUIET_HOURS_TIME_RESOLUTION_FAILED", {
       userId,
       type,
       timezone,
       error: error.message,
     });
-    return false;
+    return true;
   }
 
   const blocked = isTimeWithinQuietHours(
@@ -204,14 +233,19 @@ function isBlockedByQuietHours(prefs, userId, type, now = new Date()) {
 
 async function getAllowedPreferences(userId, type) {
   const prefs = await getOrCreatePreferences(userId);
+  if (!isNotificationTypeEnabled(prefs, type)) return null;
+  if (isBlockedByQuietHours(prefs, userId, type)) return null;
+
+  return prefs;
+}
+
+function isNotificationTypeEnabled(prefs, type) {
   if (!prefs.inAppEnabled && !prefs.pushEnabled) return null;
   if (isSmartCoachType(type) && !prefs.smartCoach) return null;
 
   const flag = SMART_TYPE_TO_PREF[type];
   if (flag && prefs[flag] === false) return null;
-  if (isBlockedByQuietHours(prefs, userId, type)) return null;
-
-  return prefs;
+  return true;
 }
 
 async function disableInvalidTokens(invalidTokens = []) {
@@ -240,7 +274,7 @@ function buildAndroidConfig(notification) {
       // BigText style — expands in the tray to show the full body
       body:        notification.body,
       // Tag deduplication: same tag replaces the previous notification of that type
-      tag:         `edgecipline_${notification.type}`,
+      tag:         `edgecipline_${notification._id?.toString?.() || notification.type}`,
       // Visibility: show on lock screen for urgent alerts, private otherwise
       visibility:  isUrgent ? "public" : "private",
     },
@@ -248,9 +282,11 @@ function buildAndroidConfig(notification) {
 }
 
 // ─── Core push sender ─────────────────────────────────────────────────────────
-async function sendPushToUser(userId, notification) {
-  const tokens = await DeviceToken.find({ user: userId, enabled: true, revokedAt: null })
-    .select("token")
+async function sendPushToUser(userId, notification, acceptedTokenIds = []) {
+  const filter = { user: userId, enabled: true, revokedAt: null };
+  if (acceptedTokenIds.length) filter._id = { $nin: acceptedTokenIds };
+  const tokens = await DeviceToken.find(filter)
+    .select("_id token platform")
     .lean();
 
   if (!tokens.length) {
@@ -277,25 +313,59 @@ async function sendPushToUser(userId, notification) {
   const response = await admin.messaging().sendEachForMulticast(message);
 
   const invalidTokens = [];
+  const acceptedIds = [];
+  const transientFailures = [];
+  const permanentFailures = [];
   response.responses.forEach((result, index) => {
-    if (result.error && INVALID_TOKEN_CODES.has(result.error.code)) {
-      invalidTokens.push(tokens[index].token);
+    const tokenRecord = tokens[index];
+    if (!result.error) {
+      acceptedIds.push(String(tokenRecord._id));
+      return;
     }
+    if (INVALID_TOKEN_CODES.has(result.error.code)) {
+      invalidTokens.push(tokenRecord.token);
+      permanentFailures.push({ tokenId: String(tokenRecord._id), code: result.error.code });
+      return;
+    }
+    const failure = { tokenId: String(tokenRecord._id), code: result.error.code || "unknown" };
+    if (TRANSIENT_FCM_CODES.has(result.error.code)) transientFailures.push(failure);
+    else permanentFailures.push(failure);
   });
 
   await disableInvalidTokens(invalidTokens);
+  if (acceptedIds.length) {
+    await DeviceToken.updateMany(
+      { _id: { $in: acceptedIds } },
+      { $set: { failureCount: 0 } }
+    );
+  }
+  const invalidTokenSet = new Set(invalidTokens);
+  const failedIds = [...transientFailures, ...permanentFailures]
+    .filter((item) => !invalidTokenSet.has(tokens.find((token) => String(token._id) === item.tokenId)?.token))
+    .map((item) => item.tokenId);
+  if (failedIds.length) {
+    await DeviceToken.updateMany(
+      { _id: { $in: failedIds } },
+      { $inc: { failureCount: 1 } }
+    );
+  }
 
   return {
     successCount: response.successCount,
     failureCount: response.failureCount,
     invalidTokens,
+    acceptedTokenIds: acceptedIds,
+    transientFailures,
+    permanentFailures,
   };
 }
 
 // ─── Public notifyUser ────────────────────────────────────────────────────────
 async function notifyUser(userId, payload) {
-  const prefs = await getAllowedPreferences(userId, payload.type);
-  if (!prefs) return null;
+  requireUserId(userId);
+  const prefs = await getOrCreatePreferences(userId);
+  if (!isNotificationTypeEnabled(prefs, payload.type)) return null;
+  const quietHoursBlocked = isBlockedByQuietHours(prefs, userId, payload.type);
 
   const dedupeKey = payload.dedupeKey || `${payload.type}:${userId}:${payload.sourceId || Date.now()}`;
   let notification;
@@ -312,81 +382,153 @@ async function notifyUser(userId, payload) {
       sourceId:   mongoose.Types.ObjectId.isValid(payload.sourceId) ? payload.sourceId : null,
       dedupeKey,
     });
-    logger.info("[NotificationAnalytics] Created", {
+    logger.info("NOTIFICATION_CREATED", {
       notificationId: notification._id?.toString?.(),
       userId: userId?.toString?.(),
-      type: payload.type,
+      notificationType: payload.type,
     });
   } catch (error) {
     if (error?.code === 11000) {
-      logger.info("[TimezoneDedup] duplicate blocked", {
-        userId: userId?.toString?.(),
-        type: payload.type,
-        dedupeKey,
+      notification = await NotificationHistory.findOne({ user: userId, dedupeKey });
+      if (!notification || notification.status === "sent") return notification;
+      logger.info("NOTIFICATION_RETRY_RESUMED", {
+        userId: userId?.toString?.(), notificationType: payload.type, dedupeKey,
       });
-      return null;
+    } else {
+      throw error;
     }
-    throw error;
   }
 
-  if (!prefs.pushEnabled) {
-    await NotificationHistory.findByIdAndUpdate(notification._id, { status: "skipped" });
+  if (!prefs.pushEnabled || quietHoursBlocked) {
+    const reason = quietHoursBlocked ? "quiet_hours" : "push_disabled";
+    await NotificationHistory.findOneAndUpdate(
+      { _id: notification._id, user: userId },
+      { status: "skipped", "delivery.error": reason }
+    );
     return notification;
   }
 
-  try {
-    const delivery = await sendPushToUser(userId, { ...payload, ...notification.toObject() });
+  const now = new Date();
+  const claimed = await NotificationHistory.findOneAndUpdate(
+    {
+      _id: notification._id,
+      user: userId,
+      status: { $in: ["created", "failed", "partial", "skipped"] },
+      $or: [{ deliveryLeaseUntil: null }, { deliveryLeaseUntil: { $lte: now } }],
+      "delivery.error": { $ne: "push_disabled" },
+    },
+    {
+      $set: { status: "sending", deliveryLeaseUntil: new Date(now.getTime() + DELIVERY_LEASE_MS) },
+      $inc: { deliveryAttemptCount: 1 },
+    },
+    { returnDocument: "after" }
+  );
+  if (!claimed) return notification;
+  notification = claimed;
+  logger.info("NOTIFICATION_QUEUED", {
+    notificationId: String(notification._id),
+    userId: String(userId),
+    notificationType: payload.type,
+  });
 
-    const status = delivery.noTokens          ? "skipped"
-      : delivery.successCount > 0 && delivery.failureCount > 0 ? "partial"
-      : delivery.failureCount > 0             ? "failed"
+  try {
+    const alreadyAccepted = notification.delivery?.acceptedTokenIds || [];
+    const delivery = await sendPushToUser(
+      userId,
+      { ...payload, ...notification.toObject() },
+      alreadyAccepted
+    );
+    const acceptedTokenIds = [...new Set([...alreadyAccepted, ...(delivery.acceptedTokenIds || [])])];
+
+    const status = delivery.noTokens          ? (acceptedTokenIds.length ? "sent" : "skipped")
+      : delivery.transientFailures?.length    ? (acceptedTokenIds.length ? "partial" : "failed")
+      : delivery.successCount > 0              ? "sent"
+      : delivery.failureCount > 0              ? "failed"
       : "sent";
 
-    const updated = await NotificationHistory.findByIdAndUpdate(
-      notification._id,
-      { status, sentAt: delivery.successCount > 0 ? new Date() : null, delivery },
+    const updated = await NotificationHistory.findOneAndUpdate(
+      { _id: notification._id, user: userId },
+      {
+        status,
+        sentAt: delivery.successCount > 0 || acceptedTokenIds.length
+          ? (notification.sentAt || new Date())
+          : null,
+        deliveryLeaseUntil: null,
+        delivery: {
+          ...delivery,
+          acceptedTokenIds,
+          transientFailureCount: delivery.transientFailures?.length || 0,
+          permanentFailureCount: delivery.permanentFailures?.length || 0,
+          error: delivery.transientFailures?.length ? "transient_fcm_failure" : "",
+        },
+      },
       { returnDocument: "after" }
     ) || notification;
 
-    logger.info("[NotificationAnalytics] Sent", {
+    logger.info("NOTIFICATION_SENT", {
       notificationId: notification._id?.toString?.(),
       userId: userId?.toString?.(),
-      type: payload.type,
+      notificationType: payload.type,
       status,
       successCount: delivery.successCount,
       failureCount: delivery.failureCount,
       invalidTokenCount: delivery.invalidTokens?.length ?? 0,
     });
 
+    if (delivery.transientFailures?.length) {
+      const transientError = new Error("Transient FCM delivery failure");
+      transientError.code = "FCM_TRANSIENT_FAILURE";
+      transientError.acceptedCount = acceptedTokenIds.length;
+      throw transientError;
+    }
     return updated;
 
   } catch (error) {
-    logger.warn("Push delivery failed", {
+    logger.warn("NOTIFICATION_FAILED", {
       userId: userId?.toString?.(),
-      type:   payload.type,
+      notificationType: payload.type,
       error:  error.message,
       code:   error.code,
     });
 
-    await NotificationHistory.findByIdAndUpdate(notification._id, {
-      status:   "failed",
-      delivery: { successCount: 0, failureCount: 1, invalidTokens: [], error: error.message },
-    });
-
-    return notification;
+    await NotificationHistory.findOneAndUpdate(
+      { _id: notification._id, user: userId },
+      {
+        status: error.acceptedCount > 0 || notification.delivery?.acceptedTokenIds?.length ? "partial" : "failed",
+        deliveryLeaseUntil: null,
+        "delivery.error": error.message,
+      }
+    );
+    throw error;
   }
 }
 
 // ─── Engagement tracking ──────────────────────────────────────────────────────
+async function trackDelivered(userId, notificationId) {
+  const notification = await NotificationHistory.findOneAndUpdate(
+    { _id: notificationId, user: requireUserId(userId), deliveredAt: null },
+    { deliveredAt: new Date() },
+    { returnDocument: "after" }
+  ).lean();
+  if (notification) {
+    logger.info("NOTIFICATION_DELIVERED", {
+      notificationId: String(notificationId),
+      userId: String(userId),
+      notificationType: notification.type,
+    });
+  }
+  return notification;
+}
+
 async function trackOpen(userId, notificationId) {
   const notification = await NotificationHistory.findOneAndUpdate(
-    { _id: notificationId, user: userId, openedAt: null },
+    { _id: notificationId, user: requireUserId(userId), openedAt: null },
     { openedAt: new Date(), isRead: true, readAt: new Date() },
     { returnDocument: "after" }
   ).lean();
 
   if (notification) {
-    logger.info("[NotificationAnalytics] Opened", {
+    logger.info("NOTIFICATION_OPENED", {
       notificationId: notificationId?.toString?.(),
       userId: userId?.toString?.(),
       type: notification.type,
@@ -399,7 +541,7 @@ async function trackAction(userId, notificationId, actionType) {
   const now = new Date();
   // Action implies the notification was also opened — set openedAt only if not already set
   const notification = await NotificationHistory.findOneAndUpdate(
-    { _id: notificationId, user: userId },
+    { _id: notificationId, user: requireUserId(userId) },
     [
       {
         $set: {
@@ -426,18 +568,29 @@ async function trackAction(userId, notificationId, actionType) {
 }
 
 // ─── Query helpers ────────────────────────────────────────────────────────────
-async function listUserNotifications(userId, { limit = 50, unreadOnly = false } = {}) {
-  const query = { user: userId };
+async function listUserNotifications(
+  userId,
+  { page = 1, limit = 50, unreadOnly = false } = {}
+) {
+  const query = { user: requireUserId(userId) };
   if (unreadOnly) query.isRead = false;
-  return NotificationHistory.find(query)
-    .sort({ createdAt: -1 })
-    .limit(Math.min(100, Math.max(1, Number(limit) || 50)))
-    .lean();
+  const [items, total] = await Promise.all([
+    NotificationHistory.find(query)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    NotificationHistory.countDocuments(query),
+  ]);
+  return {
+    items,
+    pagination: buildPagination({ page, limit, total }),
+  };
 }
 
 async function markAsRead(userId, notificationId) {
   return NotificationHistory.findOneAndUpdate(
-    { _id: notificationId, user: userId },
+    { _id: notificationId, user: requireUserId(userId) },
     { isRead: true, readAt: new Date() },
     { returnDocument: "after" }
   ).lean();
@@ -445,7 +598,7 @@ async function markAsRead(userId, notificationId) {
 
 async function markAllAsRead(userId) {
   await NotificationHistory.updateMany(
-    { user: userId, isRead: false },
+    { user: requireUserId(userId), isRead: false },
     { isRead: true, readAt: new Date() }
   );
   return { success: true };
@@ -459,6 +612,7 @@ module.exports = {
   markAllAsRead,
   markAsRead,
   notifyUser,
+  trackDelivered,
   trackOpen,
   trackAction,
 };

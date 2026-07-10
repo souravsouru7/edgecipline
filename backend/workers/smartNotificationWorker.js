@@ -1,11 +1,21 @@
 require("dotenv").config();
+const {
+  bindFatalHandlers,
+  captureOperationalError,
+  initSentry,
+} = require("../config/sentry");
+initSentry({ processName: "smart-notification-worker" });
 
 const { Worker, UnrecoverableError } = require("bullmq");
 const connectDB = require("../config/db");
 const { appConfig } = require("../config");
 const { connectRedis, bullmqConnection } = require("../config/redis");
-const { SMART_NOTIFICATION_QUEUE_NAME } = require("../queues/smartNotificationQueue");
+const {
+  DELIVER_NOTIFICATION_JOB_NAME,
+  SMART_NOTIFICATION_QUEUE_NAME,
+} = require("../queues/smartNotificationQueue");
 const { logger } = require("../utils/logger");
+bindFatalHandlers({ logger, processName: "smart-notification-worker" });
 
 let workerInstance = null;
 let shutdownHandlersBound = false;
@@ -33,6 +43,15 @@ function bindShutdownHandlers() {
 // at first job — after the queue and evaluator modules are both initialised.
 function createProcessor() {
   return async (job) => {
+    if (job.name === DELIVER_NOTIFICATION_JOB_NAME) {
+      const { userId, notification } = job.data || {};
+      if (!userId || !notification?.type || !notification?.dedupeKey) {
+        throw new UnrecoverableError("notification delivery job has an invalid payload");
+      }
+      const notificationService = require("../services/notificationService");
+      return notificationService.notifyUser(userId, notification);
+    }
+
     const { userId, tradeId, collection, marketType, timezone } = job.data || {};
     const startedAt = Date.now();
 
@@ -90,6 +109,7 @@ async function startSmartNotificationWorker({ initializeConnections = true, mode
       connection:   bullmqConnection,
       concurrency:  appConfig.smartNotificationQueue.concurrency,
       lockDuration: appConfig.smartNotificationQueue.lockDurationMs,
+      maxStalledCount: 2,
     }
   );
 
@@ -105,6 +125,12 @@ async function startSmartNotificationWorker({ initializeConnections = true, mode
     const exhausted = job ? job.attemptsMade >= job.opts.attempts : false;
 
     if (exhausted) {
+      captureOperationalError(err, {
+        subsystem: "notifications",
+        tags: { event: "dead_letter" },
+        extra: { jobId: job?.id, tradeId: job?.data?.tradeId, attempts: job?.attemptsMade },
+        userId: job?.data?.userId,
+      });
       // DEAD-LETTER: this entry remains in Redis for 24h (removeOnFail.age)
       // and is queryable via getSmartNotificationQueueMetrics + admin endpoint.
       logger.error("SMART_WORKER_DEAD_LETTER", {
@@ -130,6 +156,7 @@ async function startSmartNotificationWorker({ initializeConnections = true, mode
   });
 
   workerInstance.on("error", (error) => {
+    captureOperationalError(error, { subsystem: "notifications", tags: { event: "worker_error" } });
     logger.error("SMART_WORKER_RUNTIME_ERROR", {
       error: error?.message,
       stack: error?.stack,
@@ -151,6 +178,7 @@ async function startSmartNotificationWorker({ initializeConnections = true, mode
 
 if (require.main === module) {
   startSmartNotificationWorker({ initializeConnections: true, mode: "standalone" }).catch((error) => {
+    captureOperationalError(error, { level: "fatal", subsystem: "notifications", tags: { event: "bootstrap_failed" } });
     logger.error("SMART_WORKER_BOOTSTRAP_FAILED", {
       error: error?.message,
       stack: error?.stack,

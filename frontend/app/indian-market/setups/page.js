@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups, saveSetups, uploadSetupReferenceImages } from "@/services/setupApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Trash2, X } from "lucide-react";
+import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
 
 const MAX_IMAGES = 20;
 
@@ -17,6 +19,7 @@ function genId() {
 
 export default function IndianSetupStrategiesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { ready } = useRequireAuth();
   const [mounted, setMounted] = useState(false);
   const [strategies, setStrategies] = useState([]);
@@ -248,6 +251,7 @@ export default function IndianSetupStrategiesPage() {
         rules: (s.rules || []).map(r => ({ label: r.label })),
       }));
       await saveSetups(payload, MARKETS.INDIAN_MARKET);
+      await Promise.all(invalidateSetupDependentQueries(queryClient));
       setSavedAt(new Date());
     } catch (e) {
       setError(e.message || "Failed to save setups");

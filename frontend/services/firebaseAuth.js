@@ -15,6 +15,7 @@ import {
   signInWithRedirect,
   signOut,
 } from "firebase/auth";
+import { validateEnvironment } from "@/config/environment";
 
 // L12: Map config keys → env var names so the error message is actionable.
 const FIREBASE_ENV_MAP = {
@@ -27,13 +28,14 @@ const FIREBASE_ENV_MAP = {
 };
 
 const getFirebaseConfig = () => {
+  const environment = validateEnvironment();
   const config = {
-    apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    apiKey:            environment.firebaseApiKey,
+    authDomain:        environment.firebaseAuthDomain,
+    projectId:         environment.firebaseProjectId,
+    storageBucket:     environment.firebaseStorageBucket,
+    messagingSenderId: environment.firebaseMessagingSenderId,
+    appId:             environment.firebaseAppId,
   };
 
   const required = ['apiKey', 'authDomain', 'projectId', 'appId'];

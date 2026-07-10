@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { validateEnvironment } from "./config/environment";
+
+// Static Capacitor bundles cannot be repaired after compilation.
+validateEnvironment(undefined, { mode: process.env.NODE_ENV });
+
+const frontendRoot = dirname(fileURLToPath(import.meta.url));
 
 // M30: Security headers — applied by the dev server and any SSR deployment.
 // For the static export (output: "export") these must also be set at the CDN/Nginx layer.
@@ -18,6 +26,11 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
+  },
+  // Turbopack is the default bundler in Next.js 16. Empty config signals we
+  // are intentionally using Turbopack and silences the webpack-config warning.
+  turbopack: {
+    root: frontendRoot,
   },
 };
 

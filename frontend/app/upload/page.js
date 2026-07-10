@@ -34,10 +34,13 @@ export default function UploadPage() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || "Upload failed");
+        throw new Error(errorData.error?.message || errorData.message || "Upload failed");
       }
 
-      const data = await res.json();
+      const payload = await res.json();
+      const data = payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
+        ? payload.data
+        : payload;
       setSuccess("Upload successful! URL: " + data.url);
       console.log(data);
 

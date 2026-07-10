@@ -7,7 +7,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
 import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
-import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import {
+  invalidateTradeDependentQueries,
+  TRADE_QUERY_FRESHNESS_OPTIONS,
+} from "@/utils/queryInvalidation";
 import { calculatePerformanceMetrics } from "@/utils/metricEngine";
 
 /**
@@ -35,9 +38,8 @@ export function useTrades() {
     },
     // Start only after client auth check to avoid hydration mismatch.
     enabled: mounted && hasToken,
-    staleTime: 5 * 60 * 1000,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 
   // 2. Data Deletion via useMutation

@@ -12,12 +12,29 @@ const TRADE_DEPENDENT_QUERY_KEYS = [
   ["reports"],
 ];
 
-export function invalidateTradeDependentQueries(queryClient) {
+const TRADE_QUERY_FRESHNESS_OPTIONS = Object.freeze({
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+});
+
+function invalidateQueryKeys(queryClient, queryKeys) {
   if (!queryClient) return [];
 
-  return TRADE_DEPENDENT_QUERY_KEYS.map((queryKey) =>
+  return queryKeys.map((queryKey) =>
     queryClient.invalidateQueries({ queryKey, exact: false })
   );
 }
 
-export { TRADE_DEPENDENT_QUERY_KEYS };
+export function invalidateTradeDependentQueries(queryClient) {
+  return invalidateQueryKeys(queryClient, TRADE_DEPENDENT_QUERY_KEYS);
+}
+
+export function invalidateSetupDependentQueries(queryClient) {
+  return invalidateQueryKeys(queryClient, [
+    ["setups"],
+    ...TRADE_DEPENDENT_QUERY_KEYS,
+  ]);
+}
+
+export { TRADE_DEPENDENT_QUERY_KEYS, TRADE_QUERY_FRESHNESS_OPTIONS };

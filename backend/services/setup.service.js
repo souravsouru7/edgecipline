@@ -1,15 +1,26 @@
 const ApiError = require("../utils/ApiError");
 const setupRepository = require("../repositories/setup.repository");
 const cloudinary = require("../config/cloudinary");
+const { TRADE_CACHE_EVENTS, invalidateTradeCaches } = require("../utils/cacheUtils");
+
+const SETUP_MARKET_TYPES = new Set(["Forex", "Indian_Market"]);
+
+function requireSetupMarketType(marketType) {
+  if (!SETUP_MARKET_TYPES.has(marketType)) {
+    throw new ApiError(400, "Invalid setup market type", "VALIDATION_ERROR");
+  }
+  return marketType;
+}
 
 async function getSetups(userId, marketType = "Forex") {
-  return setupRepository.findSetupsByUserAndMarket(userId, marketType);
+  return setupRepository.findSetupsByUserAndMarket(userId, requireSetupMarketType(marketType));
 }
 
 async function saveSetups(userId, marketType = "Forex", strategies) {
   if (!Array.isArray(strategies)) {
     throw new ApiError(400, "strategies must be an array", "VALIDATION_ERROR");
   }
+  requireSetupMarketType(marketType);
 
   const existingStrategies = await setupRepository.findRawSetupsByUserAndMarket(userId, marketType);
 
@@ -51,7 +62,20 @@ async function saveSetups(userId, marketType = "Forex", strategies) {
     );
   }
 
-  return setupRepository.replaceSetupsByUserAndMarket(userId, marketType, docs);
+  const result = await setupRepository.replaceSetupsByUserAndMarket(userId, marketType, docs);
+
+  // Advance the version before the successful response reaches the browser.
+  // This prevents an immediate client refetch from racing the invalidation.
+  // Redis failures resolve to version 0 and never undo the committed DB write.
+  await invalidateTradeCaches({
+    userId,
+    event: TRADE_CACHE_EVENTS.SETUP_EDIT,
+    market: marketType,
+    source: "setup_replace",
+    count: docs.length,
+  });
+
+  return result;
 }
 
 module.exports = {

@@ -19,13 +19,16 @@ const {
   REFRESH_COOKIE_NAME,
 } = require("../services/tokenService");
 const { invalidateAuthCache } = require("../services/authCacheService");
+const { buildTrialStart, TRIAL_DAYS } = require("../utils/premium");
+const analytics = require("../services/analyticsEventService");
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
 // Dummy bcrypt hash used to keep login response time constant even when the
 // email doesn't exist — prevents timing-based user enumeration.
-const DUMMY_BCRYPT_HASH = "$2b$10$invalidsaltinvalidsaltinvalidsal" + "tXXXXXXXXXXXXXXXXXXXX";
+const DUMMY_BCRYPT_HASH =
+  "$2b$10$uoTOWGbsKyWDN1ii2upYa.rZCuba0WtgqWY8QO31i.FuwmsP7kKQ.";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -84,6 +87,11 @@ function isCapacitorRequest(req) {
 
 function getAuthRequestDiagnostics(req) {
   return {
+    userId: req.user?._id ? String(req.user._id) : null,
+    deviceId: String(req.headers["x-device-id"] || "").slice(0, 100) || null,
+    sessionId: String(req.headers["x-session-id"] || "").slice(0, 100) || null,
+    tokenFamilyId: null,
+    platform: isCapacitorRequest(req) ? "capacitor" : "web",
     origin: req.headers.origin || "",
     referer: req.headers.referer || "",
     clientPlatform: req.headers["x-client-platform"] || "",
@@ -106,12 +114,18 @@ async function issueTokenPair(user, req, res) {
   const deviceInfo = {
     userAgent: (req.headers["user-agent"] || "").slice(0, 512),
     ip: req.ip || "",
+    deviceId: String(req.headers["x-device-id"] || "").slice(0, 100),
+    sessionId: String(req.headers["x-session-id"] || "").slice(0, 100),
   };
 
   const accessToken = generateAccessToken(user._id, user.role, user.tokenVersion);
   const rawRefresh = await createRefreshToken(user._id, deviceInfo);
 
   res.cookie(REFRESH_COOKIE_NAME, rawRefresh, getCookieOptions(isCapacitorRequest(req)));
+  logger.info("AUTH_LOGIN_SUCCESS", {
+    ...getAuthRequestDiagnostics(req),
+    userId: String(user._id),
+  });
   return accessToken;
 }
 
@@ -213,6 +227,17 @@ exports.registerUser = asyncHandler(async (req, res) => {
       acceptedAt: new Date(),
       termsVersion: CURRENT_TERMS_VERSION,
     },
+    ...buildTrialStart({ source: "auto_register" }),
+  });
+
+  analytics.track("trial_started", {
+    userId: user._id,
+    properties: {
+      source: "auto_register",
+      authProvider: "local",
+      trialDays: TRIAL_DAYS,
+      endsAt: user.trial?.endsAt,
+    },
   });
 
   const token = await issueTokenPair(user, req, res);
@@ -223,6 +248,10 @@ exports.registerUser = asyncHandler(async (req, res) => {
     email: user.email,
     role: user.role,
     token,
+    trial: {
+      endsAt: user.trial?.endsAt,
+      daysRemaining: TRIAL_DAYS,
+    },
   });
 });
 
@@ -339,6 +368,10 @@ exports.googleLogin = asyncHandler(async (req, res) => {
     ...(avatar ? { avatar } : {}),
   };
 
+  // Trial is NOT granted here — Google users haven't accepted terms yet.
+  // Granting on insert would start the 7-day clock for users who bounce on
+  // the terms screen. acceptTerms() applies the trial once they consent.
+
   let user;
   try {
     user = await User.findOneAndUpdate(
@@ -376,6 +409,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
     role: user.role,
     token,
     requiresTermsAcceptance: needsTerms || undefined,
+    trial: user?.trial?.endsAt ? { endsAt: user.trial.endsAt } : undefined,
   });
 });
 
@@ -392,7 +426,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
   const authDiagnostics = getAuthRequestDiagnostics(req);
 
-  logger.info("[AUTH] refresh start", authDiagnostics);
+  logger.info("AUTH_REFRESH_START", authDiagnostics);
 
   if (!rawToken) {
     logger.warn("REFRESH_COOKIE_MISSING", authDiagnostics);
@@ -402,6 +436,8 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const deviceInfo = {
     userAgent: (req.headers["user-agent"] || "").slice(0, 512),
     ip: req.ip || "",
+    deviceId: String(req.headers["x-device-id"] || "").slice(0, 100),
+    sessionId: String(req.headers["x-session-id"] || "").slice(0, 100),
   };
 
   const isCapacitor = isCapacitorRequest(req);
@@ -412,10 +448,11 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   } catch (err) {
     // A near-simultaneous duplicate refresh should wait/retry on the client.
     // Clearing the cookie here would turn a recoverable race into a logout.
-    if (err?.errorCode !== "REFRESH_TOKEN_RACE") {
+    const terminalFailure = err?.statusCode === 401 && err?.errorCode !== "REFRESH_TOKEN_RACE";
+    if (terminalFailure) {
       res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitor));
     }
-    logger.warn("[AUTH] refresh failed", {
+    logger.warn(err?.errorCode === "TOKEN_REPLAY_DETECTED" ? "AUTH_REFRESH_REPLAY" : "AUTH_REFRESH_FAILED", {
       ...authDiagnostics,
       errorCode: err?.errorCode,
       statusCode: err?.statusCode,
@@ -431,9 +468,10 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   );
 
   res.cookie(REFRESH_COOKIE_NAME, rotated.newRawToken, getCookieOptions(isCapacitor));
-  logger.info("[AUTH] refresh success", {
+  logger.info("AUTH_REFRESH_SUCCESS", {
     ...authDiagnostics,
     userId: String(rotated.userId),
+    tokenFamilyId: rotated.family || null,
   });
   res.json({ token: newAccessToken });
 });
@@ -448,7 +486,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
  */
 exports.logoutUser = asyncHandler(async (req, res) => {
   const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
-  logger.info("[AUTH] logout requested", getAuthRequestDiagnostics(req));
+  logger.info("AUTH_LOGOUT_TRIGGERED", getAuthRequestDiagnostics(req));
 
   if (rawToken) {
     // Best-effort — don't fail logout if DB is momentarily unavailable
@@ -500,6 +538,44 @@ exports.getMe = asyncHandler(async (req, res) => {
   });
 });
 
+const ONBOARDING_STEPS = [
+  "welcomeSeen",
+  "marketSelected",
+  "styleSelected",
+  "setupAdded",
+  "tradeAdded",
+  "tradeSkipped",
+  "firstInsightSeen",
+  "journalSeen",
+  "analyticsSeen",
+  "notificationsSeen",
+  "tourCompleted",
+  "checklistDismissed",
+];
+
+function serializeOnboarding(user) {
+  const o = user?.onboarding || {};
+  return {
+    welcomeSeen:        Boolean(o.welcomeSeen),
+    marketSelected:     Boolean(o.marketSelected),
+    styleSelected:      Boolean(o.styleSelected),
+    setupAdded:         Boolean(o.setupAdded),
+    tradeAdded:         Boolean(o.tradeAdded),
+    tradeSkipped:       Boolean(o.tradeSkipped),
+    firstInsightSeen:   Boolean(o.firstInsightSeen),
+    journalSeen:        Boolean(o.journalSeen),
+    analyticsSeen:      Boolean(o.analyticsSeen),
+    notificationsSeen:  Boolean(o.notificationsSeen),
+    tourCompleted:      Boolean(o.tourCompleted),
+    checklistDismissed: Boolean(o.checklistDismissed),
+    startedAt:               o.startedAt || null,
+    firstTradeAt:            o.firstTradeAt || null,
+    firstScreenshotUploadAt: o.firstScreenshotUploadAt || null,
+    firstInsightAt:          o.firstInsightAt || null,
+    completedAt:             o.completedAt || null,
+  };
+}
+
 exports.getMyPreferences = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
@@ -508,8 +584,46 @@ exports.getMyPreferences = asyncHandler(async (req, res) => {
   res.json({
     hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide),
     isOnboardingCompleted: Boolean(req.user.isOnboardingCompleted),
+    preferredMarket: req.user.preferredMarket || null,
+    onboarding: serializeOnboarding(req.user),
   });
 });
+
+exports.updateOnboardingStep = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+
+  const { step, value } = req.body || {};
+  if (!ONBOARDING_STEPS.includes(step)) {
+    throw new ApiError(400, "Invalid onboarding step", "VALIDATION_ERROR");
+  }
+
+  const truthy = value === undefined ? true : Boolean(value);
+  const set = { [`onboarding.${step}`]: truthy };
+  if (
+    truthy &&
+    !["welcomeSeen", "checklistDismissed"].includes(step)
+  ) {
+    set["onboarding.welcomeSeen"] = true;
+  }
+  const update = { $set: set };
+
+  const user = await User.findByIdAndUpdate(req.user._id, update, { new: true });
+
+  const o = user?.onboarding || {};
+  const coreDone = o.welcomeSeen && o.setupAdded && o.tradeAdded && o.journalSeen;
+  if (coreDone && !o.completedAt) {
+    user.onboarding.completedAt = new Date();
+    user.isOnboardingCompleted = true;
+    user.hasSeenWelcomeGuide = true;
+    await user.save();
+  }
+
+  await invalidateAuthCache(req.user._id);
+
+  res.json({ onboarding: serializeOnboarding(user) });
+});
+
+const VALID_MARKETS = ["Forex", "Indian_Market"];
 
 exports.updateMyPreferences = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
@@ -524,6 +638,12 @@ exports.updateMyPreferences = asyncHandler(async (req, res) => {
     updates.isOnboardingCompleted = Boolean(body.isOnboardingCompleted);
     // Keep hasSeenWelcomeGuide in sync so legacy code stays consistent
     updates.hasSeenWelcomeGuide = Boolean(body.isOnboardingCompleted);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "preferredMarket")) {
+    if (body.preferredMarket !== null && !VALID_MARKETS.includes(body.preferredMarket)) {
+      throw new ApiError(400, "Invalid preferredMarket", "VALIDATION_ERROR");
+    }
+    updates.preferredMarket = body.preferredMarket;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -542,29 +662,60 @@ exports.updateMyPreferences = asyncHandler(async (req, res) => {
   res.json({
     hasSeenWelcomeGuide: Boolean(user?.hasSeenWelcomeGuide),
     isOnboardingCompleted: Boolean(user?.isOnboardingCompleted),
+    preferredMarket: user?.preferredMarket || null,
   });
 });
 
 exports.acceptTerms = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
 
-  await User.findByIdAndUpdate(
-    req.user._id,
-    {
-      $set: {
-        "termsAcceptance.acceptedTerms": true,
-        "termsAcceptance.acceptedPrivacy": true,
-        "termsAcceptance.acceptedAt": new Date(),
-        "termsAcceptance.termsVersion": CURRENT_TERMS_VERSION,
-      },
-    },
-    { runValidators: false }
-  );
+  // First-time terms acceptance also kicks off the 7-day trial. Email signups
+  // already got their trial in registerUser; this path covers Google users
+  // who only land here after consent. Idempotent — never re-grants if
+  // trial.used is true.
+  const set = {
+    "termsAcceptance.acceptedTerms":   true,
+    "termsAcceptance.acceptedPrivacy": true,
+    "termsAcceptance.acceptedAt":      new Date(),
+    "termsAcceptance.termsVersion":    CURRENT_TERMS_VERSION,
+  };
 
-  // termsAcceptance is a cached field — middleware gate reads it.
+  const shouldGrantTrial = !req.user.trial?.used;
+  let trialPayload = null;
+  if (shouldGrantTrial) {
+    trialPayload = buildTrialStart({ source: "auto_register" }).trial;
+    Object.assign(set, {
+      "trial.startedAt":  trialPayload.startedAt,
+      "trial.endsAt":     trialPayload.endsAt,
+      "trial.used":       trialPayload.used,
+      "trial.source":     trialPayload.source,
+      "trial.extendedBy": trialPayload.extendedBy,
+    });
+  }
+
+  await User.findByIdAndUpdate(req.user._id, { $set: set }, { runValidators: false });
+
+  // termsAcceptance + trial are cached fields — middleware gate reads them.
   await invalidateAuthCache(req.user._id);
 
-  res.json({ success: true, message: "Terms and Privacy Policy accepted." });
+  if (shouldGrantTrial) {
+    analytics.track("trial_started", {
+      userId: req.user._id,
+      properties: {
+        source: "auto_register",
+        authProvider: req.user.authProvider || "google",
+        trialDays: TRIAL_DAYS,
+        endsAt: trialPayload.endsAt,
+        grantedOnTermsAcceptance: true,
+      },
+    });
+  }
+
+  res.json({
+    success: true,
+    message: "Terms and Privacy Policy accepted.",
+    trial: trialPayload ? { endsAt: trialPayload.endsAt } : undefined,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -670,14 +821,18 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or expired reset token", "VALIDATION_ERROR");
   }
 
-  // Validate the short-lived reset token issued by verifyOTP
+  // Validate the short-lived reset token issued by verifyOTP. Length check
+  // first — timingSafeEqual throws RangeError on mismatched buffer lengths.
+  const storedToken = user.resetPasswordToken;
+  const providedToken = typeof resetToken === "string" ? resetToken : "";
   const isValid =
-    user.resetPasswordToken &&
+    storedToken &&
     user.resetPasswordTokenExpires &&
     user.resetPasswordTokenExpires > new Date() &&
+    storedToken.length === providedToken.length &&
     crypto.timingSafeEqual(
-      Buffer.from(user.resetPasswordToken),
-      Buffer.from(resetToken)
+      Buffer.from(storedToken),
+      Buffer.from(providedToken)
     );
 
   if (!isValid) {

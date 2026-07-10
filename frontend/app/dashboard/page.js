@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { CheckSquare, FileText, Camera, Plus, Sparkles } from "lucide-react";
+import { BarChart3, BookOpen, Brain, CheckSquare, FileText, Camera, MessageCircle, Plus, Sparkles, Target } from "lucide-react";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -11,7 +11,11 @@ import { useClock }          from "@/features/shared/hooks/useClock";
 import StatCard              from "@/features/dashboard/components/StatCard";
 import EquityCurve           from "@/features/dashboard/components/EquityCurve";
 import CreateTradeButton     from "@/features/dashboard/components/CreateTradeButton";
-import OnboardingTour        from "@/features/dashboard/components/OnboardingTour";
+import FirstLoginWelcome     from "@/features/dashboard/components/FirstLoginWelcome";
+import GettingStartedCard    from "@/features/dashboard/components/GettingStartedCard";
+import StreakHeroChip        from "@/features/dashboard/components/StreakHeroChip";
+import ReflectionCard        from "@/features/reflections/components/ReflectionCard";
+import EmptyStateOverlay     from "@/features/dashboard/components/EmptyStateOverlay";
 import { useDashboard }      from "@/features/dashboard/hooks/useDashboard";
 import { Skeleton }          from "@/features/shared";
 
@@ -57,6 +61,192 @@ function QuickAction({ href, icon: Icon, label, sub, accent = "#0D9E6E" }) {
   );
 }
 
+function GrowthPathStep({ step, index }) {
+  const Icon = step.icon;
+
+  return (
+    <Link
+      href={step.href}
+      className="growth-path-step"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "38px minmax(0, 1fr) auto",
+        alignItems: "center",
+        gap: 11,
+        minHeight: 70,
+        padding: "12px 13px",
+        borderRadius: 12,
+        border: `1px solid ${step.done ? `${step.accent}33` : "#E2E8F0"}`,
+        background: step.done ? `${step.accent}08` : "#FFFFFF",
+        color: "#0F1923",
+        textDecoration: "none",
+      }}
+    >
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 11,
+          background: step.done ? step.accent : `${step.accent}12`,
+          color: step.done ? "#FFFFFF" : step.accent,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon size={18} strokeWidth={2.4} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, minWidth: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 900, color: step.accent, fontFamily: "'JetBrains Mono',monospace" }}>
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 900, color: "#0F1923", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {step.title}
+          </span>
+        </div>
+        <div style={{ fontSize: 10.5, color: "#64748B", lineHeight: 1.45 }}>
+          {step.body}
+        </div>
+      </div>
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 900,
+          color: step.done ? step.accent : "#94A3B8",
+          letterSpacing: "0.08em",
+          whiteSpace: "nowrap",
+          fontFamily: "'JetBrains Mono',monospace",
+        }}
+      >
+        {step.done ? "DONE" : step.cta}
+      </span>
+    </Link>
+  );
+}
+
+function TradingGrowthPath({ onboarding, stats }) {
+  const totalTrades = Number(stats?.totalTrades || onboarding?.tradeCount || 0);
+  const hasSetup = Boolean(onboarding?.setupAdded);
+  const hasTrade = totalTrades > 0 || Boolean(onboarding?.tradeAdded);
+  const hasInsight = Boolean(onboarding?.firstInsightSeen) || hasTrade;
+
+  const steps = [
+    {
+      title: "Build Setup",
+      body: "Save the rules for the trades you want to repeat.",
+      href: "/setups",
+      icon: Target,
+      accent: "#0D9E6E",
+      done: hasSetup,
+      cta: "OPEN",
+    },
+    {
+      title: "Run Checklist",
+      body: "Check the setup before taking risk.",
+      href: "/checklist",
+      icon: CheckSquare,
+      accent: "#6366F1",
+      done: false,
+      cta: "RUN",
+    },
+    {
+      title: "Log Trade",
+      body: "Upload a screenshot or add the trade manually.",
+      href: "/upload-trade",
+      icon: Camera,
+      accent: "#B8860B",
+      done: hasTrade,
+      cta: "ADD",
+    },
+    {
+      title: "Review Psychology",
+      body: "Capture mood, confidence, mistakes, and lesson.",
+      href: hasTrade ? "/trades" : "/add-trade",
+      icon: Brain,
+      accent: "#8B5CF6",
+      done: hasTrade,
+      cta: "REVIEW",
+    },
+    {
+      title: "Study Analytics",
+      body: "Find what works, what leaks money, and what repeats.",
+      href: "/analytics",
+      icon: BarChart3,
+      accent: "#2563EB",
+      done: Boolean(onboarding?.analyticsSeen),
+      cta: "VIEW",
+    },
+    {
+      title: "Open Intelligence",
+      body: "Turn analytics into the next improvement focus.",
+      href: "/intelligence",
+      icon: Sparkles,
+      accent: "#7C3AED",
+      done: hasInsight,
+      cta: "FOCUS",
+    },
+    {
+      title: "Coach & Report",
+      body: "Ask for guidance and close the week with actions.",
+      href: "/coach",
+      icon: MessageCircle,
+      accent: "#0D9E6E",
+      done: false,
+      cta: "ASK",
+    },
+  ];
+
+  return (
+    <section style={{
+      background: "#FFFFFF",
+      borderRadius: 14,
+      border: "1px solid #E2E8F0",
+      boxShadow: "0 2px 12px rgba(15,25,35,0.04)",
+      overflow: "hidden",
+      marginBottom: 20,
+    }}>
+      <div style={{ height: 3, background: "linear-gradient(90deg, #0D9E6E, #B8860B, #7C3AED)" }} />
+      <div style={{ padding: "17px 20px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: "#0F1923" }}>Your Trading Growth Path</div>
+            <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, lineHeight: 1.45 }}>
+              Setup - checklist - journal - review - improve. Use this loop for every trading cycle.
+            </div>
+          </div>
+          <Link
+            href="/intelligence"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              minHeight: 34,
+              padding: "7px 11px",
+              borderRadius: 9,
+              border: "1px solid rgba(124,58,237,0.22)",
+              background: "rgba(124,58,237,0.06)",
+              color: "#7C3AED",
+              textDecoration: "none",
+              fontSize: 11,
+              fontWeight: 900,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <BookOpen size={14} />
+            Intelligence
+          </Link>
+        </div>
+        <div className="growth-path-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
+          {steps.map((step, index) => (
+            <GrowthPathStep key={step.title} step={step} index={index} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function greetingFor(hour) {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
@@ -68,11 +258,14 @@ function firstName(full) {
   return String(full).trim().split(/\s+/)[0];
 }
 
-function buildStats(s) {
+function buildStats(s, streaks) {
   const total   = s?.totalTrades   ?? 0;
   const winRate = s?.winRate       ?? 0;
   const netPnl  = s?.netPnL       ?? s?.totalProfit ?? 0;
-  const streak  = s?.currentStreak ?? 0;
+  // Discipline streak comes from the dedicated streaks snapshot. We never
+  // surface "winning streak" on the dashboard — the product thesis is
+  // discipline, not outcome.
+  const disciplineStreak = streaks?.journal?.current ?? 0;
 
   return [
     {
@@ -114,14 +307,15 @@ function buildStats(s) {
       ),
     },
     {
-      label: "Win Streak",
-      value: streak,
-      sub: "consecutive wins",
-      accentColor: "#B8860B",
-      tooltip: "Your current consecutive winning streak. Resets to zero on the next loss. Use it as context — not as a reason to increase your position size.",
+      label: "Discipline Streak",
+      value: disciplineStreak,
+      sub: disciplineStreak === 1 ? "day of consistency" : "days of consistency",
+      accentColor: "#F59E0B",
+      tooltip: "Consecutive days you logged at least one trade or marked Sat Out. This measures discipline, not profit — show up every day to grow it.",
+      href: "/streaks",
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          <path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/>
         </svg>
       ),
     },
@@ -131,10 +325,50 @@ function buildStats(s) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent() {
-  const { stats, mounted, loading, showWelcome, closeWelcome: finishTour, selfAwareness, psychologyCost, tradingDNA, profile } = useDashboard();
+  const {
+    stats, mounted, loading,
+    showFirstLogin, closeFirstLogin,
+    refreshOnboarding, onboarding,
+    selfAwareness, psychologyCost, tradingDNA, profile,
+    streaks, reflection,
+  } = useDashboard();
   const clock     = useClock();
-  const statCards = buildStats(stats);
+  const statCards = buildStats(stats, streaks);
   const netPnl    = stats?.netPnL ?? stats?.totalProfit ?? 0;
+  // "Never empty": until the user has logged their first trade we keep the
+  // existing dashboard cards visible (so it never feels blank) but layer a
+  // sample overlay with a clear next action on top of the data-driven blocks.
+  const totalTrades = stats?.totalTrades || onboarding?.tradeCount || 0;
+  const isExplorer = Boolean(onboarding?.tradeSkipped) && totalTrades === 0;
+  const showEmptyOverlay = mounted && !loading && totalTrades === 0;
+  // Two voices: a direct nudge for users who haven't decided, and a softer
+  // "ready when you are" tone for explorers who told us they aren't trading
+  // yet. Same component — different copy/CTA.
+  const overlayCopy = isExplorer
+    ? {
+        kpis: {
+          title: "You're set up — these light up after your first real trade.",
+          body: "No pressure, no fake numbers. Paper-trade or watch the market, and log when you have a real entry.",
+          cta: "I have a trade now",
+        },
+        chart: {
+          title: "Equity curve is patient — it'll draw when you're ready.",
+          body: "We won't fake a chart from sample data. The line starts the moment your first trade saves.",
+          cta: "Log my first trade",
+        },
+      }
+    : {
+        kpis: {
+          title: "Your trader KPIs unlock the moment you log your first trade.",
+          body: "No noisy zeros, no fake numbers — real metrics start with one trade.",
+          cta: "Add my first trade",
+        },
+        chart: {
+          title: "Your equity curve draws itself once trades land.",
+          body: "A sample curve sits behind this card — your real growth replaces it after your first trade.",
+          cta: "Add my first trade",
+        },
+      };
   // Show skeletons while auth is resolving OR while data is loading.
   // Never show a full-page spinner — render the shell immediately.
   const showSkeleton = !mounted || loading;
@@ -213,24 +447,43 @@ function DashboardContent() {
                 fontSize: 13, color: "#64748B",
                 margin: "6px 0 0",
               }}>
-                Here's your edge today.
+                Here&apos;s your edge today.
               </p>
+              <div style={{ marginTop: 10 }}>
+                <StreakHeroChip streaks={streaks} />
+              </div>
             </div>
             <div id="tour-create-trade">
               <CreateTradeButton />
             </div>
           </div>
 
+          {/* ── Getting Started checklist (auto-hides when dismissed/complete) ── */}
+          <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} />
+
+          <TradingGrowthPath onboarding={onboarding} stats={stats} />
+
           {/* ── KPI stat cards ───────────────────────────────────── */}
           <div id="tour-kpi-grid" className="dash-kpi-grid" style={{
+            position: "relative",
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
             gap: 14, marginBottom: 20,
+            borderRadius: 12,
           }}>
             {statCards.map((s, i) => (
               <StatCard key={s.label} {...s} loading={loading} delay={i * 0.07} />
             ))}
+            <EmptyStateOverlay
+              show={showEmptyOverlay}
+              title={overlayCopy.kpis.title}
+              body={overlayCopy.kpis.body}
+              ctaLabel={overlayCopy.kpis.cta}
+            />
           </div>
+
+          {/* ── End-of-Day Reflection (closes the daily loop) ───── */}
+          <ReflectionCard data={reflection} loading={showSkeleton} />
 
           {/* ── Equity curve (full width) ────────────────────────── */}
           <div id="tour-equity-curve" style={{
@@ -283,6 +536,12 @@ function DashboardContent() {
                 ) : (
                   <EquityCurve bull={netPnl >= 0} />
                 )}
+                <EmptyStateOverlay
+                  show={showEmptyOverlay}
+                  title={overlayCopy.chart.title}
+                  body={overlayCopy.chart.body}
+                  ctaLabel={overlayCopy.chart.cta}
+                />
               </div>
             </div>
           </div>
@@ -479,7 +738,7 @@ function DashboardContent() {
         </main>
       </div>
 
-      {showWelcome && <OnboardingTour onFinish={finishTour} />}
+      {showFirstLogin && <FirstLoginWelcome onClose={closeFirstLogin} />}
 
       <style jsx global>{`
         @keyframes fadeUp {

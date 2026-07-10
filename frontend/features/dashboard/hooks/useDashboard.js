@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { markWelcomeGuideSeen } from "@/services/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMarket, MARKETS } from "@/context/MarketContext";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { hasValidAuthToken, hydrateAuthToken, isNativeCapacitor } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 
 // Hide the native splash screen after the dashboard shell is painted.
 // Called via the Capacitor global so @capacitor/splash-screen npm package
@@ -20,12 +21,12 @@ function hideSplash() {
   }
 }
 
-const TOUR_SEEN_KEY = "hasSeenWelcomeGuide";
-
 export function useDashboard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { currentMarket, toggleMarket } = useMarket();
   const [mounted, setMounted] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [showFirstLogin, setShowFirstLogin] = useState(false);
 
   const {
     data: snapshot = null,
@@ -34,10 +35,8 @@ export function useDashboard() {
   } = useQuery({
     queryKey: ["dashboard", "snapshot"],
     queryFn: ({ signal }) => getDashboardSnapshot(signal),
-    staleTime: 2 * 60 * 1000,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 30 * 60 * 1000,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
     enabled: mounted && hasValidAuthToken(),
   });
 
@@ -89,36 +88,49 @@ export function useDashboard() {
     // Handling them here too creates a race: double clearAuthToken + double redirect.
   }, [error, router]);
 
+  // Restore the user's saved market choice from the server (covers fresh
+  // logins on a new device where localStorage doesn't yet have it).
   useEffect(() => {
-    if (!mounted || !snapshot?.welcomeGuide) return;
-    if (snapshot.welcomeGuide.isOnboardingCompleted) return;
-    const hasSeenLocally = localStorage.getItem(TOUR_SEEN_KEY);
-    if (hasSeenLocally) return;
+    const preferred = snapshot?.preferredMarket;
+    if (!preferred) return;
+    if (preferred === currentMarket) return;
+    if (!Object.values(MARKETS).includes(preferred)) return;
+    toggleMarket(preferred);
+  }, [snapshot?.preferredMarket, currentMarket, toggleMarket]);
 
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
-    setShowWelcome(true);
-    markWelcomeGuideSeen().catch(() => {});
-  }, [mounted, snapshot?.welcomeGuide]);
+  // First-login welcome (full-screen modal). Runs ONCE per user. Once the user
+  // closes it, we route them into the forced setup -> trade -> journal loop.
+  useEffect(() => {
+    if (!mounted || !snapshot?.onboarding) return;
+    if (snapshot.onboarding.welcomeSeen) return;
+    if (snapshot.welcomeGuide?.isOnboardingCompleted) return;
+    setShowFirstLogin(true);
+  }, [mounted, snapshot?.onboarding, snapshot?.welcomeGuide]);
 
-  const closeWelcome = () => {
-    setShowWelcome(false);
-    localStorage.setItem(TOUR_SEEN_KEY, "true");
-    markWelcomeGuideSeen().catch(() => {
-      localStorage.setItem(TOUR_SEEN_KEY, "true");
-    });
+  const closeFirstLogin = () => {
+    setShowFirstLogin(false);
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"] });
+  };
+
+  const refreshOnboarding = () => {
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"] });
   };
 
   return {
     stats: snapshot?.summary || null,
     loading,
     mounted,
-    showWelcome,
-    closeWelcome,
+    showFirstLogin,
+    closeFirstLogin,
+    refreshOnboarding,
+    onboarding: snapshot?.onboarding || null,
     error,
     selfAwareness: snapshot?.selfAwareness || null,
     psychologyCost: snapshot?.psychologyCost || null,
     tradingDNA: snapshot?.tradingDNA || null,
     profile: snapshot?.profile || null,
     notificationsSummary: snapshot?.notificationsSummary || null,
+    streaks: snapshot?.streaks || null,
+    reflection: snapshot?.reflection || null,
   };
 }

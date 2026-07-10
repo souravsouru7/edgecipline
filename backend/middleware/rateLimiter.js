@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { appConfig } = require("../config");
-const { client: redisClient } = require("../config/redis");
+const { client: redisClient, isRedisReady } = require("../config/redis");
 const { logger } = require("../utils/logger");
+const { captureOperationalError } = require("../config/sentry");
 
 const RATE_LIMIT_SCRIPT = `
 local current = redis.call("INCR", KEYS[1])
@@ -11,6 +12,24 @@ end
 local ttl = redis.call("PTTL", KEYS[1])
 return { current, ttl }
 `;
+
+const FALLBACK_WINDOW_MS = 60 * 1000;
+const FALLBACK_MAX_REQUESTS = 10;
+const FALLBACK_MAX_KEYS = 50_000;
+const ALERT_THROTTLE_MS = 60 * 1000;
+const REDIS_COMMAND_TIMEOUT_MS = Number(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS) || 1500;
+const memoryBuckets = new Map();
+let lastSentryAlertAt = 0;
+const limiterHealth = {
+  degraded: false,
+  degradedSince: null,
+  lastRedisErrorAt: null,
+  lastRedisSuccessAt: null,
+  redisFailureCount: 0,
+  fallbackRequestCount: 0,
+  failClosedRequestCount: 0,
+  affectedScopes: new Set(),
+};
 
 function normalizeIp(ip) {
   return String(ip || "unknown")
@@ -38,7 +57,9 @@ function getTokenUserId(req) {
   }
 
   try {
-    const decoded = jwt.verify(token, appConfig.jwt.secret);
+    const decoded = jwt.verify(token, appConfig.jwt.secret, {
+      algorithms: ["HS256"],
+    });
     req._rateLimitUserId = decoded?.id ? String(decoded.id) : null;
     return req._rateLimitUserId;
   } catch {
@@ -75,6 +96,7 @@ function sendRateLimitResponse(req, res, { scope, limit, ttlMs, message, keyType
     ip: normalizeIp(req.ip),
     path: req.originalUrl,
     method: req.method,
+    requestId: req.requestId,
     retryAfterSeconds,
   });
 
@@ -84,21 +106,150 @@ function sendRateLimitResponse(req, res, { scope, limit, ttlMs, message, keyType
   });
 }
 
+function markRedisHealthy() {
+  limiterHealth.lastRedisSuccessAt = new Date();
+  if (!limiterHealth.degraded) return;
+
+  logger.info("Redis rate limiter recovered", {
+    degradedSince: limiterHealth.degradedSince,
+    affectedScopes: [...limiterHealth.affectedScopes],
+  });
+  limiterHealth.degraded = false;
+  limiterHealth.degradedSince = null;
+  limiterHealth.affectedScopes.clear();
+}
+
+function markRedisFailure(error, { scope, req, failureMode }) {
+  const now = Date.now();
+  limiterHealth.degraded = true;
+  limiterHealth.degradedSince ||= new Date(now);
+  limiterHealth.lastRedisErrorAt = new Date(now);
+  limiterHealth.redisFailureCount += 1;
+  limiterHealth.affectedScopes.add(scope);
+
+  if (now - lastSentryAlertAt >= ALERT_THROTTLE_MS) {
+    lastSentryAlertAt = now;
+    captureOperationalError(error, {
+      subsystem: "rate_limit",
+      tags: { scope, behavior: failureMode },
+      extra: { route: req.originalUrl.split("?")[0], requestId: req.requestId },
+    });
+    logger.error("Redis rate limiter unavailable", {
+      scope,
+      failureMode,
+      path: req.originalUrl,
+      method: req.method,
+      error: error.message,
+    });
+  }
+}
+
+function pruneMemoryBuckets(now) {
+  for (const [key, bucket] of memoryBuckets) {
+    if (bucket.resetAt <= now) memoryBuckets.delete(key);
+  }
+  while (memoryBuckets.size >= FALLBACK_MAX_KEYS) {
+    memoryBuckets.delete(memoryBuckets.keys().next().value);
+  }
+}
+
+function consumeMemoryFallback(req, scope) {
+  const now = Date.now();
+  const key = `fallback:${scope}:ip:${normalizeIp(req.ip)}`;
+  let bucket = memoryBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    if (memoryBuckets.size >= FALLBACK_MAX_KEYS) pruneMemoryBuckets(now);
+    bucket = { count: 0, resetAt: now + FALLBACK_WINDOW_MS };
+    memoryBuckets.set(key, bucket);
+  }
+
+  bucket.count += 1;
+  limiterHealth.fallbackRequestCount += 1;
+  return {
+    allowed: bucket.count <= FALLBACK_MAX_REQUESTS,
+    remaining: Math.max(0, FALLBACK_MAX_REQUESTS - bucket.count),
+    ttlMs: Math.max(1, bucket.resetAt - now),
+  };
+}
+
+function sendAuthUnavailableResponse(res) {
+  res.setHeader("Retry-After", "60");
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(503).json({ error: "Authentication temporarily unavailable" });
+}
+
+function getRateLimiterHealth() {
+  const redisReady = isRedisReady();
+  const degraded = limiterHealth.degraded || !redisReady;
+  return {
+    status: degraded ? "degraded" : "healthy",
+    degraded,
+    redisReady,
+    reason: !redisReady ? "redis_unavailable" : limiterHealth.degraded ? "redis_command_failure" : null,
+    degradedSince: limiterHealth.degradedSince,
+    lastRedisErrorAt: limiterHealth.lastRedisErrorAt,
+    lastRedisSuccessAt: limiterHealth.lastRedisSuccessAt,
+    redisFailureCount: limiterHealth.redisFailureCount,
+    fallbackRequestCount: limiterHealth.fallbackRequestCount,
+    failClosedRequestCount: limiterHealth.failClosedRequestCount,
+    affectedScopes: [...limiterHealth.affectedScopes],
+    fallback: {
+      maxRequests: FALLBACK_MAX_REQUESTS,
+      windowMs: FALLBACK_WINDOW_MS,
+      activeKeys: memoryBuckets.size,
+    },
+  };
+}
+
+function resetRateLimiterStateForTests() {
+  memoryBuckets.clear();
+  lastSentryAlertAt = 0;
+  Object.assign(limiterHealth, {
+    degraded: false,
+    degradedSince: null,
+    lastRedisErrorAt: null,
+    lastRedisSuccessAt: null,
+    redisFailureCount: 0,
+    fallbackRequestCount: 0,
+    failClosedRequestCount: 0,
+  });
+  limiterHealth.affectedScopes.clear();
+}
+
+function withRedisTimeout(command) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error("Redis rate limiter command timed out")),
+      REDIS_COMMAND_TIMEOUT_MS
+    );
+  });
+  return Promise.race([command, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 function createRedisRateLimiter({
   scope,
   windowMs,
   maxRequests,
   message = "Too many requests. Please try again later.",
+  failureMode = "memory",
 }) {
   return async (req, res, next) => {
     try {
+      if (!isRedisReady()) {
+        throw new Error("Redis is not ready for distributed rate limiting");
+      }
       const { key: rateLimitKey, keyType } = resolveRateLimitKey(req, scope);
-      const [currentCountRaw, ttlMsRaw] = await redisClient.eval(
-        RATE_LIMIT_SCRIPT,
-        1,
-        rateLimitKey,
-        String(windowMs)
+      const [currentCountRaw, ttlMsRaw] = await withRedisTimeout(
+        redisClient.eval(
+          RATE_LIMIT_SCRIPT,
+          1,
+          rateLimitKey,
+          String(windowMs)
+        )
       );
+      markRedisHealthy();
 
       const currentCount = Number(currentCountRaw);
       const ttlMs = Number(ttlMsRaw);
@@ -121,14 +272,27 @@ function createRedisRateLimiter({
 
       return next();
     } catch (error) {
-      logger.error("Redis rate limiter unavailable — failing open", {
-        scope,
-        path: req.originalUrl,
-        method: req.method,
-        error: error.message,
-      });
+      markRedisFailure(error, { scope, req, failureMode });
 
-      // Fail open: allow the request through rather than blocking all users
+      if (failureMode === "deny") {
+        limiterHealth.failClosedRequestCount += 1;
+        return sendAuthUnavailableResponse(res);
+      }
+
+      const fallback = consumeMemoryFallback(req, scope);
+      res.setHeader("RateLimit-Policy", "fallback-memory");
+      res.setHeader("RateLimit-Limit", String(FALLBACK_MAX_REQUESTS));
+      res.setHeader("RateLimit-Remaining", String(fallback.remaining));
+      res.setHeader("RateLimit-Reset", String(Math.ceil(fallback.ttlMs / 1000)));
+      if (!fallback.allowed) {
+        return sendRateLimitResponse(req, res, {
+          scope,
+          limit: FALLBACK_MAX_REQUESTS,
+          ttlMs: fallback.ttlMs,
+          message,
+          keyType: "fallback-ip",
+        });
+      }
       return next();
     }
   };
@@ -148,6 +312,7 @@ const authRateLimiter = createRedisRateLimiter({
   windowMs: appConfig.rateLimit.authWindowMs,
   maxRequests: appConfig.rateLimit.authMaxRequests,
   message: "Too many authentication attempts. Please try again later.",
+  failureMode: "deny",
 });
 
 // Loose limiter: profile/preferences endpoints called frequently by the app on every load.
@@ -167,6 +332,15 @@ const refreshRateLimiter = createRedisRateLimiter({
   windowMs: 60 * 1000,
   maxRequests: Number(process.env.REFRESH_RATE_LIMIT_MAX_REQUESTS) || 10,
   message: "Too many refresh requests. Please try again later.",
+  failureMode: "deny",
+});
+
+const deviceTokenRateLimiter = createRedisRateLimiter({
+  scope: "device-token",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.DEVICE_TOKEN_RATE_LIMIT_MAX_REQUESTS) || 20,
+  message: "Too many device token requests. Please try again later.",
+  failureMode: "memory",
 });
 
 const uploadRateLimiter = createRedisRateLimiter({
@@ -181,6 +355,34 @@ const statusRateLimiter = createRedisRateLimiter({
   windowMs: appConfig.rateLimit.statusWindowMs,
   maxRequests: appConfig.rateLimit.statusMaxRequests,
   message: "Too many status requests. Please try again later.",
+});
+
+// Money endpoints: order creation and payment verification. 10/min per user is
+// far above any legitimate flow (one subscription = 1 order + 1 verify) but
+// caps an attacker holding a valid session from spinning the Razorpay client.
+// failureMode: "deny" so a Redis outage cannot silently open the floodgates.
+const paymentRateLimiter = createRedisRateLimiter({
+  scope: "payment",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.PAYMENT_RATE_LIMIT_MAX_REQUESTS) || 10,
+  message: "Too many payment requests. Please try again later.",
+  failureMode: "deny",
+});
+
+const webhookRateLimiter = createRedisRateLimiter({
+  scope: "razorpay-webhook",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.WEBHOOK_RATE_LIMIT_MAX_REQUESTS) || 60,
+  message: "Too many webhook requests. Please try again later.",
+  failureMode: "deny",
+});
+
+const adminFinancialRateLimiter = createRedisRateLimiter({
+  scope: "admin-financial",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.ADMIN_FINANCIAL_RATE_LIMIT_MAX_REQUESTS) || 10,
+  message: "Too many admin payment operations. Please wait before trying again.",
+  failureMode: "deny",
 });
 
 // Strict limiter for destructive admin operations (delete, status toggle, plan extension).
@@ -202,14 +404,32 @@ const adminDestructiveRateLimiter = createRedisRateLimiter({
   message: "Too many admin operations. Please wait before performing more destructive actions.",
 });
 
+// Coach chat: streaming Gemini calls per user. Generous enough for a real
+// conversation, tight enough that a stuck client can't open dozens of
+// long-lived SSE streams in a few seconds. Free-tier weekly quota is enforced
+// separately inside coachChatService.
+const coachChatRateLimiter = createRedisRateLimiter({
+  scope: "coach-chat",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.COACH_CHAT_RATE_LIMIT_MAX_REQUESTS) || 20,
+  message: "Too many coach messages in a short time. Take a breath and try again in a moment.",
+});
+
 module.exports = {
   createRedisRateLimiter,
+  getRateLimiterHealth,
+  resetRateLimiterStateForTests,
   globalRateLimiter,
   authRateLimiter,
   profileRateLimiter,
   refreshRateLimiter,
+  deviceTokenRateLimiter,
   uploadRateLimiter,
   statusRateLimiter,
+  paymentRateLimiter,
+  webhookRateLimiter,
+  adminFinancialRateLimiter,
   adminDestructiveRateLimiter,
   issueReportRateLimiter,
+  coachChatRateLimiter,
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import FocusTrap from "@/features/shared/components/FocusTrap";
 
 const THOUGHTS = [
   "Trade the plan. Not the mood.",
@@ -135,14 +136,17 @@ export default function DailyThought({
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(2,6,23,0.45)",
-          backdropFilter: "blur(10px)",
+          background: "rgba(2,6,23,0.60)",
           animation: "dtFadeIn 220ms ease-out both",
         }}
       />
 
       {/* Card */}
+      <FocusTrap>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Daily thought"
         style={{
           width: "min(560px, 100%)",
           background,
@@ -287,6 +291,8 @@ export default function DailyThought({
           * { animation: none !important; transition: none !important; }
         }
       `}</style>
+    </div>
+      </FocusTrap>
     </div>
   );
 }

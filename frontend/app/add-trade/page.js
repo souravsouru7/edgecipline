@@ -2,6 +2,7 @@
 
 import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Camera, Save, ArrowLeft } from "lucide-react";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
@@ -38,6 +39,8 @@ const labelSt   = { display: "block", fontSize: 11, fontWeight: 700, color: "#94
 function AddTradeContent() {
   const { currentMarket, getCurrencySymbol, isIndianMarket } = useMarket();
   const clock = useClock();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const fileInputRef = useRef(null);
   const evidenceRef = useRef(null);
   const [committingEvidence, setCommittingEvidence] = useState(false);
@@ -77,6 +80,21 @@ function AddTradeContent() {
       <TickerTape />
 
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px", opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)" }}>
+        {onboardingMode && (
+          <div style={{
+            padding: "12px 14px", borderRadius: 10,
+            background: "linear-gradient(135deg, rgba(34,199,142,0.08), rgba(13,158,110,0.04))",
+            border: "1px solid rgba(34,199,142,0.25)",
+            marginBottom: 18,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+              STEP 2 OF 3 · LOG YOUR FIRST TRADE
+            </div>
+            <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.55 }}>
+              Pick the setup you just created, fill the basics (pair, entry, exit, P&L), and hit <strong>Commit</strong>. You can attach a screenshot now or skip and add it later.
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 6 }}>

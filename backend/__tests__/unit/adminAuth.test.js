@@ -14,6 +14,7 @@
 
 jest.mock('../../models/Users', () => ({
   findOne: jest.fn(),
+  updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
 }));
 
 jest.mock('bcryptjs', () => ({
@@ -48,8 +49,20 @@ const adminDoc = (overrides = {}) => ({
   role:         'admin',
   authProvider: 'local',
   tokenVersion: 0,
+  termsAcceptance: {
+    acceptedTerms: true,
+    acceptedPrivacy: true,
+    termsVersion: 'v1.0',
+  },
   ...overrides,
 });
+
+const authQuery = (user) => {
+  const query = { select: jest.fn(), lean: jest.fn().mockResolvedValue(user) };
+  query.select.mockReturnValue(query);
+  query.then = (resolve, reject) => Promise.resolve(user).then(resolve, reject);
+  return query;
+};
 
 // ---------------------------------------------------------------------------
 // T5: Admin login
@@ -71,6 +84,7 @@ describe('adminLogin', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'admin', email: 'admin@stratedge.com' })
     );
+    expect(res.json.mock.calls[0][0]).not.toHaveProperty('token');
     expect(res.cookie).toHaveBeenCalled();
   });
 
@@ -165,9 +179,7 @@ describe('tokenVersion invalidation (middleware layer)', () => {
     const currentUser = adminDoc({ tokenVersion: 5 }); // DB has version 5
     User.findOne.mockReturnValue(undefined); // not called by protect
     // protect uses User.findById, not findOne
-    User.findById = jest.fn().mockReturnValue({
-      select: jest.fn().mockResolvedValue(currentUser),
-    });
+    User.findById = jest.fn().mockReturnValue(authQuery(currentUser));
 
     // Token was issued with old version 3
     const staleToken = jwt.sign(
@@ -193,9 +205,7 @@ describe('tokenVersion invalidation (middleware layer)', () => {
     const { protect } = require('../../middleware/authMiddleware');
 
     const currentUser = adminDoc({ tokenVersion: 2 });
-    User.findById = jest.fn().mockReturnValue({
-      select: jest.fn().mockResolvedValue(currentUser),
-    });
+    User.findById = jest.fn().mockReturnValue(authQuery(currentUser));
 
     const validToken = jwt.sign(
       { id: '507f1f77bcf86cd799439011', role: 'user', tokenVersion: 2 },

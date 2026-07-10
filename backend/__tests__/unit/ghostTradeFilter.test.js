@@ -23,6 +23,8 @@ jest.mock("../../utils/logger", () => ({
 
 describe("trade.repository.js - findForexTradesByUser", () => {
   const mockFind = jest.fn();
+  const userId = "507f1f77bcf86cd799439011";
+  let queryChain;
 
   beforeEach(() => {
     jest.resetModules();
@@ -30,26 +32,30 @@ describe("trade.repository.js - findForexTradesByUser", () => {
       find: mockFind,
       create: jest.fn(),
     }));
-    mockFind.mockReturnValue({
+    queryChain = {
       sort: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue([]),
       skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
-    });
+    };
+    mockFind.mockReturnValue(queryChain);
   });
 
   it("includes multiTradeGhost: { $ne: true } in the query", async () => {
     const repo = require("../../repositories/trade.repository");
-    await repo.findForexTradesByUser("user-1");
+    await repo.findForexTradesByUser(userId);
 
     expect(mockFind).toHaveBeenCalledWith(
       expect.objectContaining({
-        user: "user-1",
+        user: expect.objectContaining({
+          toString: expect.any(Function),
+        }),
         marketType: { $ne: "Indian_Market" },
         "parsedData.multiTradeGhost": { $ne: true },
       })
     );
+    expect(mockFind.mock.calls[0][0].user.toString()).toBe(userId);
   });
 
   it("does not surface a ghost-flagged trade", async () => {
@@ -67,10 +73,24 @@ describe("trade.repository.js - findForexTradesByUser", () => {
       ),
     });
 
-    const result = await repo.findForexTradesByUser("user-1");
+    const result = await repo.findForexTradesByUser(userId);
     expect(result).toHaveLength(1);
     expect(result[0]._id).toBe("t2");
     expect(result[0].profit).toBe(-28.2);
+  });
+
+  it("uses persisted effectiveTradeDate for indexed filtering and pagination", async () => {
+    const repo = require("../../repositories/trade.repository");
+    const dateFrom = new Date("2026-06-01T00:00:00.000Z");
+
+    await repo.findForexTradesByUser(userId, { page: 3, limit: 25, dateFrom });
+
+    expect(mockFind).toHaveBeenCalledWith(expect.objectContaining({
+      effectiveTradeDate: { $gte: dateFrom },
+    }));
+    expect(queryChain.sort).toHaveBeenCalledWith({ effectiveTradeDate: -1, _id: -1 });
+    expect(queryChain.skip).toHaveBeenCalledWith(50);
+    expect(queryChain.limit).toHaveBeenCalledWith(25);
   });
 });
 

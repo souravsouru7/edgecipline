@@ -44,6 +44,7 @@ const TRADE_CACHE_EVENTS = Object.freeze({
   IMPORT: "import",
   OCR_SAVE: "ocr_save",
   RESTORE: "restore",
+  SETUP_EDIT: "setup_edit",
 });
 
 const normalizeTradeCacheEvent = (event) => {

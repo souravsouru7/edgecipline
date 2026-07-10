@@ -1,5 +1,6 @@
 jest.mock("../../config", () => ({
   appConfig: {
+    cron: { sessionReminderConcurrency: 10, concurrency: 10 },
     sessionReminders: {
       enabled: true,
       schedule: "*/15 * * * *",

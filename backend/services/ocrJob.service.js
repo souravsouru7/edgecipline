@@ -10,6 +10,7 @@ const { appConfig } = require("../config");
 const DEFAULT_TTL_HOURS = Number(process.env.OCR_JOB_TTL_HOURS || 24);
 const STALE_PENDING_MS = Number(process.env.OCR_STALE_PENDING_MS || 5 * 60 * 1000);
 const STALE_PROCESSING_MS = Number(process.env.OCR_STALE_PROCESSING_MS || 12 * 60 * 1000);
+const TERMINAL_STATUSES = new Set(["COMPLETED", "CONFIRMED", "FAILED", "CANCELLED"]);
 
 function getExpiryDate() {
   return new Date(Date.now() + DEFAULT_TTL_HOURS * 60 * 60 * 1000);
@@ -57,6 +58,7 @@ function isNonRetryableOcrError(error) {
       "OCR_JOB_CANCELLED",
       "NOT_A_TRADE_IMAGE",
       "WRONG_MARKET_TYPE",
+      "IMAGE_QUALITY_TOO_LOW",
     ].includes(error?.code);
 }
 
@@ -174,33 +176,108 @@ async function getOcrJobForUser(userId, jobId) {
   return job;
 }
 
-async function getOcrJobStatus(userId, jobId) {
+async function getOcrConfirmationTrades(userId, jobId, expectedMarketType) {
   const job = await getOcrJobForUser(userId, jobId);
-  const queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
+  if (job.status !== "COMPLETED" && job.status !== "CONFIRMED") {
+    throw new ApiError(409, "OCR job is not ready to confirm", "OCR_JOB_NOT_COMPLETED");
+  }
+  if (expectedMarketType && job.marketType !== expectedMarketType) {
+    throw new ApiError(409, "OCR job market does not match the trade", "OCR_JOB_MARKET_MISMATCH");
+  }
+
+  const data = job.extractedData || {};
+  if (Array.isArray(data.parsedTrades) && data.parsedTrades.length > 0) {
+    return data.parsedTrades;
+  }
+  return data.parsedTrade ? [data.parsedTrade] : [];
+}
+
+async function recoverMissingQueueJob(job, userId) {
+  const jobId = job._id.toString();
+  const recoveryAttempts = Number(job.queueRecoveryAttempts || 0);
+  if (recoveryAttempts >= appConfig.ocrQueue.maxRecoveryAttempts) {
+    const failed = await OCRJob.findOneAndUpdate(
+      { _id: job._id, user: userId, status: { $in: ["PENDING", "PROCESSING"] } },
+      {
+        $set: {
+          status: "FAILED",
+          error: "OCR queue recovery was exhausted. Please upload the screenshot again.",
+          processedAt: new Date(),
+          expiresAt: getExpiryDate(),
+        },
+      },
+      { new: true }
+    );
+    const latest = failed || await OCRJob.findOne({ _id: job._id, user: userId });
+    return serializeJob(latest);
+  }
+
+  const queueJob = await enqueueOcrJob({
+    jobId,
+    imageUrl: job.uploadedImage?.imageUrl,
+    userId: job.user,
+    marketType: job.marketType,
+    broker: job.broker,
+  });
+  const recovered = await OCRJob.findOneAndUpdate(
+    { _id: job._id, user: userId, status: { $in: ["PENDING", "PROCESSING"] } },
+    {
+      $set: {
+        status: "PENDING",
+        queueJobId: queueJob.id,
+        queueJobName: queueJob.name,
+        processingStartedAt: null,
+        processedAt: null,
+        attemptsMade: 0,
+        error: null,
+        expiresAt: getExpiryDate(),
+      },
+      $inc: { queueRecoveryAttempts: 1 },
+    },
+    { new: true }
+  );
+
+  if (!recovered) {
+    const latest = await OCRJob.findOne({ _id: job._id, user: userId });
+    return serializeJob(latest);
+  }
+
+  logger.warn("Recovered missing OCR queue job from MongoDB", {
+    jobId,
+    queueJobId: queueJob.id,
+    userId: userId?.toString?.() || userId,
+    recoveryAttempt: recoveryAttempts + 1,
+  });
+  return serializeJob(recovered, await getOcrJobSnapshot(queueJob.id));
+}
+
+async function getOcrJobStatus(userId, jobId) {
+  let job = await getOcrJobForUser(userId, jobId);
+  if (TERMINAL_STATUSES.has(job.status)) {
+    return serializeJob(job);
+  }
+
+  let queueState = null;
+  try {
+    queueState = job.queueJobId ? await getOcrJobSnapshot(job.queueJobId) : null;
+  } catch (error) {
+    logger.warn("OCR queue state unavailable; returning durable MongoDB status", {
+      jobId,
+      queueJobId: job.queueJobId,
+      userId: userId?.toString?.() || userId,
+      error: error.message,
+    });
+    return { ...serializeJob(job), queueUnavailable: true };
+  }
 
   if (
     (job.status === "PENDING" || job.status === "PROCESSING") &&
-    (!queueState || ["waiting", "delayed", "paused", "prioritized"].includes(queueState.state))
+    !queueState
   ) {
     const ageMs = Date.now() - new Date(job.processingStartedAt || job.createdAt).getTime();
     const staleMs = job.status === "PROCESSING" ? STALE_PROCESSING_MS : STALE_PENDING_MS;
     if (ageMs >= staleMs) {
-      const previousStatus = job.status;
-      job.status = "FAILED";
-      job.error = queueState
-        ? "OCR worker is not processing jobs right now. Please try again shortly."
-        : "OCR queue job was lost before completion. Please upload the screenshot again.";
-      job.processedAt = new Date();
-      await job.save();
-      logger.error("OCR job failed because queue job was not picked up in time", {
-        jobId,
-        queueJobId: job.queueJobId,
-        userId: userId?.toString?.() || userId,
-        previousStatus,
-        queueState: queueState?.state || null,
-        ageMs,
-      });
-      return serializeJob(job, queueState);
+      return recoverMissingQueueJob(job, userId);
     }
   }
 
@@ -211,11 +288,24 @@ async function getOcrJobStatus(userId, jobId) {
     queueState?.state === "failed" &&
     (job.status === "PENDING" || job.status === "PROCESSING")
   ) {
-    job.status = "FAILED";
-    job.error = job.error || queueState.failedReason || "OCR processing failed";
-    job.processedAt = job.processedAt || new Date();
-    job.attemptsMade = Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0);
-    await job.save();
+    const reconciled = await OCRJob.findOneAndUpdate(
+      { _id: job._id, user: userId, status: { $in: ["PENDING", "PROCESSING"] } },
+      {
+        $set: {
+          status: "FAILED",
+          error: job.error || queueState.failedReason || "OCR processing failed",
+          processedAt: job.processedAt || new Date(),
+          attemptsMade: Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0),
+          expiresAt: getExpiryDate(),
+        },
+      },
+      { new: true }
+    );
+    if (!reconciled) {
+      job = await getOcrJobForUser(userId, jobId);
+      return serializeJob(job);
+    }
+    job = reconciled;
     logger.error("OCR job status reconciled from failed queue state", {
       jobId,
       queueJobId: job.queueJobId,
@@ -230,28 +320,18 @@ async function getOcrJobStatus(userId, jobId) {
     queueState &&
     ["active"].includes(queueState.state)
   ) {
-    job.status = "PROCESSING";
-    job.processingStartedAt = job.processingStartedAt || new Date(queueState.processedOn || Date.now());
-    job.attemptsMade = Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0);
-    await job.save();
-  }
-
-  if (
-    job.status === "PROCESSING" &&
-    job.processingStartedAt &&
-    Date.now() - new Date(job.processingStartedAt).getTime() >= STALE_PROCESSING_MS &&
-    (!queueState || ["stalled", "unknown"].includes(queueState.state))
-  ) {
-    job.status = "FAILED";
-    job.error = "OCR processing timed out. Please upload the screenshot again.";
-    job.processedAt = new Date();
-    await job.save();
-    logger.error("OCR job failed because processing became stale", {
-      jobId,
-      queueJobId: job.queueJobId,
-      queueState: queueState?.state || null,
-      userId: userId?.toString?.() || userId,
-    });
+    const processing = await OCRJob.findOneAndUpdate(
+      { _id: job._id, user: userId, status: "PENDING" },
+      {
+        $set: {
+          status: "PROCESSING",
+          processingStartedAt: job.processingStartedAt || new Date(queueState.processedOn || Date.now()),
+          attemptsMade: Math.max(job.attemptsMade || 0, queueState.attemptsMade || 0),
+        },
+      },
+      { new: true }
+    );
+    job = processing || await getOcrJobForUser(userId, jobId);
   }
 
   return serializeJob(job, queueState);
@@ -315,7 +395,7 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
     });
     throw createNonRetryableOcrError("OCR job not found", "OCR_JOB_NOT_FOUND");
   }
-  if (job.status === "CANCELLED" || job.status === "CONFIRMED") {
+  if (TERMINAL_STATUSES.has(job.status)) {
     return serializeJob(job);
   }
 
@@ -368,7 +448,9 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
     latest.status = "COMPLETED";
     latest.extractedData = result.data;
     latest.extractionConfidence = result.data?.extractionConfidence || 0;
+    latest.broker = result.data?.brokerType || latest.broker || "";
     latest.processedAt = new Date();
+    latest.expiresAt = getExpiryDate();
     latest.error = null;
     latest.attemptsMade = attempt;
     await latest.save();
@@ -400,6 +482,7 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
       latest.status = terminalFailure ? "FAILED" : "PROCESSING";
       latest.error = terminalFailure ? getFriendlyProcessingError(error) : null;
       latest.processedAt = terminalFailure ? new Date() : null;
+      if (terminalFailure) latest.expiresAt = getExpiryDate();
       latest.attemptsMade = attempt;
       await latest.save();
     }
@@ -417,9 +500,15 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
   }
 }
 
-async function markOcrJobConfirmed(userId, jobId, { tradeId, collection }) {
+async function markOcrJobConfirmed(userId, jobId, { tradeId, collection, session } = {}) {
   if (!jobId) return null;
-  const job = await getOcrJobForUser(userId, jobId);
+  assertObjectId(jobId);
+  const query = OCRJob.findOne({ _id: jobId, user: userId });
+  if (session) query.session(session);
+  const job = await query;
+  if (!job) {
+    throw new ApiError(404, "OCR job not found or unauthorized", "NOT_FOUND");
+  }
   if (job.status !== "COMPLETED" && job.status !== "CONFIRMED") {
     throw new ApiError(409, "OCR job is not ready to confirm", "OCR_JOB_NOT_COMPLETED");
   }
@@ -428,7 +517,7 @@ async function markOcrJobConfirmed(userId, jobId, { tradeId, collection }) {
   job.confirmedAt = new Date();
   job.confirmedTradeId = tradeId;
   job.confirmedTradeCollection = collection || "";
-  await job.save();
+  await job.save({ session });
   return serializeJob(job);
 }
 
@@ -447,6 +536,7 @@ module.exports = {
   cancelOcrJob,
   createOcrJob,
   deleteUploadedImageForJob,
+  getOcrConfirmationTrades,
   getOcrJobStatus,
   markOcrJobConfirmed,
   isNonRetryableOcrError,

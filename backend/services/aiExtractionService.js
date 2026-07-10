@@ -9,6 +9,12 @@ const { appConfig } = require("../config");
 // is the single source of truth.
 const GEMINI_EXTRACTION_TIMEOUT_MS = TIMEOUT_CONFIG.aiTimeout || 45_000;
 
+function buildBrokerPrompt(basePrompt, brokerHint) {
+  const broker = String(brokerHint || "").trim();
+  if (!broker) return basePrompt;
+  return `${basePrompt}\n\nBROKER-SPECIFIC CONTEXT:\nThis screenshot was detected as ${broker}. Use that broker's visible row/card layout and labels as the primary field map. Do not borrow values from summary widgets, navigation, account balances, or neighboring rows. Return the detected broker in the broker field.`;
+}
+
 const FOREX_VISION_PROMPT = `You are a trading data extraction specialist analyzing a Forex/CFD broker screenshot.
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
 
@@ -25,17 +31,26 @@ FIELD EXTRACTION RULES:
 - profit: net P&L in account currency. Look for: "Profit", "P&L", "Net P&L", "Realized P&L" columns. Negative if shown in red or with minus sign.
 - stopLoss: SL value. Look for: "S/L", "Stop Loss", "SL" columns.
 - takeProfit: TP value. Look for: "T/P", "Take Profit", "TP" columns.
+- tradeDate: trade close date if visible; otherwise open date. MetaTrader history rows show close date/time on the right of the symbol row, and "Open:" date/time below. Return YYYY-MM-DD.
+- commission: row commission if visible. Keep negative sign.
+- swap: row swap if visible.
 - broker: platform name visible in logo or title (MetaTrader 4, MetaTrader 5, cTrader, TradingView, etc.)
+
+METATRADER HISTORY RULES:
+- In MT4/MT5 History > Positions, each block starts with a symbol row like "GBPJPY.x, buy 0.90" or "EURUSD.x, sell 0.40".
+- The price line directly below the symbol row is "entry -> exit". Do not convert JPY pairs to GBP/USD-style decimals.
+- The red value at the right of that same row is that row's profit, not the summary Profit at the top.
+- S/L, T/P, Open, Swap, and Commission values below belong only to the current block.
 
 NUMBER FORMAT: Return raw numbers only. Remove currency symbols ($, €, £). Profit is negative if the trade is a loss.
 
 MULTI-TRADE: If MULTIPLE trade rows are visible on screen, extract ALL of them into a "trades" array. Set top-level fields to the first trade. EVERY VISIBLE ROW = ONE SEPARATE TRADE — do not skip any row.
 
 SINGLE TRADE EXAMPLE:
-JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"broker":"MetaTrader 5"}
+JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"tradeDate":"2026-06-11","commission":-2.00,"swap":0.00,"broker":"MetaTrader 5"}
 
 MULTI-TRADE EXAMPLE (2 rows visible):
-JSON: {"pair":"GBPUSD","type":"BUY","quantity":0.90,"entryPrice":1.35949,"exitPrice":1.35897,"profit":-46.80,"stopLoss":1.35898,"takeProfit":1.36288,"broker":"MetaTrader 5","trades":[{"pair":"GBPUSD","type":"BUY","quantity":0.90,"entryPrice":1.35949,"exitPrice":1.35897,"profit":-46.80,"stopLoss":1.35898,"takeProfit":1.36288},{"pair":"GBPUSD","type":"SELL","quantity":0.30,"entryPrice":1.35861,"exitPrice":1.35955,"profit":-28.20,"stopLoss":1.35950,"takeProfit":1.35677}]}`;
+JSON: {"pair":"GBPJPY.x","type":"BUY","quantity":0.90,"entryPrice":214.832,"exitPrice":214.802,"profit":-16.82,"stopLoss":214.753,"takeProfit":215.015,"tradeDate":"2026-06-11","commission":-4.50,"swap":0.00,"broker":"MetaTrader 5","trades":[{"pair":"GBPJPY.x","type":"BUY","quantity":0.90,"entryPrice":214.832,"exitPrice":214.802,"profit":-16.82,"stopLoss":214.753,"takeProfit":215.015,"tradeDate":"2026-06-11","commission":-4.50,"swap":0.00},{"pair":"EURUSD.x","type":"SELL","quantity":0.40,"entryPrice":1.15315,"exitPrice":1.15430,"profit":-46.00,"stopLoss":1.15427,"takeProfit":1.15050,"tradeDate":"2026-06-11","commission":-2.00,"swap":0.00}]}`;
 
 const INDIAN_VISION_PROMPT = `You are a trading data extraction specialist analyzing an Indian broker screenshot (Zerodha, Upstox, Angel One, Groww, Dhan, Fyers, 5paisa, ICICI Direct, Kotak Neo, Paytm Money, Motilal Oswal, Sharekhan).
 Return ONLY a single valid JSON object. No markdown, no explanation, no extra text.
@@ -206,10 +221,15 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
     const genAI = new GoogleGenerativeAI(geminiKey);
     const model = genAI.getGenerativeModel({
       model: appConfig.ai.geminiTradeModel,
-      generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 2048,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     });
 
-    const prompt = isEquity ? INDIAN_EQUITY_VISION_PROMPT : isIndian ? INDIAN_VISION_PROMPT : FOREX_VISION_PROMPT;
+    const basePrompt = isEquity ? INDIAN_EQUITY_VISION_PROMPT : isIndian ? INDIAN_VISION_PROMPT : FOREX_VISION_PROMPT;
+    const prompt = buildBrokerPrompt(basePrompt, options.brokerHint);
     const visionPromise = model.generateContent([
       { inlineData: { data: base64, mimeType } },
       { text: prompt },
@@ -292,6 +312,9 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
       profit: toNumberOrNull(item.profit),
       stopLoss: toNumberOrNull(item.stopLoss),
       takeProfit: toNumberOrNull(item.takeProfit),
+      tradeDate: typeof item.tradeDate === "string" ? item.tradeDate.trim() : null,
+      commission: toNumberOrNull(item.commission),
+      swap: toNumberOrNull(item.swap),
       broker: item.broker ?? null,
       strikePrice: toNumberOrNull(item.strikePrice),
       optionType: item.optionType === "PE" || item.optionType === "CE" ? item.optionType : null,
@@ -334,10 +357,19 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
       const res = await withTimeout(fetchPromise, "OpenAI AI API call", timeoutMs);
 
       if (!res.ok) {
-        const err = await res.text();
+        // Drain the body but do NOT log it: OpenAI error responses can echo
+        // request headers (including Authorization) in some failure modes.
+        // Log a short fingerprint (first 200 chars, control chars stripped)
+        // so 4xx/5xx are still diagnosable without leaking secrets.
+        const rawBody = await res.text().catch(() => "");
+        const safeSample = rawBody
+          .replace(/[^\x20-\x7E]/g, " ")
+          .replace(/(sk-[A-Za-z0-9_-]+)/g, "[REDACTED_KEY]")
+          .replace(/(Bearer\s+\S+)/gi, "[REDACTED_BEARER]")
+          .slice(0, 200);
         logger.warn(`OpenAI API error | status=${res.status}`, {
           status: res.status,
-          error: err,
+          bodySample: safeSample,
         });
         return null;
       }
@@ -377,6 +409,7 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
         generationConfig: {
           temperature: 0,
           maxOutputTokens: 600,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       });
       return withTimeout(geminiPromise, "Gemini AI call", geminiTimeout);

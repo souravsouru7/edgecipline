@@ -102,6 +102,11 @@ const ocrJobSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    queueRecoveryAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     expiresAt: {
       type: Date,
       required: true,

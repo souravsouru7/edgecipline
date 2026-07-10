@@ -55,6 +55,7 @@ DeviceTokenSchema.index({ lastSeenAt: -1 });
 // Covers the "disable stale sibling tokens for the same user+platform" query
 // in deviceTokenController.registerDeviceToken — runs on every FCM register.
 DeviceTokenSchema.index({ user: 1, platform: 1, enabled: 1, lastSeenAt: 1 });
+DeviceTokenSchema.index({ user: 1, platform: 1, deviceId: 1, enabled: 1 });
 // Covers notificationService.sendPushToUser DeviceToken lookup
 DeviceTokenSchema.index({ user: 1, enabled: 1, revokedAt: 1 });
 // M11: Auto-expire device tokens not seen in 90 days

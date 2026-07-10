@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getAnalyticsSnapshot,
 } from "@/services/analyticsApi";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 
 /**
  * useAnalytics
@@ -38,10 +39,8 @@ export function useAnalytics() {
       period: "weekly",
     }, signal),
     enabled: ready,
-    staleTime: 2 * 60 * 1000,
+    ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
   });
 
   const snapshot = snapshotQuery.data || {};

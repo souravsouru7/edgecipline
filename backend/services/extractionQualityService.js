@@ -181,9 +181,12 @@ function isTradeRelatedContent(text, marketType = "Forex") {
 
   const hasTradeKeyword = keywords.some((kw) => lower.includes(kw));
 
-  // Must have at least one number that looks like a price or P&L value
-  // (e.g. 1.23456, 18500, -250.50, +1200)
-  const hasPriceNumber = /[+-]?\d{1,6}\.?\d{0,5}/.test(text);
+  // Must have at least one number that looks like a price or P&L value:
+  // either a multi-digit integer (≥4 digits — e.g. 18500, 1200) or a number
+  // with a decimal point of ≥2 fractional digits (e.g. 1.23, 250.50). The
+  // previous regex `[+-]?\d{1,6}\.?\d{0,5}` matched any single digit and
+  // let arbitrary text through.
+  const hasPriceNumber = /[+-]?(?:\d{4,}|\d+\.\d{2,})/.test(text);
 
   return hasTradeKeyword && hasPriceNumber;
 }

@@ -18,6 +18,7 @@ export default function MobileUserDrawer({
   profile,
   navItems = [],
   extraSlot,
+  paymentSlot,
 }) {
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
@@ -55,9 +56,7 @@ export default function MobileUserDrawer({
           position: "fixed",
           inset: 0,
           zIndex: 9998,
-          background: "rgba(15,25,35,0.45)",
-          backdropFilter: "blur(4px)",
-          WebkitBackdropFilter: "blur(4px)",
+          background: "rgba(15,25,35,0.55)",
           opacity: animate ? 1 : 0,
           transition: "opacity 0.32s cubic-bezier(0.32,0.72,0,1)",
         }}
@@ -124,12 +123,12 @@ export default function MobileUserDrawer({
                   height: 48, padding: "0 8px", borderRadius: 10,
                   textDecoration: "none",
                   fontSize: 15, fontWeight: 500,
-                  color: active ? "#0D9E6E" : "#2D3748",
+                  color: active ? "var(--color-primary)" : "#2D3748",
                   background: active ? "rgba(13,158,110,0.07)" : "transparent",
                   fontFamily: "'Plus Jakarta Sans',sans-serif",
                 }}
               >
-                <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: active ? "#0D9E6E" : "#94A3B8" }}>
+                <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: active ? "var(--color-primary)" : "#94A3B8" }}>
                   {item.icon ?? (
                     <svg width="6" height="6" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" fill="currentColor" /></svg>
                   )}
@@ -144,6 +143,12 @@ export default function MobileUserDrawer({
           <div style={{ padding: "4px 20px 8px" }}>
             <div style={{ height: 1, background: "#F1F5F9", marginBottom: 12 }} />
             {extraSlot}
+          </div>
+        )}
+
+        {paymentSlot && (
+          <div style={{ padding: "8px 20px 4px" }}>
+            {paymentSlot}
           </div>
         )}
 

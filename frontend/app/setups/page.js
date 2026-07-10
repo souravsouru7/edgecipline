@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups, saveSetups, uploadSetupReferenceImages } from "@/services/setupApi";
+import { markOnboardingStep } from "@/services/api";
 import { useMarket } from "@/context/MarketContext";
 import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Trash2, X } from "lucide-react";
+import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
 
 const MAX_IMAGES = 20;
 
@@ -19,6 +22,9 @@ function genId() {
 
 export default function SetupStrategiesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const { ready } = useRequireAuth();
   const { currentMarket, getMarketLabel } = useMarket();
   const [mounted, setMounted] = useState(false);
@@ -240,7 +246,17 @@ export default function SetupStrategiesPage() {
         rules: (s.rules || []).map(r => ({ label: r.label })),
       }));
       await saveSetups(payload, currentMarket);
+      await Promise.all(invalidateSetupDependentQueries(queryClient));
       setSavedAt(new Date());
+
+      // Mark onboarding step done if any non-empty strategy was saved.
+      const hasNamedStrategy = payload.some(p => (p.name || "").trim().length > 0);
+      if (hasNamedStrategy) {
+        markOnboardingStep("setupAdded", true).catch(() => {});
+        if (onboardingMode) {
+          setTimeout(() => router.push("/upload-trade?onboarding=1"), 600);
+        }
+      }
     } catch (e) {
       setError(e.message || "Failed to save setups");
     } finally {
@@ -368,6 +384,21 @@ export default function SetupStrategiesPage() {
       </div>
 
       <main className="sp-main">
+        {onboardingMode && (
+          <div style={{
+            padding: "12px 14px", borderRadius: 10,
+            background: "linear-gradient(135deg, rgba(34,199,142,0.08), rgba(13,158,110,0.04))",
+            border: "1px solid rgba(34,199,142,0.25)",
+            marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+              STEP 1 OF 3 · ADD A SETUP
+            </div>
+            <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.55 }}>
+              Add at least one strategy with a name (e.g. <strong>"Breakout"</strong>), then hit <strong>Save</strong>. We'll take you to log your first trade next.
+            </div>
+          </div>
+        )}
         {error && <div className="sp-alert-error">{error}</div>}
         {savedAt && !error && (
           <div className="sp-alert-success">

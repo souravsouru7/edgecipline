@@ -1,16 +1,39 @@
 apply plugin: 'com.android.application'
+apply plugin: 'io.sentry.android.gradle'
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def releaseStoreFile = System.getenv('EDGE_RELEASE_STORE_FILE') ?: keystoreProperties['storeFile']
+def releaseStorePassword = System.getenv('EDGE_RELEASE_STORE_PASSWORD') ?: keystoreProperties['storePassword']
+def releaseKeyAlias = System.getenv('EDGE_RELEASE_KEY_ALIAS') ?: keystoreProperties['keyAlias']
+def releaseKeyPassword = System.getenv('EDGE_RELEASE_KEY_PASSWORD') ?: keystoreProperties['keyPassword']
+def sentryDsn = System.getenv('SENTRY_ANDROID_DSN') ?: project.findProperty('SENTRY_ANDROID_DSN') ?: ''
+def sentryUploadConfigured = [
+    System.getenv('SENTRY_AUTH_TOKEN'),
+    System.getenv('SENTRY_ORG'),
+    System.getenv('SENTRY_PROJECT')
+].every { it != null && !it.toString().trim().isEmpty() }
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+].every { it != null && !it.toString().trim().isEmpty() }
 android {
     namespace = "com.edgecpline"
     compileSdk = rootProject.ext.compileSdkVersion
 
     signingConfigs {
         release {
-            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
-                storeFile file(MYAPP_RELEASE_STORE_FILE)
-                storePassword MYAPP_RELEASE_STORE_PASSWORD
-                keyAlias MYAPP_RELEASE_KEY_ALIAS
-                keyPassword MYAPP_RELEASE_KEY_PASSWORD
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
             }
         }
     }
@@ -22,6 +45,7 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [sentryDsn: sentryDsn]
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -30,7 +54,9 @@ android {
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -38,6 +64,35 @@ android {
         debug {
             minifyEnabled false
         }
+    }
+}
+
+sentry {
+    includeProguardMapping = true
+    autoUploadProguardMapping = sentryUploadConfigured
+    includeSourceContext = sentryUploadConfigured
+    autoInstallation {
+        enabled = false
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def releaseRequested = taskGraph.allTasks.any {
+        it.project == project && it.name.toLowerCase().contains('release')
+    }
+    if (releaseRequested && !releaseSigningConfigured) {
+        throw new GradleException(
+            'Release signing is not configured. Set EDGE_RELEASE_* environment variables ' +
+            'or create an untracked android/keystore.properties file.'
+        )
+    }
+    if (releaseRequested && sentryDsn.toString().trim().isEmpty()) {
+        throw new GradleException('Release observability is not configured. Set SENTRY_ANDROID_DSN.')
+    }
+    if (releaseRequested && !sentryUploadConfigured) {
+        throw new GradleException(
+            'Release mapping upload is not configured. Set SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT.'
+        )
     }
 }
 

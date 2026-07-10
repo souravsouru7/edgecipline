@@ -14,6 +14,10 @@ const ALL_TYPES = [
   "morning_mentor",
   "weekly_ai_insight",
   "weekly_report_reminder",
+  "ocr_completed",
+  "ocr_failed",
+  "issue_fixed",
+  "admin_issue_report",
   "payment",
   "feedback",
   "system",
@@ -72,6 +76,7 @@ exports.getNotificationAnalytics = async (req, res) => {
           _id: null,
           total:           { $sum: 1 },
           sent:            { $sum: { $cond: [{ $in: ["$status", ["sent", "partial"]] }, 1, 0] } },
+          delivered:       { $sum: { $cond: [{ $ne: ["$deliveredAt", null] }, 1, 0] } },
           failed:          { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } },
           skipped:         { $sum: { $cond: [{ $eq: ["$status", "skipped"] }, 1, 0] } },
           opened:          { $sum: { $cond: [{ $ne: ["$openedAt", null] }, 1, 0] } },
@@ -84,7 +89,7 @@ exports.getNotificationAnalytics = async (req, res) => {
     ]);
 
     const funnel = funnelResult || {
-      total: 0, sent: 0, failed: 0, skipped: 0,
+      total: 0, sent: 0, delivered: 0, failed: 0, skipped: 0,
       opened: 0, actionClicked: 0,
       totalSuccess: 0, totalFailure: 0, totalInvalid: 0,
     };
@@ -93,7 +98,8 @@ exports.getNotificationAnalytics = async (req, res) => {
     const totalTokenAttempts = funnel.totalSuccess + funnel.totalFailure;
 
     const rates = {
-      deliveryRate:     rate(funnel.totalSuccess, totalTokenAttempts),
+      deliveryRate:     rate(funnel.delivered, funnel.sent),
+      fcmAcceptanceRate: rate(funnel.totalSuccess, totalTokenAttempts),
       openRate:         rate(funnel.opened, funnel.sent),
       ctr:              rate(funnel.actionClicked, funnel.opened),
       failureRate:      rate(funnel.failed, funnel.total),
@@ -182,6 +188,7 @@ exports.getNotificationAnalytics = async (req, res) => {
                 {
                   $and: [
                     { $eq: ["$status", "skipped"] },
+                    { $eq: [{ $ifNull: ["$delivery.error", ""] }, ""] },
                     { $eq: [{ $ifNull: ["$delivery.successCount", 0] }, 0] },
                     { $eq: [{ $ifNull: ["$delivery.failureCount", 0] }, 0] },
                     { $eq: [{ $size: { $ifNull: ["$delivery.invalidTokens", []] } }, 0] },
@@ -192,6 +199,12 @@ exports.getNotificationAnalytics = async (req, res) => {
               ],
             },
           },
+          pushDisabled: {
+            $sum: { $cond: [{ $eq: ["$delivery.error", "push_disabled"] }, 1, 0] },
+          },
+          quietHours: {
+            $sum: { $cond: [{ $eq: ["$delivery.error", "quiet_hours"] }, 1, 0] },
+          },
         },
       },
     ]);
@@ -201,8 +214,10 @@ exports.getNotificationAnalytics = async (req, res) => {
           invalidToken:   failureResult.invalidToken,
           fcmError:       failureResult.fcmError,
           noDeviceToken:  failureResult.noDeviceToken,
+          pushDisabled:   failureResult.pushDisabled,
+          quietHours:     failureResult.quietHours,
         }
-      : { invalidToken: 0, fcmError: 0, noDeviceToken: 0 };
+      : { invalidToken: 0, fcmError: 0, noDeviceToken: 0, pushDisabled: 0, quietHours: 0 };
 
     // ─── 5. Daily trend ───────────────────────────────────────────────────────
     const trendRaw = await NotificationHistory.aggregate([
@@ -237,6 +252,7 @@ exports.getNotificationAnalytics = async (req, res) => {
       funnel: {
         total:         funnel.total,
         sent:          funnel.sent,
+        delivered:     funnel.delivered,
         failed:        funnel.failed,
         skipped:       funnel.skipped,
         opened:        funnel.opened,

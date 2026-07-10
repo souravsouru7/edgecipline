@@ -12,6 +12,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/services/notificationApi";
+import { markOnboardingStep } from "@/services/api";
 
 // ─── Type → visual metadata ───────────────────────────────────────────────────
 
@@ -295,6 +296,10 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    markOnboardingStep("notificationsSeen", true).catch(() => {});
+  }, []);
 
   const load = async () => {
     setLoading(true);

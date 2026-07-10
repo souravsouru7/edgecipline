@@ -110,27 +110,29 @@ describe("notification quiet hours", () => {
     expect(result).toBe(blocked ? null : prefs);
     if (blocked) {
       expect(logger.info).toHaveBeenCalledWith(
-        "[QuietHours] notification blocked",
+        "QUIET_HOURS_BLOCKED",
         expect.objectContaining({
           userId: "user-1",
           type: "morning_mentor",
           timezone: "Asia/Kolkata",
-          start,
-          end,
+          quietHoursStart: start,
+          quietHoursEnd: end,
         })
       );
     } else {
       expect(logger.info).not.toHaveBeenCalledWith(
-        "[QuietHours] notification blocked",
+        "QUIET_HOURS_BLOCKED",
         expect.any(Object)
       );
     }
   });
 
-  it("returns before history creation and Firebase when quiet hours block notification", async () => {
+  it("keeps in-app history but suppresses Firebase during quiet hours", async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-01-01T18:00:00.000Z"));
     mockPreferences(buildPrefs());
+    NotificationHistory.create.mockResolvedValue({ _id: "notification-1" });
+    NotificationHistory.findOneAndUpdate.mockResolvedValue({ _id: "notification-1" });
 
     const result = await notifyUser("user-1", {
       type: "morning_mentor",
@@ -138,8 +140,12 @@ describe("notification quiet hours", () => {
       body: "This should not be created",
     });
 
-    expect(result).toBeNull();
-    expect(NotificationHistory.create).not.toHaveBeenCalled();
+    expect(result).toEqual({ _id: "notification-1" });
+    expect(NotificationHistory.create).toHaveBeenCalled();
+    expect(NotificationHistory.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: "notification-1", user: "user-1" },
+      { status: "skipped", "delivery.error": "quiet_hours" }
+    );
     expect(getFirebaseAdmin).not.toHaveBeenCalled();
   });
 
@@ -165,7 +171,7 @@ describe("notification quiet hours", () => {
     );
   });
 
-  it("skips quiet-hours enforcement when start or end is malformed", async () => {
+  it("fails closed when quiet-hours configuration is malformed", async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-01-01T18:00:00.000Z"));
     const prefs = buildPrefs({
@@ -178,9 +184,9 @@ describe("notification quiet hours", () => {
     });
     mockPreferences(prefs);
 
-    await expect(getAllowedPreferences("user-1", "morning_mentor")).resolves.toBe(prefs);
-    expect(logger.warn).toHaveBeenCalledWith(
-      "[QuietHours] malformed quiet hours; skipping enforcement",
+    await expect(getAllowedPreferences("user-1", "morning_mentor")).resolves.toBeNull();
+    expect(logger.error).toHaveBeenCalledWith(
+      "QUIET_HOURS_CONFIGURATION_INVALID",
       expect.objectContaining({ start: "25:00", end: "07:00" })
     );
   });

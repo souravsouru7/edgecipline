@@ -1,6 +1,13 @@
 import { API_URL } from "@/config/api";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 
+const readPayload = async (response) => {
+  const payload = await response.json();
+  return payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
+    ? payload.data
+    : payload;
+};
+
 export const logChecklistEvent = async (data) => {
   const token = getValidToken() || await hydrateAuthToken();
   if (!token) throw new Error("No token found");
@@ -16,10 +23,10 @@ export const logChecklistEvent = async (data) => {
 
   if (!response.ok) {
     const errData = await response.json();
-    throw new Error(errData.message || "Failed to log checklist");
+    throw new Error(errData.error?.message || errData.message || "Failed to log checklist");
   }
 
-  return await response.json();
+  return readPayload(response);
 };
 
 export const getChecklistStats = async (market) => {
@@ -35,8 +42,8 @@ export const getChecklistStats = async (market) => {
 
   if (!response.ok) {
     const errData = await response.json();
-    throw new Error(errData.message || "Failed to fetch checklist stats");
+    throw new Error(errData.error?.message || errData.message || "Failed to fetch checklist stats");
   }
 
-  return await response.json();
+  return readPayload(response);
 };

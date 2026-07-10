@@ -71,13 +71,13 @@ function decodeJwtPayload(token) {
   }
 }
 
-// 90-second skew buffer: Android device clocks commonly run ahead by minutes.
-// Without this, a 15-min token can appear expired after only 5 real minutes.
+// Refresh 90 seconds before JWT expiry. Subtracting this buffer would keep an
+// already-expired token alive and make a 401 retry reuse the same JWT.
 const CLOCK_SKEW_MS = 90_000;
 
 function isTokenValid(token) {
   const payload = decodeJwtPayload(token);
-  return Boolean(payload?.exp && payload.exp * 1000 > Date.now() - CLOCK_SKEW_MS);
+  return Boolean(payload?.exp && payload.exp * 1000 > Date.now() + CLOCK_SKEW_MS);
 }
 
 function tokenExpiresInMs(token) {
@@ -173,7 +173,7 @@ async function secureSetToken(token) {
   const storage = getSecureStoragePlugin();
   if (!storage?.set) {
     authLog("warn", "secure_storage_unavailable");
-    return false;
+    throw new Error("Secure authentication storage is unavailable");
   }
   try {
     await withSecureStorageRetry("set", () =>
@@ -185,7 +185,7 @@ async function secureSetToken(token) {
     // Persistence failed even after retries — the in-memory token is the only
     // copy. Next process kill will lose it; the user will need to re-auth via
     // the refresh cookie on next launch.
-    return false;
+    throw new Error("Secure authentication storage is temporarily unavailable");
   }
 }
 
@@ -216,13 +216,13 @@ function rememberToken(token) {
  *  3. Always delete the legacy localStorage token.
  */
 export async function hydrateAuthToken() {
-  authLog("info", "hydrate start", {
+  authLog("info", "AUTH_HYDRATE_START", {
     alreadyHydrated: _hydrated,
     hasMemoryToken: Boolean(_memoryToken),
   });
   if (_hydrated) {
     const token = getValidToken();
-    authLog("info", token ? "hydrate success" : "hydrate empty", {
+    authLog("info", token ? "AUTH_HYDRATE_SUCCESS" : "AUTH_HYDRATE_EMPTY", {
       source: "memory_or_hydrated",
       tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
     });
@@ -240,7 +240,7 @@ export async function hydrateAuthToken() {
         if (stored && isTokenValid(stored)) {
           clearLegacyToken();
           __authLog("hydrateAuthToken: loaded valid stored token, expires in", tokenExpiresInMs(stored), "ms");
-          authLog("info", "hydrate success", {
+          authLog("info", "AUTH_HYDRATE_SUCCESS", {
             source: "secure_storage",
             tokenExpiresInMs: tokenExpiresInMs(stored),
           });
@@ -257,7 +257,7 @@ export async function hydrateAuthToken() {
         if (legacy && isTokenValid(legacy)) {
           const persisted = await secureSetToken(legacy);
           if (persisted) {
-            authLog("info", "hydrate success", {
+            authLog("info", "AUTH_HYDRATE_SUCCESS", {
               source: "legacy_migration",
               tokenExpiresInMs: tokenExpiresInMs(legacy),
             });
@@ -265,20 +265,20 @@ export async function hydrateAuthToken() {
           }
         }
 
-        authLog("info", "hydrate empty", { source: "native" });
+        authLog("info", "AUTH_HYDRATE_EMPTY", { source: "native" });
         return null;
       }
 
       const legacy = readLegacyToken();
       clearLegacyToken();
       if (legacy && isTokenValid(legacy)) {
-        authLog("info", "hydrate success", {
+        authLog("info", "AUTH_HYDRATE_SUCCESS", {
           source: "legacy_web",
           tokenExpiresInMs: tokenExpiresInMs(legacy),
         });
         return rememberToken(legacy);
       }
-      authLog("info", "hydrate empty", { source: "web" });
+      authLog("info", "AUTH_HYDRATE_EMPTY", { source: "web" });
       return null;
     } catch (error) {
       authLog("error", "hydrate failed", { error: error?.message || String(error) });
@@ -295,7 +295,7 @@ export async function hydrateAuthToken() {
 }
 
 export function clearAuthToken() {
-  authLog("error", "logout triggered", {
+  authLog("info", "AUTH_LOGOUT_TRIGGERED", {
     reason: "clearAuthToken",
     hadMemoryToken: Boolean(_memoryToken),
     hydrated: _hydrated,

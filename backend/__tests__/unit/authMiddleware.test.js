@@ -19,9 +19,12 @@ const User = require("../../models/Users");
 const { protect } = require("../../middleware/authMiddleware");
 
 const mockFindById = (user) => {
-  User.findById.mockReturnValue({
-    select: jest.fn().mockResolvedValue(user),
-  });
+  const query = {
+    select: jest.fn(),
+    lean: jest.fn().mockResolvedValue(user),
+  };
+  query.select.mockReturnValue(query);
+  User.findById.mockReturnValue(query);
 };
 
 const buildReq = (originalUrl) => ({
@@ -98,5 +101,20 @@ describe("authMiddleware protect terms gate", () => {
     await protect(req, {}, next);
 
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it("returns 503 instead of logging the user out when the auth database is unavailable", async () => {
+    const req = buildReq("/api/analytics/summary");
+    const next = jest.fn();
+    const query = { select: jest.fn(), lean: jest.fn().mockRejectedValue(new Error("Mongo timeout")) };
+    query.select.mockReturnValue(query);
+    User.findById.mockReturnValue(query);
+
+    await protect(req, {}, next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 503,
+      errorCode: "AUTH_SERVICE_UNAVAILABLE",
+    }));
   });
 });

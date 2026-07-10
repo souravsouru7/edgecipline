@@ -1,7 +1,74 @@
 const asyncHandler = require("../utils/asyncHandler");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 const NotificationHistory = require("../models/NotificationHistory");
+const User = require("../models/Users");
+const SetupStrategy = require("../models/SetupStrategy");
+const Trade = require("../models/Trade");
+const IndianTrade = require("../models/IndianTrade");
+const streakService = require("../services/streak.service");
+const reflectionService = require("../services/reflectionService");
 const { logger } = require("../utils/logger");
+const { getTrialState, getPlanSource, isPremium } = require("../utils/premium");
+
+async function loadStreakSnapshot(userId) {
+  try {
+    return await streakService.getStreakSnapshot(userId);
+  } catch (error) {
+    logger.error("Failed to load streak snapshot", { error: error.message });
+    return null;
+  }
+}
+
+async function loadReflectionSnapshot(userId) {
+  try {
+    const [today, summary] = await Promise.all([
+      reflectionService.getTodayContext(userId),
+      reflectionService.getWeeklySummary(userId),
+    ]);
+    return {
+      today: {
+        day:           today.day,
+        completed:     today.completed,
+        skipped:       today.skipped,
+        hadTrades:     today.context?.hadTrades || false,
+        tradeCount:    today.context?.tradeCount || 0,
+        followedPlan:  today.reflection?.followedPlan || null,
+        wouldRepeat:   today.reflection?.wouldRepeat || null,
+        mood:          today.reflection?.mood ?? null,
+        confidence:    today.reflection?.confidence ?? null,
+      },
+      weekly:        summary.weekly,
+      latestInsight: summary.latestInsight,
+      error: null,
+    };
+  } catch (error) {
+    logger.warn("Dashboard reflection snapshot failed", {
+      userId: userId?.toString?.() || userId,
+      error: error.message,
+    });
+    return { today: null, weekly: null, latestInsight: null, error: "reflection_unavailable" };
+  }
+}
+
+async function loadOnboardingProgress(userId) {
+  try {
+    const [setupCount, tradeCount, indianTradeCount] = await Promise.all([
+      SetupStrategy.countDocuments({ user: userId }),
+      Trade.countDocuments({ user: userId }),
+      IndianTrade.countDocuments({ user: userId }).catch(() => 0),
+    ]);
+    return {
+      setupCount,
+      tradeCount: tradeCount + indianTradeCount,
+    };
+  } catch (error) {
+    logger.warn("Onboarding progress load failed", {
+      userId: userId?.toString?.() || userId,
+      error: error.message,
+    });
+    return { setupCount: 0, tradeCount: 0 };
+  }
+}
 
 const toNum = (value) => {
   const number = Number(value);
@@ -114,25 +181,85 @@ async function loadNotificationsSummary(userId) {
 
 exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
   const generatedAt = new Date().toISOString();
-  const [analytics, notificationsSummary] = await Promise.all([
-    loadDashboardAnalytics(req.user._id),
-    loadNotificationsSummary(req.user._id),
+  let dashboardUser = req.user;
+  try {
+    const backfillService = require("../services/onboardingBackfillService");
+    const result = await backfillService.backfillUserOnboarding(req.user._id);
+    if (result?.changed) {
+      dashboardUser = await User.findById(req.user._id).lean() || req.user;
+    }
+  } catch (error) {
+    logger.warn("Dashboard onboarding backfill failed", {
+      userId: req.user?._id?.toString?.() || req.user?._id,
+      error: error.message,
+    });
+  }
+
+  const [analytics, notificationsSummary, onboardingProgress, streaks, reflection] = await Promise.all([
+    loadDashboardAnalytics(dashboardUser._id),
+    loadNotificationsSummary(dashboardUser._id),
+    loadOnboardingProgress(dashboardUser._id),
+    loadStreakSnapshot(dashboardUser._id),
+    loadReflectionSnapshot(dashboardUser._id),
   ]);
 
+  const o = dashboardUser.onboarding || {};
+  const setupAdded = Boolean(o.setupAdded) || onboardingProgress.setupCount > 0;
+  const tradeAdded = Boolean(o.tradeAdded) || onboardingProgress.tradeCount > 0;
+  const journalSeen = Boolean(o.journalSeen);
+  const laterOnboardingStepSeen =
+    Boolean(o.marketSelected) ||
+    Boolean(o.styleSelected) ||
+    setupAdded ||
+    tradeAdded ||
+    Boolean(o.tradeSkipped) ||
+    Boolean(o.firstInsightSeen) ||
+    journalSeen;
+
   res.json({
-    profile: buildProfile(req.user),
+    profile: buildProfile(dashboardUser),
+    monetization: {
+      isPremium: isPremium(dashboardUser),
+      planSource: getPlanSource(dashboardUser),  // "admin"|"subscription"|"trial"|"free"
+      trial: getTrialState(dashboardUser),       // null for legacy users
+      subscription: {
+        status:    dashboardUser.subscriptionStatus,
+        plan:      dashboardUser.subscriptionPlan,
+        expiresAt: dashboardUser.subscriptionExpiry || null,
+      },
+    },
     welcomeGuide: {
-      hasSeenWelcomeGuide: Boolean(req.user.hasSeenWelcomeGuide),
-      isOnboardingCompleted: Boolean(req.user.isOnboardingCompleted),
+      hasSeenWelcomeGuide: Boolean(dashboardUser.hasSeenWelcomeGuide),
+      isOnboardingCompleted: Boolean(dashboardUser.isOnboardingCompleted),
+    },
+    preferredMarket: dashboardUser.preferredMarket || null,
+    onboarding: {
+      welcomeSeen:        Boolean(o.welcomeSeen) || laterOnboardingStepSeen,
+      marketSelected:     Boolean(o.marketSelected) || Boolean(dashboardUser.preferredMarket),
+      styleSelected:      Boolean(o.styleSelected) || Boolean(dashboardUser.tradingStyle),
+      setupAdded,
+      tradeAdded,
+      tradeSkipped:       Boolean(o.tradeSkipped),
+      firstInsightSeen:   Boolean(o.firstInsightSeen),
+      journalSeen,
+      analyticsSeen:      Boolean(o.analyticsSeen),
+      notificationsSeen:  Boolean(o.notificationsSeen),
+      tourCompleted:      Boolean(o.tourCompleted) || Boolean(dashboardUser.isOnboardingCompleted),
+      checklistDismissed: Boolean(o.checklistDismissed),
+      completedAt:        o.completedAt || null,
+      setupCount:         onboardingProgress.setupCount,
+      tradeCount:         onboardingProgress.tradeCount,
     },
     summary: analytics.summary,
     selfAwareness: analytics.selfAwareness,
     psychologyCost: analytics.psychologyCost,
     tradingDNA: analytics.tradingDNA,
+    streaks,
+    reflection,
     notificationsSummary,
     generatedAt,
     sourceTradeCount: analytics.sourceTradeCount,
-    partialErrors: [analytics.error, notificationsSummary.error].filter(Boolean),
+    partialErrors: [analytics.error, notificationsSummary.error, reflection?.error].filter(Boolean),
     cache: analytics.cache,
   });
 });

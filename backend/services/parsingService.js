@@ -123,6 +123,12 @@ function extractForexHeader(line) {
   return { pair, action, lotSize };
 }
 
+function parseMtDate(value) {
+  const match = String(value || "").match(/\b(\d{4})[./-](\d{2})[./-](\d{2})(?:\s+\d{2}:\d{2}(?::\d{2})?)?\b/);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
 function normalizeForexLevel(value, reference) {
   if (value == null || reference == null) return value;
   if (!Number.isFinite(value) || !Number.isFinite(reference)) return value;
@@ -175,6 +181,7 @@ function normalizeForexTrade(trade) {
 function extractForexPriceData(line) {
   const source = String(line || "").trim();
   if (!source) return null;
+  if (parseMtDate(source)) return null;
   if (!/^\d/.test(source) && !/^-?\d/.test(source)) return null;
   if (/^(#|S\s*\/?\s*L|T\s*\/?\s*P|TIP|Open|Swap|Commission|Balance|Profit)/i.test(source)) return null;
 
@@ -223,6 +230,7 @@ exports.parseTrade = (text) => {
   let stopLoss = null;
   let takeProfit = null;
   let openTime = null;
+  let tradeDate = null;
   let ticket = null;
 
   const getSession = (timeStr) => {
@@ -240,6 +248,10 @@ exports.parseTrade = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const nextLine = lines[i + 1] || "";
+
+    if (!tradeDate) {
+      tradeDate = parseMtDate(line);
+    }
 
     // Symbol, Action, Lot
     const forexHeader = extractForexHeader(line);
@@ -299,10 +311,16 @@ exports.parseTrade = (text) => {
 
     // Open Time
     const openTimeMatch = line.match(/Open[:\s]*(\d{4}\.\d{2}\.\d{2}\s*\d{2}:\d{2}:\d{2})/i);
-    if (openTimeMatch) openTime = openTimeMatch[1];
+    if (openTimeMatch) {
+      openTime = openTimeMatch[1];
+      if (!tradeDate) tradeDate = parseMtDate(openTime);
+    }
     else if (/^Open[:\s]*$/i.test(line)) {
       const nextValue = nextLine.match(/^(\d{4}\.\d{2}\.\d{2}\s*\d{2}:\d{2}:\d{2})$/);
-      if (nextValue) openTime = nextValue[1];
+      if (nextValue) {
+        openTime = nextValue[1];
+        if (!tradeDate) tradeDate = parseMtDate(openTime);
+      }
     }
 
     // Profit summary — only use if we're already inside a trade block (pair found),
@@ -321,6 +339,12 @@ exports.parseTrade = (text) => {
         profit = line;
       }
     }
+    if (!profit && entryPrice != null && exitPrice != null && /^[-+]\d+(?:\.\d+)?$/.test(line)) {
+      const previousLine = lines[i - 1] || "";
+      if (!/^(S\s*\/?\s*L|T\s*\/?\s*P|TIP|Open|Swap|Commission|Balance)[:\s]*$/i.test(previousLine)) {
+        profit = line;
+      }
+    }
   }
 
   return normalizeForexTrade({
@@ -336,7 +360,8 @@ exports.parseTrade = (text) => {
     swap: swap != null ? safeSignedNumber(swap) : null,
     stopLoss: stopLoss != null ? safePositiveNumber(stopLoss) : null,
     takeProfit: takeProfit != null ? safePositiveNumber(takeProfit) : null,
-    session: getSession(openTime)
+    session: getSession(openTime),
+    tradeDate,
   });
 };
 

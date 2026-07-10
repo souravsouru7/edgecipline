@@ -45,6 +45,12 @@ const tradeSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    // Persist the fallback used by trade lists so MongoDB can satisfy both
+    // filtering and sorting from an index (computed $addFields cannot).
+    effectiveTradeDate: {
+      type: Date,
+      default: Date.now,
+    },
 
     notes: { type: String, maxlength: 2000 },
 
@@ -313,6 +319,12 @@ const tradeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+tradeSchema.pre("validate", function syncEffectiveTradeDate() {
+  if (this.isModified("tradeDate") || !this.effectiveTradeDate) {
+    this.effectiveTradeDate = this.tradeDate || this.createdAt || new Date();
+  }
+});
+
 // ─── 2026-06 INDEX CLEANUP ──────────────────────────────────────────────────
 // Dropped: { user: 1 }                — fully covered by every {user:1,...} compound
 // Dropped: { createdAt: -1 }          — global scan, never used at scale
@@ -333,6 +345,7 @@ tradeSchema.index({ user: 1, marketType: 1, createdAt: -1 });
 tradeSchema.index({ user: 1, marketType: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
+tradeSchema.index({ user: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, status: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, createdAt: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });

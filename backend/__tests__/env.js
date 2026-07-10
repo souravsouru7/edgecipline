@@ -9,4 +9,5 @@ process.env.CLOUD_API_KEY       = 'test_cloud_api_key';
 process.env.CLOUD_API_SECRET    = 'test_cloud_api_secret';
 process.env.RAZORPAY_KEY_ID     = 'rzp_test_keyid';
 process.env.RAZORPAY_KEY_SECRET = 'rzp_test_hmac_secret_32chars_min!!';
+process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_test_webhook_secret_32chars!!';
 process.env.JWT_ACCESS_EXPIRES_IN = '15m';

@@ -38,7 +38,9 @@ function MarketSync({ currentMarket, setCurrentMarket }) {
       if (marketParam && Object.values(MARKETS).includes(marketParam)) {
         targetMarket = marketParam;
       }
-      // 3. Fallback to Forex for standard routes
+      // 3. Fallback: honor any market the user has explicitly saved (via the
+      // onboarding picker or the market switcher); only default to Forex if
+      // nothing has ever been chosen.
       else {
         const isStandardRoute =
           pathname === '/dashboard' ||
@@ -49,7 +51,15 @@ function MarketSync({ currentMarket, setCurrentMarket }) {
           pathname === '/';
 
         if (isStandardRoute) {
-          targetMarket = MARKETS.FOREX;
+          let saved = null;
+          try {
+            saved = typeof window !== 'undefined'
+              ? localStorage.getItem(STORAGE_KEY)
+              : null;
+          } catch { /* ignore SSR/storage errors */ }
+          targetMarket = saved && Object.values(MARKETS).includes(saved)
+            ? saved
+            : MARKETS.FOREX;
         }
       }
     }

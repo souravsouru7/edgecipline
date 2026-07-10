@@ -1,10 +1,16 @@
 require("dotenv").config();
+const {
+  captureOperationalError,
+  initSentry,
+} = require("../config/sentry");
+initSentry({ processName: "ocr-worker" });
 
 const { UnrecoverableError, Worker } = require("bullmq");
 const connectDB = require("../config/db");
 const { appConfig } = require("../config");
 const { connectRedis, bullmqConnection } = require("../config/redis");
 const { OCR_QUEUE_NAME } = require("../queues/ocrQueue");
+const { enqueueNotificationDelivery } = require("../queues/smartNotificationQueue");
 const { isNonRetryableOcrError, processOcrJob } = require("../services/ocrJob.service");
 const { logger } = require("../utils/logger");
 const { jobFailureTracker } = require("../utils/jobFailureTracker");
@@ -19,11 +25,21 @@ function bindCrashGuards() {
   // Without these, a stray unhandled rejection from anywhere in the OCR
   // pipeline (Gemini HTTP socket, Mongo write, timed-out promise that
   // settles after the race) would crash the worker process and trigger a
-  // PM2 restart, leaving in-flight jobs stuck. Log and keep running.
+  // PM2 restart, leaving in-flight jobs stuck. Log to Sentry and keep
+  // running — BullMQ will retry the affected job per its retry policy.
+  //
+  // NOTE: we deliberately do NOT call bindFatalHandlers here. That helper
+  // registers process.exit(1) on the same events, which would defeat the
+  // suppression below (both listeners fire; exit wins).
   process.on("unhandledRejection", (reason) => {
+    const error = reason instanceof Error ? reason : new Error(String(reason));
     logger.error("OCR worker unhandled rejection (suppressed)", {
-      reason: reason?.message || String(reason),
-      stack: reason?.stack,
+      reason: error.message,
+      stack: error.stack,
+    });
+    captureOperationalError(error, {
+      subsystem: "ocr-worker",
+      tags: { kind: "unhandled_rejection" },
     });
   });
 
@@ -31,6 +47,10 @@ function bindCrashGuards() {
     logger.error("OCR worker uncaught exception (suppressed)", {
       error: error?.message || String(error),
       stack: error?.stack,
+    });
+    captureOperationalError(error, {
+      subsystem: "ocr-worker",
+      tags: { kind: "uncaught_exception" },
     });
   });
 
@@ -89,6 +109,22 @@ function createProcessor() {
         attempt: job.attemptsMade + 1,
       });
 
+      await enqueueNotificationDelivery({
+        userId,
+        notification: {
+          type: "ocr_completed",
+          title: "Trade extraction ready",
+          body: "Your screenshot has been processed. Review the extracted values before saving.",
+          deepLink: job.data.marketType === "Indian_Market"
+            ? "/indian-market/upload-trade"
+            : "/upload-trade",
+          data: { ocrJobId: String(ocrJobId), screen: "upload-trade" },
+          sourceType: "ocr_job",
+          sourceId: String(ocrJobId),
+          dedupeKey: `ocr-completed:${ocrJobId}`,
+        },
+      });
+
       await job.updateProgress({
         stage: "completed",
         attempt: job.attemptsMade + 1,
@@ -102,6 +138,45 @@ function createProcessor() {
 
       return result;
     } catch (error) {
+      const permanentFailure = isNonRetryableOcrError(error)
+        || job.attemptsMade + 1 >= (job.opts.attempts || 1);
+      if (permanentFailure && ocrJobId && userId) {
+        try {
+          await enqueueNotificationDelivery({
+            userId,
+            notification: {
+              type: "ocr_failed",
+              title: "Trade extraction needs attention",
+              body: "We could not process this screenshot. Open the upload screen to retry.",
+              deepLink: job.data.marketType === "Indian_Market"
+                ? "/indian-market/upload-trade"
+                : "/upload-trade",
+              data: { ocrJobId: String(ocrJobId), screen: "upload-trade" },
+              sourceType: "ocr_job",
+              sourceId: String(ocrJobId),
+              dedupeKey: `ocr-failed:${ocrJobId}`,
+            },
+          });
+        } catch (notificationError) {
+          captureOperationalError(notificationError, {
+            subsystem: "notifications",
+            tags: { event: "ocr_outcome_enqueue_failed" },
+            extra: { ocrJobId },
+            userId,
+          });
+          logger.error("OCR_OUTCOME_NOTIFICATION_ENQUEUE_FAILED", {
+            ocrJobId,
+            userId,
+            error: notificationError.message,
+          });
+        }
+      }
+      captureOperationalError(error, {
+        subsystem: "ocr",
+        tags: { event: "job_failed", attempt: job.attemptsMade + 1 },
+        extra: { jobId: job.id, ocrJobId },
+        userId,
+      });
       jobFailureTracker.recordFailure(job.id, error, ocrJobId);
 
       logger.error(`OCR job failed | id=${job.id} | jobId=${ocrJobId}`, {
@@ -138,6 +213,7 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
       connection: bullmqConnection,
       concurrency: appConfig.ocrWorker.concurrency,
       lockDuration: appConfig.ocrWorker.lockDurationMs,
+      maxStalledCount: appConfig.ocrWorker.maxStalledCount,
     }
   );
 
@@ -177,6 +253,7 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
   });
 
   workerInstance.on("error", (error) => {
+    captureOperationalError(error, { subsystem: "ocr", tags: { event: "worker_error" } });
     logger.error("OCR worker runtime error", {
       error: error.message,
       stack: error.stack,
@@ -191,6 +268,7 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
     queueName: OCR_QUEUE_NAME,
     concurrency: appConfig.ocrWorker.concurrency,
     lockDurationMs: appConfig.ocrWorker.lockDurationMs,
+    maxStalledCount: appConfig.ocrWorker.maxStalledCount,
     mode,
   });
 
@@ -201,6 +279,7 @@ async function startOcrWorker({ initializeConnections = true, mode = "standalone
 
 if (require.main === module) {
   startOcrWorker({ initializeConnections: true, mode: "standalone" }).catch((error) => {
+    captureOperationalError(error, { level: "fatal", subsystem: "ocr", tags: { event: "bootstrap_failed" } });
     logger.error("Failed to start OCR worker", {
       error: error.message,
       stack: error.stack,

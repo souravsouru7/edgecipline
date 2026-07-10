@@ -1,4 +1,5 @@
 const IORedis = require("ioredis");
+const { captureOperationalError } = require("./sentry");
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -18,8 +19,18 @@ const client = new IORedis(redisUrl, {
 
 client.on("ready",       () => console.log("[Redis] Connected and ready"));
 client.on("close",       () => console.warn("[Redis] Connection closed — reconnecting…"));
-client.on("end",         () => console.warn("[Redis] Connection ended — all retries exhausted. Upload queue unavailable."));
-client.on("error",  (err) => console.error("[Redis] Error:", err.message));
+client.on("end", () => {
+  const error = new Error("Redis connection ended after all retries were exhausted");
+  console.warn("[Redis] Connection ended - all retries exhausted. Distributed rate limiting is degraded.");
+  captureOperationalError(error, {
+    subsystem: "redis",
+    tags: { event: "reconnect_exhausted", rate_limiter: "degraded" },
+  });
+});
+client.on("error",  (err) => {
+  console.error("[Redis] Error:", err.message);
+  captureOperationalError(err, { subsystem: "redis", tags: { event: "client_error" } });
+});
 
 const connectRedis = async () => {
   // ioredis throws "already connecting/connected" if connect() is called while the
@@ -33,6 +44,7 @@ const connectRedis = async () => {
     await client.ping();
     console.log("[Redis] Successfully connected");
   } catch (err) {
+    captureOperationalError(err, { subsystem: "redis", tags: { event: "connect_failed" } });
     console.error("[Redis] Failed to connect:", err.message);
     console.warn("[Redis] Upload queue and caching will be unavailable until Redis is reachable");
     // Don't throw — Redis is optional. The app runs with reduced functionality.

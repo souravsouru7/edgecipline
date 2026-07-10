@@ -54,6 +54,37 @@ export const verifyPayment = async (data) => {
   return await apiClient.post(`/payments/verify`, data);
 };
 
+// Trial & smart-paywall APIs
+export const getTrialStatus = async () => {
+  return await apiClient.get(`/trial/status`, { skipRateLimitRetry: true });
+};
+
+export const getPaywallContext = async () => {
+  return await apiClient.get(`/trial/paywall-context`);
+};
+
+export const recordTrialEvent = async (event, properties = {}) => {
+  try {
+    return await apiClient.post(`/trial/event`, { event, properties });
+  } catch {
+    // Analytics beacons must never break the UI.
+    return null;
+  }
+};
+
+// Subscription rescue funnel
+export const getRescueBanner = async () => {
+  return await apiClient.get(`/rescue/banner`);
+};
+
+export const recordRescueEvent = async (event, touchpoint, properties = {}) => {
+  try {
+    return await apiClient.post(`/rescue/event`, { event, touchpoint, properties });
+  } catch {
+    return null;
+  }
+};
+
 export const testConnection = async () => {
   // Can just ping the server base URL
   return await apiClient.get('/');
@@ -84,6 +115,26 @@ export const resetOnboarding = async () => {
   return await apiClient.patch(
     '/auth/me/preferences',
     { isOnboardingCompleted: false },
+    { skipRateLimitRetry: true }
+  );
+};
+
+// Mark a single onboarding step as done (welcomeSeen, setupAdded, tradeAdded,
+// journalSeen, analyticsSeen, notificationsSeen, tourCompleted, checklistDismissed)
+export const markOnboardingStep = async (step, value = true) => {
+  return await apiClient.patch(
+    '/auth/me/onboarding',
+    { step, value },
+    { skipRateLimitRetry: true }
+  );
+};
+
+// Persist the user's preferred market ("Forex" | "Indian_Market") on the
+// server so we can restore it on a fresh device / session.
+export const setPreferredMarket = async (preferredMarket) => {
+  return await apiClient.patch(
+    '/auth/me/preferences',
+    { preferredMarket },
     { skipRateLimitRetry: true }
   );
 };
