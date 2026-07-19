@@ -1,4 +1,8 @@
-const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live"]);
+// staging-api.stratedge.live is allowlisted so local debug APK builds can
+// target staging. It still must pass every other production check (HTTPS,
+// port 443, no path beyond /api) — this only exempts it from the generic
+// staging/dev/test hostname heuristic below. Never point a release build here.
+const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live", "staging-api.stratedge.live"]);
 const NON_PRODUCTION_HOST_PART =
   /(^|[.-])(localhost|staging|stage|dev|development|test|testing|qa|sandbox)([.-]|$)/i;
 const LOCAL_OR_PRIVATE_HOST =
@@ -84,7 +88,7 @@ function validateApiUrl(rawValue, isProduction, errors) {
     if (LOCAL_OR_PRIVATE_HOST.test(hostname)) {
       errors.push("Production NEXT_PUBLIC_API_URL cannot use a local/private host.");
     }
-    if (NON_PRODUCTION_HOST_PART.test(hostname)) {
+    if (!PRODUCTION_API_HOSTS.has(hostname) && NON_PRODUCTION_HOST_PART.test(hostname)) {
       errors.push("Production NEXT_PUBLIC_API_URL cannot use a staging/dev/test host.");
     }
     if (!PRODUCTION_API_HOSTS.has(hostname)) {

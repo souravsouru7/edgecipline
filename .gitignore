@@ -84,3 +84,6 @@ backend/google-services.json
 backend/config/*.json
 !backend/package.json
 !backend/package-lock.json
+
+# Nested git worktrees created by subagent sessions — never real repo content
+.claude/worktrees/
