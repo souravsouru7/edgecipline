@@ -11,10 +11,9 @@ const { invalidateAuthCache } = require("./authCacheService");
 const FLOW_STEPS = Object.freeze([
   { key: "welcomeSeen",     label: "Welcome",           weight: 1 },
   { key: "marketSelected",  label: "Market",            weight: 1 },
-  { key: "styleSelected",   label: "Trading Style",     weight: 1 },
-  { key: "setupAdded",      label: "Default Setup",     weight: 1 },
-  { key: "tradeAdded",      label: "First Trade",       weight: 2 },
-  { key: "firstInsightSeen", label: "First AI Insight", weight: 2 },
+  { key: "setupAdded",      label: "Setup",             weight: 1 },
+  { key: "tradeAdded",      label: "Import Trade",      weight: 2 },
+  { key: "journalSeen",     label: "Journal Review",    weight: 1 },
 ]);
 
 const TOTAL_WEIGHT = FLOW_STEPS.reduce((sum, step) => sum + step.weight, 0);
@@ -136,16 +135,20 @@ async function getState(user) {
 
   const onboarding = fresh?.onboarding || {};
   const funnel = computeFunnel(onboarding);
+  const hasActivationCompletionStamp = Boolean(onboarding.completedAt || onboarding.tourCompleted);
   return {
     preferredMarket: fresh?.preferredMarket || null,
     tradingStyle:    fresh?.tradingStyle || null,
     onboarding,
     funnel,
     styles: TRADING_STYLES.map(({ id, label, sub, seedSetup }) => ({ id, label, sub, seedSetup })),
-    // Hint for the frontend: if the user was a pre-existing account that
-    // the backfill flagged as fully activated, the orchestrator should
-    // short-circuit straight to /dashboard instead of running the wizard.
-    isPreActivated: Boolean(fresh?.isOnboardingCompleted),
+    // Hint for the frontend: legacy builds also used the top-level completion
+    // bit for the old welcome guide, so only treat it as activation when the
+    // detailed funnel is complete or the activation completion stamp exists.
+    isPreActivated: Boolean(
+      fresh?.isOnboardingCompleted &&
+      (funnel.isComplete || hasActivationCompletionStamp)
+    ),
   };
 }
 
@@ -315,10 +318,10 @@ async function buildFirstInsight({ userId, market, tradingStyle }) {
   }
 
   return {
-    title:    "You're set up. Now we wait for evidence.",
-    body:     `Your ${styleLabel} profile is wired in${marketLabel}. The coach is data-only — log a trade (manual or screenshot) and the first real insight will fire automatically.`,
+    title:    "Your setup is ready.",
+    body:     `Your ${styleLabel} profile is wired in${marketLabel}, and your default setup is saved. The coach stays data-only: real trade coaching starts when you have real entries.`,
     evidence: "0 trades logged yet · setup ready",
-    action:   "Tap “Log a trade” when you have one — or upload a broker screenshot and the AI will pre-fill it.",
+    action:   "Open the dashboard and start from your saved setup. You can try the sample demo any time without saving fake trades.",
     variant:  "waiting",
   };
 }

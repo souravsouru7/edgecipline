@@ -4,15 +4,20 @@ describe("trade cache invalidation", () => {
     jest.clearAllMocks();
   });
 
-  function setup({ redisReady = true, version = 15 } = {}) {
+  function setup({ redisReady = true, redisWriteAvailable = true, version = 15, incrRejects = false } = {}) {
     const client = {
       get: jest.fn().mockResolvedValue(String(version)),
-      incr: jest.fn().mockResolvedValue(version + 1),
+      incr: incrRejects
+        ? jest.fn().mockRejectedValue(new Error("MISCONF Redis is configured to save RDB snapshots"))
+        : jest.fn().mockResolvedValue(version + 1),
     };
+    const markRedisWriteFailure = jest.fn();
 
     jest.doMock("../../config/redis", () => ({
       client,
+      isRedisWriteAvailable: jest.fn(() => redisWriteAvailable),
       isRedisReady: jest.fn(() => redisReady),
+      markRedisWriteFailure,
     }));
     jest.doMock("../../utils/logger", () => ({
       logger: {
@@ -24,6 +29,7 @@ describe("trade cache invalidation", () => {
     return {
       client,
       logger: require("../../utils/logger").logger,
+      markRedisWriteFailure,
       cacheUtils: require("../../utils/cacheUtils"),
     };
   }
@@ -78,5 +84,28 @@ describe("trade cache invalidation", () => {
     })).resolves.toBe(0);
     expect(client.get).not.toHaveBeenCalled();
     expect(client.incr).not.toHaveBeenCalled();
+  });
+
+  test("Redis write-disabled mode bypasses stale cache versions", async () => {
+    const { client, cacheUtils } = setup({ redisWriteAvailable: false, version: 99 });
+
+    await expect(cacheUtils.getTradeCacheVersion("user-1")).resolves.toBe("0");
+    await expect(cacheUtils.invalidateTradeCaches({
+      userId: "user-1",
+      event: cacheUtils.TRADE_CACHE_EVENTS.CREATE,
+    })).resolves.toBe(0);
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.incr).not.toHaveBeenCalled();
+  });
+
+  test("marks Redis writes unavailable when cache version invalidation hits MISCONF", async () => {
+    const { client, markRedisWriteFailure, cacheUtils } = setup({ incrRejects: true });
+
+    await expect(cacheUtils.invalidateTradeCaches({
+      userId: "user-1",
+      event: cacheUtils.TRADE_CACHE_EVENTS.CREATE,
+    })).resolves.toBe(0);
+    expect(client.incr).toHaveBeenCalledWith("trade_version:user-1");
+    expect(markRedisWriteFailure).toHaveBeenCalledWith(expect.any(Error));
   });
 });

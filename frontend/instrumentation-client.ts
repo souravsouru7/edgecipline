@@ -16,7 +16,10 @@ const options = {
   tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0.2,
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 0.1,
-  beforeSend(event: NextSentry.Event) {
+  // Untyped here on purpose: @sentry/nextjs's Event and @sentry/capacitor's
+  // ErrorEvent don't structurally align (transaction events vs. error-only),
+  // even though both SDKs accept this same object shape at runtime.
+  beforeSend(event: any) {
     if (event.request) {
       event.request.cookies = undefined;
       event.request.data = undefined;

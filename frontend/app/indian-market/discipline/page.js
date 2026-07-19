@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { useQuery } from "@tanstack/react-query";
 import { getDisciplineAnalytics } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
@@ -43,22 +44,13 @@ const scoreGrade = (n) => {
 
 const barColor = (pct) => pct >= 75 ? C.green : pct >= 50 ? C.amber : C.red;
 
-function Skel({ h = 16, w = "100%", r = 8 }) {
-  return <div style={{ height: h, width: w, borderRadius: r, background: "#E2E8F0", animation: "pulse 1.4s ease infinite" }} />;
-}
-
 function LoadingSkeleton() {
   return (
-    <div style={{ padding: "0 16px 40px", display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ background: C.card, borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 12, border: `1px solid ${C.border}` }}>
-        <Skel h={12} w="30%" /><Skel h={64} /><Skel h={14} w="60%" />
-      </div>
-      {[1,2,3].map(i => (
-        <div key={i} style={{ background: C.card, borderRadius: 16, padding: 18, display: "flex", flexDirection: "column", gap: 10, border: `1px solid ${C.border}` }}>
-          <Skel h={11} w="40%" /><Skel h={44} />
-        </div>
-      ))}
-    </div>
+    <IndianMarketLoadingState
+      title="Loading Indian Market discipline"
+      subtitle="Preparing rule adherence, leaks, and discipline score"
+      dense
+    />
   );
 }
 
@@ -85,8 +77,9 @@ function DisciplineContent() {
   const market = "Indian_Market";
 
   useEffect(() => {
-    setMounted(true);
+    const id = requestAnimationFrame(() => setMounted(true));
     if (!hasValidAuthToken()) router.replace("/login");
+    return () => cancelAnimationFrame(id);
   }, [router]);
 
   const { data, isLoading, error } = useQuery({

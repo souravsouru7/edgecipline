@@ -47,7 +47,7 @@ const PROBLEMS = [
   { id:8,  icon:"💔", title:"Emotional Dependency", tag:"EMOTIONAL",
     desc:"Your mood and identity are controlled by P&L",
     symptoms:["One losing trade ruins the entire day","Self-worth completely tied to trade outcome"],
-    solutions:["Grade yourself on execution quality","Daily journal — separate you from results"] },
+    solutions:["Grade yourself on execution quality","Daily reflection log — separate you from results"] },
   { id:9,  icon:"⏱️", title:"Lack of Patience",    tag:"IMPATIENT",
     desc:"You force trades before the setup is fully ready",
     symptoms:["Entry before all conditions confirmed","Creating setups that simply aren't there"],
@@ -55,7 +55,7 @@ const PROBLEMS = [
   { id:10, icon:"🔀", title:"Inconsistency",        tag:"CHAOTIC",
     desc:"You use different rules every single session",
     symptoms:["Breaking your own rules 'just this once'","Applying different criteria every day"],
-    solutions:["Written trading plan — print and pin it","Trade journal — fill every session","Weekly review to catch pattern breaks"] },
+    solutions:["Written trading plan — print and pin it","Trade log — fill every session","Weekly review to catch pattern breaks"] },
 ];
 
 /* ─── helpers ─────────────────────────────────────────── */

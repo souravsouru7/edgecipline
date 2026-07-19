@@ -171,7 +171,7 @@ function TradingDnaContent() {
                 letterSpacing: "0.04em",
               }}
             >
-              YOUR BEHAVIORAL FINGERPRINT — DERIVED FROM YOUR JOURNAL
+              YOUR BEHAVIORAL FINGERPRINT — DERIVED FROM YOUR TRADE DATA
             </p>
           </div>
 
@@ -208,7 +208,7 @@ function TradingDnaContent() {
             >
               <div>
                 You already generated a DNA report recently. You can force a
-                regeneration if your journal has changed.
+                regeneration if your trade log has changed.
               </div>
               <button
                 type="button"

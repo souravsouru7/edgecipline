@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Edgecipline — End-of-Day Reflection Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #ffffff;
+    color: #0F1923;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 14mm 18mm;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: avoid; }
+
+  /* ─── Cover ─── */
+  .cover {
+    background: linear-gradient(160deg, #0F1923 0%, #1A2535 55%, #0D1218 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 18mm 16mm 14mm;
+  }
+  .cover-tag {
+    display: inline-block;
+    background: rgba(139,92,246,0.22);
+    border: 1px solid rgba(139,92,246,0.45);
+    color: #C4B5FD;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+    padding: 4px 12px; border-radius: 99px;
+    text-transform: uppercase; margin-bottom: 22px;
+    width: fit-content;
+  }
+  .cover h1 {
+    font-size: 44px; font-weight: 900; line-height: 1.08;
+    letter-spacing: -0.035em; margin-bottom: 18px;
+  }
+  .cover h1 .accent { color: #A78BFA; }
+  .cover .sub {
+    font-size: 15px; color: rgba(255,255,255,0.6);
+    line-height: 1.6; max-width: 145mm; margin-bottom: 36px;
+  }
+  .cover-bar { width: 52px; height: 3px; background: linear-gradient(90deg,#8B5CF6,#A78BFA); border-radius:2px; margin-bottom: 36px; }
+  .cover-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 44px; }
+  .cover-pill {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; padding: 9px 13px;
+    font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 600;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .cover-bottom {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .cover-bottom .brand { font-size: 14px; font-weight: 800; }
+  .cover-bottom .brand span { color: #A78BFA; }
+  .cover-bottom .tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.35); letter-spacing: 0.1em; }
+
+  /* ─── Bands & footers ─── */
+  .band { height: 3px; border-radius: 2px; margin-bottom: 18px; }
+  .band-purple { background: linear-gradient(90deg,#7C3AED,#7C3AED33); }
+  .band-green  { background: linear-gradient(90deg,#0D9E6E,#0D9E6E33); }
+  .band-gold   { background: linear-gradient(90deg,#B8860B,#B8860B33); }
+  .band-blue   { background: linear-gradient(90deg,#2563EB,#2563EB33); }
+  .band-red    { background: linear-gradient(90deg,#DC2626,#DC262633); }
+
+  .footer {
+    position: absolute; bottom: 10mm; left: 14mm; right: 14mm;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid #E2E8F0; padding-top: 8px;
+  }
+  .footer .fb { font-size: 10px; font-weight: 700; color: #94A3B8; }
+  .footer .fp { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #CBD5E1; letter-spacing: 0.06em; }
+
+  /* ─── Section titles ─── */
+  .sec-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #94A3B8; margin-bottom: 5px; }
+  .sec-title { font-size: 24px; font-weight: 900; letter-spacing: -0.03em; color: #0F1923; margin-bottom: 10px; }
+  .sec-desc  { font-size: 12px; color: #475569; line-height: 1.65; border-left: 3px solid #E2E8F0; padding-left: 12px; max-width: 165mm; margin-bottom: 18px; }
+
+  /* ─── Banner ─── */
+  .banner {
+    border-radius: 12px; padding: 13px 15px;
+    display: flex; align-items: center; gap: 11px; margin-bottom: 18px;
+  }
+  .banner .bicon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .banner .blabel { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px; }
+  .banner .btitle { font-size: 14px; font-weight: 800; }
+
+  .b-purple { background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.2); }
+  .b-purple .bicon { background: rgba(124,58,237,0.12); }
+  .b-purple .blabel { color: #7C3AED; }
+  .b-purple .btitle { color: #4C1D95; }
+
+  .b-green { background: rgba(13,158,110,0.07); border: 1px solid rgba(13,158,110,0.2); }
+  .b-green .bicon { background: rgba(13,158,110,0.12); }
+  .b-green .blabel { color: #0D9E6E; }
+  .b-green .btitle { color: #065F46; }
+
+  /* ─── Cards ─── */
+  .card {
+    border: 1.5px solid #E2E8F0; border-radius: 14px;
+    overflow: hidden; margin-bottom: 14px;
+    background: #FFFFFF; box-shadow: 0 2px 8px rgba(15,25,35,0.05);
+  }
+  .card-head {
+    padding: 12px 15px 11px; border-bottom: 1px solid #F1F5F9;
+    display: flex; align-items: flex-start; gap: 11px;
+  }
+  .card-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+    background: #F8FAFC; border: 1.5px solid #E2E8F0;
+  }
+  .card-head .ch-title { font-size: 13px; font-weight: 800; color: #0F1923; margin-bottom: 1px; }
+  .card-head .ch-sub   { font-size: 11px; color: #64748B; line-height: 1.5; }
+  .card-body { padding: 13px 15px; }
+
+  /* ─── Tables ─── */
+  table.t { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+  table.t th { background: #F8FAFC; padding: 6px 9px; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #94A3B8; border-bottom: 1.5px solid #E2E8F0; text-transform: uppercase; }
+  table.t td { padding: 7px 9px; border-bottom: 1px solid #F1F5F9; color: #334155; vertical-align: top; }
+  table.t tr:last-child td { border-bottom: none; }
+  table.t tr:nth-child(even) td { background: #FAFAFA; }
+
+  /* ─── Badges ─── */
+  .bg  { display:inline-block; background:#DCFCE7; color:#166534; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .br  { display:inline-block; background:#FEE2E2; color:#991B1B; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .by  { display:inline-block; background:#FEF3C7; color:#78350F; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .bb  { display:inline-block; background:#DBEAFE; color:#1E3A8A; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .bpurp { display:inline-block; background:#F5F3FF; color:#4C1D95; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+
+  /* ─── Insight boxes ─── */
+  .ib { border-radius: 10px; padding: 11px 13px; margin-top: 10px; border-left: 3px solid; }
+  .ib-p { background:#F5F3FF; border-color:#7C3AED; }
+  .ib-g { background:#F0FDF4; border-color:#0D9E6E; }
+  .ib-r { background:#FEF2F2; border-color:#DC2626; }
+  .ib-y { background:#FFFBEB; border-color:#D97706; }
+  .ib-b { background:#EFF6FF; border-color:#2563EB; }
+  .ib .ibl { font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; }
+  .ib-p .ibl { color:#7C3AED; }
+  .ib-g .ibl { color:#0D9E6E; }
+  .ib-r .ibl { color:#DC2626; }
+  .ib-y .ibl { color:#D97706; }
+  .ib-b .ibl { color:#2563EB; }
+  .ib .ibt { font-size:11.5px; color:#334155; line-height:1.65; }
+
+  /* ─── Stat tiles ─── */
+  .tiles { display: grid; gap: 10px; }
+  .t2 { grid-template-columns: 1fr 1fr; }
+  .t3 { grid-template-columns: 1fr 1fr 1fr; }
+  .t4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .tile {
+    background: #F8FAFC; border: 1.5px solid #E2E8F0;
+    border-radius: 10px; padding: 11px 13px;
+  }
+  .tile .tl { font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; color:#94A3B8; text-transform:uppercase; margin-bottom:4px; }
+  .tile .tv { font-size:22px; font-weight:800; letter-spacing:-0.02em; color:#0F1923; }
+  .tile .ts { font-size:10px; color:#64748B; margin-top:2px; }
+  .tile.tg { border-color:rgba(13,158,110,0.3); background:rgba(13,158,110,0.04); }
+  .tile.tg .tv { color:#065F46; }
+  .tile.tr { border-color:rgba(220,38,38,0.25); background:rgba(220,38,38,0.04); }
+  .tile.tr .tv { color:#991B1B; }
+  .tile.tp { border-color:rgba(124,58,237,0.25); background:rgba(124,58,237,0.04); }
+  .tile.tp .tv { color:#4C1D95; }
+  .tile.ty { border-color:rgba(184,134,11,0.3); background:rgba(184,134,11,0.04); }
+  .tile.ty .tv { color:#92400E; }
+
+  /* ─── Question pill (form mock) ─── */
+  .q-mock {
+    background: linear-gradient(160deg, #0F1923, #1a2535);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .q-mock .qm-label {
+    font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700;
+    color:rgba(255,255,255,0.4); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:6px;
+  }
+  .q-mock .qm-q {
+    font-size:13px; font-weight:700; color:#F1F5F9; margin-bottom:12px; line-height:1.45;
+  }
+  .q-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .q-opt {
+    border-radius: 8px; padding: 7px 13px; font-size:11px; font-weight:700;
+    border: 1.5px solid; cursor: default;
+  }
+  .q-opt.green  { background:rgba(13,158,110,0.15);  border-color:rgba(13,158,110,0.4);  color:#6EE7B7; }
+  .q-opt.amber  { background:rgba(245,158,11,0.15);  border-color:rgba(245,158,11,0.4);  color:#FCD34D; }
+  .q-opt.red    { background:rgba(220,38,38,0.15);   border-color:rgba(220,38,38,0.4);   color:#FCA5A5; }
+  .q-opt.blue   { background:rgba(59,130,246,0.15);  border-color:rgba(59,130,246,0.4);  color:#93C5FD; }
+  .q-opt.active { ring: 2px; transform: scale(1.04); }
+
+  .emoji-row { display:flex; gap:10px; align-items:center; }
+  .emoji-btn { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; background:rgba(255,255,255,0.08); border:1.5px solid rgba(255,255,255,0.12); }
+  .emoji-btn.sel { background:rgba(124,58,237,0.3); border-color:rgba(167,139,250,0.7); }
+
+  /* ─── Score ring diagram ─── */
+  .score-ring-section {
+    display: flex; gap: 20px; align-items: flex-start;
+  }
+  .ring-diagram {
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .ring-label { font-family:'JetBrains Mono',monospace; font-size:9px; color:#64748B; letter-spacing:0.08em; margin-top:6px; text-transform:uppercase; }
+
+  /* ─── Coach card ─── */
+  .coach-card {
+    background: linear-gradient(160deg, #0F1923, #1a2535);
+    border-radius: 12px; padding: 15px; color:#fff;
+    border: 1px solid rgba(255,255,255,0.07); margin-bottom:10px;
+  }
+  .coach-meta { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:9px; }
+  .cm-tag {
+    font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700;
+    letter-spacing:0.08em; padding:3px 8px; border-radius:99px; text-transform:uppercase;
+  }
+  .coach-card .ct { font-size:12.5px; font-weight:700; color:#F1F5F9; margin-bottom:5px; }
+  .coach-card .cb { font-size:11px; color:rgba(255,255,255,0.68); line-height:1.65; }
+
+  /* ─── Notification mockup ─── */
+  .notif-mock {
+    background: #1C1C1E; border-radius: 14px; padding: 14px 16px;
+    border: 1px solid rgba(255,255,255,0.1); max-width: 280px;
+  }
+  .notif-mock .nm-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .notif-mock .nm-icon { width:28px; height:28px; border-radius:7px; background:rgba(139,92,246,0.3); display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .notif-mock .nm-app { font-size:11px; font-weight:700; color:rgba(255,255,255,0.5); }
+  .notif-mock .nm-time { font-size:10px; color:rgba(255,255,255,0.35); margin-left:auto; }
+  .notif-mock .nm-title { font-size:13px; font-weight:700; color:#fff; margin-bottom:3px; }
+  .notif-mock .nm-body  { font-size:11px; color:rgba(255,255,255,0.65); line-height:1.5; }
+
+  /* ─── Weekly score breakdown ─── */
+  .score-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #F1F5F9; }
+  .score-row:last-child { border-bottom:none; }
+  .score-row .sr-label { font-size:12px; font-weight:600; color:#334155; flex:1; }
+  .score-row .sr-bar-wrap { width:90px; height:7px; background:#F1F5F9; border-radius:99px; overflow:hidden; }
+  .score-row .sr-bar { height:100%; border-radius:99px; }
+  .score-row .sr-val { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#0F1923; width:36px; text-align:right; }
+  .score-row .sr-wt  { font-size:10px; color:#94A3B8; width:28px; text-align:right; }
+
+  /* ─── 30-day table ─── */
+  .day-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin:10px 0; }
+  .day-cell {
+    aspect-ratio: 1; border-radius: 5px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:700; font-family:'JetBrains Mono',monospace;
+  }
+  .dc-g { background:rgba(13,158,110,0.2); color:#0D9E6E; }
+  .dc-y { background:rgba(245,158,11,0.2); color:#D97706; }
+  .dc-r { background:rgba(220,38,38,0.2);  color:#DC2626; }
+  .dc-s { background:#F1F5F9; color:#94A3B8; }
+  .dc-e { background:transparent; }
+
+  @media print {
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ PAGE 1 — COVER ══════════════ -->
+<div class="page cover">
+  <div>
+    <div class="cover-tag">Edgecipline · Daily Habits · Feature Guide</div>
+    <h1>End-of-Day<br/><span class="accent">Reflection</span><br/>Explained</h1>
+    <p class="sub">
+      A 30-second daily check-in that compounds into the most useful dataset you'll ever have on yourself as a trader.
+      This guide shows you exactly what it does, what it tracks, and why it matters.
+    </p>
+    <div class="cover-bar"></div>
+    <div class="cover-pills">
+      <div class="cover-pill"><span>🕐</span> 30-second daily check-in</div>
+      <div class="cover-pill"><span>📊</span> Weekly score 0–100</div>
+      <div class="cover-pill"><span>🤖</span> AI insight after each entry</div>
+      <div class="cover-pill"><span>🔔</span> Evening push at 7:30 PM IST</div>
+      <div class="cover-pill"><span>🎯</span> Feeds Missions & Coach</div>
+      <div class="cover-pill"><span>📈</span> Builds Discipline Timeline</div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="brand">Edge<span>cipline</span></div>
+    <div class="tag">END-OF-DAY REFLECTION · COMPLETE GUIDE · 2026</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 2 — WHAT IS IT & WHY IT EXISTS ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="sec-label">The Big Picture</div>
+  <div class="sec-title">What Is the End-of-Day Reflection?</div>
+  <div class="sec-desc">
+    Every serious trader knows they should review their day. Almost none do it consistently because reviewing takes time,
+    opens up uncomfortable truths, and has no structure. The End-of-Day Reflection solves this with a 30-second
+    form that asks five targeted questions — then does all the analysis for you.
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">🪞</div>
+      <div>
+        <div class="ch-title">The Core Concept</div>
+        <div class="ch-sub">"Morning prepares. Evening reflects." — Two sides of the same habit loop.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <p style="font-size:12px;color:#475569;line-height:1.7;margin-bottom:14px;">
+        Trading psychology research shows that <strong>the biggest performance gap isn't between traders who know more — it's between traders who review and those who don't</strong>.
+        A 5-minute evening review done consistently beats a 2-hour Saturday analysis done occasionally.
+        The Reflection feature exists to make that consistency frictionless.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:800;color:#0F1923;margin-bottom:6px;">Without daily reflection</div>
+          <ul style="list-style:none;font-size:11px;color:#64748B;line-height:1.8;">
+            <li>❌ Same mistakes repeat for months</li>
+            <li>❌ No idea which emotions are costly</li>
+            <li>❌ "I know I need to improve" stays vague</li>
+            <li>❌ Bad weeks feel random</li>
+            <li>❌ Hard to see progress over time</li>
+          </ul>
+        </div>
+        <div style="background:rgba(124,58,237,0.04);border:1.5px solid rgba(124,58,237,0.2);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:800;color:#4C1D95;margin-bottom:6px;">With daily reflection</div>
+          <ul style="list-style:none;font-size:11px;color:#4C1D95;line-height:1.8;">
+            <li>✅ Patterns surface in 2–3 weeks</li>
+            <li>✅ Emotional cost measured in dollars</li>
+            <li>✅ Tomorrow's improvement is specific</li>
+            <li>✅ Bad weeks traced to exact triggers</li>
+            <li>✅ Monthly evolution is visible</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">⏱️</div>
+      <div>
+        <div class="ch-title">Why 30 Seconds?</div>
+        <div class="ch-sub">Consistency beats depth every time.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <p style="font-size:12px;color:#475569;line-height:1.7;">
+        Most journal apps ask you to write paragraphs. Traders skip it after day 3.
+        Edgecipline's reflection form has <strong>5 questions, all single-tap or slider</strong> — only the
+        "one thing to improve" field requires typing, and even that is optional.
+        The goal is to never give you a reason to skip.
+        <strong>30 seconds every evening × 365 days = the most valuable dataset you'll ever build about yourself as a trader.</strong>
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 2</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 3 — THE 5 QUESTIONS ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="banner b-purple">
+    <div class="bicon">📝</div>
+    <div>
+      <div class="blabel">The Form · 30 Seconds</div>
+      <div class="btitle">The 5 Questions — What Gets Asked and Why</div>
+    </div>
+  </div>
+
+  <!-- Q1 -->
+  <div class="q-mock" style="margin-bottom:10px;">
+    <div class="qm-label">Question 1 of 5</div>
+    <div class="qm-q">Did you follow your trading plan today?</div>
+    <div class="q-opts">
+      <div class="q-opt green">✅ Yes, fully</div>
+      <div class="q-opt amber">↔️ Partly</div>
+      <div class="q-opt red">🚫 No</div>
+      <div class="q-opt blue">🧘 No trades today</div>
+    </div>
+  </div>
+
+  <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 13px;margin-bottom:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">WHY THIS QUESTION IS WEIGHTED HEAVIEST (40%)</div>
+    <div style="font-size:11.5px;color:#334155;line-height:1.65;">
+      <strong>Yes</strong> = 10/10 · <strong>Partly</strong> = 5/10 · <strong>No</strong> = 0/10 · <strong>No trades</strong> = 8/10 (sitting out is discipline too).
+      This single question predicts long-term profitability more than any other metric — traders who follow their plan 80%+ of the time consistently outperform those who don't, regardless of win rate.
+    </div>
+  </div>
+
+  <!-- Q2+Q3 side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+    <div class="q-mock" style="margin-bottom:0;">
+      <div class="qm-label">Question 2 of 5</div>
+      <div class="qm-q">How did today feel? (1–5)</div>
+      <div class="emoji-row">
+        <div class="emoji-btn">😩</div>
+        <div class="emoji-btn">😕</div>
+        <div class="emoji-btn">😐</div>
+        <div class="emoji-btn sel">🙂</div>
+        <div class="emoji-btn">😎</div>
+      </div>
+    </div>
+    <div class="q-mock" style="margin-bottom:0;">
+      <div class="qm-label">Question 3 of 5</div>
+      <div class="qm-q">Confidence level today? (1–5)</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.45);">
+          <span>Shaken</span><span>Low</span><span>Steady</span><span>Confident</span><span>On fire</span>
+        </div>
+        <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:99px;position:relative;">
+          <div style="width:75%;height:100%;background:linear-gradient(90deg,#7C3AED,#A78BFA);border-radius:99px;"></div>
+          <div style="position:absolute;top:-4px;left:73%;width:12px;height:12px;border-radius:50%;background:#A78BFA;border:2px solid #fff;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size:11px;color:#64748B;line-height:1.6;margin-bottom:12px;padding:8px 12px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0;">
+    <strong>Mood + Confidence together = 20% of weekly score.</strong> Over time, these two readings reveal your optimal performance state. Most traders discover their win rate drops sharply below mood 3 — a threshold they didn't know existed before tracking it.
+  </div>
+
+  <!-- Q4 -->
+  <div class="q-mock" style="margin-bottom:10px;">
+    <div class="qm-label">Question 4 of 5 · Only shown on trade days</div>
+    <div class="qm-q">Would you repeat today's execution?</div>
+    <div class="q-opts">
+      <div class="q-opt green">✅ Yes</div>
+      <div class="q-opt amber">↔️ Partly</div>
+      <div class="q-opt red">❌ No</div>
+    </div>
+  </div>
+
+  <!-- Q5 -->
+  <div class="q-mock">
+    <div class="qm-label">Question 5 of 5 · Optional</div>
+    <div class="qm-q">One thing to improve tomorrow</div>
+    <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px 12px;font-size:11px;color:rgba(255,255,255,0.5);font-style:italic;">
+      "Avoid trading in the first 15 minutes of the Asian session."
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 3</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 4 — THE WEEKLY SCORE ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="banner b-purple">
+    <div class="bicon">📊</div>
+    <div>
+      <div class="blabel">The Score</div>
+      <div class="btitle">Weekly Score 0–100 — How It's Calculated</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">🔢</div>
+      <div>
+        <div class="ch-title">Four Weighted Buckets</div>
+        <div class="ch-sub">Each bucket measures a different dimension of trading discipline.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="score-row">
+        <div class="sr-label">📋 Plan Adherence <span style="font-size:10px;color:#94A3B8;">(Did you follow your plan?)</span></div>
+        <div class="sr-bar-wrap"><div class="sr-bar" style="width:40%;background:#7C3AED;"></div></div>
+        <div class="sr-val" style="color:#7C3AED;">40%</div>
+        <div class="sr-wt">weight</div>
+      </div>
+      <div class="score-row">
+        <div class="sr-label">🔁 Execution Quality <span style="font-size:10px;color:#94A3B8;">(Would you repeat it?)</span></div>
+        <div class="sr-bar-wrap"><div class="sr-bar" style="width:20%;background:#2563EB;"></div></div>
+        <div class="sr-val" style="color:#2563EB;">20%</div>
+        <div class="sr-wt">weight</div>
+      </div>
+      <div class="score-row">
+        <div class="sr-label">😌 Mental State <span style="font-size:10px;color:#94A3B8;">(Mood + Confidence avg)</span></div>
+        <div class="sr-bar-wrap"><div class="sr-bar" style="width:20%;background:#0D9E6E;"></div></div>
+        <div class="sr-val" style="color:#0D9E6E;">20%</div>
+        <div class="sr-wt">weight</div>
+      </div>
+      <div class="score-row">
+        <div class="sr-label">✍️ Reflection Streak <span style="font-size:10px;color:#94A3B8;">(Days you actually showed up)</span></div>
+        <div class="sr-bar-wrap"><div class="sr-bar" style="width:20%;background:#D97706;"></div></div>
+        <div class="sr-val" style="color:#D97706;">20%</div>
+        <div class="sr-wt">weight</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">📅</div>
+      <div>
+        <div class="ch-title">Example: Trader "Priya" — Week of June 9</div>
+        <div class="ch-sub">Full 7-day breakdown showing how each entry feeds the score.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <table class="t">
+        <thead><tr><th>Day</th><th>Followed Plan?</th><th>Mood</th><th>Confidence</th><th>Would Repeat?</th><th>Submitted?</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Mon</strong></td><td><span class="bg">Yes</span></td><td>4/5</td><td>4/5</td><td><span class="bg">Yes</span></td><td>✅</td></tr>
+          <tr><td><strong>Tue</strong></td><td><span class="by">Partly</span></td><td>3/5</td><td>3/5</td><td><span class="by">Partly</span></td><td>✅</td></tr>
+          <tr><td><strong>Wed</strong></td><td><span class="bg">Yes</span></td><td>5/5</td><td>5/5</td><td><span class="bg">Yes</span></td><td>✅</td></tr>
+          <tr><td><strong>Thu</strong></td><td><span class="br">No</span></td><td>2/5</td><td>2/5</td><td><span class="br">No</span></td><td>✅</td></tr>
+          <tr><td><strong>Fri</strong></td><td><span class="bg">Yes</span></td><td>4/5</td><td>4/5</td><td><span class="bg">Yes</span></td><td>✅</td></tr>
+          <tr><td><strong>Sat</strong></td><td style="color:#94A3B8;">No trades</td><td>4/5</td><td>3/5</td><td style="color:#94A3B8;">N/A</td><td>✅</td></tr>
+          <tr><td><strong>Sun</strong></td><td colspan="4" style="color:#94A3B8;font-style:italic;">Skipped</td><td>⏭️ Skip</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;padding:12px 14px;background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.04));border:1.5px solid rgba(124,58,237,0.2);border-radius:10px;">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+          <div style="text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#7C3AED;font-weight:700;letter-spacing:0.08em;margin-bottom:3px;">PLAN (40%)</div>
+            <div style="font-size:18px;font-weight:800;color:#4C1D95;">7.0</div>
+            <div style="font-size:9px;color:#64748B;">avg /10</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#2563EB;font-weight:700;letter-spacing:0.08em;margin-bottom:3px;">REPEAT (20%)</div>
+            <div style="font-size:18px;font-weight:800;color:#1E3A8A;">7.0</div>
+            <div style="font-size:9px;color:#64748B;">avg /10</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#0D9E6E;font-weight:700;letter-spacing:0.08em;margin-bottom:3px;">MOOD (20%)</div>
+            <div style="font-size:18px;font-weight:800;color:#065F46;">8.0</div>
+            <div style="font-size:9px;color:#64748B;">avg /10</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#D97706;font-weight:700;letter-spacing:0.08em;margin-bottom:3px;">STREAK (20%)</div>
+            <div style="font-size:18px;font-weight:800;color:#92400E;">86%</div>
+            <div style="font-size:9px;color:#64748B;">6/7 days</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding-top:10px;border-top:1px solid rgba(124,58,237,0.15);">
+          <div style="font-size:12px;color:#4C1D95;font-weight:600;">Weekly Score:</div>
+          <div style="font-size:30px;font-weight:900;color:#7C3AED;letter-spacing:-0.02em;">75</div>
+          <div style="font-size:11px;color:#7C3AED;font-weight:700;background:rgba(124,58,237,0.1);padding:4px 10px;border-radius:99px;">🟢 SOLID WEEK</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tiles t3" style="margin-top:4px;">
+    <div class="tile tp"><div class="tl">Score ≥ 70</div><div class="tv" style="font-size:16px;">Green 🟢</div><div class="ts">Solid discipline week</div></div>
+    <div class="tile ty"><div class="tl">Score 40–69</div><div class="tv" style="font-size:16px;">Amber 🟡</div><div class="ts">Room to improve</div></div>
+    <div class="tile tr"><div class="tl">Score &lt; 40</div><div class="tv" style="font-size:16px;">Red 🔴</div><div class="ts">Focus on the basics</div></div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 4</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 5 — AI INSIGHT ENGINE ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="banner b-purple">
+    <div class="bicon">🤖</div>
+    <div>
+      <div class="blabel">After Each Reflection</div>
+      <div class="btitle">AI Insight — What Gets Generated and Why It Matters</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">✨</div>
+      <div>
+        <div class="ch-title">How the AI Insight Works</div>
+        <div class="ch-sub">Generated instantly after you submit — no extra steps needed.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <p style="font-size:12px;color:#475569;line-height:1.65;margin-bottom:14px;">
+        The moment you hit Submit, your reflection data — plan adherence, mood, confidence, execution rating,
+        improvement note, and that day's trade context (how many trades, total P&amp;L, checklist used?) — is sent to
+        Google Gemini with a trading psychology coaching prompt. A personalized insight comes back in seconds.
+        It's limited to <strong>200 characters</strong> so it's always one punchy sentence you can actually remember.
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#7C3AED;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">REAL INSIGHT EXAMPLES BY SCENARIO</div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;">
+
+        <div style="background:rgba(13,158,110,0.06);border:1.5px solid rgba(13,158,110,0.25);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#0D9E6E;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: Followed plan + profitable day
+          </div>
+          <div style="font-size:12.5px;color:#065F46;font-style:italic;line-height:1.6;">
+            "Plan in, profit out. Same process tomorrow — protect what's working."
+          </div>
+        </div>
+
+        <div style="background:rgba(245,158,11,0.06);border:1.5px solid rgba(245,158,11,0.25);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#D97706;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: Followed plan + lost money
+          </div>
+          <div style="font-size:12.5px;color:#78350F;font-style:italic;line-height:1.6;">
+            "You followed your plan despite losing today. That is long-term discipline compounding quietly."
+          </div>
+        </div>
+
+        <div style="background:rgba(220,38,38,0.05);border:1.5px solid rgba(220,38,38,0.2);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#DC2626;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: Broke plan + won anyway
+          </div>
+          <div style="font-size:12.5px;color:#991B1B;font-style:italic;line-height:1.6;">
+            "Profitable today, but off-plan. The win is luck if the process isn't repeatable — rebuild tomorrow."
+          </div>
+        </div>
+
+        <div style="background:rgba(124,58,237,0.06);border:1.5px solid rgba(124,58,237,0.2);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#7C3AED;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: Partly followed + honest about it
+          </div>
+          <div style="font-size:12.5px;color:#4C1D95;font-style:italic;line-height:1.6;">
+            "Half-followed plan is a half-edge. Pin down the one rule you skipped and reload tomorrow."
+          </div>
+        </div>
+
+        <div style="background:rgba(59,130,246,0.06);border:1.5px solid rgba(59,130,246,0.2);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#2563EB;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: No trades today (rest day)
+          </div>
+          <div style="font-size:12.5px;color:#1E3A8A;font-style:italic;line-height:1.6;">
+            "No trades today, no damage done — sitting out is its own skill."
+          </div>
+        </div>
+
+        <div style="background:rgba(220,38,38,0.05);border:1.5px solid rgba(220,38,38,0.2);border-radius:10px;padding:11px 13px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#DC2626;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;">
+            SCENARIO: Mood was very low (1–2 out of 5)
+          </div>
+          <div style="font-size:12.5px;color:#991B1B;font-style:italic;line-height:1.6;">
+            "Heavy day. Close the laptop, walk it off, and reset before the next session."
+          </div>
+        </div>
+
+      </div>
+
+      <div class="ib ib-p" style="margin-top:12px;">
+        <div class="ibl">💡 Why Personalized Insights Beat Generic Advice</div>
+        <div class="ibt">
+          These aren't random motivational quotes. Each insight is generated from <em>your specific data</em> that day —
+          your plan adherence, your P&amp;L, your mood. A trader who lost money but followed their plan gets a different
+          message than one who made money by breaking their rules. That distinction matters enormously for long-term mindset.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 5</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 6 — REAL TRADER EXAMPLE ══════════════ -->
+<div class="page">
+  <div class="band band-green"></div>
+
+  <div class="banner b-green">
+    <div class="bicon">📈</div>
+    <div>
+      <div class="blabel">Case Study</div>
+      <div class="btitle">How Reflection Changed Trader "Rohan" — 6 Weeks of Data</div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:#475569;line-height:1.65;margin-bottom:14px;">
+    Rohan is a Forex trader, 2 years of experience, consistently losing. He had no idea <em>why</em>.
+    After 6 weeks of daily reflections, the pattern was obvious. Here's what the data showed.
+  </p>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">30-DAY REFLECTION CALENDAR</div>
+
+  <div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;">M</div>
+    </div>
+    <!-- Week labels -->
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">MON</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">TUE</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">WED</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">THU</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">FRI</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">SAT</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#94A3B8;text-align:center;">SUN</div>
+  </div>
+  <div class="day-grid" style="margin-bottom:6px;">
+    <div class="day-cell dc-r">✗</div><div class="day-cell dc-r">✗</div><div class="day-cell dc-y">~</div><div class="day-cell dc-r">✗</div><div class="day-cell dc-r">✗</div><div class="day-cell dc-s">—</div><div class="day-cell dc-s">—</div>
+    <div class="day-cell dc-r">✗</div><div class="day-cell dc-y">~</div><div class="day-cell dc-y">~</div><div class="day-cell dc-r">✗</div><div class="day-cell dc-y">~</div><div class="day-cell dc-s">—</div><div class="day-cell dc-s">—</div>
+    <div class="day-cell dc-y">~</div><div class="day-cell dc-g">✓</div><div class="day-cell dc-y">~</div><div class="day-cell dc-g">✓</div><div class="day-cell dc-y">~</div><div class="day-cell dc-s">—</div><div class="day-cell dc-s">—</div>
+    <div class="day-cell dc-g">✓</div><div class="day-cell dc-g">✓</div><div class="day-cell dc-g">✓</div><div class="day-cell dc-y">~</div><div class="day-cell dc-g">✓</div><div class="day-cell dc-s">—</div><div class="day-cell dc-s">—</div>
+  </div>
+  <div style="display:flex;gap:14px;margin-bottom:14px;font-size:10px;color:#64748B;">
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:rgba(13,158,110,0.2);"></div> Followed plan</div>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:rgba(245,158,11,0.2);"></div> Partly followed</div>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:rgba(220,38,38,0.2);"></div> Broke plan</div>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:#F1F5F9;"></div> No trades</div>
+  </div>
+
+  <table class="t" style="margin-bottom:14px;">
+    <thead><tr><th>Week</th><th>Weekly Score</th><th>Plan Adherence</th><th>Monthly P&amp;L</th><th>Pattern Found</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Week 1</strong></td><td><span class="br">28 / 100</span></td><td>20%</td><td style="color:#991B1B;font-weight:700;">-$640</td><td style="color:#64748B;font-size:11px;">No reflection habit yet</td></tr>
+      <tr><td><strong>Week 2</strong></td><td><span class="br">34 / 100</span></td><td>35%</td><td style="color:#991B1B;font-weight:700;">-$410</td><td style="color:#64748B;font-size:11px;">Thursday always low mood</td></tr>
+      <tr><td><strong>Week 3</strong></td><td><span class="by">52 / 100</span></td><td>55%</td><td style="color:#991B1B;font-weight:700;">-$190</td><td style="color:#64748B;font-size:11px;">Added Thursday rest rule</td></tr>
+      <tr><td><strong>Week 4</strong></td><td><span class="bg">71 / 100</span></td><td>72%</td><td style="color:#065F46;font-weight:700;">+$280</td><td style="color:#065F46;font-size:11px;">First green week in 3 months</td></tr>
+    </tbody>
+  </table>
+
+  <div class="ib ib-g">
+    <div class="ibl">📈 What the Reflection Data Revealed</div>
+    <div class="ibt">
+      After just 10 days, the weekly score history showed Rohan was <strong>consistently breaking his plan on Thursdays</strong>.
+      When he checked his trade log, Thursday trades had a 19% win rate vs 61% on other days.
+      He couldn't see this before because he never tracked mood systematically.
+      Adding a "Thursday = observe only" rule took 2 minutes. The first week he applied it, he went green for the first time in 3 months.
+      <strong>The reflection didn't teach him a new strategy. It revealed the one condition that was destroying a working strategy.</strong>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 6</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 7 — EVENING NOTIFICATION + STREAK ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="sec-label">Built-in Accountability</div>
+  <div class="sec-title">Evening Notification & Reflection Streak</div>
+  <div class="sec-desc">The feature is only valuable if done consistently. Edgecipline builds the consistency for you.</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">EVENING PUSH NOTIFICATION — 7:30 PM IST</div>
+      <div class="notif-mock">
+        <div class="nm-head">
+          <div class="nm-icon">🌙</div>
+          <div class="nm-app">Edgecipline</div>
+          <div class="nm-time">7:30 PM</div>
+        </div>
+        <div class="nm-title">4 trades logged today.</div>
+        <div class="nm-body">Lock in one lesson before tomorrow. 30 seconds is all it takes.</div>
+      </div>
+      <div class="notif-mock" style="margin-top:8px;">
+        <div class="nm-head">
+          <div class="nm-icon">📖</div>
+          <div class="nm-app">Edgecipline</div>
+          <div class="nm-time">7:30 PM</div>
+        </div>
+        <div class="nm-title">No trades today?</div>
+        <div class="nm-body">A rest day is still worth a 20-second check-in. How did you feel?</div>
+      </div>
+      <div class="notif-mock" style="margin-top:8px;">
+        <div class="nm-head">
+          <div class="nm-icon">💭</div>
+          <div class="nm-app">Edgecipline</div>
+          <div class="nm-time">7:30 PM</div>
+        </div>
+        <div class="nm-title">Haven't seen you today.</div>
+        <div class="nm-body">Even a 10-second check-in keeps your streak alive and your data clean.</div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#64748B;line-height:1.6;">
+        Three notification variants: traded today · no trades · didn't open app.
+        All deep-link directly to the reflection form. Can be turned off in notification preferences.
+      </div>
+    </div>
+
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">WHAT SKIPPING COSTS YOU vs. SUBMITTING</div>
+      <table class="t">
+        <thead><tr><th>Action</th><th>Plan Score</th><th>Streak</th><th>Weekly Score Impact</th></tr></thead>
+        <tbody>
+          <tr><td>✅ Submit (any answer)</td><td>Whatever you log</td><td>+1 day</td><td>Full contribution</td></tr>
+          <tr><td>⏭️ Hit Skip</td><td>0 / 10</td><td>—</td><td>Partial (no plan/mood data)</td></tr>
+          <tr><td>❌ Ignore entirely</td><td>0 / 10</td><td>—</td><td>Same as skip</td></tr>
+        </tbody>
+      </table>
+      <div class="ib ib-p" style="margin-top:10px;">
+        <div class="ibl">💡 Skip is better than nothing</div>
+        <div class="ibt">Tapping "Skip" still marks the day so the completion counter is honest. It doesn't hurt your streak but doesn't grow it either. Submitting even just your mood (1 second) unlocks the full score contribution for that day.</div>
+      </div>
+
+      <div style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">STREAK SYSTEM</div>
+      <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <div style="text-align:center;">
+            <div style="font-size:22px;font-weight:800;color:#7C3AED;">12</div>
+            <div style="font-size:10px;color:#64748B;">Day streak</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:22px;font-weight:800;color:#0D9E6E;">6/7</div>
+            <div style="font-size:10px;color:#64748B;">Days reflected</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:22px;font-weight:800;color:#0F1923;">75</div>
+            <div style="font-size:10px;color:#64748B;">Weekly score</div>
+          </div>
+        </div>
+        <div style="height:6px;background:#E2E8F0;border-radius:99px;overflow:hidden;">
+          <div style="width:75%;height:100%;background:linear-gradient(90deg,#7C3AED,#A78BFA);border-radius:99px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">🏆</div>
+      <div>
+        <div class="ch-title">Reflection Missions</div>
+        <div class="ch-sub">Your reflections automatically progress active missions — no extra steps.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <table class="t">
+        <thead><tr><th>Mission Type</th><th>What Reflection Data Powers It</th><th>Example Goal</th></tr></thead>
+        <tbody>
+          <tr><td>Daily Reflection</td><td>Any submission counts</td><td>"Reflect 7 days in a row"</td></tr>
+          <tr><td>Plan Adherence</td><td>Only "Yes, followed plan" counts</td><td>"Follow plan 5 days this week"</td></tr>
+          <tr><td>High Confidence</td><td>Confidence ≥ 4/5</td><td>"Log 4/5 confidence for 3 consecutive days"</td></tr>
+          <tr><td>Calm Mood %</td><td>Mood ≥ 4/5 across tracked days</td><td>"Trade calm 70% of the month"</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 7</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 8 — HOW IT CONNECTS TO EVERYTHING ELSE ══════════════ -->
+<div class="page">
+  <div class="band band-blue"></div>
+
+  <div class="sec-label">The Bigger Picture</div>
+  <div class="sec-title">How Reflection Feeds Every Other Feature</div>
+  <div class="sec-desc">The End-of-Day Reflection isn't a standalone form. It's the data layer that makes the Intelligence Hub smarter over time.</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <div class="card-icon">🤖</div>
+        <div>
+          <div class="ch-title">AI Coach Chat</div>
+          <div class="ch-sub">Last 7 reflections are embedded in every coach conversation.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:11.5px;color:#475569;line-height:1.65;">When you ask the AI coach "Why am I losing?", it reads your last 7 reflections alongside your trades. It can say "Your mood was 2/5 on Thursday and Friday — those are your 2 biggest losing days this week" because your reflections gave it that context.</p>
+        <div class="ib ib-b" style="margin-top:8px;">
+          <div class="ibl">Coach Context</div>
+          <div class="ibt">Without reflections: generic trading advice. With reflections: specific insights about <em>your</em> patterns and mindset this week.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <div class="card-icon">📈</div>
+        <div>
+          <div class="ch-title">Psychology Timeline</div>
+          <div class="ch-sub">Mood and confidence feed the evolution chart.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:11.5px;color:#475569;line-height:1.65;">The Psychology Timeline shows your mindset score evolving month by month. The mood and confidence data from your daily reflections are the primary inputs — without them, the timeline has no psychology data to show.</p>
+        <div class="ib ib-p" style="margin-top:8px;">
+          <div class="ibl">Timeline Signal</div>
+          <div class="ibt">Traders who reflect daily see a clear mood-to-P&amp;L correlation emerge after 3–4 weeks. The timeline makes this visible.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <div class="card-icon">📋</div>
+        <div>
+          <div class="ch-title">Weekly Reports</div>
+          <div class="ch-sub">Sunday summary includes reflection patterns.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:11.5px;color:#475569;line-height:1.65;">Weekly reports include your 7-day reflection summary — which days you broke your plan, average mood across the week, and your improvement notes. This gives the weekly report a psychology layer that pure trade data can't provide.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <div class="card-icon">🎯</div>
+        <div>
+          <div class="ch-title">Discipline Analytics</div>
+          <div class="ch-sub">Plan adherence score feeds discipline tracking.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:11.5px;color:#475569;line-height:1.65;">The Discipline Analytics engine in the Intelligence Hub uses "Did you follow your plan?" answers from reflections to build the discipline score over time. Without daily reflections, discipline analytics only has checklist data — reflections add the trader's own self-assessment.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:14px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.12em;color:#94A3B8;text-transform:uppercase;margin-bottom:10px;">THE COMPLETE DATA LOOP</div>
+    <div style="font-size:12px;color:#334155;line-height:2.0;">
+      You trade during the day →
+      <strong>Pre-Trade Checklist</strong> runs before entries →
+      Trade is logged with emotion + setup →
+      <strong>Evening Reflection</strong> captures how the day felt and whether you followed your plan →
+      AI Insight arrives instantly →
+      <strong>Weekly Score</strong> updates →
+      <strong>Coach Chat</strong> reads last 7 reflections →
+      <strong>Psychology Timeline</strong> records the mood data →
+      <strong>Weekly Report</strong> summarises it all →
+      <strong>Missions</strong> progress if plan was followed →
+      Next morning you're better prepared because yesterday was reviewed.
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 8</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ PAGE 9 — QUICK REFERENCE ══════════════ -->
+<div class="page">
+  <div class="band band-purple"></div>
+
+  <div class="sec-label">Quick Reference</div>
+  <div class="sec-title">Everything on One Page</div>
+
+  <table class="t" style="margin-bottom:16px;">
+    <thead><tr><th>Feature</th><th>What It Tracks</th><th>Why It Matters</th><th>Unlocks When</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Daily Form</strong></td>
+        <td>Plan adherence, mood, confidence, execution quality, improvement note</td>
+        <td>Builds the self-awareness loop — the foundation of improving psychology</td>
+        <td>Always available. 30 seconds.</td>
+      </tr>
+      <tr>
+        <td><strong>Weekly Score</strong></td>
+        <td>Composite 0–100 across 4 buckets: plan, repeat, mood, streak</td>
+        <td>Single number that tells you if this week's habits will pay off in a month</td>
+        <td>Updates after each reflection</td>
+      </tr>
+      <tr>
+        <td><strong>AI Insight</strong></td>
+        <td>Personalized coaching line from your specific daily data</td>
+        <td>Converts reflection into one actionable thought you carry into tomorrow</td>
+        <td>Generated instantly on submit</td>
+      </tr>
+      <tr>
+        <td><strong>History View</strong></td>
+        <td>7, 14, or 30-day scrollable history with per-day insights</td>
+        <td>Lets you spot recurring patterns — same day of week, same mood trigger</td>
+        <td>After 3+ days of data</td>
+      </tr>
+      <tr>
+        <td><strong>Evening Push</strong></td>
+        <td>Reminder at 7:30 PM IST with context (traded/didn't trade)</td>
+        <td>Removes the need to remember — the app remembers for you</td>
+        <td>On by default, can disable</td>
+      </tr>
+      <tr>
+        <td><strong>Coach Context</strong></td>
+        <td>Last 7 reflections embedded in every AI coaching conversation</td>
+        <td>Makes coach advice specific to this week, not generic psychology tips</td>
+        <td>After 1+ reflection logged</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">COMMON QUESTIONS</div>
+
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:11px 13px;">
+      <div style="font-size:12px;font-weight:700;color:#0F1923;margin-bottom:3px;">What if I didn't trade today? Should I still reflect?</div>
+      <div style="font-size:11.5px;color:#475569;line-height:1.6;">Yes — and it's actually valuable. Rest days have their own psychology. Logging your mood and confidence on non-trading days reveals whether your mindset resets properly, or whether you're still carrying stress from yesterday's session.</div>
+    </div>
+    <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:11px 13px;">
+      <div style="font-size:12px;font-weight:700;color:#0F1923;margin-bottom:3px;">Does skipping break the streak?</div>
+      <div style="font-size:11.5px;color:#475569;line-height:1.6;">Hitting "Skip" is tracked separately from ignoring the form. It doesn't grow the streak but keeps the calendar honest. The streak itself grows when you submit (any answer, even just a mood). One entry per day is all it takes.</div>
+    </div>
+    <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:11px 13px;">
+      <div style="font-size:12px;font-weight:700;color:#0F1923;margin-bottom:3px;">How long until patterns become visible?</div>
+      <div style="font-size:11.5px;color:#475569;line-height:1.6;">Most traders see meaningful patterns in <strong>2–3 weeks</strong> of consistent reflection. By week 4, the Psychology Timeline starts showing a clear mood-to-performance correlation. The AI Coach also becomes noticeably more specific after 7+ reflections.</div>
+    </div>
+    <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:11px 13px;">
+      <div style="font-size:12px;font-weight:700;color:#0F1923;margin-bottom:3px;">What's the fastest way to raise the weekly score?</div>
+      <div style="font-size:11.5px;color:#475569;line-height:1.6;">Plan adherence is weighted 40% — that single question moves the score the most. Focus on following your trading plan consistently before worrying about the other metrics. A trader who follows their plan every day will consistently score 60–80+ even in losing weeks.</div>
+    </div>
+  </div>
+
+  <div style="background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.04));border:1.5px solid rgba(124,58,237,0.25);border-radius:12px;padding:16px;">
+    <div style="font-size:14px;font-weight:800;color:#4C1D95;margin-bottom:8px;">The One Thing to Remember</div>
+    <div style="font-size:12.5px;color:#334155;line-height:1.75;">
+      Most traders try to improve by learning more strategies. The ones who actually get better review what they already did.
+      The End-of-Day Reflection isn't about adding complexity to your trading — it's about building the habit of seeing yourself clearly.
+      <strong>30 seconds every evening. That's the entire commitment. The compounding does the rest.</strong>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fb">Edgecipline · End-of-Day Reflection</div>
+    <div class="fp">PAGE 9</div>
+  </div>
+</div>
+
+</body>
+</html>

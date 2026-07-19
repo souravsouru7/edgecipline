@@ -16,7 +16,7 @@ import {
   Area
 } from "recharts";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { MARKETS } from "@/context/MarketContext";
 import CalendarPnL from "@/features/analytics/components/CalendarPnL";
 import PatternInsightsCard from "@/features/analytics/components/PatternInsightsCard";
@@ -327,7 +327,7 @@ function PathToAdvanced({ summary, ai, perf, quality, psychology, currency }) {
           <span style={{ fontSize: 13, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace" }}>WIN</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: theme.bull }}>Advanced level unlocked</div>
-            <div style={{ fontSize: 11, color: theme.secondary }}>You are building a data-driven edge. Keep journaling and reviewing analytics to stay profitable.</div>
+            <div style={{ fontSize: 11, color: theme.secondary }}>You are building a data-driven edge. Keep logging trades and reviewing analytics to stay profitable.</div>
           </div>
         </div>
       )}
@@ -461,7 +461,10 @@ export default function IndianAnalyticsPage() {
         snapshot,
       });
     } catch (error) {
-      console.error("Failed to fetch Indian analytics data:", error);
+      if (error?.status === 401 || error?.data?.errorCode === "AUTH_REQUIRED") {
+        return;
+      }
+      console.warn("Failed to fetch Indian analytics data:", error?.message || error);
     } finally {
       setLoading(false);
     }
@@ -470,6 +473,9 @@ export default function IndianAnalyticsPage() {
   const currency = "₹";
   const totalTrades = parseFloat(data.summary?.totalTrades || 0);
   const hasAnyTrades = totalTrades > 0;
+  const pnlReadyTrades = parseFloat(data.summary?.pnlReadyTrades || 0);
+  const tradesMissingPnl = parseFloat(data.summary?.tradesMissingPnl || 0);
+  const hasPnlData = pnlReadyTrades > 0;
   const hasEnoughTrades = totalTrades >= 5;
   const tradesWithRR = parseFloat(data.quality?.tradesWithRR || 0);
   const hasRRFields = hasEnoughTrades && tradesWithRR > 0;
@@ -515,34 +521,52 @@ export default function IndianAnalyticsPage() {
         </div>
 
         {loading ? (
-          <LoadingSpinner message={`Analyzing ${instrumentType === "EQUITY" ? "stock" : "options"} performance...`} fullPage />
+          <IndianMarketLoadingState
+            title={`Loading ${instrumentType === "EQUITY" ? "stock" : "options"} analytics`}
+            subtitle="Preparing Indian Market performance, patterns, and coach feed"
+          />
         ) : (
           <>
+            {hasAnyTrades && tradesMissingPnl > 0 && (
+              <div style={{
+                marginBottom: 18,
+                padding: "14px 16px",
+                borderRadius: 12,
+                border: "1px solid rgba(184,134,11,0.35)",
+                background: "rgba(184,134,11,0.08)",
+                color: theme.secondary,
+                fontSize: 12,
+                lineHeight: 1.6,
+                fontWeight: 650
+              }}>
+                {tradesMissingPnl} trade{tradesMissingPnl === 1 ? "" : "s"} need P&L details before analytics can calculate win rate, net P&L, and charts. Open the trade log, edit those trades, and fill quantity, lot size, entry, exit, P&L, mood, confidence, and trade quality.
+              </div>
+            )}
             {/* TOP SUMMARY ROW */}
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
               <StatCard
                 label="TOTAL P&L"
-                value={hasAnyTrades ? `${currency}${parseFloat(data.summary?.totalProfit || 0).toLocaleString("en-IN")}` : "—"}
-                color={hasAnyTrades ? (parseFloat(data.summary?.totalProfit || 0) >= 0 ? theme.bull : theme.bear) : theme.secondary}
-                sub={hasAnyTrades ? "Lifetime profit / loss" : "Log trades to compute"}
+                value={hasPnlData ? `${currency}${parseFloat(data.summary?.totalProfit || 0).toLocaleString("en-IN")}` : "—"}
+                color={hasPnlData ? (parseFloat(data.summary?.totalProfit || 0) >= 0 ? theme.bull : theme.bear) : theme.secondary}
+                sub={hasPnlData ? `${pnlReadyTrades} trade${pnlReadyTrades === 1 ? "" : "s"} analyzed` : "Fill P&L details to compute"}
                 tooltip="Sum of all your trade profits and losses (gross, before brokerage and taxes). Green = net profitable, Red = net loss."
               />
               <StatCard
                 label="NET AFTER COSTS"
-                value={hasAnyTrades ? `${currency}${parseFloat(data.summary?.netProfit || 0).toLocaleString("en-IN")}` : "—"}
-                color={hasAnyTrades ? (parseFloat(data.summary?.netProfit || 0) >= 0 ? theme.bull : theme.bear) : theme.secondary}
+                value={hasPnlData ? `${currency}${parseFloat(data.summary?.netProfit || 0).toLocaleString("en-IN")}` : "—"}
+                color={hasPnlData ? (parseFloat(data.summary?.netProfit || 0) >= 0 ? theme.bull : theme.bear) : theme.secondary}
                 sub={
-                  hasAnyTrades
+                  hasPnlData
                     ? `Brokerage & taxes: ${currency}${parseFloat(data.summary?.totalCosts || 0).toLocaleString("en-IN")}`
-                    : "Log trades to compute"
+                    : "Fill P&L details to compute"
                 }
                 tooltip="Your real take-home P&L after deducting brokerage, STT, GST, and other trading costs. This is what actually hits your account."
               />
               <StatCard
                 label="WIN RATE"
-                value={hasAnyTrades ? `${data.summary?.winRate || 0}%` : "—"}
-                color={hasAnyTrades ? (parseFloat(data.summary?.winRate || 0) >= 50 ? theme.bull : theme.bear) : theme.secondary}
-                sub={hasAnyTrades ? `${data.summary?.winningTrades || 0} Wins / ${data.summary?.losingTrades || 0} Losses` : "Log trades to compute win rate"}
+                value={hasPnlData ? `${data.summary?.winRate || 0}%` : "—"}
+                color={hasPnlData ? (parseFloat(data.summary?.winRate || 0) >= 50 ? theme.bull : theme.bear) : theme.secondary}
+                sub={hasPnlData ? `${data.summary?.winningTrades || 0} Wins / ${data.summary?.losingTrades || 0} Losses` : "Fill P&L details to compute win rate"}
                 tooltip="Percentage of trades that closed in profit. A win rate above 50% is green. Remember: high win rate alone doesn't mean profitability — R:R matters too."
               />
               <StatCard
@@ -819,7 +843,7 @@ export default function IndianAnalyticsPage() {
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 900 }}>Trade Quality</div>
                   <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>
-                    RR distribution + breakeven calibration from your journal.
+                    RR distribution + breakeven calibration from your trade log.
                   </div>
                 </div>
               </div>
@@ -897,7 +921,7 @@ export default function IndianAnalyticsPage() {
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 900 }}>Timing Edge</div>
                     <div style={{ fontSize: 11, color: theme.muted, marginTop: 4, lineHeight: 1.5 }}>
-                      Best-performing day/hour/session from your NIFTY / BANKNIFTY journal.
+                      Best-performing day/hour/session from your NIFTY / BANKNIFTY trade log.
                     </div>
                   </div>
                   <div style={{ background: `${theme.bull}14`, border: `1px solid ${theme.bull}44`, color: theme.primary, fontSize: 10, fontWeight: 900, padding: "6px 10px", borderRadius: 999 }}>
@@ -980,7 +1004,7 @@ export default function IndianAnalyticsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 800 }}>Model Intelligence</div>
-                    <div style={{ fontSize: 11, color: theme.muted }}>AI-derived notes from your Nifty/BankNifty journal.</div>
+                    <div style={{ fontSize: 11, color: theme.muted }}>AI-derived notes from your Nifty/BankNifty trade log.</div>
                   </div>
                   <div style={{ 
                     background: `${theme.gold}22`, 
@@ -1201,12 +1225,12 @@ export default function IndianAnalyticsPage() {
                   </div>
                   <div style={{ fontSize: 10, color: theme.muted }}>Consecutive wins vs losses</div>
                 </div>
-                <div title="The single most profitable trade in your journal. Useful to know if your overall profit is driven by one lucky trade or spread across many.">
+                <div title="The single most profitable trade in your trade log. Useful to know if your overall profit is driven by one lucky trade or spread across many.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>LARGEST WIN</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.bull }}>₹{parseFloat(data.perf?.largestWin || 0).toLocaleString()}</div>
                   <div style={{ fontSize: 10, color: theme.muted }}>Single best trade</div>
                 </div>
-                <div title="The single most damaging trade in your journal. If this is much larger than your average loss, it suggests you didn't respect your stop loss on that trade.">
+                <div title="The single most damaging trade in your trade log. If this is much larger than your average loss, it suggests you didn't respect your stop loss on that trade.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>LARGEST LOSS</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.bear }}>₹{parseFloat(data.perf?.largestLoss || 0).toLocaleString()}</div>
                   <div style={{ fontSize: 10, color: theme.muted }}>Single worst trade</div>
@@ -1304,7 +1328,7 @@ export default function IndianAnalyticsPage() {
             )}
 
             {/* Distribution by new Indian form fields */}
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, marginTop: 8 }}>Performance by your journal fields</div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, marginTop: 8 }}>Performance by your trade log fields</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
               {data.distribution?.byStrategy && Object.keys(data.distribution.byStrategy).length > 0 && (
                 <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 20 }}>
@@ -1329,7 +1353,7 @@ export default function IndianAnalyticsPage() {
                   {data.distribution?.byStockSymbol && Object.keys(data.distribution.byStockSymbol).filter(k => data.distribution.byStockSymbol[k].total > 0).length > 0 && (
                     <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 20 }}>
                       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: theme.primary }}>By Stock</div>
-                      <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>Best and worst performing stocks in your journal.</div>
+                      <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>Best and worst performing stocks in your trade log.</div>
                       <DistList title="" data={data.distribution.byStockSymbol} currency={currency} maxItems={8} />
                     </div>
                   )}
@@ -1377,7 +1401,7 @@ export default function IndianAnalyticsPage() {
               {instrumentType !== "EQUITY" && data.distribution?.byPair && Object.keys(data.distribution.byPair).filter(k => data.distribution.byPair[k].total > 0).length > 0 && (
                 <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: theme.primary }}>By Symbol</div>
-                  <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>Top performing options symbols in your journal.</div>
+                  <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>Top performing options symbols in your trade log.</div>
                   <DistList title="" data={data.distribution.byPair} currency={currency} maxItems={6} />
                 </div>
               )}
@@ -1387,7 +1411,7 @@ export default function IndianAnalyticsPage() {
             {hasEnoughTrades && data.ai?.psychologicalPatterns && (
               <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 24, marginBottom: 24, boxShadow: "0 2px 10px rgba(15,23,42,0.05)" }}>
                 <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Behavioral Patterns</div>
-                <div style={{ fontSize: 11, color: theme.muted, marginBottom: 18 }}>How your trading behavior shifts after extreme outcomes — detected from your journal.</div>
+                <div style={{ fontSize: 11, color: theme.muted, marginBottom: 18 }}>How your trading behavior shifts after extreme outcomes — detected from your trade log.</div>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
 
                   {/* After Big Win */}
@@ -1482,7 +1506,7 @@ export default function IndianAnalyticsPage() {
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 900 }}>Psychology Analytics</div>
                   <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>
-                    Discipline + mood calibration from your option journal.
+                    Discipline + mood calibration from your option trade log.
                   </div>
                 </div>
                 {data.psychology?.totalTrackedTrades ? (

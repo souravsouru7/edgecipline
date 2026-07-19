@@ -45,6 +45,89 @@ function sessionFmt(s) {
   return { profit: `${p >= 0 ? "+" : "-"}$${Math.abs(p).toFixed(2)}`, winRate: s.winRate, trades: s.trades, name: s.name };
 }
 
+function timingMoney(item, mode) {
+  const profit = Number(item?.profit);
+  if (!Number.isFinite(profit)) return "—";
+  if (mode === "best" && profit <= 0) return "—";
+  if (mode === "worst" && profit >= 0) return "—";
+  return `${profit >= 0 ? "+" : "-"}$${Math.abs(profit).toFixed(2)}`;
+}
+
+function timingName(item) {
+  return item?.name || "Need more data";
+}
+
+function timingHourLabel(item) {
+  const rawHour = item?.hour ?? item?.name;
+  const hour = Number(rawHour);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return "Need more data";
+  return `${String(hour).padStart(2, "0")}:00 UTC`;
+}
+
+function numericValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatRR(value) {
+  const number = numericValue(value);
+  return number != null && number > 0 ? `${number.toFixed(2)}:1` : "N/A";
+}
+
+function formatDirectionalMoney(value, direction) {
+  const number = numericValue(value);
+  if (number == null) return "N/A";
+  if (direction === "win" && number <= 0) return "N/A";
+  if (direction === "loss" && number >= 0) return "N/A";
+  return `${number >= 0 ? "+" : "-"}$${Math.abs(number).toFixed(2)}`;
+}
+
+function riskRewardRows(riskReward = {}, performance = {}) {
+  const totalTrades = Number(riskReward.totalTrades ?? performance.pnlReadyTrades ?? performance.totalTrades ?? 0);
+  const tradesWithRR = Number(riskReward.tradesWithRR ?? 0);
+  const hasPlannedRR = tradesWithRR > 0;
+  const hasActualRR = numericValue(riskReward.actualRR) != null && numericValue(riskReward.actualRR) > 0;
+
+  return [
+    {
+      label: "Planned Avg R:R",
+      value: formatRR(riskReward.avgRR),
+      color: hasPlannedRR ? C.bull : C.muted,
+      sub: hasPlannedRR ? `${tradesWithRR} trade${tradesWithRR === 1 ? "" : "s"} with RR plan` : "Need entry, stop, target",
+    },
+    {
+      label: "Best Planned R:R",
+      value: formatRR(riskReward.bestRR),
+      color: hasPlannedRR ? C.bull : C.muted,
+      sub: "Best setup reward vs risk",
+    },
+    {
+      label: "Actual Win/Loss",
+      value: formatRR(riskReward.actualRR),
+      color: hasActualRR ? C.bull : C.muted,
+      sub: hasActualRR ? "Avg win divided by avg loss" : "Need one win and one loss",
+    },
+    {
+      label: "RR Data Coverage",
+      value: `${tradesWithRR}/${Number.isFinite(totalTrades) ? totalTrades : 0}`,
+      color: hasPlannedRR ? C.primary : C.muted,
+      sub: "Trades with planned risk",
+    },
+    {
+      label: "Largest Win",
+      value: formatDirectionalMoney(performance?.largestWin, "win"),
+      color: numericValue(performance?.largestWin) > 0 ? C.bull : C.muted,
+      sub: "Best closed winner",
+    },
+    {
+      label: "Largest Loss",
+      value: formatDirectionalMoney(performance?.largestLoss, "loss"),
+      color: numericValue(performance?.largestLoss) < 0 ? C.bear : C.muted,
+      sub: "Worst closed loser",
+    },
+  ];
+}
+
 function classifyInsight(text) {
   if (!text) return "info";
   const t = text.toLowerCase();
@@ -234,7 +317,7 @@ function buildTradingDNAInterpretation(dna) {
   const strengthPnl = strength?.netPnL ?? strength?.profit;
   return [
     { label: "Your Trading Identity", text: dna.dnaSummary?.tradingIdentity || `Your current identity is forming around ${strengthName}. Edgecipline is using your repeated conditions, behaviors, and review data to describe the trader you actually are.` },
-    { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your journal shows the clearest repeatable advantage.` },
+    { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your data shows the clearest repeatable advantage.` },
     { label: "Why It Matters", text: strengthPnl != null ? `That condition is contributing ${moneyText(strengthPnl)}, so it deserves more attention than random lower-quality trades.` : "A repeatable edge gives you a better review target than looking at every win and loss equally." },
     { label: "Action Plan", text: `Prioritize trades that match ${strengthName} and reduce trades that do not match your strongest conditions.` },
     { label: "Expected Outcome", text: worstEmotion ? `More consistency and fewer leaks from ${worstEmotion.name || "your most expensive emotional state"}.` : "Higher consistency, cleaner trade selection, and fewer impulsive entries." },
@@ -433,7 +516,7 @@ function AnalyticsContent({ section = "overview" }) {
               </p>
             </div>
             <Link href={isOverview ? "/trades" : "/analytics"} style={{ fontSize: 12, color: C.primary, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 14px", textDecoration: "none", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, background: "#FFFFFF" }}>
-              {isOverview ? "Journal" : "Analytics Home"}
+              {isOverview ? "Trade Log" : "Analytics Home"}
             </Link>
           </div>
 
@@ -576,16 +659,12 @@ function AnalyticsContent({ section = "overview" }) {
                 <SectionCard title="Risk / Reward" subtitle="RR DISTRIBUTION" delay={0.35} accentColor={C.bear}>
                   {riskReward ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {[
-                        { label: "Avg R:R Ratio",   value: `${parseFloat(riskReward.avgRR     || 0).toFixed(2)}:1`, color: parseFloat(riskReward.avgRR || 0) >= 1 ? C.bull : C.bear },
-                        { label: "Best Trade RR",   value: `${parseFloat(riskReward.bestRR    || 0).toFixed(2)}:1`, color: C.bull },
-                        { label: "Avg RR — Wins",   value: `${parseFloat(riskReward.avgWinRR  || 0).toFixed(2)}:1`, color: C.bull },
-                        { label: "Avg RR — Losses", value: `${parseFloat(riskReward.avgLossRR || 0).toFixed(2)}:1`, color: C.bear },
-                        { label: "Largest Win",     value: `$${parseFloat(performance?.largestWin  || 0).toFixed(2)}`, color: C.bull },
-                        { label: "Largest Loss",    value: `-$${Math.abs(parseFloat(performance?.largestLoss || 0)).toFixed(2)}`, color: C.bear },
-                      ].map(r => (
-                        <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #F4F2EE" }}>
-                          <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
+                      {riskRewardRows(riskReward, performance).map(r => (
+                        <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: "1px solid #F4F2EE" }}>
+                          <span>
+                            <span style={{ display: "block", fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
+                            <span style={{ display: "block", marginTop: 2, fontSize: 10, color: C.muted }}>{r.sub}</span>
+                          </span>
                           <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: r.color }}>{r.value}</span>
                         </div>
                       ))}
@@ -610,10 +689,10 @@ function AnalyticsContent({ section = "overview" }) {
                 <SectionCard title="Timing Insights" subtitle="OPTIMAL WINDOWS" delay={0.45} accentColor={C.gold}>
                   {timeAnalysis ? (
                     <div>
-                      <ListItem label="Best Day"    value={timeAnalysis.bestDay?.profit  > 0 ? `$${timeAnalysis.bestDay.profit}`   : "—"} color={C.bull} sub={timeAnalysis.bestDay?.name  || "Need more data"} />
-                      <ListItem label="Worst Day"   value={timeAnalysis.worstDay?.profit ? `$${timeAnalysis.worstDay.profit}`       : "—"} color={C.bear} sub={timeAnalysis.worstDay?.name || "Need more data"} />
-                      <ListItem label="Best Hour"   value={timeAnalysis.bestHour?.profit  > 0 ? `$${timeAnalysis.bestHour.profit}`  : "—"} color={C.bull} sub={timeAnalysis.bestHour ? `${String(timeAnalysis.bestHour.hour).padStart(2,"0")}:00 UTC` : "Need more data"} />
-                      <ListItem label="Worst Hour"  value={timeAnalysis.worstHour?.hour != null ? `$${timeAnalysis.worstHour.profit}` : "—"} color={C.bear} sub={timeAnalysis.worstHour ? `${String(timeAnalysis.worstHour.hour).padStart(2,"0")}:00 UTC` : "Need more data"} />
+                      <ListItem label="Best Day"    value={timingMoney(timeAnalysis.bestDay, "best")} color={C.bull} sub={timingName(timeAnalysis.bestDay)} />
+                      <ListItem label="Worst Day"   value={timingMoney(timeAnalysis.worstDay, "worst")} color={C.bear} sub={timingName(timeAnalysis.worstDay)} />
+                      <ListItem label="Best Hour"   value={timingMoney(timeAnalysis.bestHour, "best")} color={C.bull} sub={timingHourLabel(timeAnalysis.bestHour)} />
+                      <ListItem label="Worst Hour"  value={timingMoney(timeAnalysis.worstHour, "worst")} color={C.bear} sub={timingHourLabel(timeAnalysis.worstHour)} />
                     </div>
                   ) : <p style={{ color: C.muted, fontSize: 12 }}>Log more trades to see timing data.</p>}
                 </SectionCard>

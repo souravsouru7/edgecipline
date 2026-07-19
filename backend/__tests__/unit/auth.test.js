@@ -37,6 +37,14 @@ jest.mock('../../services/mailService', () => ({
   sendOTPEmail: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../../services/authCacheService', () => ({
+  invalidateAuthCache: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../utils/cacheUtils', () => ({
+  invalidateTradeCaches: jest.fn().mockResolvedValue(1),
+}));
+
 jest.mock('../../config/firebaseAdmin', () => ({
   getFirebaseAdmin: jest.fn(),
 }));
@@ -52,7 +60,9 @@ jest.mock('../../utils/logger', () => ({
 
 const bcrypt = require('bcryptjs');
 const User   = require('../../models/Users');
-const { registerUser, loginUser, forgotPassword, verifyOTP } = require('../../controllers/authController');
+const { invalidateAuthCache } = require('../../services/authCacheService');
+const { invalidateTradeCaches } = require('../../utils/cacheUtils');
+const { registerUser, loginUser, forgotPassword, verifyOTP, updateOnboardingStep } = require('../../controllers/authController');
 
 /** Creates a mock response that records what the controller calls */
 const mockRes = () => {
@@ -312,6 +322,49 @@ describe('loginUser — lockout progression (T5)', () => {
 
     expect(user.loginAttempts).toBe(0);
     expect(user.loginLockedUntil).toBeUndefined();
+  });
+});
+
+describe('updateOnboardingStep', () => {
+  test('invalidates dashboard snapshot cache after saving onboarding state', async () => {
+    invalidateAuthCache.mockClear();
+    invalidateTradeCaches.mockClear();
+    User.findByIdAndUpdate.mockReset();
+
+    const user = userDoc({
+      onboarding: {
+        welcomeSeen: true,
+        setupAdded: true,
+        tradeAdded: true,
+        checklistDismissed: true,
+      },
+    });
+    User.findByIdAndUpdate.mockResolvedValueOnce(user);
+
+    const req = mockReq(
+      { step: 'checklistDismissed', value: true },
+      { user: { _id: user._id } }
+    );
+    const res = mockRes();
+    const next = jest.fn();
+
+    await updateOnboardingStep(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
+      user._id,
+      { $set: { 'onboarding.checklistDismissed': true } },
+      { new: true }
+    );
+    expect(invalidateAuthCache).toHaveBeenCalledWith(user._id);
+    expect(invalidateTradeCaches).toHaveBeenCalledWith(expect.objectContaining({
+      userId: user._id,
+      event: 'onboarding_update',
+      source: 'auth_onboarding_step',
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      onboarding: expect.objectContaining({ checklistDismissed: true }),
+    }));
   });
 });
 

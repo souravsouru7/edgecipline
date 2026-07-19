@@ -674,7 +674,7 @@ export default function PreTradeChecklistPage() {
               </p>
               <div style={{ display: "inline-block", background: "#F8FAFC", padding: "8px 16px", borderRadius: 999 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", letterSpacing: "0.05em" }}>
-                  Tracking saved. Redirecting to journal...
+                  Tracking saved. Redirecting to trade log...
                 </span>
               </div>
             </div>

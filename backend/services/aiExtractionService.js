@@ -112,7 +112,7 @@ CRITICAL RULES — READ CAREFULLY:
 1. IGNORE any "Today's P&L", "TOTAL RETURNS", "Total P&L", "Overall P&L", or any aggregate/summary row at the top or bottom. These are NOT stock names.
 2. Only extract individual stock/company rows (e.g. "POWERGRID", "Vedanta", "HDFC Bank", "Reliance", "TCS").
 3. This may be a Positions / Holdings / Closed Trades page. Each stock row has: stock name, P&L value (right side), and optionally Qty, Avg price, LTP/Mkt price.
-4. CLOSED POSITION: If Qty shows "0" and Avg shows "0.00" or "₹0.00" — the position is fully closed. Set entryPrice=null and exitPrice=null. The P&L shown in GREEN/RED for THAT ROW is the realized profit/loss — extract it.
+4. CLOSED POSITION: If Qty shows "0" and Avg shows "0.00" or "₹0.00" — the position is fully closed. Set entryPrice=null and exitPrice=null. NEVER invent, guess, or back-calculate a buy/sell price when Avg is 0.00 — leave both null even if that means the field is empty. The P&L shown in GREEN/RED for THAT ROW is the realized profit/loss — copy that exact printed number (with its sign) into "profit". Do NOT derive profit from any price difference — always read it directly off the row.
 5. The P&L is GREEN/positive (+₹) or RED/negative (-₹). Extract the exact number with correct sign.
 6. LTP (Last Traded Price) is the CURRENT MARKET PRICE — NEVER put LTP into entryPrice or exitPrice.
 7. productType: "Delivery"/"CNC"/"DELIVERY" => "DELIVERY". "Intraday"/"MIS"/"BO"/"CO" => "INTRADAY". Default "INTRADAY".
@@ -145,10 +145,24 @@ Correct output:
 JSON: {"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox","trades":[{"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox"}]}
 
 ZERODHA POSITIONS PAGE EXAMPLE (2 stocks):
-JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY","broker":"Zerodha","trades":[{"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY"},{"stockSymbol":"VOLTAS","exchange":"NSE","sharesQty":null,"type":"SELL","entryPrice":null,"exitPrice":null,"profit":-2783.20,"productType":"INTRADAY"}]}`;
+JSON: {"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY","broker":"Zerodha","trades":[{"stockSymbol":"VEDL","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":211.90,"productType":"INTRADAY"},{"stockSymbol":"VOLTAS","exchange":"NSE","sharesQty":null,"type":"SELL","entryPrice":null,"exitPrice":null,"profit":-2783.20,"productType":"INTRADAY"}]}
 
-// Forex pair patterns: 6-char currency pairs, commodity codes, index CFDs
-const FOREX_PAIR_RE = /^([A-Z]{3}[A-Z]{3}(\.[A-Z]+)?|XAU|XAG|GOLD|SILVER|OIL|BRENT|US(30|100|500)|NAS(DAQ)?100|DAX|FTSE|SP500|CRUDE)/i;
+GROWW INTRADAY POSITIONS PAGE EXAMPLE:
+Screen shows a "TOTAL RETURNS +₹5,390.80" summary card, then below it "0 ACTIVE", then the row: "Intraday | Data Patterns (I)  +₹5,390.80 | Avg ₹0.00 | Mkt ₹4,589.30". The summary card and the row show the SAME number because there is only one closed position — do not treat the summary card as a separate trade, and do not invent any other number.
+Correct output:
+JSON: {"stockSymbol":"DATAPATTERNS","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":5390.80,"productType":"INTRADAY","broker":"Groww","trades":[{"stockSymbol":"DATAPATTERNS","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":5390.80,"productType":"INTRADAY"}]}`;
+
+// Forex pair patterns: 6-char currency pairs, commodity codes, index CFDs.
+// Anchored with $ and restricted to real ISO currency codes so it never
+// matches a stock ticker that merely happens to be 6 letters (e.g. "MARUTI",
+// "BIOCON") or a name with spaces stripped (e.g. "Data Patterns (I)" ->
+// "DATAPATTERNS", whose first 6 letters used to satisfy the old unanchored
+// [A-Z]{3}[A-Z]{3} pattern and falsely triggered the Forex/MT5 rejection).
+const MAJOR_CCY = "USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|CNY|SGD|HKD|ZAR|TRY|MXN|SEK|NOK|DKK|INR|XAU|XAG";
+const FOREX_PAIR_RE = new RegExp(
+  `^(?:(?:${MAJOR_CCY})(?:${MAJOR_CCY})(?:\\.[A-Z]+)?|GOLD|SILVER|OIL|BRENT|US(?:30|100|500)|NAS(?:DAQ)?100|DAX|FTSE|SP500|CRUDE)$`,
+  "i"
+);
 // Indian market signals in the pair name
 const INDIAN_PAIR_RE = /(CE|PE)$|\d{4,6}\s*(CE|PE)/i;
 

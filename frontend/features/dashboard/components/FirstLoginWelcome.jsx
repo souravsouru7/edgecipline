@@ -7,16 +7,16 @@ import { useMarket, MARKETS } from "@/context/MarketContext";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 
 // Full-screen welcome shown only on the very first login. Three short slides:
-// (1) intro, (2) market picker, (3) setup explainer — then routes the user
-// into the forced setup-creation step.
+// (1) intro, (2) market picker, (3) setup explainer - then routes the user
+// into the guided onboarding flow.
 const INTRO_SLIDE = {
   badge: "STEP 1",
   title: "Welcome to Edgecipline",
-  body: "Let's set up your trading edge in 60 seconds. This intro starts the loop: choose your market, define a setup, log a trade, then review it in your journal.",
+  body: "Let's set up your trading edge in 60 seconds. This intro starts the loop: choose your market, define a setup, log a trade, then let the coach review it.",
   bullets: [
-    "🎯 Add a setup — the pattern you trade",
-    "📸 Upload a broker screenshot — AI fills the trade for you",
-    "📓 Review in your journal — see what works",
+    "Add a setup - the pattern you trade",
+    "Upload a broker screenshot - AI fills the trade for you",
+    "Review your trade log - see what works",
   ],
   cta: "Start",
 };
@@ -24,26 +24,26 @@ const INTRO_SLIDE = {
 const SETUP_SLIDE = {
   badge: "STEP 2",
   title: "First, define your setup",
-  body: "A setup is the specific condition you wait for before entering. Defining it lets us measure which strategies actually make you money — and which to drop.",
+  body: "A setup is the specific condition you wait for before entering. Defining it lets us measure which strategies actually make you money - and which to drop.",
   bullets: [
     "Examples: Breakout, Pullback, Opening Range",
     "Add the rules you follow for each entry",
     "Every trade you log will link to a setup",
   ],
-  cta: "Add my first setup →",
+  cta: "Add my first setup",
 };
 
 const MARKET_OPTIONS = [
   {
     value: MARKETS.FOREX,
-    emoji: "🌐",
+    emoji: "FX",
     title: "Forex / Global",
     sub: "MT4 / MT5, OANDA, IC Markets",
     examples: "EUR/USD, XAUUSD, GBP/JPY",
   },
   {
     value: MARKETS.INDIAN_MARKET,
-    emoji: "🇮🇳",
+    emoji: "IN",
     title: "Indian Market",
     sub: "Zerodha, Upstox, Groww, Angel One",
     examples: "NIFTY options, RELIANCE, F&O",
@@ -72,6 +72,12 @@ const card = {
 // Step indices: 0 = intro, 1 = market picker, 2 = setup explainer.
 const TOTAL_STEPS = 3;
 
+function setupRouteForMarket(market) {
+  return market === MARKETS.INDIAN_MARKET
+    ? "/indian-market/setups?onboarding=1"
+    : "/setups?onboarding=1";
+}
+
 export default function FirstLoginWelcome({ onClose }) {
   const router = useRouter();
   const { toggleMarket } = useMarket();
@@ -86,24 +92,40 @@ export default function FirstLoginWelcome({ onClose }) {
     onClose?.();
   }
 
-  function handlePickMarket(market) {
+  async function handlePickMarket(market) {
     setPickedMarket(market);
+    setSubmitting(true);
     toggleMarket(market);
-    setPreferredMarket(market).catch(() => {});
+    try {
+      await Promise.all([
+        setPreferredMarket(market),
+        markOnboardingStep("welcomeSeen", true),
+        markOnboardingStep("marketSelected", true),
+      ]);
+    } catch {
+      // Keep moving; setup can still save the same market context next.
+    }
+    onClose?.();
+    router.replace(setupRouteForMarket(market));
   }
 
   async function handleNext() {
     if (step === 0) { setStep(1); return; }
     if (step === 1) {
       if (!pickedMarket) return;
-      setStep(2);
+      await handlePickMarket(pickedMarket);
       return;
     }
-    // step === 2 → finish welcome and route to /setups
+    // step === 2 - finish welcome and route into the real setup page.
     setSubmitting(true);
-    try { await markOnboardingStep("welcomeSeen", true); } catch {/* non-blocking */}
+    try {
+      await Promise.all([
+        markOnboardingStep("welcomeSeen", true),
+        pickedMarket ? markOnboardingStep("marketSelected", true) : Promise.resolve(),
+      ]);
+    } catch {/* non-blocking */}
     onClose?.();
-    router.push("/setups?onboarding=1");
+    router.replace(setupRouteForMarket(pickedMarket));
   }
 
   function handleBack() {
@@ -145,7 +167,7 @@ export default function FirstLoginWelcome({ onClose }) {
             lineHeight: 1.65, margin: 0,
           }}>
             {isMarketStep
-              ? "We'll tailor your setup form, screenshot AI, and journal to your market. You can switch any time from the top header."
+              ? "We'll tailor your setup form, screenshot AI, and coaching to your market. You can switch any time from the top header."
               : slide.body}
           </p>
         </div>
@@ -159,15 +181,17 @@ export default function FirstLoginWelcome({ onClose }) {
                 <button
                   key={opt.value}
                   type="button"
+                  disabled={submitting}
                   onClick={() => handlePickMarket(opt.value)}
                   style={{
-                    textAlign: "left", cursor: "pointer",
+                    textAlign: "left", cursor: submitting ? "wait" : "pointer",
                     padding: "14px 14px", borderRadius: 12,
                     background: selected ? "rgba(34,199,142,0.12)" : "rgba(255,255,255,0.03)",
                     border: `1.5px solid ${selected ? "#22C78E" : "rgba(255,255,255,0.1)"}`,
                     display: "flex", gap: 12, alignItems: "center",
                     transition: "background 0.2s, border-color 0.2s",
                     fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    opacity: submitting && !selected ? 0.55 : 1,
                   }}
                 >
                   <div style={{ fontSize: 26, lineHeight: 1 }}>{opt.emoji}</div>

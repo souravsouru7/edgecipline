@@ -8,6 +8,7 @@ import MarketSwitcher from "@/components/MarketSwitcher";
 import PricingModal from "@/components/PricingModal";
 import TrialCountdownBanner from "@/components/TrialCountdownBanner";
 import RescueBanner from "@/components/RescueBanner";
+import { useMarket, MARKETS } from "@/context/MarketContext";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import apiClient from "@/services/apiClient";
 import { clearAuthToken } from "@/utils/auth";
@@ -22,9 +23,9 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-const NAV_LINKS = [
+const FOREX_NAV_LINKS = [
   { href: "/dashboard",                    label: "Dashboard" },
-  { href: "/trades",                       label: "Journal"   },
+  { href: "/trades",                       label: "Trades"    },
   { href: "/upload-trade",                 label: "Import"    },
   { href: "/checklist",                    label: "Checklist" },
   { href: "/setups",                       label: "Setups"    },
@@ -32,6 +33,18 @@ const NAV_LINKS = [
   { href: "/analytics",                    label: "Analytics" },
   { href: "/weekly-reports?market=Forex",  label: "Reports"   },
   { href: "/profile",                      label: "Settings"  },
+];
+
+const INDIAN_NAV_LINKS = [
+  { href: "/dashboard",                           label: "Dashboard" },
+  { href: "/indian-market/trades",                label: "Trades"    },
+  { href: "/indian-market/upload-trade",          label: "Import"    },
+  { href: "/checklist",                           label: "Checklist" },
+  { href: "/indian-market/setups",                label: "Setups"    },
+  { href: "/intelligence",                        label: "Intelligence" },
+  { href: "/indian-market/analytics",             label: "Analytics" },
+  { href: "/weekly-reports?market=Indian_Market", label: "Reports"   },
+  { href: "/profile",                             label: "Settings"  },
 ];
 
 export default function PageHeader({
@@ -45,6 +58,8 @@ export default function PageHeader({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
+  const { currentMarket } = useMarket();
+  const navLinks = currentMarket === MARKETS.INDIAN_MARKET ? INDIAN_NAV_LINKS : FOREX_NAV_LINKS;
 
   const handleLogout = async () => {
     await onUserLoggedOut();
@@ -78,7 +93,7 @@ export default function PageHeader({
         {/* Desktop nav */}
         <div className="hdr-desktop" style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <nav id="tour-nav" style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 8 }}>
-            {NAV_LINKS.map(n => {
+            {navLinks.map(n => {
               const active = isActive(n.href);
               const tourId = `tour-nav-${n.label.toLowerCase()}`;
               return (
@@ -156,7 +171,7 @@ export default function PageHeader({
         onClose={() => setDrawerOpen(false)}
         onLogout={handleLogout}
         profile={profile}
-        navItems={NAV_LINKS}
+        navItems={navLinks}
         extraSlot={showMarketSwitcher ? <MarketSwitcher /> : null}
         paymentSlot={(
           <button

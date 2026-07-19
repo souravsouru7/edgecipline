@@ -148,7 +148,7 @@ export default function AcceptTermsPage() {
             One quick step before you continue
           </h1>
           <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.7, maxWidth: 360, margin: "0 auto" }}>
-            We&apos;ve updated our Terms &amp; Conditions and Privacy Policy. Please review and accept them to access your journal.
+            We&apos;ve updated our Terms &amp; Conditions and Privacy Policy. Please review and accept them to access your account.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ export default function AcceptTermsPage() {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     <polyline points="9 12 11 14 15 10"/>
                   </svg>
-                  ACCEPT &amp; CONTINUE TO JOURNAL
+                  ACCEPT &amp; CONTINUE TO DASHBOARD
                 </>
               )}
             </button>

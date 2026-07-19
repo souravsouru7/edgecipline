@@ -28,7 +28,7 @@ export default function DeleteModal({ trade, onConfirm, onCancel }) {
           {trade?.pair} — {trade?.type?.toUpperCase()}
         </div>
         <div style={{ fontSize: 9, color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 22, lineHeight: 1.6 }}>
-          THIS ACTION CANNOT BE UNDONE. THE TRADE WILL BE PERMANENTLY REMOVED FROM YOUR JOURNAL.
+          THIS ACTION CANNOT BE UNDONE. THE TRADE WILL BE PERMANENTLY REMOVED FROM YOUR TRADE LOG.
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>

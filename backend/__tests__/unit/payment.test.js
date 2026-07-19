@@ -289,3 +289,81 @@ describe('verifyPayment', () => {
     expect(Payment.create).not.toHaveBeenCalled();
   });
 });
+
+describe('sandbox payment demo', () => {
+  const { appConfig } = require('../../config');
+  const originalKeyId = appConfig.razorpay.keyId;
+  const authUser = { _id: '507f1f77bcf86cd799439011' };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-12T00:00:00.000Z'));
+    appConfig.razorpay.keyId = '';
+  });
+
+  afterEach(() => {
+    appConfig.razorpay.keyId = originalKeyId;
+    jest.useRealTimers();
+  });
+
+  test('activates sandbox payment from the latest trial benefit date', async () => {
+    const trialEndsAt = new Date('2026-07-15T00:00:00.000Z');
+    User.findById.mockResolvedValueOnce(mockUser({
+      _id: authUser._id,
+      trial: { endsAt: trialEndsAt },
+    }));
+    Payment.findOne.mockResolvedValueOnce(null);
+    Payment.create.mockImplementationOnce((data) => Promise.resolve({ _id: 'sandbox-payment-id', ...data }));
+
+    const res = mockRes();
+    await verifyPayment({
+      body: {
+        razorpay_order_id: 'sandbox_order_1',
+        razorpay_payment_id: 'sandbox_pay_1',
+      },
+      user: authUser,
+    }, res, jest.fn());
+
+    expect(Payment.create).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 150,
+      transactionId: 'sandbox_pay_1',
+      expiryDate: new Date('2026-10-13T00:00:00.000Z'),
+    }));
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.objectContaining({
+      $inc: { totalPaid: 150 },
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      sandbox: true,
+      idempotent: false,
+    }));
+  });
+
+  test('replayed sandbox payment is idempotent and does not increment revenue', async () => {
+    const expiryDate = new Date('2026-10-10T00:00:00.000Z');
+    User.findById.mockResolvedValueOnce(mockUser({ _id: authUser._id }));
+    Payment.findOne.mockResolvedValueOnce({
+      _id: 'existing-payment-id',
+      status: 'completed',
+      expiryDate,
+    });
+
+    const res = mockRes();
+    await verifyPayment({
+      body: {
+        razorpay_order_id: 'sandbox_order_1',
+        razorpay_payment_id: 'sandbox_pay_1',
+      },
+      user: authUser,
+    }, res, jest.fn());
+
+    expect(Payment.create).not.toHaveBeenCalled();
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.any(Array));
+    expect(JSON.stringify(User.findByIdAndUpdate.mock.calls[0][1])).not.toContain('totalPaid');
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      sandbox: true,
+      idempotent: true,
+    }));
+  });
+});

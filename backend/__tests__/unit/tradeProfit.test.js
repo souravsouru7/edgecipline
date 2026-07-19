@@ -106,4 +106,27 @@ describe("server-derived trade P&L", () => {
       extractedTrades
     )).toBeNull();
   });
+
+  test("matches Indian OCR P&L by underlying, strike, and option type", () => {
+    const extractedTrades = [
+      { symbol: "NIFTY", strike: 24200, optionType: "CE", pnl: 1371.5 },
+      { symbol: "NIFTY", strike: 24300, optionType: "PE", pnl: 968.5 },
+    ];
+
+    expect(trustedOcrProfitForTrade(
+      { pair: "NIFTY 24200 CE", optionType: "CE", profit: 1371.5 },
+      extractedTrades,
+      0
+    )).toBe(1371.5);
+    expect(trustedOcrProfitForTrade(
+      { pair: "NIFTY 24300 PE", optionType: "PE", profit: 968.5 },
+      extractedTrades,
+      1
+    )).toBe(968.5);
+    expect(trustedOcrProfitForTrade(
+      { pair: "NIFTY 24200 CE", optionType: "CE", profit: -3900.31 },
+      extractedTrades,
+      0
+    )).toBeNull();
+  });
 });

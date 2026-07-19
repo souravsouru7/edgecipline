@@ -13,6 +13,7 @@ import OnboardingCompleteDialog from "@/features/onboarding/components/Onboardin
 import { useTrades }         from "@/features/trade/hooks/useTrades";
 import { Skeleton }          from "@/features/shared";
 import { markOnboardingStep } from "@/services/api";
+import { useMarket, MARKETS } from "@/context/MarketContext";
 
 const FILTER_OPTIONS = ["ALL", "LONG", "SHORT"];
 const PERIOD_OPTIONS = [
@@ -32,15 +33,24 @@ function TradesContent() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { currentMarket, isLoading: marketLoading } = useMarket();
+  const redirectQuery = searchParams?.toString();
   const onboardingMode = searchParams?.get("onboarding") === "1";
   const [completionDismissed, setCompletionDismissed] = useState(false);
   const showOnboardingComplete = onboardingMode && !completionDismissed;
 
+  useEffect(() => {
+    if (marketLoading || currentMarket !== MARKETS.INDIAN_MARKET) return;
+    router.replace(`/indian-market/trades${redirectQuery ? `?${redirectQuery}` : ""}`);
+  }, [currentMarket, marketLoading, redirectQuery, router]);
+
   // Mark "journal viewed" once the page has actually rendered.
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || currentMarket === MARKETS.INDIAN_MARKET) return;
     markOnboardingStep("journalSeen", true).catch(() => {});
-  }, [mounted]);
+  }, [currentMarket, mounted]);
+
+  if (!marketLoading && currentMarket === MARKETS.INDIAN_MARKET) return null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
@@ -64,16 +74,16 @@ function TradesContent() {
                 background: "rgba(34,199,142,0.2)", color: "#0D9E6E",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18, fontWeight: 900,
-              }}>🎉</div>
+              }}>OK</div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
-                  ACTIVATION COMPLETE - YOUR JOURNAL
+                  ACTIVATION COMPLETE - YOUR TRADE LOG
                 </div>
                 <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
-                  Nice — you logged your first trade!
+                  Nice - you logged your first trade!
                 </div>
                 <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55 }}>
-                  This is your journal — every trade lives here. Filter by setup, date, or result. The more you log, the smarter your analytics get.
+                  This is your trade log - every trade lives here. Filter by setup, date, or result. The more you log, the smarter your coach gets.
                 </div>
               </div>
             </div>
@@ -82,7 +92,7 @@ function TradesContent() {
           {/* Page title */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "all 0.5s" }}>
             <div>
-              <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, fontWeight: 800, color: "#0F1923", letterSpacing: "-0.02em", marginBottom: 3 }}>Trade Journal</h1>
+              <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, fontWeight: 800, color: "#0F1923", letterSpacing: "-0.02em", marginBottom: 3 }}>Trade Log</h1>
               <div style={{ fontSize: 11, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}>YOUR PERFORMANCE LOG</div>
             </div>
             <Link href="/upload-trade" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#FFFFFF", padding: "10px 18px", minHeight: 44, borderRadius: 10, textDecoration: "none", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", boxShadow: "0 4px 12px rgba(13,158,110,0.3)", fontFamily: "'JetBrains Mono',monospace", whiteSpace: "nowrap" }}>
@@ -139,7 +149,7 @@ function TradesContent() {
             <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", fontSize: 9, color: "#94A3B8", letterSpacing: "0.08em", fontFamily: "'JetBrains Mono',monospace", background: "#F8F6F2", borderRadius: "0 0 14px 14px", marginTop: -1, border: "1px solid #E2E8F0", borderTop: "none" }}>
               <span>SHOWING {filtered.length} TRADES</span>
               <span>{period.toUpperCase()} WINDOW</span>
-              <span>EDGEDISCIPLINE AI JOURNAL</span>
+              <span>EDGECIPLINE AI COACH</span>
             </div>
           )}
         </main>

@@ -2,10 +2,12 @@
 
 import { Suspense, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import IndianMarketHeader from "@/components/IndianMarketHeader";
 import PageHeader from "@/features/shared/components/PageHeader";
 import ReflectionCard from "@/features/reflections/components/ReflectionCard";
 import ReflectionHistoryList from "@/features/reflections/components/ReflectionHistoryList";
 import ReflectionSheet from "@/features/reflections/components/ReflectionSheet";
+import { useMarket } from "@/context/MarketContext";
 import {
   useReflectionHistory,
   useReflectionSummary,
@@ -14,6 +16,7 @@ import {
 function Page() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [windowDays, setWindowDays] = useState(14);
+  const { isIndianMarket } = useMarket();
   const summary = useReflectionSummary();
   const history = useReflectionHistory(windowDays);
 
@@ -26,7 +29,7 @@ function Page() {
       fontFamily: "'Plus Jakarta Sans',sans-serif",
       color: "#0F1923",
     }}>
-      <PageHeader showClock={false} />
+      {isIndianMarket ? <IndianMarketHeader /> : <PageHeader showClock={false} />}
       <main style={{ flex: 1, maxWidth: 760, width: "100%", margin: "0 auto", padding: "24px 16px 80px", boxSizing: "border-box" }}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>

@@ -39,6 +39,7 @@ function makePerformanceAggregate(trades, marketType = "Forex") {
     : (trade.commission || 0) + (trade.swap || 0);
   return [{
     totalTrades: trades.length,
+    pnlReadyTrades: trades.filter((trade) => trade.profit != null).length,
     wins: trades.filter((trade) => trade.profit > 0).length,
     losses: trades.filter((trade) => trade.profit < 0).length,
     breakEven: trades.filter((trade) => trade.profit === 0).length,
@@ -255,6 +256,22 @@ describe("AnalyticsSnapshotService", () => {
     expect(snapshot.sourceTradeCount).toBe(4);
   });
 
+  test("counts Indian trades with missing P&L without using them in win-rate math", async () => {
+    const indianTrades = [
+      ...makeTrades(2, "Indian_Market"),
+      { ...makeTrades(1, "Indian_Market")[0], _id: "missing-profit", profit: undefined },
+    ];
+    const { service } = setup({ indianTrades });
+
+    const snapshot = await service.getSnapshot({ userId: validUserId, market: "Indian_Market" });
+
+    expect(snapshot.performance.totalTrades).toBe(3);
+    expect(snapshot.performance.pnlReadyTrades).toBe(2);
+    expect(snapshot.performance.tradesMissingPnl).toBe(1);
+    expect(snapshot.performance.winRate).toBe(50);
+    expect(snapshot.performance.netPnL).toBe(38);
+  });
+
   test("combined snapshot loads Forex and Indian once each", async () => {
     const { service, Trade, IndianTrade } = setup({
       forexTrades: makeTrades(2),
@@ -331,6 +348,7 @@ describe("AnalyticsSnapshotService", () => {
     });
 
     expect(IndianTrade.aggregate).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(IndianTrade.aggregate.mock.calls[0][0])).toContain("Asia/Kolkata");
     expect(snapshot.daily).toHaveLength(2);
     expect(snapshot.weekly[0]).toHaveProperty("week", "2026-W01");
     expect(snapshot.monthly[0]).toMatchObject({ month: "Jan 2026" });

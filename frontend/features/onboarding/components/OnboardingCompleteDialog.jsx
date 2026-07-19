@@ -57,7 +57,7 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
               Setup finished
             </div>
             <h2 style={{ margin: 0, color: "#0F1923", fontSize: 22, lineHeight: 1.2, fontWeight: 900 }}>
-              Your journal is ready.
+              Your coach is ready.
             </h2>
             <p style={{
               margin: "10px 0 20px",
@@ -65,7 +65,7 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
               fontSize: 13,
               lineHeight: 1.65,
             }}>
-              You finished the activation path: market, style, setup, first trade, AI insight, and journal. Open dashboard to see your live stats and keep building from real data.
+              You finished the activation path: market, setup, first trade, and review. Open dashboard to see your live stats and keep building from real data.
             </p>
             <div style={{ display: "flex", gap: 10 }}>
               <button

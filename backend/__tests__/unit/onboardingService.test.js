@@ -37,6 +37,10 @@ jest.mock("../../services/authCacheService", () => ({
   invalidateAuthCache: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock("../../services/onboardingBackfillService", () => ({
+  backfillUserOnboarding: jest.fn().mockResolvedValue({ changed: false }),
+}));
+
 jest.mock("../../utils/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
@@ -59,10 +63,9 @@ describe("onboardingService.computeFunnel", () => {
     const o = {
       welcomeSeen: true,
       marketSelected: true,
-      styleSelected: true,
       setupAdded: true,
       tradeAdded: true,
-      firstInsightSeen: true,
+      journalSeen: true,
     };
     const funnel = onboardingService.computeFunnel(o);
     expect(funnel.percent).toBe(100);
@@ -70,37 +73,33 @@ describe("onboardingService.computeFunnel", () => {
     expect(funnel.nextStepKey).toBeNull();
   });
 
-  it("treats tradeSkipped as 'trade step done' so explorer-mode users can reach the insight step", () => {
+  it("moves from setup to first trade import", () => {
     const o = {
       welcomeSeen: true,
       marketSelected: true,
-      styleSelected: true,
       setupAdded: true,
-      tradeAdded: false,
-      tradeSkipped: true,
     };
     const funnel = onboardingService.computeFunnel(o);
-    const tradeStep = funnel.steps.find((s) => s.key === "tradeAdded");
-    expect(tradeStep.completed).toBe(true);
-    expect(tradeStep.skipped).toBe(true);
-    expect(funnel.nextStepKey).toBe("firstInsightSeen");
+    expect(funnel.nextStepKey).toBe("tradeAdded");
   });
 
-  it("explorer who skipped the trade but hasn't seen the insight is still not complete", () => {
+  it("moves from a saved trade to journal review", () => {
     const o = {
       welcomeSeen: true,
       marketSelected: true,
-      styleSelected: true,
       setupAdded: true,
-      tradeSkipped: true,
+      tradeAdded: true,
     };
+    const funnel = onboardingService.computeFunnel(o);
     expect(onboardingService.computeFunnel(o).isComplete).toBe(false);
+    expect(funnel.nextStepKey).toBe("journalSeen");
   });
 
-  it("weights the first-trade and first-insight steps more than welcome/market", () => {
+  it("keeps progress proportional across the activation loop", () => {
     const earlySteps = onboardingService.computeFunnel({ welcomeSeen: true, marketSelected: true });
-    const tradeStep  = onboardingService.computeFunnel({ welcomeSeen: true, marketSelected: true, styleSelected: true, setupAdded: true, tradeAdded: true });
-    expect(tradeStep.percent).toBeGreaterThan(earlySteps.percent + 30);
+    const setupStep  = onboardingService.computeFunnel({ welcomeSeen: true, marketSelected: true, setupAdded: true });
+    expect(setupStep.percent).toBeGreaterThan(earlySteps.percent);
+    expect(setupStep.nextStepKey).toBe("tradeAdded");
   });
 
   it("identifies the next step in flow order", () => {
@@ -108,7 +107,7 @@ describe("onboardingService.computeFunnel", () => {
       welcomeSeen: true,
       marketSelected: true,
     });
-    expect(funnel.nextStepKey).toBe("styleSelected");
+    expect(funnel.nextStepKey).toBe("setupAdded");
   });
 });
 
@@ -124,10 +123,49 @@ describe("onboardingService.isStepDone", () => {
   });
 });
 
+describe("onboardingService.getState", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("does not pre-activate when only the legacy completion bit is set", async () => {
+    User.findById.mockReturnValue(userFindByIdFactory({
+      preferredMarket: "Forex",
+      tradingStyle: null,
+      onboarding: {
+        welcomeSeen: true,
+        marketSelected: true,
+      },
+      isOnboardingCompleted: true,
+    })());
+
+    const state = await onboardingService.getState({ _id: "u1" });
+
+    expect(state.isPreActivated).toBe(false);
+    expect(state.funnel.isComplete).toBe(false);
+    expect(state.funnel.nextStepKey).toBe("setupAdded");
+  });
+
+  it("pre-activates when the legacy bit has an activation completion stamp", async () => {
+    User.findById.mockReturnValue(userFindByIdFactory({
+      preferredMarket: "Forex",
+      tradingStyle: null,
+      onboarding: {
+        welcomeSeen: true,
+        marketSelected: true,
+        completedAt: new Date("2026-07-18T00:00:00.000Z"),
+      },
+      isOnboardingCompleted: true,
+    })());
+
+    const state = await onboardingService.getState({ _id: "u1" });
+
+    expect(state.isPreActivated).toBe(true);
+  });
+});
+
 describe("onboardingService.seedDefaultSetup", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("seeds the style-specific default and flips setupAdded", async () => {
+  it("seeds the starter setup and flips setupAdded", async () => {
     await onboardingService.seedDefaultSetup({ userId: "u1", market: "Forex", styleId: "swing" });
     expect(SetupStrategy.findOneAndUpdate).toHaveBeenCalledTimes(1);
     const [filter, update, options] = SetupStrategy.findOneAndUpdate.mock.calls[0];

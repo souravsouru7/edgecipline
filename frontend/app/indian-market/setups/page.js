@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups, saveSetups, uploadSetupReferenceImages } from "@/services/setupApi";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { Trash2, X } from "lucide-react";
 import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
 
@@ -345,7 +346,11 @@ export default function IndianSetupStrategiesPage() {
         )}
 
         {loading ? (
-          <div style={{ padding: "60px 0", textAlign: "center", fontSize: 13, color: "#64748B" }}>Loading setups…</div>
+          <IndianMarketLoadingState
+            title="Loading Indian Market setups"
+            subtitle="Preparing strategies, setup rules, and reference images"
+            dense
+          />
         ) : (
           <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E2E8F0", padding: "18px 20px 14px", boxShadow: "0 2px 10px rgba(15,25,35,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10 }}>

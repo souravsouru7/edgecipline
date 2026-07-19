@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMarket, MARKETS } from "@/context/MarketContext";
 
 /**
  * CreateTradeButton
@@ -10,8 +11,12 @@ import { useRouter } from "next/navigation";
 export default function CreateTradeButton() {
   const router  = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const { currentMarket } = useMarket();
+  const isIndianMarket = currentMarket === MARKETS.INDIAN_MARKET;
 
   const go = (path) => { setIsOpen(false); router.push(path); };
+  const manualPath = isIndianMarket ? "/indian-market/add-trade" : "/add-trade";
+  const uploadPath = isIndianMarket ? "/indian-market/upload-trade" : "/upload-trade";
 
   return (
     <div style={{ position: "relative" }}>
@@ -33,8 +38,8 @@ export default function CreateTradeButton() {
           <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setIsOpen(false)} />
           <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", boxShadow: "0 8px 32px rgba(15,25,35,0.15)", overflow: "hidden", minWidth: 220, zIndex: 100, animation: "fadeDown 0.2s ease" }}>
             {[
-              { path: "/add-trade", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, iconBg: "rgba(13,158,110,0.12)", iconColor: "#0D9E6E", label: "Add Entry Manually",    sub: "Fill in trade details by hand" },
-              { path: "/upload-trade", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>, iconBg: "rgba(184,134,11,0.12)", iconColor: "#B8860B", label: "Upload Screenshot", sub: "AI will extract trade data" },
+              { path: manualPath, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, iconBg: "rgba(13,158,110,0.12)", iconColor: "#0D9E6E", label: "Add Entry Manually",    sub: "Fill in trade details by hand" },
+              { path: uploadPath, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>, iconBg: "rgba(184,134,11,0.12)", iconColor: "#B8860B", label: "Upload Screenshot", sub: "AI will extract trade data" },
             ].map((opt, i) => (
               <div key={opt.path}>
                 {i > 0 && <div style={{ height: 1, background: "#E2E8F0", margin: "0 12px" }} />}

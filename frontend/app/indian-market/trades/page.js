@@ -9,6 +9,7 @@ import { getTrades, deleteTrade } from "@/services/tradeApi";
 import Link from "next/link";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import OnboardingCompleteDialog from "@/features/onboarding/components/OnboardingCompleteDialog";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
@@ -609,13 +610,13 @@ export default function IndianTradesPage() {
               background: "rgba(34,199,142,0.2)", color: "#0D9E6E",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18, fontWeight: 900,
-            }}>🎉</div>
+            }}>OK</div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
-                ACTIVATION COMPLETE - YOUR JOURNAL
+                ACTIVATION COMPLETE - YOUR TRADE LOG
               </div>
               <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
-                Nice — you logged your first trade!
+                Nice - you logged your first trade!
               </div>
               <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55 }}>
                 Every trade lives here. Filter by setup, date, or result. The more you log, the smarter your analytics get.
@@ -628,7 +629,7 @@ export default function IndianTradesPage() {
         <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 900, color: C.ink, margin: 0, letterSpacing: "-0.02em" }}>
-              {instrumentType === "EQUITY" ? "Stocks Journal" : "Options Journal"}
+              {instrumentType === "EQUITY" ? "Stocks Trade Log" : "Options Trade Log"}
             </h1>
             <p style={{ fontSize: 12, color: C.muted, margin: "4px 0 0", fontFamily: C.mono }}>
               NSE / BSE - {instrumentType === "EQUITY" ? "Intraday Equities" : "Options"}
@@ -668,10 +669,11 @@ export default function IndianTradesPage() {
 
         {/* Content */}
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 14 }}>
-            <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.bull}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <span style={{ color: C.muted, fontSize: 13, fontFamily: C.mono }}>Loading trades...</span>
-          </div>
+          <IndianMarketLoadingState
+            title="Loading Indian Market trade log"
+            subtitle="Preparing NSE / BSE trades and filters"
+            dense
+          />
         ) : filtered.length === 0 && trades.length === 0 ? (
           <EmptyState />
         ) : filtered.length === 0 ? (
@@ -714,7 +716,7 @@ export default function IndianTradesPage() {
       {showOnboardingComplete && (
         <OnboardingCompleteDialog
           onClose={() => setCompletionDismissed(true)}
-          onDashboard={() => router.replace("/dashboard?onboarded=1")}
+          onDashboard={() => router.replace("/indian-market/dashboard?onboarded=1")}
         />
       )}
 

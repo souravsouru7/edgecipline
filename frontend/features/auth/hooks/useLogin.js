@@ -14,6 +14,7 @@ import {
   recoverFirebaseSessionIdToken,
   hasRedirectPending,
   clearRedirectPending,
+  getGoogleAuthErrorMessage,
 } from "@/services/firebaseAuth";
 import {
   ensurePushRegistration,
@@ -30,27 +31,38 @@ import {
 //      server so any pre-existing account (created before the new funnel
 //      shipped) gets its flags mirrored from its trades / setups before we
 //      check them.
-//   2. Use `isPreActivated` (server-derived from the legacy completion bit)
-//      or all six funnel flags as the gate to `/dashboard`.
+//   2. Use the detailed funnel or a stamped activation completion as the
+//      gate to `/dashboard`; the legacy top-level bit is not enough by itself.
 //   3. Fall back to `/auth/me/preferences` if the onboarding endpoint isn't
 //      reachable (e.g. transient 5xx). Falls back to `/dashboard` on any
 //      error — the redirect is opportunistic and must never block sign-in.
+function hasCompletedActivation(state = {}) {
+  const onboarding = state?.onboarding || {};
+  return Boolean(
+    state?.funnel?.isComplete ||
+    (
+      state?.isPreActivated &&
+      (onboarding.completedAt || onboarding.tourCompleted)
+    )
+  );
+}
+
 async function resolveLandingPath() {
   try {
     const state = await apiClient.get("/onboarding");
-    if (state?.isPreActivated) return "/dashboard";
-    if (state?.funnel?.isComplete) return "/dashboard";
+    if (hasCompletedActivation(state)) return "/dashboard";
     return "/onboarding";
   } catch {
     // Onboarding endpoint failed — try the lighter preferences endpoint so
     // existing users who don't hit /onboarding still skip the wizard.
     try {
       const prefs = await apiClient.get("/auth/me/preferences");
-      if (prefs?.isOnboardingCompleted) return "/dashboard";
       const o = prefs?.onboarding || {};
       const corePassed =
-        o.welcomeSeen && o.marketSelected && o.styleSelected &&
-        o.setupAdded && (o.tradeAdded || o.tradeSkipped) && o.firstInsightSeen;
+        o.welcomeSeen && o.marketSelected &&
+        o.setupAdded && (o.tradeAdded || o.tradeSkipped) && o.journalSeen;
+      const hasCompletionStamp = Boolean(o.completedAt || o.tourCompleted);
+      if (prefs?.isOnboardingCompleted && hasCompletionStamp) return "/dashboard";
       if (corePassed) return "/dashboard";
       return "/onboarding";
     } catch {
@@ -167,7 +179,7 @@ export function useLogin() {
         }
       } catch (err) {
         clearRedirectPending();
-        alert("Google login failed: " + (err?.message || err));
+        alert("Google login failed: " + getGoogleAuthErrorMessage(err));
       }
       showForm();
     };
@@ -335,7 +347,7 @@ export function useLogin() {
         );
         return;
       }
-      alert("Google login failed: " + (msg || "Could not connect to Google."));
+      alert("Google login failed: " + getGoogleAuthErrorMessage(err));
     },
   });
 

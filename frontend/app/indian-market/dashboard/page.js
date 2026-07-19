@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import {
     getSummary,
@@ -11,9 +12,14 @@ import {
     getPnLBreakdown
 } from "@/services/analyticsApi";
 import Link from "next/link";
+import { BarChart3, BookOpen, Brain, Camera, CheckSquare, MessageCircle, Sparkles, Target } from "lucide-react";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
+import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
+import ReflectionCard from "@/features/reflections/components/ReflectionCard";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { getTrades } from "@/services/tradeApi";
+import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
+import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import {
     ResponsiveContainer,
@@ -108,6 +114,44 @@ function Insight({ label, value, tone = C.bull }) {
     );
 }
 
+function getIndianDateKey(value = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(date);
+}
+
+function buildLocalTradeStats(trades = []) {
+    const todayKey = getIndianDateKey();
+    return trades.reduce((acc, trade) => {
+        const pnl = Number(trade?.profit);
+        if (!Number.isFinite(pnl)) {
+            acc.totalTrades += 1;
+            return acc;
+        }
+        acc.totalTrades += 1;
+        acc.pnlReadyTrades += 1;
+        acc.netPnl += pnl;
+        if (pnl > 0) acc.wins += 1;
+        if (pnl < 0) acc.losses += 1;
+        if (getIndianDateKey(trade?.tradeDate || trade?.createdAt) === todayKey) {
+            acc.todayPnl += pnl;
+        }
+        return acc;
+    }, {
+        totalTrades: 0,
+        pnlReadyTrades: 0,
+        wins: 0,
+        losses: 0,
+        netPnl: 0,
+        todayPnl: 0,
+    });
+}
+
 /* ── Quick action (matches Forex QuickAction) ─────────────────────────── */
 function QuickAction({ href, icon, label, sub, accent = C.bull }) {
     return (
@@ -124,6 +168,191 @@ function QuickAction({ href, icon, label, sub, accent = C.bull }) {
 }
 
 /* ── KPI chip (horizontal strip) ─────────────────────────────────────── */
+function GrowthPathStep({ step, index }) {
+    const Icon = step.icon;
+
+    return (
+        <Link
+            href={step.href}
+            className="im-growth-path-step"
+            style={{
+                display: "grid",
+                gridTemplateColumns: "38px minmax(0, 1fr) auto",
+                alignItems: "center",
+                gap: 11,
+                minHeight: 70,
+                padding: "12px 13px",
+                borderRadius: 12,
+                border: `1px solid ${step.done ? `${step.accent}33` : C.border}`,
+                background: step.done ? `${step.accent}08` : C.card,
+                color: C.ink,
+                textDecoration: "none",
+            }}
+        >
+            <div
+                style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 11,
+                    background: step.done ? step.accent : `${step.accent}12`,
+                    color: step.done ? "#FFFFFF" : step.accent,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                }}
+            >
+                <Icon size={18} strokeWidth={2.4} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, color: step.accent, fontFamily: "'JetBrains Mono',monospace" }}>
+                        {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {step.title}
+                    </span>
+                </div>
+                <div style={{ fontSize: 10.5, color: C.sub, lineHeight: 1.45 }}>
+                    {step.body}
+                </div>
+            </div>
+            <span
+                style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    color: step.done ? step.accent : C.muted,
+                    letterSpacing: "0.08em",
+                    whiteSpace: "nowrap",
+                    fontFamily: "'JetBrains Mono',monospace",
+                }}
+            >
+                {step.done ? "DONE" : step.cta}
+            </span>
+        </Link>
+    );
+}
+
+function TradingGrowthPath({ onboarding, totalTrades }) {
+    const hasSetup = Boolean(onboarding?.setupAdded);
+    const hasTrade = Number(totalTrades || 0) > 0;
+    const hasInsight = Boolean(onboarding?.firstInsightSeen) || hasTrade;
+
+    const steps = [
+        {
+            title: "Build Setup",
+            body: "Save the rules for NSE / BSE trades you want to repeat.",
+            href: "/indian-market/setups",
+            icon: Target,
+            accent: C.bull,
+            done: hasSetup,
+            cta: "OPEN",
+        },
+        {
+            title: "Run Checklist",
+            body: "Check your setup before taking risk.",
+            href: "/checklist",
+            icon: CheckSquare,
+            accent: "#6366F1",
+            done: false,
+            cta: "RUN",
+        },
+        {
+            title: "Log Trade",
+            body: "Upload a screenshot or add the trade manually.",
+            href: "/indian-market/upload-trade",
+            icon: Camera,
+            accent: C.gold,
+            done: hasTrade,
+            cta: "ADD",
+        },
+        {
+            title: "Review Psychology",
+            body: "Capture mood, confidence, mistakes, and lesson.",
+            href: hasTrade ? "/indian-market/trades" : "/indian-market/add-trade",
+            icon: Brain,
+            accent: C.purple,
+            done: hasTrade,
+            cta: "REVIEW",
+        },
+        {
+            title: "Study Analytics",
+            body: "Find what works, what leaks money, and what repeats.",
+            href: "/indian-market/analytics",
+            icon: BarChart3,
+            accent: C.blue,
+            done: Boolean(onboarding?.analyticsSeen),
+            cta: "VIEW",
+        },
+        {
+            title: "Open Intelligence",
+            body: "Turn analytics into the next improvement focus.",
+            href: "/intelligence",
+            icon: Sparkles,
+            accent: "#7C3AED",
+            done: hasInsight,
+            cta: "FOCUS",
+        },
+        {
+            title: "Coach & Report",
+            body: "Ask for guidance and close the week with actions.",
+            href: "/coach",
+            icon: MessageCircle,
+            accent: C.bull,
+            done: false,
+            cta: "ASK",
+        },
+    ];
+
+    return (
+        <section style={{
+            background: C.card,
+            borderRadius: 14,
+            border: `1px solid ${C.border}`,
+            boxShadow: "0 2px 12px rgba(15,25,35,0.04)",
+            overflow: "hidden",
+            marginBottom: 20,
+        }}>
+            <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, ${C.gold}, #7C3AED)` }} />
+            <div style={{ padding: "17px 20px 20px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                    <div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>Your Trading Growth Path</div>
+                        <div style={{ fontSize: 11, color: C.sub, marginTop: 4, lineHeight: 1.45 }}>
+                            Setup - checklist - log - review - improve. Use this loop for every NSE / BSE trading cycle.
+                        </div>
+                    </div>
+                    <Link
+                        href="/intelligence"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 7,
+                            minHeight: 34,
+                            padding: "7px 11px",
+                            borderRadius: 9,
+                            border: "1px solid rgba(124,58,237,0.22)",
+                            background: "rgba(124,58,237,0.06)",
+                            color: "#7C3AED",
+                            textDecoration: "none",
+                            fontSize: 11,
+                            fontWeight: 900,
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        <BookOpen size={14} />
+                        Intelligence
+                    </Link>
+                </div>
+                <div className="im-growth-path-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
+                    {steps.map((step, index) => (
+                        <GrowthPathStep key={step.title} step={step} index={index} />
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 function KpiCard({ label, value, sub, accent }) {
     return (
         <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(15,25,35,0.04)", flex: "1 1 140px", minWidth: 0 }}>
@@ -204,24 +433,15 @@ function CreateTradeButton() {
 /* ── Skeleton strip ───────────────────────────────────────────────────── */
 function SkeletonStrip() {
     return (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12, marginBottom: 18 }}>
-            {[0,1,2,3].map(i => (
-                <div key={i} style={{ background: C.card, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
-                    <div style={{ height: 3, background: C.border }} />
-                    <div style={{ padding: "14px 16px 12px" }}>
-                        <div style={{ height: 9, width: "50%", borderRadius: 4, background: C.border, marginBottom: 12 }} />
-                        <div style={{ height: 24, width: "70%", borderRadius: 4, background: C.border, marginBottom: 6 }} />
-                        <div style={{ height: 8, width: "40%", borderRadius: 4, background: C.border }} />
-                    </div>
-                </div>
-            ))}
-        </div>
+        <IndianMarketLoadingState
+            title="Loading Indian Market dashboard"
+            subtitle="Preparing NSE / BSE performance, trades, and insights"
+        />
     );
 }
 
 /* ══════════════════════════════════════════════════════════════════════ */
 export default function IndianMarketDashboard() {
-    const router  = useRouter();
     const { ready } = useRequireAuth();
     const { currentMarket } = useMarket();
 
@@ -230,41 +450,87 @@ export default function IndianMarketDashboard() {
     const [drawdown,     setDrawdown]     = useState(null);
     const [ai,           setAi]           = useState(null);
     const [breakdown,    setBreakdown]    = useState(null);
+    const [dashboardTrades, setDashboardTrades] = useState([]);
     const [recentTrades, setRecentTrades] = useState([]);
     const [loading,      setLoading]      = useState(true);
     const [mounted,      setMounted]      = useState(false);
+    const {
+        data: workflowSnapshot = null,
+        isLoading: workflowLoading,
+    } = useQuery({
+        queryKey: ["dashboard", "snapshot", "indian-workflow"],
+        queryFn: ({ signal }) => getDashboardSnapshot(signal, MARKETS.INDIAN_MARKET),
+        ...TRADE_QUERY_FRESHNESS_OPTIONS,
+        enabled: ready,
+    });
 
-    useEffect(() => { setMounted(true); }, []);
+    useEffect(() => {
+        const id = requestAnimationFrame(() => setMounted(true));
+        return () => cancelAnimationFrame(id);
+    }, []);
 
     useEffect(() => {
         if (!ready) return;
-        setLoading(true);
-        Promise.all([
-            getSummary(MARKETS.INDIAN_MARKET),
-            getPerformanceMetrics(MARKETS.INDIAN_MARKET),
-            getDrawdownAnalysis(MARKETS.INDIAN_MARKET),
-            getAIInsights(MARKETS.INDIAN_MARKET),
-            getPnLBreakdown(MARKETS.INDIAN_MARKET),
-            getTrades(MARKETS.INDIAN_MARKET),
-        ]).then(([sumRes, perfRes, ddRes, aiRes, pnlRes, tradesRes]) => {
-            setStats(sumRes);
-            setPerf(perfRes);
-            setDrawdown(ddRes);
-            setAi(aiRes);
-            setBreakdown(pnlRes);
-            const list   = Array.isArray(tradesRes) ? tradesRes : (tradesRes?.trades ?? []);
+        let active = true;
+
+        const loadDashboard = async () => {
+            await Promise.resolve();
+            if (!active) return;
+            setLoading(true);
+            const [sumRes, perfRes, ddRes, aiRes, pnlRes, tradesRes] = await Promise.allSettled([
+                getSummary(MARKETS.INDIAN_MARKET),
+                getPerformanceMetrics(MARKETS.INDIAN_MARKET),
+                getDrawdownAnalysis(MARKETS.INDIAN_MARKET),
+                getAIInsights(MARKETS.INDIAN_MARKET),
+                getPnLBreakdown(MARKETS.INDIAN_MARKET),
+                getTrades(MARKETS.INDIAN_MARKET),
+            ]);
+            if (!active) return;
+            const valueOf = (result, fallback = null) => result.status === "fulfilled" ? result.value : fallback;
+            setStats(valueOf(sumRes));
+            setPerf(valueOf(perfRes));
+            setDrawdown(valueOf(ddRes));
+            setAi(valueOf(aiRes));
+            setBreakdown(valueOf(pnlRes));
+            const rawTrades = valueOf(tradesRes, []);
+            const list   = Array.isArray(rawTrades) ? rawTrades : (rawTrades?.trades ?? []);
             const sorted = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setDashboardTrades(sorted);
             setRecentTrades(sorted.slice(0, 10));
-        }).catch(err => console.error("Indian Market dashboard fetch failed:", err))
-          .finally(() => setLoading(false));
+
+            [sumRes, perfRes, ddRes, aiRes, pnlRes, tradesRes].forEach((result, index) => {
+                if (result.status === "rejected") {
+                    console.error("Indian Market dashboard request failed:", index, result.reason);
+                }
+            });
+        };
+
+        loadDashboard().catch(err => console.error("Indian Market dashboard fetch failed:", err))
+          .finally(() => { if (active) setLoading(false); });
+
+        return () => { active = false; };
     }, [ready, currentMarket]);
 
     /* ── Derived values ─────────────────────────────────────────────── */
-    const todayKey       = new Date().toISOString().split("T")[0];
-    const todayPnl       = breakdown?.daily?.find(d => d.date === todayKey)?.profit ?? 0;
-    const totalTrades    = stats?.totalTrades ?? 0;
-    const netPnl         = Number(stats?.netProfit ?? stats?.totalProfit ?? 0);
-    const winRate        = parseFloat(stats?.winRate ?? 0);
+    const todayKey       = getIndianDateKey();
+    const localStats     = useMemo(() => buildLocalTradeStats(dashboardTrades), [dashboardTrades]);
+    const summaryNetPnl  = Number(stats?.netProfit ?? stats?.totalProfit ?? 0);
+    const summaryWinRate = parseFloat(stats?.winRate ?? 0);
+    const shouldUseTradeFallback = localStats.pnlReadyTrades > 0 && (
+        !stats ||
+        (summaryNetPnl === 0 && localStats.netPnl !== 0) ||
+        Number(stats?.pnlReadyTrades ?? stats?.totalTrades ?? 0) < localStats.pnlReadyTrades
+    );
+    const todayFromBreakdown = Number(breakdown?.daily?.find(d => d.date === todayKey)?.profit ?? 0);
+    const todayPnl       = todayFromBreakdown !== 0 ? todayFromBreakdown : localStats.todayPnl;
+    const totalTrades    = Math.max(Number(stats?.totalTrades || 0), localStats.totalTrades);
+    const workflowOnboarding = workflowSnapshot?.onboarding || null;
+    const reflection = workflowSnapshot?.reflection || null;
+    const showWorkflowSkeleton = !mounted || workflowLoading;
+    const netPnl         = shouldUseTradeFallback ? localStats.netPnl : summaryNetPnl;
+    const winRate        = shouldUseTradeFallback
+        ? (localStats.pnlReadyTrades ? (localStats.wins / localStats.pnlReadyTrades) * 100 : 0)
+        : summaryWinRate;
     const planPct        = parseFloat(ai?.behaviorDiscipline?.ruleEmotion?.planPct || 0);
     const recoveryFactor = parseFloat(drawdown?.recoveryFactor || 0);
     const profitFactor   = perf?.profitFactor === "Infinity" ? "∞" : parseFloat(perf?.profitFactor || 0).toFixed(2);
@@ -306,10 +572,12 @@ export default function IndianMarketDashboard() {
                         <h1 style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: "-0.025em", margin: 0, lineHeight: 1.15 }}>
                             {greetingFor(hour)}<span style={{ color: C.bull }}>, Trader</span>
                         </h1>
-                        <p style={{ fontSize: 13, color: C.sub, margin: "5px 0 0" }}>Here's your edge today.</p>
+                        <p style={{ fontSize: 13, color: C.sub, margin: "5px 0 0" }}>Here&apos;s your edge today.</p>
                     </div>
                     <CreateTradeButton />
                 </div>
+
+                <TradingGrowthPath onboarding={workflowOnboarding} totalTrades={totalTrades} />
 
                 {/* ── KPI grid ────────────────────────────────────── */}
                 {loading ? <SkeletonStrip /> : (
@@ -342,6 +610,8 @@ export default function IndianMarketDashboard() {
                                 </div>
 
                                 {/* ── Equity curve ────────────────────────────── */}
+                                <ReflectionCard data={reflection} loading={showWorkflowSkeleton} />
+
                                 <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.05)", marginBottom: 18 }}>
                                     <div style={{ height: 3, background: `linear-gradient(90deg,${netPnl >= 0 ? C.bull : C.bear},transparent)` }} />
                                     <div style={{ padding: "16px 20px" }}>
@@ -427,7 +697,7 @@ export default function IndianMarketDashboard() {
                                 </div>
 
                                 {/* ── Quick Actions ────────────────────────────── */}
-                                <Panel title="Quick Actions" subtitle="Plan, execute, journal, review" accent={C.ink}>
+                                <Panel title="Quick Actions" subtitle="Plan, execute, log, review" accent={C.ink}>
                                     <div className="im-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10 }}>
                                         <QuickAction href="/indian-market/add-trade" label="Log Trade" sub="Manual entry" accent={C.bull}
                                             icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>} />

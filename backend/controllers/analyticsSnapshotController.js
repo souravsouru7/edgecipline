@@ -15,6 +15,17 @@ const toNum = (value) => {
 
 const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
 
+const fixedOrNull = (value, digits = 2) => {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(digits) : null;
+};
+
+function hasRecordedProfit(trade = {}) {
+  if (trade.profit == null || trade.profit === "") return false;
+  return Number.isFinite(Number(trade.profit));
+}
+
 function resolveDateRange(days) {
   const daysParam = parseInt(days, 10);
   if (daysParam > 0 && daysParam <= 3650) {
@@ -36,6 +47,8 @@ function buildSummary(performance = {}) {
     totalCosts: fixed(performance.totalCosts),
     winningTrades: performance.winningTrades || performance.wins || 0,
     losingTrades: performance.losingTrades || performance.losses || 0,
+    pnlReadyTrades: performance.pnlReadyTrades || performance.analyticsTradeCount || 0,
+    tradesMissingPnl: performance.tradesMissingPnl || 0,
     avgSetupScore: fixed(performance.avgSetupScore ?? 0, 1),
   };
 }
@@ -46,12 +59,16 @@ function buildPerformance(performance = {}) {
   const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
   const winRate = toNum(performance.winRate) / 100;
   const expectancy = (toNum(performance.avgWin) * winRate) - (toNum(performance.avgLoss) * (1 - winRate));
+  const bestTradeProfit = toNum(performance.bestTrade?.profit);
+  const worstTradeProfit = toNum(performance.worstTrade?.profit);
 
   return {
     ...performance,
     totalTrades: performance.totalTrades || 0,
-    largestWin: fixed(performance.bestTrade?.profit || 0),
-    largestLoss: fixed(performance.worstTrade?.profit || 0),
+    pnlReadyTrades: performance.pnlReadyTrades || performance.analyticsTradeCount || 0,
+    tradesMissingPnl: performance.tradesMissingPnl || 0,
+    largestWin: bestTradeProfit > 0 ? fixed(bestTradeProfit) : null,
+    largestLoss: worstTradeProfit < 0 ? fixed(worstTradeProfit) : null,
     avgWin: fixed(performance.avgWin),
     avgLoss: fixed(performance.avgLoss),
     totalWins: fixed(totalWins),
@@ -83,48 +100,83 @@ function buildCoachFeed(snapshot, marketType) {
   return { ...feed, basicStats: snapshot.basicStats };
 }
 
+function numericOrNull(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseRiskRewardField(value) {
+  if (typeof value !== "string" || !value.includes(":")) return null;
+  const parts = value.split(":");
+  if (parts.length !== 2) return null;
+  const reward = Number(parts[1]);
+  return Number.isFinite(reward) && reward > 0 ? reward : null;
+}
+
+function getPlannedRiskReward(trade = {}) {
+  const entry = numericOrNull(trade.entryPrice);
+  const stop = numericOrNull(trade.stopLoss);
+  const target = numericOrNull(trade.takeProfit);
+  if (entry != null && stop != null && target != null) {
+    const risk = Math.abs(entry - stop);
+    if (risk > 0) {
+      return { rr: Math.abs(target - entry) / risk, risk };
+    }
+  }
+
+  const fieldRR = trade.riskRewardRatio === "custom"
+    ? parseRiskRewardField(trade.riskRewardCustom)
+    : parseRiskRewardField(trade.riskRewardRatio);
+  return fieldRR ? { rr: fieldRR, risk: null } : null;
+}
+
+function average(rows) {
+  return rows.length ? rows.reduce((sum, row) => sum + row, 0) / rows.length : null;
+}
+
 function computeRiskReward(trades = []) {
   const winners = trades.filter((trade) => toNum(trade.profit) > 0);
   const losers = trades.filter((trade) => toNum(trade.profit) < 0);
   const avgWin = winners.length ? winners.reduce((sum, trade) => sum + toNum(trade.profit), 0) / winners.length : 0;
   const avgLoss = losers.length ? Math.abs(losers.reduce((sum, trade) => sum + toNum(trade.profit), 0) / losers.length) : 0;
-  const actualRR = avgLoss > 0 ? avgWin / avgLoss : 0;
-  let totalRR = 0;
-  let rrCount = 0;
+  const actualRR = winners.length && losers.length && avgLoss > 0 ? avgWin / avgLoss : null;
   let totalRisk = 0;
-  let tradesWithRR = 0;
+  let tradesWithPriceRisk = 0;
+  const plannedRows = [];
 
   for (const trade of trades) {
-    let rr = 0;
-    if (trade.entryPrice && trade.stopLoss && trade.takeProfit && Math.abs(trade.entryPrice - trade.stopLoss) > 0) {
-      const risk = Math.abs(trade.entryPrice - trade.stopLoss);
-      rr = Math.abs(trade.takeProfit - trade.entryPrice) / risk;
-      totalRisk += risk;
-      tradesWithRR += 1;
-    } else if (typeof trade.riskRewardRatio === "string" && trade.riskRewardRatio.includes(":")) {
-      rr = parseFloat(trade.riskRewardRatio.split(":")[1]) || 0;
-    } else if (trade.riskRewardRatio === "custom" && typeof trade.riskRewardCustom === "string" && trade.riskRewardCustom.includes(":")) {
-      rr = parseFloat(trade.riskRewardCustom.split(":")[1]) || 0;
-    }
-    if (rr > 0) {
-      totalRR += rr;
-      rrCount += 1;
+    const planned = getPlannedRiskReward(trade);
+    if (planned?.rr > 0) {
+      plannedRows.push({ rr: planned.rr, profit: toNum(trade.profit) });
+      if (planned.risk != null) {
+        totalRisk += planned.risk;
+        tradesWithPriceRisk += 1;
+      }
     }
   }
 
   const winRate = trades.length ? winners.length / trades.length : 0;
-  const avgRR = rrCount ? totalRR / rrCount : actualRR;
+  const rrValues = plannedRows.map((row) => row.rr);
+  const avgRR = average(rrValues);
+  const bestRR = rrValues.length ? Math.max(...rrValues) : null;
+  const avgWinRR = average(plannedRows.filter((row) => row.profit > 0).map((row) => row.rr));
+  const avgLossRR = average(plannedRows.filter((row) => row.profit < 0).map((row) => row.rr));
   return {
-    avgRR: fixed(avgRR),
-    actualRR: fixed(actualRR),
-    plannedRR: rrCount ? fixed(totalRR / rrCount) : "N/A",
-    riskPerTrade: fixed(tradesWithRR ? totalRisk / tradesWithRR : 0),
+    avgRR: fixedOrNull(avgRR),
+    actualRR: fixedOrNull(actualRR),
+    plannedRR: fixedOrNull(avgRR),
+    bestRR: fixedOrNull(bestRR),
+    avgWinRR: fixedOrNull(avgWinRR),
+    avgLossRR: fixedOrNull(avgLossRR),
+    riskPerTrade: fixedOrNull(tradesWithPriceRisk ? totalRisk / tradesWithPriceRisk : null),
     riskAdjustedReturn: "0.00",
-    tradesWithRR,
-    tradesWithoutRR: Math.max(0, trades.length - tradesWithRR),
+    totalTrades: trades.length,
+    tradesWithRR: plannedRows.length,
+    tradesWithoutRR: Math.max(0, trades.length - plannedRows.length),
     avgWin: fixed(avgWin),
     avgLoss: fixed(avgLoss),
-    expectancy: fixed((avgRR * winRate) - (1 - winRate)),
+    expectancy: fixedOrNull(avgRR == null ? null : (avgRR * winRate) - (1 - winRate)),
     winRate: fixed(winRate * 100, 1),
   };
 }
@@ -168,12 +220,26 @@ function computeTimeAnalysis(trades = []) {
   }
 
   const materialize = (map) => Object.fromEntries(Object.entries(map).map(([key, rows]) => [key, bucketStats(rows)]));
-  const bestFrom = (map) => Object.entries(materialize(map))
-    .map(([name, stats]) => ({ name, ...stats }))
-    .sort((a, b) => b.profit - a.profit)[0] || null;
-  const worstFrom = (map) => Object.entries(materialize(map))
-    .map(([name, stats]) => ({ name, ...stats }))
-    .sort((a, b) => a.profit - b.profit)[0] || null;
+  const bestFrom = (map, { keyName = "name", minBuckets = 2, requirePositive = false } = {}) => {
+    const entries = Object.entries(materialize(map));
+    if (entries.length < minBuckets) return null;
+    const [key, stats] = entries
+      .map(([name, bucket]) => [name, bucket])
+      .sort((a, b) => b[1].profit - a[1].profit)[0] || [];
+    if (!stats) return null;
+    if (requirePositive && stats.profit <= 0) return null;
+    return { [keyName]: key, name: key, ...stats };
+  };
+  const worstFrom = (map, { keyName = "name", minBuckets = 2, requireNegative = false } = {}) => {
+    const entries = Object.entries(materialize(map));
+    if (entries.length < minBuckets) return null;
+    const [key, stats] = entries
+      .map(([name, bucket]) => [name, bucket])
+      .sort((a, b) => a[1].profit - b[1].profit)[0] || [];
+    if (!stats) return null;
+    if (requireNegative && stats.profit >= 0) return null;
+    return { [keyName]: key, name: key, ...stats };
+  };
 
   return {
     byDate: materialize(byDate),
@@ -181,11 +247,11 @@ function computeTimeAnalysis(trades = []) {
     byMonth: materialize(byMonth),
     byHour: materialize(byHour),
     bySession: materialize(bySession),
-    bestDay: bestFrom(byDay),
-    worstDay: worstFrom(byDay),
-    bestHour: bestFrom(byHour),
-    worstHour: worstFrom(byHour),
-    bestSession: bestFrom(bySession),
+    bestDay: bestFrom(byDay, { requirePositive: true }),
+    worstDay: worstFrom(byDay, { requireNegative: true }),
+    bestHour: bestFrom(byHour, { keyName: "hour", requirePositive: true }),
+    worstHour: worstFrom(byHour, { keyName: "hour", requireNegative: true }),
+    bestSession: bestFrom(bySession, { minBuckets: 1 }),
     worstSession: worstFrom(bySession),
   };
 }
@@ -333,6 +399,7 @@ exports.getAnalyticsSnapshot = asyncHandler(async (req, res) => {
   const trades = rawTrades.length > SNAPSHOT_TRADE_CAP
     ? rawTrades.slice(0, SNAPSHOT_TRADE_CAP)
     : rawTrades;
+  const pnlReadyTrades = trades.filter(hasRecordedProfit);
   const tradesTruncated = rawTrades.length > SNAPSHOT_TRADE_CAP;
   const aiInsights = {
     insights: buildCoachFeed(snapshot, marketType).insights?.map((item) => item.title || item.insight).filter(Boolean) || [],
@@ -360,11 +427,11 @@ exports.getAnalyticsSnapshot = asyncHandler(async (req, res) => {
       weekly: pnlBreakdown.weekly || [],
       monthly: pnlBreakdown.monthly || [],
     },
-    riskReward: computeRiskReward(trades),
-    timeAnalysis: computeTimeAnalysis(trades),
-    drawdown: computeDrawdown(trades),
+    riskReward: computeRiskReward(pnlReadyTrades),
+    timeAnalysis: computeTimeAnalysis(pnlReadyTrades),
+    drawdown: computeDrawdown(pnlReadyTrades),
     aiInsights,
-    psychology: computePsychologyAnalytics(trades),
+    psychology: computePsychologyAnalytics(pnlReadyTrades),
     discipline: snapshot.discipline,
     disciplineSummary: disciplineSummary.disciplineSummary,
     tradingDNA: snapshot.tradingDNA,

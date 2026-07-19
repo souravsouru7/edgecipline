@@ -309,7 +309,7 @@ function TradeDetailContent() {
                   Trade <span style={{ color: profitCol }}>Detail</span>
                 </div>
                 <div style={{ fontSize: 10, color: "#94A3B8", letterSpacing: "0.06em", marginTop: 3, fontFamily: "'JetBrains Mono',monospace" }}>
-                  FULL BREAKDOWN — AI JOURNAL ENTRY
+                  FULL BREAKDOWN — AI COACHING ANALYSIS
                 </div>
               </div>
               <span style={{
@@ -653,7 +653,7 @@ function TradeDetailContent() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
                 </svg>
-                BACK TO JOURNAL
+                BACK TO TRADE LOG
               </Link>
               <Link href={`/trades/edit?id=${resolvedParams?.id}`} style={{
                 flex: "1 1 140px",

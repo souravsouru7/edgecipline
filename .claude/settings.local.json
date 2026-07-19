@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git checkout *)",
       "Bash(git merge *)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Read(//c/Users/souta/AppData/Local/Android/Sdk/cmdline-tools/**)",
+      "Bash(curl -sL -o cmdline-tools.zip \"https://dl.google.com/android/repository/commandlinetools-win-9862592_latest.zip\" -w \"HTTP:%{http_code} SIZE:%{size_download}\\\\n\")"
     ]
   }
 }

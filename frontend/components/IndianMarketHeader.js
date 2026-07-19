@@ -21,7 +21,7 @@ import { onUserLoggedOut } from "@/services/pushNotifications";
 
 const NAV_ITEMS = [
   { href: "/indian-market/dashboard", label: "Dashboard" },
-  { href: "/indian-market/trades",    label: "Journal"   },
+  { href: "/indian-market/trades",    label: "Trades"    },
   { href: "/indian-market/add-trade",    label: "Log Trade"    },
   { href: "/indian-market/analytics", label: "Analytics" },
   { href: "/indian-market/setups",    label: "Setups"    },

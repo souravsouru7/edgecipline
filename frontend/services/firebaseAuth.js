@@ -143,11 +143,23 @@ export const clearRedirectPending = () => {
   try { localStorage.removeItem(REDIRECT_PENDING_KEY); } catch { /* ignore */ }
 };
 
+const getFirebaseErrorText = (err) => [
+  err?.code,
+  err?.customData?.code,
+  err?.message,
+].filter(Boolean).join(" ");
+
+const shouldUseRedirectFallback = (err) => {
+  const text = getFirebaseErrorText(err);
+  return /popup|unsupported|cancelled-popup-request|popup-closed-by-user/i.test(text);
+};
+
 const signInWithWebGoogle = async () => {
   const auth = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   provider.addScope("email");
   provider.addScope("profile");
+  provider.setCustomParameters({ prompt: "select_account" });
 
   // Always attempt popup first, even on mobile browsers, as redirect flows 
   // are often blocked by third-party cookie restrictions or cause reloads.
@@ -158,15 +170,36 @@ const signInWithWebGoogle = async () => {
     }
     return result.user.getIdToken();
   } catch (err) {
-    const code = err?.code || err?.customData?.code || "";
     // If popup is blocked or unsupported, fallback to redirect
-    if (String(code).includes("popup") || String(code).includes("unsupported")) {
+    if (shouldUseRedirectFallback(err)) {
       setRedirectPending();
-      await signInWithRedirect(auth, provider);
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch (redirectErr) {
+        clearRedirectPending();
+        throw redirectErr;
+      }
       return null;
     }
     throw err;
   }
+};
+
+export const getGoogleAuthErrorMessage = (err) => {
+  const text = getFirebaseErrorText(err);
+  if (/popup-closed-by-user|cancelled-popup-request/i.test(text)) {
+    return "Google sign-in was closed before it finished. Try again, or allow popups for localhost:3000.";
+  }
+  if (/popup-blocked/i.test(text)) {
+    return "Google sign-in popup was blocked. Allow popups for localhost:3000 and try again.";
+  }
+  if (/disallowed_useragent/i.test(text)) {
+    return "Google blocked this browser. Open the site in Chrome or Safari and try again.";
+  }
+  if (/network-request-failed/i.test(text)) {
+    return "Google sign-in could not reach Firebase. Check your internet connection and try again.";
+  }
+  return err?.message || "Could not connect to Google.";
 };
 
 export const handleGoogleRedirectResult = async () => {

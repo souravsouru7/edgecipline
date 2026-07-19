@@ -1,7 +1,7 @@
 {
-    "name": "Edgecipline - AI Journal",
+    "name": "Edgecipline - AI Discipline Coach",
     "short_name": "Edgecipline",
-    "description": "Professional Trading Journal with AI Analytics",
+    "description": "AI-Powered Trading Discipline Coach with Screenshot Auto-Logging",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#000000",

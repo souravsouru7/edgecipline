@@ -112,6 +112,46 @@ function normalizedTradeIdentity(trade) {
   ).toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+function normalizedOptionParts(trade) {
+  const text = String(
+    trade?.pair ||
+    trade?.symbol ||
+    trade?.stockSymbol ||
+    ""
+  ).toUpperCase().replace(/\s+/g, " ").trim();
+  const pairMatch = text.match(/^([A-Z ]+?)\s+(\d{4,6})\s*(CE|PE)\b/);
+  const symbol = String(
+    trade?.underlying ||
+    trade?.symbol ||
+    trade?.stockSymbol ||
+    (pairMatch ? pairMatch[1] : text.split(/\s+/)[0]) ||
+    ""
+  ).toUpperCase().replace(/[^A-Z]/g, "");
+  const strike = toFiniteNumber(trade?.strikePrice ?? trade?.strike ?? (pairMatch ? pairMatch[2] : null));
+  const optionType = String(
+    trade?.optionType ||
+    (pairMatch ? pairMatch[3] : "")
+  ).toUpperCase();
+
+  return { symbol, strike, optionType };
+}
+
+function optionPartsMatch(left, right) {
+  const a = normalizedOptionParts(left);
+  const b = normalizedOptionParts(right);
+  return (
+    a.symbol &&
+    b.symbol &&
+    a.symbol === b.symbol &&
+    a.strike != null &&
+    b.strike != null &&
+    a.strike === b.strike &&
+    a.optionType &&
+    b.optionType &&
+    a.optionType === b.optionType
+  );
+}
+
 function trustedOcrProfitForTrade(payload, extractedTrades, index = 0) {
   if (!Array.isArray(extractedTrades) || extractedTrades.length === 0) return null;
 
@@ -121,13 +161,18 @@ function trustedOcrProfitForTrade(payload, extractedTrades, index = 0) {
     const candidateIdentity = normalizedTradeIdentity(trade);
     const candidateType = String(trade?.type || "").toUpperCase();
     return (
-      (!identity || !candidateIdentity || identity === candidateIdentity) &&
+      (
+        !identity ||
+        !candidateIdentity ||
+        identity === candidateIdentity ||
+        optionPartsMatch(payload, trade)
+      ) &&
       (!type || !candidateType || type === candidateType)
     );
   });
 
-  const candidates = matchingTrades.length > 0 ? matchingTrades : [];
   const requestedProfit = toFiniteNumber(payload?.profit);
+  const candidates = matchingTrades.length > 0 ? matchingTrades : (requestedProfit == null ? extractedTrades : []);
   if (requestedProfit != null) {
     const exact = candidates.find((trade) => {
       const candidateProfit = toFiniteNumber(trade?.profit ?? trade?.pnl);

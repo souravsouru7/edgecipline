@@ -76,16 +76,6 @@ export default function OnboardingShell({
 
       <div style={{ padding: "16px 24px 0" }}>
         <FunnelTrail funnel={funnel} />
-        <div style={{
-          marginTop: 10,
-          textAlign: "center",
-          color: "#94A3B8",
-          fontSize: 11,
-          lineHeight: 1.5,
-          fontWeight: 650,
-        }}>
-          Full path: choose market, pick style, save setup, log a trade, see an AI insight, then review your journal.
-        </div>
       </div>
 
       <main style={{

@@ -13,8 +13,8 @@ local ttl = redis.call("PTTL", KEYS[1])
 return { current, ttl }
 `;
 
-const FALLBACK_WINDOW_MS = 60 * 1000;
-const FALLBACK_MAX_REQUESTS = 10;
+const DEFAULT_FALLBACK_WINDOW_MS = 60 * 1000;
+const DEFAULT_FALLBACK_MAX_REQUESTS = 10;
 const FALLBACK_MAX_KEYS = 50_000;
 const ALERT_THROTTLE_MS = 60 * 1000;
 const REDIS_COMMAND_TIMEOUT_MS = Number(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS) || 1500;
@@ -153,22 +153,28 @@ function pruneMemoryBuckets(now) {
   }
 }
 
-function consumeMemoryFallback(req, scope) {
+function consumeMemoryFallback(req, scope, { windowMs, maxRequests }) {
   const now = Date.now();
-  const key = `fallback:${scope}:ip:${normalizeIp(req.ip)}`;
+  const { key: rateLimitKey, keyType } = resolveRateLimitKey(req, scope);
+  const fallbackWindowMs = Number(windowMs) || DEFAULT_FALLBACK_WINDOW_MS;
+  const fallbackMaxRequests = Number(maxRequests) || DEFAULT_FALLBACK_MAX_REQUESTS;
+  const key = `fallback:${rateLimitKey}`;
   let bucket = memoryBuckets.get(key);
 
   if (!bucket || bucket.resetAt <= now) {
     if (memoryBuckets.size >= FALLBACK_MAX_KEYS) pruneMemoryBuckets(now);
-    bucket = { count: 0, resetAt: now + FALLBACK_WINDOW_MS };
+    bucket = { count: 0, resetAt: now + fallbackWindowMs };
     memoryBuckets.set(key, bucket);
   }
 
   bucket.count += 1;
   limiterHealth.fallbackRequestCount += 1;
   return {
-    allowed: bucket.count <= FALLBACK_MAX_REQUESTS,
-    remaining: Math.max(0, FALLBACK_MAX_REQUESTS - bucket.count),
+    allowed: bucket.count <= fallbackMaxRequests,
+    keyType: `fallback-${keyType}`,
+    limit: fallbackMaxRequests,
+    windowMs: fallbackWindowMs,
+    remaining: Math.max(0, fallbackMaxRequests - bucket.count),
     ttlMs: Math.max(1, bucket.resetAt - now),
   };
 }
@@ -195,8 +201,8 @@ function getRateLimiterHealth() {
     failClosedRequestCount: limiterHealth.failClosedRequestCount,
     affectedScopes: [...limiterHealth.affectedScopes],
     fallback: {
-      maxRequests: FALLBACK_MAX_REQUESTS,
-      windowMs: FALLBACK_WINDOW_MS,
+      defaultMaxRequests: DEFAULT_FALLBACK_MAX_REQUESTS,
+      defaultWindowMs: DEFAULT_FALLBACK_WINDOW_MS,
       activeKeys: memoryBuckets.size,
     },
   };
@@ -234,8 +240,13 @@ function createRedisRateLimiter({
   maxRequests,
   message = "Too many requests. Please try again later.",
   failureMode = "memory",
+  skip,
 }) {
   return async (req, res, next) => {
+    if (typeof skip === "function" && skip(req)) {
+      return next();
+    }
+
     try {
       if (!isRedisReady()) {
         throw new Error("Redis is not ready for distributed rate limiting");
@@ -279,18 +290,18 @@ function createRedisRateLimiter({
         return sendAuthUnavailableResponse(res);
       }
 
-      const fallback = consumeMemoryFallback(req, scope);
+      const fallback = consumeMemoryFallback(req, scope, { windowMs, maxRequests });
       res.setHeader("RateLimit-Policy", "fallback-memory");
-      res.setHeader("RateLimit-Limit", String(FALLBACK_MAX_REQUESTS));
+      res.setHeader("RateLimit-Limit", String(fallback.limit));
       res.setHeader("RateLimit-Remaining", String(fallback.remaining));
       res.setHeader("RateLimit-Reset", String(Math.ceil(fallback.ttlMs / 1000)));
       if (!fallback.allowed) {
         return sendRateLimitResponse(req, res, {
           scope,
-          limit: FALLBACK_MAX_REQUESTS,
+          limit: fallback.limit,
           ttlMs: fallback.ttlMs,
           message,
-          keyType: "fallback-ip",
+          keyType: fallback.keyType,
         });
       }
       return next();
@@ -298,11 +309,22 @@ function createRedisRateLimiter({
   };
 }
 
+function skipGlobalForDedicatedStatusLimiter(req) {
+  if (req.method !== "GET") return false;
+  const path = String(req.originalUrl || req.path || "").split("?")[0];
+  return (
+    /^\/api\/upload\/job-status\/[a-f0-9]{24}$/i.test(path) ||
+    /^\/api\/trade\/status\/[a-f0-9]{24}$/i.test(path) ||
+    path === "/api/upload/queue-health"
+  );
+}
+
 const globalRateLimiter = createRedisRateLimiter({
   scope: "global",
   windowMs: appConfig.rateLimit.globalWindowMs,
   maxRequests: appConfig.rateLimit.globalMaxRequests,
   message: "Too many requests. Please try again later.",
+  skip: skipGlobalForDedicatedStatusLimiter,
 });
 
 // Strict limiter: credential-submitting endpoints (login, register, google, password reset).

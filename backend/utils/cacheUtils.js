@@ -1,4 +1,9 @@
-const { client, isRedisReady } = require("../config/redis");
+const {
+  client,
+  isRedisReady,
+  isRedisWriteAvailable = isRedisReady,
+  markRedisWriteFailure = () => false,
+} = require("../config/redis");
 const { logger } = require("./logger");
 
 /**
@@ -7,7 +12,7 @@ const { logger } = require("./logger");
  */
 const getTradeCacheVersion = async (userId) => {
   const normalizedUserId = userId?.toString?.() || String(userId || "");
-  if (!normalizedUserId || !isRedisReady()) return "0";
+  if (!normalizedUserId || !isRedisReady() || !isRedisWriteAvailable()) return "0";
 
   try {
     return (await client.get(`trade_version:${normalizedUserId}`)) || "0";
@@ -22,11 +27,12 @@ const getTradeCacheVersion = async (userId) => {
 
 const incrementTradeCacheVersion = async (userId) => {
   const normalizedUserId = userId?.toString?.() || String(userId || "");
-  if (!normalizedUserId || !isRedisReady()) return 0;
+  if (!normalizedUserId || !isRedisReady() || !isRedisWriteAvailable()) return 0;
 
   try {
     return await client.incr(`trade_version:${normalizedUserId}`);
   } catch (error) {
+    markRedisWriteFailure(error);
     logger.warn("Failed to increment trade cache version", {
       userId: normalizedUserId,
       error:  error.message,

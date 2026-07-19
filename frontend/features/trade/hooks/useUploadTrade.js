@@ -16,6 +16,16 @@ import { markOnboardingStep } from "@/services/api";
 
 const DEFAULT_SETUP_RULES = [];
 const OCR_STORAGE_KEY_PATTERN = /(ocr|upload.*trade|trade.*upload|extracted|draft)/i;
+const INDIAN_LOT_SIZES = {
+  NIFTY: 25,
+  BANKNIFTY: 15,
+  "BANK NIFTY": 15,
+  FINNIFTY: 25,
+  "FIN NIFTY": 25,
+  MIDCPNIFTY: 50,
+  SENSEX: 10,
+  BANKEX: 15,
+};
 
 function clearOcrBrowserStorage() {
   if (typeof window === "undefined") return;
@@ -36,6 +46,15 @@ const getTodayInputValue = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 };
+
+// Stable per-row id for multi-trade extraction results. React must key the
+// trades.map on this — not the array index — because each row now owns real
+// local component state (pending evidence files in TradeEvidenceSection).
+// Keying by index lets React reuse a card's instance for a different row
+// after REMOVE ENTRY shifts everything down, silently carrying that row's
+// unsaved evidence/upload state onto the wrong trade.
+let rowIdCounter = 0;
+const genRowId = () => `row_${Date.now()}_${rowIdCounter++}`;
 
 const normalizeDateForInput = (value) => {
   if (!value) return "";
@@ -65,11 +84,14 @@ function buildIndianTradeTemplate(imageUrl, t = {}) {
   const pairBuilt = sym && strike ? `${sym} ${strike} ${ot}` : sym;
   const resolvedDate   = normalizeDateForInput(t.tradeDate);
   const dateAutoFilled = !resolvedDate;
+  const pair = pairBuilt || t.pair || "";
+  const lotSize = inferIndianLotSize({ ...t, pair });
   return {
-    pair: pairBuilt || t.pair || "",
+    pair,
     _dateAutoFilled: dateAutoFilled,
     action: "buy",
     quantity: t.quantity != null ? String(t.quantity) : "",
+    lotSize: lotSize != null ? String(lotSize) : "",
     profit: t.pnl != null ? String(t.pnl) : (t.profit != null ? String(t.profit) : ""),
     entryPrice: t.entryPrice != null ? String(t.entryPrice) : "",
     exitPrice: t.exitPrice != null ? String(t.exitPrice) : "",
@@ -87,7 +109,7 @@ function buildIndianTradeTemplate(imageUrl, t = {}) {
     notes: "", setup: "", mistakeTag: "", lesson: "",
     brokerage: "", sttTaxes: "",
     mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
-    setupRules: [],
+    setupRules: [], tradeImages: [],
   };
 }
 
@@ -118,6 +140,31 @@ const hasNumericValue = (value) => {
 };
 
 const normalizeText = (value) => String(value ?? "").trim().toUpperCase();
+
+function inferIndianUnderlying(trade = {}) {
+  const explicit = normalizeText(trade.underlying || trade.symbol || trade.stockSymbol);
+  if (explicit) return explicit.replace(/\s+/g, " ");
+  const pair = normalizeText(trade.pair);
+  if (!pair) return "";
+  if (pair.startsWith("BANK NIFTY") || pair.startsWith("BANKNIFTY")) return "BANKNIFTY";
+  if (pair.startsWith("FIN NIFTY") || pair.startsWith("FINNIFTY")) return "FINNIFTY";
+  if (pair.startsWith("MIDCPNIFTY")) return "MIDCPNIFTY";
+  if (pair.startsWith("SENSEX")) return "SENSEX";
+  if (pair.startsWith("BANKEX")) return "BANKEX";
+  if (pair.startsWith("NIFTY")) return "NIFTY";
+  return pair.split(/\s+/)[0] || "";
+}
+
+function inferIndianLotSize(trade = {}) {
+  const explicit = parseOptionalNumber(trade.lotSize);
+  if (explicit != null && explicit > 0) return explicit;
+  return INDIAN_LOT_SIZES[inferIndianUnderlying(trade)] || undefined;
+}
+
+function hasPositiveNumber(value) {
+  const n = parseOptionalNumber(value);
+  return n != null && n > 0;
+}
 
 const makeTradeDedupKey = (trade = {}) => {
   const pair = normalizeText(trade.pair || trade.symbol);
@@ -212,7 +259,7 @@ function buildEquityTradeTemplate(imageUrl, t = {}) {
     entryBasis: "Plan", entryBasisCustom: "",
     setup: "", mistakeTag: "", lesson: "", notes: "",
     mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
-    setupRules: [],
+    setupRules: [], tradeImages: [],
   };
 }
 
@@ -244,7 +291,7 @@ function buildForexTradeTemplate(imageUrl, t = {}) {
     brokerage: "", sttTaxes: "",
     entryBasis: "Plan", entryBasisCustom: "",
     mood: null, confidence: "", emotionalTags: [], wouldRetake: "", tradeQuality: "",
-    setupRules: [],
+    setupRules: [], tradeImages: [],
   };
 }
 
@@ -257,16 +304,17 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
 
   const base = {
     pair: trade.pair,
-    type: trade.action.toUpperCase(),
-    entryPrice: trade.entryPrice ? parseFloat(trade.entryPrice) : undefined,
-    exitPrice: trade.exitPrice ? parseFloat(trade.exitPrice) : undefined,
-    profit: trade.profit ? parseFloat(trade.profit) : undefined,
+    type: String(trade.action || trade.type || "BUY").toUpperCase(),
+    entryPrice: parseOptionalNumber(trade.entryPrice),
+    exitPrice: parseOptionalNumber(trade.exitPrice),
+    profit: parseOptionalNumber(trade.profit),
     strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
     tradeDate,
     entryBasis: trade.entryBasis || "Plan",
     entryBasisCustom: trade.entryBasis === "Custom" ? trade.entryBasisCustom : undefined,
     notes: trade.notes || undefined,
     screenshot: trade.screenshot || undefined,
+    tradeImages: Array.isArray(trade.tradeImages) ? trade.tradeImages : undefined,
     mood: trade.mood ?? undefined,
     confidence: trade.confidence || undefined,
     emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
@@ -296,8 +344,9 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
   } else if (isInd) {
     Object.assign(base, {
       optionType: (trade.optionType || "CE").toUpperCase(),
-      quantity: trade.quantity ? parseFloat(trade.quantity) : undefined,
-      strikePrice: trade.strikePrice ? parseFloat(trade.strikePrice) : undefined,
+      quantity: parseOptionalNumber(trade.quantity),
+      lotSize: inferIndianLotSize(trade),
+      strikePrice: parseOptionalNumber(trade.strikePrice),
       underlying: trade.pair ? trade.pair.replace(/\s+\d+\s*(CE|PE)$/i, "").trim() : undefined,
       tradeType: trade.tradeType || undefined,
       expiryDate: trade.expiryDate || undefined,
@@ -369,6 +418,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     : (searchParams.get("market") || searchParams.get("marketType") || currentMarket);
   const isInd = marketType === MARKETS.INDIAN_MARKET;
 
+  // Demo mode: entered from onboarding for users without their own broker
+  // screenshot. We pre-load the bundled sample and run real extraction, but
+  // every save path is blocked so a demo trade never reaches the journal.
+  const isDemo = searchParams?.get("demo") === "1";
+
   // 2. Local UI/Form state
   const [mounted, setMounted]                 = useState(false);
   const [file, setFile]                       = useState(null);
@@ -384,6 +438,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [savedTrades, setSavedTrades]         = useState([]);
   const [saved, setSaved]                     = useState(false);
   const [isBatchSaving, setIsBatchSaving]     = useState(false);
+  const [isRedirecting, setIsRedirecting]     = useState(false);
   const [showCustomRR, setShowCustomRR]       = useState(false);
   const [setupRules, setSetupRules]           = useState(DEFAULT_SETUP_RULES);
   const [extractedText, setExtractedText]     = useState("");
@@ -598,6 +653,34 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     await clearOcrSession({ nextFile, cancelJob: true });
   };
 
+  // Demo mode: fetch the bundled sample screenshot and drop it into the
+  // upload zone as if the user had selected it. Runs once after mount. The
+  // user still clicks "Extract" themselves, and Save stays blocked (below).
+  const demoSampleLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!isDemo || !mounted || demoSampleLoadedRef.current) return;
+    demoSampleLoadedRef.current = true;
+    const samplePath = isInd ? "/sample_indianmarket.jpeg" : "/sample.png";
+    const sampleName = isInd ? "sample_indianmarket.jpeg" : "sample.png";
+    (async () => {
+      try {
+        const res = await fetch(samplePath);
+        if (!res.ok) throw new Error(`Sample fetch failed (${res.status})`);
+        const blob = await res.blob();
+        const sampleFile = new File([blob], sampleName, { type: blob.type || "image/jpeg" });
+        // Indian extraction requires a broker; pick a sensible default so the
+        // demo can run without forcing a selection.
+        if (isInd) setBroker("Zerodha");
+        uploadSessionRef.current += 1;
+        await clearOcrSession({ nextFile: sampleFile, cancelJob: false });
+      } catch (err) {
+        console.warn("[Demo] Failed to load sample screenshot", err);
+        addToast("Couldn't load the demo sample. Please try uploading your own screenshot.", "error");
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo, mounted, isInd]);
+
   useEffect(() => {
     return () => {
       const activeJobId = uploadedJobIdRef.current;
@@ -610,13 +693,17 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Detects if extracted data belongs to the wrong market type
+  // Detects if extracted data belongs to the wrong market type.
+  // forexPair is restricted to real ISO currency-code pairs (e.g. EURUSD) so
+  // it never false-positives on a 6-letter stock ticker or a name with
+  // spaces stripped (e.g. "Data Patterns (I)" -> "DATAPATTERNS").
   const detectMarketMismatch = (payload) => {
     const pair = String(payload?.pair || payload?.stockSymbol || "").trim().toUpperCase();
     if (isInd) {
       // On Indian market page — flag Forex data
-      const forexPair = /^[A-Z]{3}[A-Z]{3}(\.[A-Z]+)?$/.test(pair) ||
-        /^(XAU|XAG|GOLD|SILVER|OIL|BRENT|US30|US100|US500|NAS|DAX|FTSE|SP500)/.test(pair);
+      const MAJOR_CCY = "USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|CNY|SGD|HKD|ZAR|TRY|MXN|SEK|NOK|DKK|INR|XAU|XAG";
+      const forexPair = new RegExp(`^(?:(?:${MAJOR_CCY})(?:${MAJOR_CCY})(?:\\.[A-Z]+)?)$`).test(pair) ||
+        /^(GOLD|SILVER|OIL|BRENT|US30|US100|US500|NASDAQ100|NAS100|DAX|FTSE|SP500|CRUDE)$/.test(pair);
       const forexBroker = /metatrader|mt4|mt5|ctrader/i.test(String(payload?.broker || ""));
       const noIndianSignals = !/CE$|PE$/.test(pair) && !payload?.strikePrice;
       if ((forexPair || forexBroker) && noIndianSignals) {
@@ -691,7 +778,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       const templateFn = isEquity ? buildEquityTradeTemplate : buildIndianTradeTemplate;
       const multiTrades = parsedTradesPayload || [];
       if (multiTrades.length > 1) {
-        const tradeArr = multiTrades.map(t => applyDefaultSetup(templateFn(imageUrl, withStatusTradeDate(t)), strategies));
+        const tradeArr = multiTrades.map(t => ({ ...applyDefaultSetup(templateFn(imageUrl, withStatusTradeDate(t)), strategies), _rowId: genRowId() }));
         setTrades(tradeArr);
         setSavedTrades(new Array(tradeArr.length).fill(false));
         setTrade(tradeArr[0]);
@@ -728,7 +815,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     } else {
       const multiTrades = parsedTradesPayload || [];
       if (multiTrades.length > 1) {
-        const tradeArr = multiTrades.map(t => applyDefaultSetup(buildForexTradeTemplate(imageUrl, withStatusTradeDate(t)), strategies));
+        const tradeArr = multiTrades.map(t => ({ ...applyDefaultSetup(buildForexTradeTemplate(imageUrl, withStatusTradeDate(t)), strategies), _rowId: genRowId() }));
         setTrades(tradeArr);
         setSavedTrades(new Array(tradeArr.length).fill(false));
         setTrade(tradeArr[0]);
@@ -754,7 +841,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     enabled: !!jobId,
     // Retry transient network/server errors with exponential backoff.
     // Don't retry 404 (trade not found) — that's a definitive failure.
-    retry: (failureCount, error) => error?.status === 404 ? false : failureCount < 3,
+    retry: (failureCount, error) => [404, 429].includes(error?.status) ? false : failureCount < 3,
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
       if (query.state.error) {
@@ -762,7 +849,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       }
       const status = query.state.data?.status;
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
-      return 2500;
+      return 4000;
     },
   });
 
@@ -891,37 +978,35 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       const { idx } = variables;
       invalidateTradeDependentQueries(queryClient);
 
-      addToast("Trade saved to your journal!", "success");
+      addToast("Trade saved to your trade log!", "success");
 
       if (idx !== null) {
         setSavedTrades(prev => {
           const updated = [...prev];
           updated[idx] = true;
           if (updated.every(Boolean)) {
-             savedRef.current = true;
-             {
+            savedRef.current = true;
+            setIsRedirecting(true);
             markOnboardingStep("tradeAdded", true).catch(() => {});
             const onboardingMode = searchParams?.get("onboarding") === "1";
             const journalRoute = isInd ? "/indian-market/trades" : "/trades";
             const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
             setTimeout(() => router.push(dest), 1200);
-          }
           }
           return updated;
         });
       } else {
         savedRef.current = true;
         setSaved(true);
+        setIsRedirecting(true);
         setUploadedJobId(null);
         processedTradeIdRef.current = null;
         userEditedFormRef.current = false;
-        {
-            markOnboardingStep("tradeAdded", true).catch(() => {});
-            const onboardingMode = searchParams?.get("onboarding") === "1";
-            const journalRoute = isInd ? "/indian-market/trades" : "/trades";
-            const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
-            setTimeout(() => router.push(dest), 1200);
-          }
+        markOnboardingStep("tradeAdded", true).catch(() => {});
+        const onboardingMode = searchParams?.get("onboarding") === "1";
+        const journalRoute = isInd ? "/indian-market/trades" : "/trades";
+        const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
+        setTimeout(() => router.push(dest), 1200);
       }
     },
     onError: (err) => {
@@ -1101,10 +1186,74 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         return false;
       }
     }
-    if (isInd && tradeToSave?.instrumentType === "EQUITY") {
-      const sharesQty = parseOptionalNumber(tradeToSave?.sharesQty);
-      if (sharesQty == null || sharesQty <= 0) {
-        addToast("Shares quantity is required for equity trades", "info");
+    if (isInd) {
+      const isEquityTrade = String(tradeToSave?.instrumentType || "").toUpperCase() === "EQUITY";
+      const hasOcrBackedProfit = Boolean(uploadedJobId || jobId) && hasNumericValue(tradeToSave?.profit);
+
+      // P&L is always required, but entry/exit price are only required when
+      // there's no P&L to fall back on. Many closed Indian positions (Avg =
+      // 0.00 on the broker screenshot) never show a per-unit entry/exit
+      // price — only the aggregate P&L — so don't force a fabricated price
+      // just to pass validation when the real P&L was already extracted.
+      if (!hasNumericValue(tradeToSave?.profit)) {
+        addToast("P&L is required before saving", "info");
+        return false;
+      }
+
+      // Entry/exit are validated as a pair only when at least one is filled
+      // in — a partially-filled pair (e.g. a hallucinated placeholder in one
+      // field) is worse than leaving both blank, so require both or neither.
+      const hasEntry = hasNumericValue(tradeToSave?.entryPrice);
+      const hasExit = hasNumericValue(tradeToSave?.exitPrice);
+      if (hasEntry || hasExit) {
+        if (!hasPositiveNumber(tradeToSave?.entryPrice)) {
+          addToast("Entry price must be greater than 0", "info");
+          return false;
+        }
+        if (!hasPositiveNumber(tradeToSave?.exitPrice)) {
+          addToast("Exit price must be greater than 0", "info");
+          return false;
+        }
+      }
+
+      if (isEquityTrade) {
+        if (!hasOcrBackedProfit && !hasPositiveNumber(tradeToSave?.sharesQty)) {
+          addToast("Shares quantity is required for equity trades", "info");
+          return false;
+        }
+      } else {
+        if (!hasOcrBackedProfit && !hasPositiveNumber(tradeToSave?.quantity)) {
+          addToast("Quantity/lots is required for option trades", "info");
+          return false;
+        }
+        if (!hasOcrBackedProfit && !hasPositiveNumber(tradeToSave?.lotSize) && !inferIndianLotSize(tradeToSave)) {
+          addToast("Lot size is required for option trades", "info");
+          return false;
+        }
+      }
+
+      if (!hasValue(tradeToSave?.entryBasis)) {
+        addToast("Entry basis is required before saving", "info");
+        return false;
+      }
+      if (tradeToSave?.entryBasis === "Custom" && !hasValue(tradeToSave?.entryBasisCustom)) {
+        addToast("Custom entry basis is required before saving", "info");
+        return false;
+      }
+      if (!hasNumericValue(tradeToSave?.mood)) {
+        addToast("Mood is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.confidence)) {
+        addToast("Confidence is required before saving", "info");
+        return false;
+      }
+      if (!Array.isArray(tradeToSave?.emotionalTags) || tradeToSave.emotionalTags.length === 0) {
+        addToast("At least one emotional tag is required before saving", "info");
+        return false;
+      }
+      if (!hasValue(tradeToSave?.tradeQuality)) {
+        addToast("Trade quality is required before saving", "info");
         return false;
       }
     }
@@ -1127,7 +1276,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   return {
     file, setFile: handleFileSelect, trade, setTrade, trades, savedTrades, loading, error, setError,
-    extractedText, extractionInsights, strategies, setupsLoading, jobId, processingStatus, mounted, saved,
+    extractedText, extractionInsights, strategies, setupsLoading, jobId, processingStatus, mounted, saved, isRedirecting,
     showCustomRR, setShowCustomRR, broker, setBroker, setupRules, isInd, marketType,
     tradeCount, tradeSubType, setTradeSubType,
     savingAll: saveTradeMutation.isPending || isBatchSaving,
@@ -1140,19 +1289,26 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     handleStrategyChange,
     handleTradeChange,
     handleMultiTradeStrategyChange,
-    saveTrade: () => {
+    isDemo,
+    // `overrides` lets the caller pass freshly-committed data (e.g. tradeImages
+    // just uploaded via TradeEvidenceSection) that bypasses setState's async
+    // closure — mirrors the tradeOverrides pattern in useAddTrade.
+    saveTrade: (overrides) => {
+      if (isDemo) { addToast("Demo trade — not saved. Upload your own screenshot to save real trades to your trade log.", "info"); return; }
       if (saveTradeMutation.isPending || saved) return;
-      if (!canSaveTrade(trade)) return;
+      const tradeToSave = overrides ? { ...trade, ...overrides } : trade;
+      if (!canSaveTrade(tradeToSave)) return;
       saveTradeMutation.mutate({
         idx: null,
-        tradeSnapshot: trade,
+        tradeSnapshot: tradeToSave,
         setupRulesSnapshot: setupRules,
-        tradeDate: trade.tradeDate,
+        tradeDate: tradeToSave.tradeDate,
       });
     },
-    saveExtractedTrade: (idx) => {
+    saveExtractedTrade: (idx, overrides) => {
+      if (isDemo) { addToast("Demo trade — not saved. Upload your own screenshot to save real trades to your trade log.", "info"); return; }
       if (saveTradeMutation.isPending || savedTrades[idx]) return;
-      const row = trades[idx];
+      const row = overrides ? { ...trades[idx], ...overrides } : trades[idx];
       if (!canSaveTrade(row)) return;
       saveTradeMutation.mutate({
         idx,
@@ -1162,7 +1318,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     },
     preExtractDate, handlePreExtractDateChange,
     todayInputMax: getTodayInputValue(),
-    saveAllTrades: async () => {
+    // `evidenceOverridesByIdx` is an optional { [tradeIndex]: tradeImages[] }
+    // map — same async-closure workaround as saveExtractedTrade above, applied
+    // per-row for the batch path.
+    saveAllTrades: async (evidenceOverridesByIdx) => {
+      if (isDemo) { addToast("Demo trades — not saved. Upload your own screenshot to save real trades to your trade log.", "info"); return; }
       // Edge #1: prevent double-tap from creating duplicate trades
       if (saveAllLockRef.current || saveTradeMutation.isPending) return;
       saveAllLockRef.current = true;
@@ -1183,11 +1343,36 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           if (savedTrades[i]) continue;
           // canSaveTrade fires individual toasts — suppress them during batch check
           // by running a silent version then showing one summary.
-          const t = trades[i];
+          const t = evidenceOverridesByIdx?.[i] ? { ...trades[i], tradeImages: evidenceOverridesByIdx[i] } : trades[i];
           const missingFields = [];
           if (!t?.pair || !String(t.pair).trim())                                          missingFields.push("Pair");
           if (!t?.tradeDate)                                                                missingFields.push("Trade Date");
-          if (!isInd) {
+          if (isInd) {
+            const isEquityTrade = String(t?.instrumentType || "").toUpperCase() === "EQUITY";
+            const hasOcrBackedProfit = Boolean(uploadedJobId || jobId) && hasNumericValue(t?.profit);
+            // Entry/exit are only mandatory as a pair when at least one is
+            // filled in — a closed position with no per-unit price (Avg =
+            // 0.00) can save on P&L alone.
+            const hasEntry = hasNumericValue(t?.entryPrice);
+            const hasExit = hasNumericValue(t?.exitPrice);
+            if (hasEntry || hasExit) {
+              if (!hasPositiveNumber(t?.entryPrice))                                       missingFields.push("Entry Price");
+              if (!hasPositiveNumber(t?.exitPrice))                                        missingFields.push("Exit Price");
+            }
+            if (!hasNumericValue(t?.profit))                                               missingFields.push("P&L");
+            if (isEquityTrade) {
+              if (!hasOcrBackedProfit && !hasPositiveNumber(t?.sharesQty))                 missingFields.push("Shares Quantity");
+            } else {
+              if (!hasOcrBackedProfit && !hasPositiveNumber(t?.quantity))                  missingFields.push("Quantity/Lots");
+              if (!hasOcrBackedProfit && !hasPositiveNumber(t?.lotSize) && !inferIndianLotSize(t)) missingFields.push("Lot Size");
+            }
+            if (!hasValue(t?.entryBasis))                                                  missingFields.push("Entry Basis");
+            if (t?.entryBasis === "Custom" && !hasValue(t?.entryBasisCustom))              missingFields.push("Custom Entry Basis");
+            if (!hasNumericValue(t?.mood))                                                 missingFields.push("Mood");
+            if (!hasValue(t?.confidence))                                                  missingFields.push("Confidence");
+            if (!Array.isArray(t?.emotionalTags) || t.emotionalTags.length === 0)          missingFields.push("Emotional Tags");
+            if (!hasValue(t?.tradeQuality))                                                missingFields.push("Trade Quality");
+          } else {
             if (!hasNumericValue(t?.entryPrice))                                           missingFields.push("Entry Price");
             if (!hasNumericValue(t?.exitPrice))                                            missingFields.push("Exit Price");
             if (!hasNumericValue(t?.lotSize))                                              missingFields.push("Lot Size");
@@ -1219,7 +1404,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         }
 
         const batchPayload = validIndices.map((i) => {
-          const row = trades[i];
+          const row = evidenceOverridesByIdx?.[i] ? { ...trades[i], tradeImages: evidenceOverridesByIdx[i] } : trades[i];
           return buildTradePayload(row, isInd, row.setupRules || [], normalizeDateForInput(row.tradeDate));
         });
 
@@ -1238,19 +1423,18 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           });
           savedRef.current = true;
           setSaved(true);
+          setIsRedirecting(true);
           setUploadedJobId(null);
           processedTradeIdRef.current = null;
           userEditedFormRef.current = false;
           invalidateTradeDependentQueries(queryClient);
           removeToast(toastId);
           addToast(`${batchPayload.length} trades imported successfully!`, "success");
-          {
-            markOnboardingStep("tradeAdded", true).catch(() => {});
-            const onboardingMode = searchParams?.get("onboarding") === "1";
-            const journalRoute = isInd ? "/indian-market/trades" : "/trades";
-            const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
-            setTimeout(() => router.push(dest), 1200);
-          }
+          markOnboardingStep("tradeAdded", true).catch(() => {});
+          const onboardingMode = searchParams?.get("onboarding") === "1";
+          const journalRoute = isInd ? "/indian-market/trades" : "/trades";
+          const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
+          setTimeout(() => router.push(dest), 1200);
         } catch (err) {
           removeToast(toastId);
           addToast(err?.message || "Batch import failed. Please review and try again.", "error");

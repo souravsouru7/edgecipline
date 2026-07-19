@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Edgecipline Intelligence Hub — Your Personal Trading Coach</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #ffffff;
+    color: #0F1923;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 14mm;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: avoid; }
+
+  /* ── Cover page ── */
+  .cover {
+    background: linear-gradient(160deg, #0F1923 0%, #1a2535 50%, #0d1a10 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 18mm 16mm;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: rgba(13,158,110,0.2);
+    border: 1px solid rgba(13,158,110,0.5);
+    color: #22C78E;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 5px 12px;
+    border-radius: 99px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+  .cover h1 {
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+  .cover h1 span { color: #22C78E; }
+  .cover .subtitle {
+    font-size: 16px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.55;
+    max-width: 140mm;
+    margin-bottom: 40px;
+  }
+
+  .cover-divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #B8860B, #D4A917);
+    border-radius: 2px;
+    margin-bottom: 40px;
+  }
+
+  .cover-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  .cover-pill {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cover-pill .icon { font-size: 16px; }
+
+  .cover-footer {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cover-footer .brand {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .cover-footer .brand span { color: #22C78E; }
+  .cover-footer .date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── TOC page ── */
+  .toc-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .toc-item:last-child { border-bottom: none; }
+  .toc-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748B;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .toc-text .title { font-size: 13px; font-weight: 700; color: #0F1923; margin-bottom: 2px; }
+  .toc-text .desc  { font-size: 11px; color: #64748B; line-height: 1.5; }
+
+  /* ── Section header ── */
+  .section-header {
+    margin-bottom: 18px;
+  }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin-bottom: 6px;
+  }
+  .section-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: #0F1923;
+    margin-bottom: 10px;
+  }
+  .section-desc {
+    font-size: 12.5px;
+    color: #475569;
+    line-height: 1.65;
+    max-width: 160mm;
+    border-left: 3px solid #E2E8F0;
+    padding-left: 12px;
+  }
+
+  /* ── Question banner ── */
+  .q-banner {
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .q-banner .q-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .q-banner .q-text .q-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    margin-bottom: 2px;
+  }
+  .q-banner .q-text .q-title { font-size: 15px; font-weight: 800; }
+
+  .q-green  { background: rgba(13,158,110,0.07); border: 1px solid rgba(13,158,110,0.2); }
+  .q-green  .q-icon { background: rgba(13,158,110,0.15); }
+  .q-green  .q-label { color: #0D9E6E; }
+  .q-green  .q-title { color: #065F46; }
+
+  .q-red    { background: rgba(220,38,38,0.05); border: 1px solid rgba(220,38,38,0.15); }
+  .q-red    .q-icon { background: rgba(220,38,38,0.1); }
+  .q-red    .q-label { color: #DC2626; }
+  .q-red    .q-title { color: #991B1B; }
+
+  .q-blue   { background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.18); }
+  .q-blue   .q-icon { background: rgba(59,130,246,0.1); }
+  .q-blue   .q-label { color: #2563EB; }
+  .q-blue   .q-title { color: #1E3A8A; }
+
+  .q-purple { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.15); }
+  .q-purple .q-icon { background: rgba(124,58,237,0.1); }
+  .q-purple .q-label { color: #7C3AED; }
+  .q-purple .q-title { color: #4C1D95; }
+
+  .q-gold   { background: rgba(184,134,11,0.07); border: 1px solid rgba(184,134,11,0.2); }
+  .q-gold   .q-icon { background: rgba(184,134,11,0.12); }
+  .q-gold   .q-label { color: #B8860B; }
+  .q-gold   .q-title { color: #78350F; }
+
+  /* ── Feature card ── */
+  .feature-card {
+    border: 1.5px solid #E2E8F0;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(15,25,35,0.05);
+  }
+  .feature-card-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid #F1F5F9;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+  }
+  .feature-card-header .fh-title { font-size: 13px; font-weight: 800; color: #0F1923; margin-bottom: 2px; }
+  .feature-card-header .fh-sub   { font-size: 11px; color: #64748B; line-height: 1.5; }
+  .feature-card-body { padding: 14px 16px; }
+
+  /* ── Example table ── */
+  .ex-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
+  .ex-table th {
+    background: #F8FAFC;
+    padding: 7px 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #94A3B8;
+    border-bottom: 1.5px solid #E2E8F0;
+    text-transform: uppercase;
+  }
+  .ex-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #F1F5F9;
+    color: #334155;
+    vertical-align: top;
+  }
+  .ex-table tr:last-child td { border-bottom: none; }
+  .ex-table tr:nth-child(even) td { background: #FAFAFA; }
+
+  .badge-green  { display:inline-block; background:#DCFCE7; color:#166534; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-red    { display:inline-block; background:#FEE2E2; color:#991B1B; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-gold   { display:inline-block; background:#FEF3C7; color:#78350F; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-blue   { display:inline-block; background:#DBEAFE; color:#1E3A8A; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-gray   { display:inline-block; background:#F1F5F9; color:#475569; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+
+  /* ── Insight box ── */
+  .insight-box {
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    border-left: 3px solid;
+  }
+  .insight-box.green { background:#F0FDF4; border-color:#0D9E6E; }
+  .insight-box.red   { background:#FEF2F2; border-color:#DC2626; }
+  .insight-box.gold  { background:#FFFBEB; border-color:#D97706; }
+  .insight-box.blue  { background:#EFF6FF; border-color:#2563EB; }
+  .insight-box.purple{ background:#F5F3FF; border-color:#7C3AED; }
+  .insight-box .ib-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .insight-box.green  .ib-label { color: #0D9E6E; }
+  .insight-box.red    .ib-label { color: #DC2626; }
+  .insight-box.gold   .ib-label { color: #D97706; }
+  .insight-box.blue   .ib-label { color: #2563EB; }
+  .insight-box.purple .ib-label { color: #7C3AED; }
+  .insight-box .ib-text { font-size: 11.5px; color: #334155; line-height: 1.6; }
+
+  /* ── Two col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  /* ── Stat tile ── */
+  .stat-tile {
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .stat-tile .st-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #94A3B8; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-tile .st-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #0F1923; }
+  .stat-tile .st-sub   { font-size: 10px; color: #64748B; margin-top: 2px; }
+  .stat-tile.green { border-color: rgba(13,158,110,0.3); background: rgba(13,158,110,0.04); }
+  .stat-tile.green .st-value { color: #065F46; }
+  .stat-tile.red   { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.04); }
+  .stat-tile.red   .st-value { color: #991B1B; }
+  .stat-tile.gold  { border-color: rgba(184,134,11,0.3); background: rgba(184,134,11,0.04); }
+  .stat-tile.gold  .st-value { color: #92400E; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 6px 0;
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.55;
+    border-bottom: 1px solid #F8FAFC;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .check-dot.green { background: rgba(13,158,110,0.15); color: #0D9E6E; }
+  .check-dot.red   { background: rgba(220,38,38,0.12);  color: #DC2626; }
+
+  /* ── Coach card ── */
+  .coach-card {
+    background: linear-gradient(160deg,#0F1923,#1a2535);
+    border-radius: 12px;
+    padding: 16px;
+    color: #fff;
+    margin-bottom: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .coach-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .coach-meta .cm-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 99px;
+    text-transform: uppercase;
+  }
+  .coach-card .cc-title { font-size: 13px; font-weight: 700; color: #F1F5F9; margin-bottom: 6px; }
+  .coach-card .cc-body  { font-size: 11.5px; color: rgba(255,255,255,0.7); line-height: 1.65; }
+  .coach-card .cc-action {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(34,199,142,0.15);
+    border: 1px solid rgba(34,199,142,0.3);
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #22C78E;
+  }
+  .coach-card .cc-action .cc-action-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(34,199,142,0.7);
+    margin-bottom: 3px;
+  }
+
+  /* ── Page header band ── */
+  .page-band {
+    height: 3px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+  }
+  .band-green  { background: linear-gradient(90deg,#0D9E6E,#22C78E33); }
+  .band-red    { background: linear-gradient(90deg,#DC2626,#DC262633); }
+  .band-blue   { background: linear-gradient(90deg,#2563EB,#2563EB33); }
+  .band-purple { background: linear-gradient(90deg,#7C3AED,#7C3AED33); }
+  .band-gold   { background: linear-gradient(90deg,#B8860B,#B8860B33); }
+
+  /* ── Footer ── */
+  .page-footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 14mm;
+    right: 14mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #E2E8F0;
+    padding-top: 8px;
+  }
+  .page-footer .pf-brand {
+    font-size: 10px;
+    font-weight: 700;
+    color: #94A3B8;
+    letter-spacing: -0.01em;
+  }
+  .page-footer .pf-page {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #CBD5E1;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Summary page ── */
+  .summary-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-icon { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  .summary-row .sr-title { font-size: 13px; font-weight: 700; color: #0F1923; margin-bottom: 3px; }
+  .summary-row .sr-text  { font-size: 11.5px; color: #475569; line-height: 1.6; }
+
+  @media print {
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     PAGE 1 — COVER
+══════════════════════════════════════════ -->
+<div class="page cover">
+  <div class="cover-badge">Edgecipline · Intelligence Hub · Trader Guide</div>
+
+  <h1>Your Trading<br/><span>Intelligence Hub</span><br/>Explained</h1>
+
+  <p class="subtitle">
+    A plain-English walkthrough of every engine inside the Intelligence Hub —
+    what it does, what it shows you, and how it helps you trade better with actual examples.
+  </p>
+
+  <div class="cover-divider"></div>
+
+  <div class="cover-grid">
+    <div class="cover-pill"><span class="icon">💰</span> What Makes Me Money?</div>
+    <div class="cover-pill"><span class="icon">🩸</span> What Costs Me Money?</div>
+    <div class="cover-pill"><span class="icon">🎯</span> What Should I Improve?</div>
+    <div class="cover-pill"><span class="icon">📈</span> How Am I Evolving?</div>
+    <div class="cover-pill"><span class="icon">🤖</span> AI Coach Feed</div>
+    <div class="cover-pill"><span class="icon">✅</span> Pre-Trade Checklist</div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="brand">Edge<span>cipline</span></div>
+    <div class="date">INTELLIGENCE HUB · FULL FEATURE GUIDE · 2026</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 2 — TABLE OF CONTENTS
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-gold"></div>
+
+  <div class="section-header">
+    <div class="section-label">Table of Contents</div>
+    <div class="section-title">What's Inside This Guide</div>
+    <div class="section-desc">
+      The Intelligence Hub answers six questions every serious trader needs answered.
+      This guide explains each engine with concrete examples so you know exactly what to look at and what to do with it.
+    </div>
+  </div>
+
+  <div class="toc-item">
+    <div class="toc-num">1</div>
+    <div class="toc-text">
+      <div class="title">💰 What Makes Me Money? — Trading DNA &amp; Pattern Detection</div>
+      <div class="desc">Discover which sessions, setups, emotions, and conditions consistently produce your best trades. Stop guessing, start repeating your edge.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">2</div>
+    <div class="toc-text">
+      <div class="title">🩸 What Costs Me Money? — Psychology Cost Calculator &amp; Risk Patterns</div>
+      <div class="desc">Puts a real dollar figure on revenge trading, tilt sessions, and broken rules. Shows you exactly where your money is leaking.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">3</div>
+    <div class="toc-text">
+      <div class="title">🎯 What Should I Improve? — Self Awareness &amp; Discipline Analytics</div>
+      <div class="desc">Measures how accurately you rate your own trades and how often you follow your rules. Pinpoints the one behavior to fix next.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">4</div>
+    <div class="toc-text">
+      <div class="title">📈 How Am I Evolving? — Psychology Timeline &amp; Weekly Reports</div>
+      <div class="desc">Shows your journey month by month — psychology score, discipline, mood, and P&amp;L together in one view. Weekly coaching summary every Sunday.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">5</div>
+    <div class="toc-text">
+      <div class="title">🤖 What Should I Do Now? — AI Coach Feed &amp; Pre-Trade Checklist</div>
+      <div class="desc">Your coach gives one specific action based on your actual data — not generic advice. The checklist converts that insight into a behavior before your next trade.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">6</div>
+    <div class="toc-text">
+      <div class="title">📋 Full Feature Summary &amp; Quick Reference</div>
+      <div class="desc">One-page summary: what each engine does, what it needs, and what action to take from it.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px; padding:14px 16px; background:#F8FAFC; border-radius:10px; border:1.5px solid #E2E8F0;">
+    <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#94A3B8; text-transform:uppercase; margin-bottom:6px;">HOW THE INTELLIGENCE HUB WORKS</div>
+    <div style="font-size:12px; color:#475569; line-height:1.65;">
+      Every engine in the Intelligence Hub reads from your <strong>actual logged trades</strong> — pair, session, setup, emotion, mood, P&amp;L, review quality, and rule adherence.
+      The more trades you log with complete psychology data, the more precise every engine becomes.
+      Think of it as a feedback loop: log → analyze → improve → log better trades.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 2</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 3 — WHAT MAKES ME MONEY (Part 1: Trading DNA)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-green"></div>
+
+  <div class="q-banner q-green">
+    <div class="q-icon">💰</div>
+    <div class="q-text">
+      <div class="q-label">Section 1 of 5</div>
+      <div class="q-title">What Makes Me Money?</div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🧬</div>
+      <div>
+        <div class="fh-title">Trading DNA</div>
+        <div class="fh-sub">Your repeatable edge fingerprint — what conditions produce your best results.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        Trading DNA analyses all your trades and breaks down your performance by <strong>session, mood, confidence, day of week, and instrument</strong>.
+        It finds the specific conditions where <em>you personally</em> perform best — not what works for traders in general, but what works for <em>you</em>.
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#0D9E6E; text-transform:uppercase; margin-bottom:8px;">
+        EXAMPLE — TRADER "ARYAN" WITH 48 LOGGED TRADES
+      </div>
+
+      <table class="ex-table">
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Trades</th>
+            <th>Win Rate</th>
+            <th>Avg P&amp;L</th>
+            <th>Your Edge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>London Open</strong></td>
+            <td>18</td>
+            <td><span class="badge-green">68%</span></td>
+            <td style="color:#065F46;font-weight:700;">+$124</td>
+            <td><span class="badge-green">STRONG</span></td>
+          </tr>
+          <tr>
+            <td>New York</td>
+            <td>14</td>
+            <td><span class="badge-gold">52%</span></td>
+            <td style="color:#78350F;font-weight:700;">+$31</td>
+            <td><span class="badge-gold">AVERAGE</span></td>
+          </tr>
+          <tr>
+            <td>Asian Session</td>
+            <td>9</td>
+            <td><span class="badge-red">33%</span></td>
+            <td style="color:#991B1B;font-weight:700;">-$88</td>
+            <td><span class="badge-red">AVOID</span></td>
+          </tr>
+          <tr>
+            <td>Pre-market</td>
+            <td>7</td>
+            <td><span class="badge-red">29%</span></td>
+            <td style="color:#991B1B;font-weight:700;">-$142</td>
+            <td><span class="badge-red">AVOID</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="insight-box green">
+        <div class="ib-label">🧬 DNA Insight</div>
+        <div class="ib-text">
+          Aryan's London Open is where he has a genuine edge — 68% win rate vs 33% in the Asian session.
+          <strong>Stopping pre-market trading alone would have saved $142 this month.</strong>
+          The DNA doesn't tell him what to trade — it tells him <em>when he is himself</em> as a trader.
+        </div>
+      </div>
+
+      <table class="ex-table" style="margin-top:12px;">
+        <thead>
+          <tr>
+            <th>Mood</th>
+            <th>Trades</th>
+            <th>Win Rate</th>
+            <th>What to Do</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>😄 Peak (5/5)</td>
+            <td>11</td>
+            <td><span class="badge-green">73%</span></td>
+            <td style="color:#065F46; font-size:11px;">Trade your full plan</td>
+          </tr>
+          <tr>
+            <td>😌 Confident (4/5)</td>
+            <td>19</td>
+            <td><span class="badge-green">63%</span></td>
+            <td style="color:#065F46; font-size:11px;">Good to trade</td>
+          </tr>
+          <tr>
+            <td>😐 Neutral (3/5)</td>
+            <td>12</td>
+            <td><span class="badge-gold">50%</span></td>
+            <td style="color:#78350F; font-size:11px;">Reduce size</td>
+          </tr>
+          <tr>
+            <td>😟 Anxious (2/5)</td>
+            <td>6</td>
+            <td><span class="badge-red">33%</span></td>
+            <td style="color:#991B1B; font-size:11px;">Paper trade only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 3</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 4 — WHAT MAKES ME MONEY (Part 2: Pattern Detection)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-green"></div>
+
+  <div class="q-banner q-green">
+    <div class="q-icon">💰</div>
+    <div class="q-text">
+      <div class="q-label">Section 1 of 5 · Continued</div>
+      <div class="q-title">Best Patterns — Pattern Detection Engine</div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🔍</div>
+      <div>
+        <div class="fh-title">Pattern Detection Engine</div>
+        <div class="fh-sub">Finds repeated condition combinations that produce better entries and stronger P&amp;L.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        Where Trading DNA looks at single variables (session OR mood), the Pattern Detection Engine finds <strong>combinations</strong>.
+        It asks: "When you traded London + Confident + Breakout setup, what happened compared to London + Anxious + Breakout setup?"
+        Two identical setups in the same session can produce opposite results depending on your state.
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#0D9E6E; text-transform:uppercase; margin-bottom:8px;">
+        EXAMPLE — TOP DETECTED PATTERNS
+      </div>
+
+      <table class="ex-table">
+        <thead>
+          <tr>
+            <th>Pattern (Combination)</th>
+            <th>Occurrences</th>
+            <th>Win Rate</th>
+            <th>Avg P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>London + Confident + Breakout</strong></td>
+            <td>9</td>
+            <td><span class="badge-green">78%</span></td>
+            <td style="color:#065F46;font-weight:700;">+$187</td>
+          </tr>
+          <tr>
+            <td>NY + Peak Mood + Trend Follow</td>
+            <td>7</td>
+            <td><span class="badge-green">71%</span></td>
+            <td style="color:#065F46;font-weight:700;">+$134</td>
+          </tr>
+          <tr>
+            <td>London + Neutral + Reversal</td>
+            <td>8</td>
+            <td><span class="badge-gold">50%</span></td>
+            <td style="color:#78350F;font-weight:700;">+$12</td>
+          </tr>
+          <tr>
+            <td>Asian + Stressed + Any Setup</td>
+            <td>6</td>
+            <td><span class="badge-red">17%</span></td>
+            <td style="color:#991B1B;font-weight:700;">-$218</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="insight-box green">
+        <div class="ib-label">🔍 Pattern Insight</div>
+        <div class="ib-text">
+          "London + Confident + Breakout" is Aryan's highest-edge pattern. It shows up 9 times with a 78% win rate.
+          This is not a coincidence — it's a <strong>repeatable edge</strong> he can now intentionally prioritize.
+          Meanwhile, "Asian + Stressed + Any Setup" is a pattern he should have a rule to avoid entirely.
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#94A3B8; text-transform:uppercase; margin-bottom:8px;">WHY THIS MATTERS FOR TRADERS</div>
+        <ul class="checklist">
+          <li>
+            <div class="check-dot green">→</div>
+            <span>Most traders think they have "one edge" — but they actually have multiple conditions that must align. This engine surfaces those combinations.</span>
+          </li>
+          <li>
+            <div class="check-dot green">→</div>
+            <span>You can now make a rule: <em>"I only enter London Breakout setups when my mood is 4 or 5."</em> That's an edge rule built from your own data, not someone else's strategy.</span>
+          </li>
+          <li>
+            <div class="check-dot green">→</div>
+            <span>Unlocks after logging at least 15 trades with complete setup + session + emotion data.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 4</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 5 — WHAT COSTS ME MONEY (Psychology Cost Calculator)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-red"></div>
+
+  <div class="q-banner q-red">
+    <div class="q-icon">🩸</div>
+    <div class="q-text">
+      <div class="q-label">Section 2 of 5</div>
+      <div class="q-title">What Costs Me Money? — Psychology Cost Calculator</div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">💸</div>
+      <div>
+        <div class="fh-title">Psychology Cost Calculator</div>
+        <div class="fh-sub">Puts a real dollar figure on every emotional behavior and mistake you repeat.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        Most traders know they revenge trade — but they've never seen the actual cost.
+        The Psychology Cost Calculator groups all your trades by emotion, mistake type, and broken rule,
+        then calculates exactly how much each behavior has cost you in real P&amp;L.
+        <strong>You can't fix what you can't measure.</strong>
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#DC2626; text-transform:uppercase; margin-bottom:8px;">
+        EXAMPLE — EMOTIONAL COST BREAKDOWN
+      </div>
+
+      <table class="ex-table">
+        <thead>
+          <tr>
+            <th>Emotional Trigger</th>
+            <th>Trades Tagged</th>
+            <th>Win Rate</th>
+            <th>Total Cost</th>
+            <th>Avg per Trade</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>😤 <strong>Revenge</strong></td>
+            <td>8</td>
+            <td><span class="badge-red">25%</span></td>
+            <td style="color:#991B1B;font-weight:800;">-$502</td>
+            <td style="color:#991B1B;font-weight:700;">-$62.75</td>
+          </tr>
+          <tr>
+            <td>😱 FOMO</td>
+            <td>5</td>
+            <td><span class="badge-red">20%</span></td>
+            <td style="color:#991B1B;font-weight:800;">-$318</td>
+            <td style="color:#991B1B;font-weight:700;">-$63.60</td>
+          </tr>
+          <tr>
+            <td>🤑 Greed</td>
+            <td>6</td>
+            <td><span class="badge-gold">33%</span></td>
+            <td style="color:#991B1B;font-weight:800;">-$241</td>
+            <td style="color:#991B1B;font-weight:700;">-$40.17</td>
+          </tr>
+          <tr>
+            <td>😌 Calm</td>
+            <td>19</td>
+            <td><span class="badge-green">68%</span></td>
+            <td style="color:#065F46;font-weight:800;">+$892</td>
+            <td style="color:#065F46;font-weight:700;">+$46.95</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="insight-box red">
+        <div class="ib-label">💸 Cost Insight</div>
+        <div class="ib-text">
+          Revenge trading has cost this trader <strong>$502 across 8 trades</strong> — a 25% win rate vs 68% when calm.
+          If they had skipped every revenge trade this month, they would have made an extra $502.
+          That's not a discipline lecture — that's a dollar amount sitting in front of them.
+        </div>
+      </div>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#DC2626; text-transform:uppercase; margin:12px 0 8px; ">
+        MISTAKE COST BREAKDOWN
+      </div>
+
+      <table class="ex-table">
+        <thead>
+          <tr><th>Mistake Type</th><th>Times Made</th><th>Total Cost</th><th>What It Signals</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>No Stop Loss</td>
+            <td>4</td>
+            <td style="color:#991B1B;font-weight:700;">-$611</td>
+            <td style="font-size:11px;color:#64748B;">Risk management gap</td>
+          </tr>
+          <tr>
+            <td>Chased Price</td>
+            <td>7</td>
+            <td style="color:#991B1B;font-weight:700;">-$389</td>
+            <td style="font-size:11px;color:#64748B;">Patience/entry timing</td>
+          </tr>
+          <tr>
+            <td>Overleveraged</td>
+            <td>3</td>
+            <td style="color:#991B1B;font-weight:700;">-$277</td>
+            <td style="font-size:11px;color:#64748B;">Size discipline</td>
+          </tr>
+          <tr>
+            <td>Early Entry</td>
+            <td>9</td>
+            <td style="color:#991B1B;font-weight:700;">-$204</td>
+            <td style="font-size:11px;color:#64748B;">Confirmation needed</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 5</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 6 — WHAT COSTS ME MONEY (Risk Patterns)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-red"></div>
+
+  <div class="q-banner q-red">
+    <div class="q-icon">🩸</div>
+    <div class="q-text">
+      <div class="q-label">Section 2 of 5 · Continued</div>
+      <div class="q-title">Risk Pattern Detection</div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">⚡</div>
+      <div>
+        <div class="fh-title">Risk Pattern Detection</div>
+        <div class="fh-sub">Detects repeated loss clusters, tilt spirals, and dangerous condition combinations before they wipe your account.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        A single bad trade isn't a pattern. But losing 3 trades in a row on Mondays, always after a green Friday, while trading the Asian session — that's a risk pattern.
+        This engine detects exactly those clusters so you can add a rule before they repeat.
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#DC2626; text-transform:uppercase; margin-bottom:8px;">
+        EXAMPLE — DETECTED RISK PATTERNS
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="background:#FEF2F2; border:1.5px solid #FCA5A5; border-radius:10px; padding:12px 14px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:#DC2626; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:5px;">⚠ TILT SPIRAL DETECTED</div>
+          <div style="font-size:12px; color:#7F1D1D; line-height:1.6;">
+            <strong>Pattern:</strong> After 2 consecutive losses, you have taken a 3rd trade within 15 minutes — 7 out of 7 times. That 3rd trade has a <strong>0% win rate</strong> and an average loss of <strong>-$143</strong>.
+          </div>
+          <div style="margin-top:8px; font-size:11px; color:#991B1B; font-weight:600;">Rule suggestion: No trading for 30 mins after 2 consecutive losses.</div>
+        </div>
+
+        <div style="background:#FEF2F2; border:1.5px solid #FCA5A5; border-radius:10px; padding:12px 14px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:#DC2626; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:5px;">⚠ MONDAY LOSS CLUSTER</div>
+          <div style="font-size:12px; color:#7F1D1D; line-height:1.6;">
+            <strong>Pattern:</strong> Mondays account for 41% of your total losses despite representing only 20% of your trading days. Win rate on Monday: <strong>28%</strong> vs your overall <strong>54%</strong>.
+          </div>
+          <div style="margin-top:8px; font-size:11px; color:#991B1B; font-weight:600;">Rule suggestion: Observe-only on Mondays until market direction is confirmed by Tuesday.</div>
+        </div>
+
+        <div style="background:#FFFBEB; border:1.5px solid #FCD34D; border-radius:10px; padding:12px 14px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:#D97706; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:5px;">⚡ SIZE ESCALATION AFTER WINS</div>
+          <div style="font-size:12px; color:#78350F; line-height:1.6;">
+            <strong>Pattern:</strong> After 3 consecutive wins, your average lot size increases by 2.3×. Your win rate on those oversized trades drops to <strong>38%</strong> — suggesting confidence becomes overconfidence.
+          </div>
+          <div style="margin-top:8px; font-size:11px; color:#B45309; font-weight:600;">Rule suggestion: Cap lot size at baseline regardless of streak length.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 6</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 7 — WHAT SHOULD I IMPROVE (Self Awareness + Discipline)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-blue"></div>
+
+  <div class="q-banner q-blue">
+    <div class="q-icon">🎯</div>
+    <div class="q-text">
+      <div class="q-label">Section 3 of 5</div>
+      <div class="q-title">What Should I Improve? — Self Awareness &amp; Discipline Analytics</div>
+    </div>
+  </div>
+
+  <div class="feature-card" style="margin-bottom:12px;">
+    <div class="feature-card-header">
+      <div class="feature-icon">🪞</div>
+      <div>
+        <div class="fh-title">Self Awareness Engine — Review Calibration</div>
+        <div class="fh-sub">Measures how accurately you rate your own trades vs how they actually performed.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        After every trade you mark: "Would I retake this trade?" The Self Awareness engine compares your answer to the actual outcome.
+        If you said "Yes, good trade" but it lost — that's poor calibration. If you said "No, bad process" and it won by luck — that's also poor calibration.
+        <strong>The goal is accurate self-assessment, not just winning.</strong>
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#2563EB; text-transform:uppercase; margin-bottom:8px;">REVIEW CALIBRATION MATRIX</div>
+
+      <table class="ex-table">
+        <thead>
+          <tr><th>Self Review</th><th>Actual Outcome</th><th>Count</th><th>What It Means</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>✅ Good process</td>
+            <td style="color:#065F46; font-weight:700;">Win</td>
+            <td>14</td>
+            <td style="color:#065F46; font-size:11px;">Perfectly calibrated</td>
+          </tr>
+          <tr>
+            <td>❌ Bad process</td>
+            <td style="color:#991B1B; font-weight:700;">Loss</td>
+            <td>9</td>
+            <td style="color:#065F46; font-size:11px;">Correctly identified mistake</td>
+          </tr>
+          <tr>
+            <td>✅ Good process</td>
+            <td style="color:#991B1B; font-weight:700;">Loss</td>
+            <td>7</td>
+            <td style="color:#B45309; font-size:11px;">Good process, bad luck (fine)</td>
+          </tr>
+          <tr>
+            <td>❌ Bad process</td>
+            <td style="color:#065F46; font-weight:700;">Win</td>
+            <td>4</td>
+            <td style="color:#DC2626; font-size:11px; font-weight:700;">⚠ Won for wrong reasons — danger zone</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="insight-box blue">
+        <div class="ib-label">🪞 Calibration Insight</div>
+        <div class="ib-text">
+          This trader has 4 "bad process wins" — trades where they broke their rules but profited anyway.
+          These are the <strong>most dangerous trades in the journal</strong>: they reinforce bad habits by accidentally rewarding them.
+          The Self Awareness Engine flags these so you can consciously reject the false positive.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">📐</div>
+      <div>
+        <div class="fh-title">Discipline Analytics — Rule Follow-Through</div>
+        <div class="fh-sub">Tracks how often you follow the setup rules you set for your own strategy.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="three-col">
+        <div class="stat-tile green">
+          <div class="st-label">Plan Adherence</div>
+          <div class="st-value">75%</div>
+          <div class="st-sub">Rules followed per trade</div>
+        </div>
+        <div class="stat-tile red">
+          <div class="st-label">Most Broken Rule</div>
+          <div class="st-value" style="font-size:15px;">No SL</div>
+          <div class="st-sub">Skipped 6× this month</div>
+        </div>
+        <div class="stat-tile gold">
+          <div class="st-label">Adherence vs Win Rate</div>
+          <div class="st-value">+34%</div>
+          <div class="st-sub">Higher WR when rules followed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 7</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 8 — HOW AM I EVOLVING (Timeline + Reports)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-purple"></div>
+
+  <div class="q-banner q-purple">
+    <div class="q-icon">📈</div>
+    <div class="q-text">
+      <div class="q-label">Section 4 of 5</div>
+      <div class="q-title">How Am I Evolving? — Psychology Timeline &amp; Weekly Reports</div>
+    </div>
+  </div>
+
+  <div class="feature-card" style="margin-bottom:12px;">
+    <div class="feature-card-header">
+      <div class="feature-icon">🗓️</div>
+      <div>
+        <div class="fh-title">Psychology Timeline — Mindset Evolution</div>
+        <div class="fh-sub">Your psychology score, discipline, mood, milestones, and P&amp;L plotted together across months.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        The timeline answers: "Am I actually getting better, or just getting lucky?" It shows every key metric
+        on a single chart so you can see if discipline improvements are actually translating to better P&amp;L.
+      </p>
+
+      <table class="ex-table">
+        <thead>
+          <tr><th>Month</th><th>Psychology Score</th><th>Discipline</th><th>Avg Mood</th><th>Monthly P&amp;L</th><th>Trend</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>March</strong></td>
+            <td>41 / 100</td>
+            <td>52%</td>
+            <td>2.8 / 5</td>
+            <td style="color:#991B1B;font-weight:700;">-$1,240</td>
+            <td><span class="badge-red">Struggling</span></td>
+          </tr>
+          <tr>
+            <td><strong>April</strong></td>
+            <td>58 / 100</td>
+            <td>67%</td>
+            <td>3.2 / 5</td>
+            <td style="color:#991B1B;font-weight:700;">-$380</td>
+            <td><span class="badge-gold">Improving</span></td>
+          </tr>
+          <tr>
+            <td><strong>May</strong></td>
+            <td>72 / 100</td>
+            <td>78%</td>
+            <td>3.7 / 5</td>
+            <td style="color:#065F46;font-weight:700;">+$620</td>
+            <td><span class="badge-green">Turning</span></td>
+          </tr>
+          <tr>
+            <td><strong>June</strong></td>
+            <td>81 / 100</td>
+            <td>84%</td>
+            <td>4.1 / 5</td>
+            <td style="color:#065F46;font-weight:700;">+$1,890</td>
+            <td><span class="badge-green">Profitable</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="insight-box purple">
+        <div class="ib-label">📈 Timeline Insight</div>
+        <div class="ib-text">
+          This trader went from -$1,240 in March to +$1,890 in June. The timeline reveals <em>why</em>:
+          discipline improved from 52% to 84%, psychology score from 41 to 81.
+          <strong>The P&amp;L improvement lagged the psychology improvement by about 6 weeks</strong> — exactly what the timeline is designed to show.
+          You change your mind before you change your results.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">📋</div>
+      <div>
+        <div class="fh-title">Weekly Reports — Review Cycle</div>
+        <div class="fh-sub">Every Sunday: a coaching summary of the week with mistakes, improvements, and next-week actions.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div style="background:#F5F3FF; border:1.5px solid rgba(124,58,237,0.2); border-radius:10px; padding:13px 14px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:#7C3AED; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">EXAMPLE WEEKLY REPORT — WEEK OF JUN 9</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#4C1D95; margin-bottom:5px;">This Week's Wins</div>
+            <ul style="list-style:none; font-size:11px; color:#4C1D95; line-height:1.8;">
+              <li>✅ Followed SL rules on 9/10 trades</li>
+              <li>✅ Avoided Asian session completely</li>
+              <li>✅ Best win rate week (71%) since Jan</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#991B1B; margin-bottom:5px;">This Week's Mistakes</div>
+            <ul style="list-style:none; font-size:11px; color:#991B1B; line-height:1.8;">
+              <li>❌ 2 FOMO entries on Thursday</li>
+              <li>❌ Sized up after 3-win streak</li>
+              <li>❌ No journal entry on Friday</li>
+            </ul>
+          </div>
+        </div>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(124,58,237,0.15);">
+          <div style="font-size:11px; font-weight:700; color:#4C1D95; margin-bottom:5px;">Next Week's Focus</div>
+          <div style="font-size:11.5px; color:#5B21B6; line-height:1.6;">Maintain SL discipline. Add a rule: no trades in the 30 mins following a news event. Cap lot size at 0.1 regardless of streak.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 8</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 9 — WHAT SHOULD I DO NOW (AI Coach + Checklist)
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-gold"></div>
+
+  <div class="q-banner q-gold">
+    <div class="q-icon">🤖</div>
+    <div class="q-text">
+      <div class="q-label">Section 5 of 5</div>
+      <div class="q-title">What Should I Do Now? — AI Coach Feed &amp; Pre-Trade Checklist</div>
+    </div>
+  </div>
+
+  <div class="feature-card" style="margin-bottom:12px;">
+    <div class="feature-card-header">
+      <div class="feature-icon">🤖</div>
+      <div>
+        <div class="fh-title">AI Coach Feed — Personalized Coaching</div>
+        <div class="fh-sub">One specific, evidence-backed action pulled from your actual trading data — not generic advice.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        Generic trading advice is everywhere. The AI Coach Feed only shows you insights derived from <em>your data</em>.
+        Each card shows: observation, evidence (which trades), action (what to do), and expected outcome (what will change).
+      </p>
+
+      <div class="coach-card">
+        <div class="coach-meta">
+          <div class="cm-badge" style="background:rgba(220,38,38,0.2); color:#FCA5A5;">HIGH PRIORITY</div>
+          <div class="cm-badge" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6);">Revenge Trading</div>
+          <div class="cm-badge" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6);">Risk Management</div>
+        </div>
+        <div class="cc-title">Your 3rd trade after consecutive losses has a 0% win rate</div>
+        <div class="cc-body">
+          In 7 separate sessions, after losing 2 trades in a row, you have entered a 3rd trade within 15 minutes.
+          All 7 of those trades resulted in losses, with an average drawdown of -$143. This is a tilt spiral —
+          the loss triggers an emotional need to "get it back," which bypasses your analytical process entirely.
+        </div>
+        <div class="cc-action">
+          <div class="cc-action-label">Recommended Action</div>
+          Add a hard rule: after 2 consecutive losses, close the platform for at least 30 minutes.
+          Walk away, journal the emotion, and re-enter only with a fresh checklist.
+          Expected impact: eliminating this pattern adds ~$1,001 back to your monthly P&amp;L.
+        </div>
+      </div>
+
+      <div class="coach-card">
+        <div class="coach-meta">
+          <div class="cm-badge" style="background:rgba(34,199,142,0.2); color:#6EE7B7;">OPPORTUNITY</div>
+          <div class="cm-badge" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6);">London Session</div>
+        </div>
+        <div class="cc-title">You are under-trading your highest edge window</div>
+        <div class="cc-body">
+          Your London Open + Confident + Breakout pattern has a 78% win rate across 9 trades — your highest performing combination.
+          Yet you're averaging only 2.1 trades per week in this window versus 4.7 in the Asian session (33% win rate).
+          You're spending energy where you have no edge, and conserving it where you have significant edge.
+        </div>
+        <div class="cc-action">
+          <div class="cc-action-label">Recommended Action</div>
+          Prioritize 3–4 trades per week in the London Open window. Reduce Asian session frequency by 70%.
+          Expected impact: shifting allocation alone should improve monthly P&amp;L by ~$600 without changing your strategy.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 9</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 10 — PRE-TRADE CHECKLIST + SUMMARY
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-gold"></div>
+
+  <div class="feature-card" style="margin-bottom:16px;">
+    <div class="feature-card-header">
+      <div class="feature-icon">✅</div>
+      <div>
+        <div class="fh-title">Pre-Trade Checklist — Convert Insight into Execution</div>
+        <div class="fh-sub">Run your setup rules before entering a trade. Intelligence becomes a real behavior, not just a chart.</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <p style="font-size:12px; color:#475569; margin-bottom:12px; line-height:1.65;">
+        Every insight in the Intelligence Hub is only valuable if it changes your actual behavior.
+        The Pre-Trade Checklist is where analysis meets execution.
+        Before you click Buy/Sell, you run through your own rules — the ones you built from your own data.
+      </p>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.12em; color:#B8860B; text-transform:uppercase; margin-bottom:8px;">EXAMPLE CHECKLIST (ARYAN'S RULES BUILT FROM HIS DNA)</div>
+
+      <ul class="checklist">
+        <li><div class="check-dot green">✓</div><span><strong>Session check:</strong> Am I in London Open or NY session? (Asian session → skip trade)</span></li>
+        <li><div class="check-dot green">✓</div><span><strong>Mood check:</strong> Is my mood 4 or 5 out of 5? (3 or below → reduce size by 50% or skip)</span></li>
+        <li><div class="check-dot green">✓</div><span><strong>Tilt check:</strong> Have I lost 2 or more trades already today? (Yes → close platform for 30 min before re-entering)</span></li>
+        <li><div class="check-dot green">✓</div><span><strong>Setup confirmation:</strong> Does this match my Breakout or Trend Follow setup criteria?</span></li>
+        <li><div class="check-dot green">✓</div><span><strong>SL check:</strong> Is my stop loss placed before I enter? (No SL = no entry)</span></li>
+        <li><div class="check-dot green">✓</div><span><strong>Size check:</strong> Is my lot size at baseline regardless of my current win streak?</span></li>
+        <li><div class="check-dot red">✗</div><span><strong>FOMO check:</strong> Am I entering because price is already moving? (Yes → wait for the next setup)</span></li>
+      </ul>
+
+      <div class="insight-box gold">
+        <div class="ib-label">✅ Why the Checklist Matters</div>
+        <div class="ib-text">
+          Most traders know their rules but break them in the moment. The checklist turns knowledge into a physical gate.
+          Traders who run a pre-trade checklist consistently show <strong>+22–34% improvement in rule adherence</strong> within 4 weeks.
+          Your discipline score tracks this — so you can see the improvement in the Discipline Analytics over time.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.15em; color:#94A3B8; text-transform:uppercase; margin-bottom:10px;">HOW ALL 6 ENGINES CONNECT</div>
+
+  <div style="background:#F8FAFC; border:1.5px solid #E2E8F0; border-radius:12px; padding:14px 16px;">
+    <div style="font-size:12px; color:#334155; line-height:1.9;">
+      <strong>Trading DNA</strong> finds <em>when</em> you have an edge →
+      <strong>Pattern Detection</strong> finds <em>which combinations</em> are strongest →
+      <strong>Cost Calculator</strong> shows <em>what is leaking</em> your P&amp;L →
+      <strong>Risk Patterns</strong> shows <em>when you're about to blow up</em> →
+      <strong>Self Awareness</strong> shows <em>how accurately you see yourself</em> →
+      <strong>Timeline</strong> shows <em>if you're actually improving</em> →
+      <strong>AI Coach</strong> turns all of this into <em>one action to take today</em> →
+      <strong>Checklist</strong> makes sure <em>you actually do it before the next trade</em>.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline Intelligence Hub</div>
+    <div class="pf-page">PAGE 10</div>
+  </div>
+</div>
+
+</body>
+</html>

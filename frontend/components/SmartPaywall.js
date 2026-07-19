@@ -10,6 +10,59 @@ import {
 import { validateEnvironment } from "@/config/environment";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 
+let razorpayCheckoutPromise = null;
+
+function isSandboxCheckout() {
+  return !String(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "").trim();
+}
+
+function loadRazorpayCheckout() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Checkout is only available in the browser."));
+  }
+  if (window.Razorpay) return Promise.resolve(window.Razorpay);
+  if (razorpayCheckoutPromise) return razorpayCheckoutPromise;
+
+  if (isSandboxCheckout()) {
+    razorpayCheckoutPromise = import("@/utils/mockRazorpay")
+      .then(({ injectMockRazorpay }) => {
+        injectMockRazorpay();
+        if (!window.Razorpay) throw new Error("Sandbox checkout failed to initialize.");
+        return window.Razorpay;
+      })
+      .catch((error) => {
+        razorpayCheckoutPromise = null;
+        throw error;
+      });
+    return razorpayCheckoutPromise;
+  }
+
+  razorpayCheckoutPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-razorpay-checkout='true']");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Razorpay), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Razorpay Checkout could not be loaded.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.dataset.razorpayCheckout = "true";
+    script.onload = () => {
+      if (window.Razorpay) resolve(window.Razorpay);
+      else reject(new Error("Razorpay Checkout loaded without exposing Razorpay."));
+    };
+    script.onerror = () => reject(new Error("Razorpay Checkout could not be loaded."));
+    document.body.appendChild(script);
+  }).catch((error) => {
+    razorpayCheckoutPromise = null;
+    throw error;
+  });
+
+  return razorpayCheckoutPromise;
+}
+
 // SmartPaywall — opens after trial expiry OR when a user explicitly upgrades.
 // Unlike a generic price card, every label here references the user's own
 // progress so the offer feels earned, not extracted.
@@ -21,7 +74,7 @@ import FocusTrap from "@/features/shared/components/FocusTrap";
 //   variant    — "trial_ended" | "upgrade" (default). Adjusts headline copy.
 
 const METRIC_TILES = [
-  { key: "disciplineScore",     label: "Your Discipline Score", emptyHint: "Log a journal to start your streak" },
+  { key: "disciplineScore",     label: "Your Discipline Score", emptyHint: "Log a trade to start your streak" },
   { key: "tradesLogged",        label: "Trades Logged",         emptyHint: "Add your first trade" },
   { key: "bestSetup",           label: "Best Setup",            emptyHint: "Tag setups to discover yours" },
   { key: "aiInsightsGenerated", label: "AI Insights Generated", emptyHint: "Unlock after trial" },
@@ -45,16 +98,11 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
   const [ctx, setCtx] = useState(null);
   const [ctxLoading, setCtxLoading] = useState(true);
 
-  // Razorpay SDK
+  // Razorpay SDK — loads real SDK when key is set, injects sandbox mock otherwise.
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    if (window.Razorpay) return undefined;
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-    return () => { if (script.parentNode) script.parentNode.removeChild(script); };
-  }, []);
+    if (!isOpen) return;
+    loadRazorpayCheckout().catch(() => {});
+  }, [isOpen]);
 
   // Personalized context — loaded each time the modal opens.
   useEffect(() => {
@@ -79,18 +127,12 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
       });
 
       const environment = validateEnvironment();
-      if (!environment.razorpayKeyId) {
-        throw new Error(
-          "Razorpay is not configured. Set NEXT_PUBLIC_RAZORPAY_KEY_ID in frontend/.env.local."
-        );
-      }
-      if (!window.Razorpay) {
-        throw new Error("Razorpay Checkout could not be loaded. Check your connection and try again.");
-      }
+      const isSandbox = !environment.razorpayKeyId;
+      const RazorpayCheckout = await loadRazorpayCheckout();
 
       const order = await createPaymentOrder();
       const options = {
-        key: environment.razorpayKeyId,
+        key: isSandbox ? "rzp_sandbox_demo" : environment.razorpayKeyId,
         amount: order.amount,
         currency: order.currency,
         name: "Edgecipline",
@@ -99,6 +141,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
         order_id: order.id,
         handler: async (response) => {
           try {
+            setLoading(true);
             const result = await verifyPayment({
               razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -107,9 +150,13 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
             if (result.success) {
               if (typeof onSuccess === "function") onSuccess();
               if (typeof onClose === "function") onClose();
+              return;
             }
-          } catch {
-            setError("Payment verification failed. Please contact support.");
+            setError("Payment could not be confirmed. Please try again.");
+          } catch (verifyError) {
+            setError(verifyError?.message || "Payment verification failed. Please contact support.");
+          } finally {
+            setLoading(false);
           }
         },
         prefill: {
@@ -117,13 +164,18 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
           email: (typeof window !== "undefined" && localStorage.getItem("userEmail")) || "",
         },
         theme: { color: "#0D9E6E" },
+        modal: {
+          ondismiss: () => setLoading(false),
+        },
       };
-      const rzp1 = new window.Razorpay(options);
-      rzp1.on("payment.failed", (resp) => setError(resp.error.description));
+      const rzp1 = new RazorpayCheckout(options);
+      rzp1.on("payment.failed", (resp = {}) => {
+        setLoading(false);
+        setError(resp.error?.description || "Payment failed. Please try again.");
+      });
       rzp1.open();
     } catch (err) {
       setError(err.message || "Failed to initialize payment");
-    } finally {
       setLoading(false);
     }
   };
@@ -135,6 +187,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
 
   if (!isOpen) return null;
 
+  const sandboxMode = isSandboxCheckout();
   const headline =
     ctx?.headline ||
     (variant === "trial_ended" ? "Your 7-day Premium trial has ended" : "Unlock your full edge");
@@ -316,7 +369,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "Processing…" : (ctx?.cta?.label || "Continue improving")}
+              {loading ? "Processing..." : (ctx?.cta?.label || "Continue improving")}
             </button>
 
             <div style={{
@@ -332,7 +385,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              <span>Secure payment via Razorpay · Your data stays yours</span>
+              <span>{sandboxMode ? "Sandbox demo - no real charge" : "Secure payment via Razorpay - Your data stays yours"}</span>
             </div>
           </div>
 

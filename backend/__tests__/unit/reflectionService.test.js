@@ -87,6 +87,7 @@ describe("reflectionService.computeWeeklyScore", () => {
 
 describe("reflectionService.upsertReflection", () => {
   const DailyReflection = require("../../models/DailyReflection");
+  const IndianTrade = require("../../models/IndianTrade");
   const streak = require("../../services/streak.service");
 
   beforeEach(() => {
@@ -115,6 +116,33 @@ describe("reflectionService.upsertReflection", () => {
     expect(updateCall[1].$set.followedPlan).toBe("no_trades");
     expect(updateCall[1].$set.mood).toBe(4);
     expect(updateCall[1].$set.skipped).toBe(false);
+  });
+
+  it("counts Indian Market trades in the end-of-day reflection context", async () => {
+    IndianTrade.find.mockReturnValueOnce({
+      lean: jest.fn().mockResolvedValue([
+        {
+          profit: 125.5,
+          tradeDate: new Date("2026-06-28T09:15:00.000Z"),
+          createdAt: new Date("2026-06-28T09:15:00.000Z"),
+          setupRules: [{ label: "Opening range confirmed" }],
+        },
+      ]),
+    });
+
+    await reflectionService.upsertReflection({
+      userId: "user-1",
+      payload: { mood: 4 },
+    });
+
+    const updateCall = DailyReflection.findOneAndUpdate.mock.calls[0];
+    expect(updateCall[1].$set.followedPlan).toBeUndefined();
+    expect(updateCall[1].$set.context).toMatchObject({
+      tradeCount: 1,
+      hadTrades: true,
+      grossPnL: 125.5,
+      followedChecklist: true,
+    });
   });
 
   it("rejects an empty payload", async () => {

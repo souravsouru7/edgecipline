@@ -105,7 +105,7 @@ function AddTradeContent() {
             </p>
           </div>
           <Link href="/trades" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 700, color: "#4A5568", textDecoration: "none", padding: "10px 14px", minHeight: 44, background: "#FFF", borderRadius: 8, border: "1px solid #E2E8F0", whiteSpace: "nowrap" }}>
-            <ArrowLeft size={14} /> JOURNAL
+            <ArrowLeft size={14} /> TRADE LOG
           </Link>
         </div>
 
@@ -353,7 +353,7 @@ function AddTradeContent() {
             ) : (
               <>
                 <Save size={18} />
-                COMMIT TRADE TO JOURNAL
+                COMMIT TRADE TO LOG
               </>
             )}
           </button>

@@ -471,7 +471,7 @@ function EditTradePageContent() {
                   Edit <span style={{ color: "#0D9E6E" }}>Trade</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#94A3B8", letterSpacing: "0.06em", marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
-                  UPDATE YOUR JOURNAL ENTRY
+                  UPDATE YOUR TRADE LOG ENTRY
                 </div>
               </div>
             </div>

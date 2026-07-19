@@ -6,13 +6,13 @@ const ROADMAP = [
   "Setup",
   "Trade",
   "AI insight",
-  "Journal",
+  "Review",
 ];
 
 const BULLETS = [
   { marker: "01", title: "Pick your edge", sub: "Market and style tell the coach how you trade." },
   { marker: "02", title: "Save the setup", sub: "Your setup becomes the pattern every trade is measured against." },
-  { marker: "03", title: "Log one trade", sub: "Upload a screenshot or type it in, then review it in your journal." },
+  { marker: "03", title: "Log one trade", sub: "Upload a screenshot or type it in, then the coach reviews it with you." },
 ];
 
 export default function WelcomeStep() {

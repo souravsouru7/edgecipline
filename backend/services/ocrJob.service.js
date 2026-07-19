@@ -339,8 +339,13 @@ async function getOcrJobStatus(userId, jobId) {
 
 async function cancelOcrJob(userId, jobId) {
   const job = await getOcrJobForUser(userId, jobId);
-  if (job.status === "CONFIRMED") {
-    throw new ApiError(409, "Confirmed OCR jobs cannot be cancelled", "OCR_JOB_CONFIRMED");
+  if (job.status === "CONFIRMED" || job.status === "COMPLETED") {
+    logger.info("OCR cancel ignored for terminal successful job", {
+      jobId: job._id.toString(),
+      status: job.status,
+      userId: userId?.toString?.() || userId,
+    });
+    return serializeJob(job);
   }
   if (job.status !== "CANCELLED") {
     const queueId = job.queueJobId || job._id.toString();

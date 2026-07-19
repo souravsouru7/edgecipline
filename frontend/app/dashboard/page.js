@@ -18,6 +18,7 @@ import ReflectionCard        from "@/features/reflections/components/ReflectionC
 import EmptyStateOverlay     from "@/features/dashboard/components/EmptyStateOverlay";
 import { useDashboard }      from "@/features/dashboard/hooks/useDashboard";
 import { Skeleton }          from "@/features/shared";
+import { MARKETS }           from "@/context/MarketContext";
 
 // ── Build KPI cards from API response ─────────────────────────────────────────
 function DashboardPanel({ title, subtitle, children, action, accent = "#0D9E6E" }) {
@@ -125,7 +126,7 @@ function GrowthPathStep({ step, index }) {
   );
 }
 
-function TradingGrowthPath({ onboarding, stats }) {
+function TradingGrowthPath({ onboarding, stats, routes }) {
   const totalTrades = Number(stats?.totalTrades || onboarding?.tradeCount || 0);
   const hasSetup = Boolean(onboarding?.setupAdded);
   const hasTrade = totalTrades > 0 || Boolean(onboarding?.tradeAdded);
@@ -135,7 +136,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Build Setup",
       body: "Save the rules for the trades you want to repeat.",
-      href: "/setups",
+      href: routes.setups,
       icon: Target,
       accent: "#0D9E6E",
       done: hasSetup,
@@ -144,7 +145,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Run Checklist",
       body: "Check the setup before taking risk.",
-      href: "/checklist",
+      href: routes.checklist,
       icon: CheckSquare,
       accent: "#6366F1",
       done: false,
@@ -153,7 +154,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Log Trade",
       body: "Upload a screenshot or add the trade manually.",
-      href: "/upload-trade",
+      href: routes.uploadTrade,
       icon: Camera,
       accent: "#B8860B",
       done: hasTrade,
@@ -162,7 +163,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Review Psychology",
       body: "Capture mood, confidence, mistakes, and lesson.",
-      href: hasTrade ? "/trades" : "/add-trade",
+      href: hasTrade ? routes.journal : routes.addTrade,
       icon: Brain,
       accent: "#8B5CF6",
       done: hasTrade,
@@ -171,7 +172,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Study Analytics",
       body: "Find what works, what leaks money, and what repeats.",
-      href: "/analytics",
+      href: routes.analytics,
       icon: BarChart3,
       accent: "#2563EB",
       done: Boolean(onboarding?.analyticsSeen),
@@ -180,7 +181,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Open Intelligence",
       body: "Turn analytics into the next improvement focus.",
-      href: "/intelligence",
+      href: routes.intelligence,
       icon: Sparkles,
       accent: "#7C3AED",
       done: hasInsight,
@@ -189,7 +190,7 @@ function TradingGrowthPath({ onboarding, stats }) {
     {
       title: "Coach & Report",
       body: "Ask for guidance and close the week with actions.",
-      href: "/coach",
+      href: routes.coach,
       icon: MessageCircle,
       accent: "#0D9E6E",
       done: false,
@@ -212,11 +213,11 @@ function TradingGrowthPath({ onboarding, stats }) {
           <div>
             <div style={{ fontSize: 14, fontWeight: 900, color: "#0F1923" }}>Your Trading Growth Path</div>
             <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, lineHeight: 1.45 }}>
-              Setup - checklist - journal - review - improve. Use this loop for every trading cycle.
+              Setup - checklist - log - review - improve. Use this loop for every trading cycle.
             </div>
           </div>
           <Link
-            href="/intelligence"
+            href={routes.intelligence}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -258,8 +259,11 @@ function firstName(full) {
   return String(full).trim().split(/\s+/)[0];
 }
 
-function buildStats(s, streaks) {
+function buildStats(s, streaks, currencySymbol = "$") {
   const total   = s?.totalTrades   ?? 0;
+  const pnlReadyTrades = Number(s?.pnlReadyTrades ?? total);
+  const tradesMissingPnl = Number(s?.tradesMissingPnl || 0);
+  const hasPnlData = pnlReadyTrades > 0;
   const winRate = s?.winRate       ?? 0;
   const netPnl  = s?.netPnL       ?? s?.totalProfit ?? 0;
   // Discipline streak comes from the dedicated streaks snapshot. We never
@@ -283,9 +287,9 @@ function buildStats(s, streaks) {
     },
     {
       label: "Win Rate",
-      value: `${winRate}%`,
-      sub: "of trades profitable",
-      accentColor: winRate >= 50 ? "#0D9E6E" : "#D63B3B",
+      value: hasPnlData ? `${winRate}%` : "-",
+      sub: hasPnlData ? "of trades profitable" : `${tradesMissingPnl} need P&L details`,
+      accentColor: hasPnlData && winRate >= 50 ? "#0D9E6E" : "#D63B3B",
       tooltip: "Percentage of your trades that closed in profit. Above 50% is green. Win rate alone doesn't guarantee profitability — your risk-reward matters equally.",
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -295,9 +299,9 @@ function buildStats(s, streaks) {
     },
     {
       label: "Net P&L",
-      value: `${netPnl >= 0 ? "+" : "-"}$${Math.abs(Number(netPnl)).toFixed(2)}`,
-      sub: "total return",
-      accentColor: netPnl >= 0 ? "#0D9E6E" : "#D63B3B",
+      value: hasPnlData ? `${netPnl >= 0 ? "+" : "-"}${currencySymbol}${Math.abs(Number(netPnl)).toFixed(2)}` : "-",
+      sub: hasPnlData ? "total return" : "fill P&L to compute",
+      accentColor: hasPnlData && netPnl >= 0 ? "#0D9E6E" : "#D63B3B",
       tooltip: "Your total profit or loss across all logged trades. Green = net profitable, red = net loss. This is your real bottom line.",
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -331,9 +335,35 @@ function DashboardContent() {
     refreshOnboarding, onboarding,
     selfAwareness, psychologyCost, tradingDNA, profile,
     streaks, reflection,
+    currentMarket,
   } = useDashboard();
   const clock     = useClock();
-  const statCards = buildStats(stats, streaks);
+  const isIndianMarket = currentMarket === MARKETS.INDIAN_MARKET;
+  const marketRoutes = isIndianMarket
+    ? {
+        addTrade: "/indian-market/add-trade",
+        uploadTrade: "/indian-market/upload-trade",
+        journal: "/indian-market/trades",
+        setups: "/indian-market/setups",
+        analytics: "/indian-market/analytics",
+        checklist: "/checklist",
+        intelligence: "/intelligence",
+        coach: "/coach",
+        reports: "/weekly-reports?market=Indian_Market",
+      }
+    : {
+        addTrade: "/add-trade",
+        uploadTrade: "/upload-trade",
+        journal: "/trades",
+        setups: "/setups",
+        analytics: "/analytics",
+        checklist: "/checklist",
+        intelligence: "/intelligence",
+        coach: "/coach",
+        reports: "/weekly-reports?market=Forex",
+      };
+  const currencySymbol = isIndianMarket ? "\u20B9" : "$";
+  const statCards = buildStats(stats, streaks, currencySymbol);
   const netPnl    = stats?.netPnL ?? stats?.totalProfit ?? 0;
   // "Never empty": until the user has logged their first trade we keep the
   // existing dashboard cards visible (so it never feels blank) but layer a
@@ -374,7 +404,7 @@ function DashboardContent() {
   const showSkeleton = !mounted || loading;
   const money = (n) => {
     const v = parseFloat(n || 0);
-    return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}`;
+    return `${v >= 0 ? "+" : "-"}${currencySymbol}${Math.abs(v).toFixed(2)}`;
   };
   const dnaStrength =
     tradingDNA?.sessionDNA?.best?.name ||
@@ -459,9 +489,9 @@ function DashboardContent() {
           </div>
 
           {/* ── Getting Started checklist (auto-hides when dismissed/complete) ── */}
-          <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} />
+          <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} routes={marketRoutes} />
 
-          <TradingGrowthPath onboarding={onboarding} stats={stats} />
+          <TradingGrowthPath onboarding={onboarding} stats={stats} routes={marketRoutes} />
 
           {/* ── KPI stat cards ───────────────────────────────────── */}
           <div id="tour-kpi-grid" className="dash-kpi-grid" style={{
@@ -552,7 +582,7 @@ function DashboardContent() {
               title="Today's Intelligence"
               subtitle="Biggest strength, leak, focus, and next action"
               accent="#8B5CF6"
-              action={<Link href="/intelligence" style={{ fontSize: 11, fontWeight: 800, color: "#8B5CF6", textDecoration: "none", whiteSpace: "nowrap" }}>Open Intelligence -&gt;</Link>}
+              action={<Link href={marketRoutes.intelligence} style={{ fontSize: 11, fontWeight: 800, color: "#8B5CF6", textDecoration: "none", whiteSpace: "nowrap" }}>Open Intelligence -&gt;</Link>}
             >
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
                 <InsightItem label="Biggest Strength" value={dnaStrength} tone="#0D9E6E" />
@@ -566,7 +596,7 @@ function DashboardContent() {
               title="AI Coach Snapshot"
               subtitle="Most important cue right now"
               accent="#0D9E6E"
-              action={<Link href="/analytics/ai-coach" style={{ fontSize: 11, fontWeight: 800, color: "#0D9E6E", textDecoration: "none", whiteSpace: "nowrap" }}>View Coaching -&gt;</Link>}
+              action={<Link href={isIndianMarket ? "/indian-market/analytics" : "/analytics/ai-coach"} style={{ fontSize: 11, fontWeight: 800, color: "#0D9E6E", textDecoration: "none", whiteSpace: "nowrap" }}>View Coaching -&gt;</Link>}
             >
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(13,158,110,0.1)", color: "#0D9E6E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -577,12 +607,12 @@ function DashboardContent() {
             </DashboardPanel>
           </div>
 
-          <DashboardPanel title="Quick Actions" subtitle="Plan, execute, journal, review" accent="#0F1923">
+          <DashboardPanel title="Quick Actions" subtitle="Plan, execute, log, review" accent="#0F1923">
             <div className="quick-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }}>
-              <QuickAction href="/add-trade" icon={Plus} label="Log Trade" sub="Manual entry" accent="#0D9E6E" />
-              <QuickAction href="/upload-trade" icon={Camera} label="Upload Screenshot" sub="AI import" accent="#B8860B" />
-              <QuickAction href="/checklist" icon={CheckSquare} label="Run Checklist" sub="Pre-trade plan" accent="#6366F1" />
-              <QuickAction href="/weekly-reports?market=Forex" icon={FileText} label="Generate Report" sub="Weekly review" accent="#0D9E6E" />
+              <QuickAction href={marketRoutes.addTrade} icon={Plus} label="Log Trade" sub="Manual entry" accent="#0D9E6E" />
+              <QuickAction href={marketRoutes.uploadTrade} icon={Camera} label="Upload Screenshot" sub="AI import" accent="#B8860B" />
+              <QuickAction href={marketRoutes.checklist} icon={CheckSquare} label="Run Checklist" sub="Pre-trade plan" accent="#6366F1" />
+              <QuickAction href={marketRoutes.reports} icon={FileText} label="Generate Report" sub="Weekly review" accent="#0D9E6E" />
             </div>
           </DashboardPanel>
 

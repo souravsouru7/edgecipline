@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 // useEffect + useRef used in UploadTradeContent for auto-scroll to psychology after extraction
 import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -11,12 +11,14 @@ import PageHeader            from "@/features/shared/components/PageHeader";
 import { useClock }          from "@/features/shared/hooks/useClock";
 import FileUploadZone        from "@/features/trade/components/FileUploadZone";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
+import TradeEvidenceSection  from "@/features/trade/components/TradeEvidenceSection";
 import SectionCard           from "@/features/trade/components/SectionCard";
 import { FormInput }         from "@/features/trade/components/FormInput";
 import { FormSelect }        from "@/features/trade/components/FormSelect";
 import { useUploadTrade }    from "@/features/trade/hooks/useUploadTrade";
 import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
 import OcrConfirmationBanner from "@/features/issues/OcrConfirmationBanner";
+import SmartPaywall          from "@/components/SmartPaywall";
 
 // ── shared form constants ─────────────────────────────────────────────────────
 const ENTRY_BASIS  = ["Plan", "Impulsive", "Emotion", "Custom"];
@@ -67,6 +69,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
   const isEquityMode = isInd && tradeSubType === "EQUITY";
   const [showSample, setShowSample] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const confirmImageUrl = useMemo(
     () => (showConfirmModal && file ? URL.createObjectURL(file) : ""),
     [showConfirmModal, file]
@@ -211,22 +214,124 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
         )}
       </div>
 
-      {/* Error */}
-      {error && (
+      {/* ── Subscription upgrade card (never an error, always a value unlock) ── */}
+      {isSubscriptionError && (
+        <div
+          style={{
+            marginTop: 16,
+            borderRadius: 14,
+            overflow: "hidden",
+            border: "1.5px solid rgba(184,134,11,0.35)",
+            background: "#FFFFFF",
+            boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
+            animation: "fadeSlideUp 0.35s cubic-bezier(0.22,1,0.36,1) both",
+          }}
+        >
+          {/* Gold accent top bar — matches SectionCard pattern */}
+          <div style={{ height: 3, background: "linear-gradient(90deg,#B8860B,#D4A917)" }} />
+
+          <div style={{ padding: "16px 18px 18px" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(184,134,11,0.1)", border: "1.5px solid rgba(184,134,11,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 17h18l-2-9-4.5 4L12 5l-2.5 7L5 8z" fill="#D4A917" stroke="#B8860B" strokeWidth="1.5" strokeLinejoin="round"/><path d="M3 17v2h18v-2" stroke="#B8860B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Continue with Edgecipline Pro</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, background: "linear-gradient(90deg,#B8860B,#D4A917)", color: "#fff", padding: "2px 7px", borderRadius: 20, letterSpacing: "0.08em", ...monoStyle }}>PRO</span>
+                </div>
+                <p style={{ margin: 0, fontSize: 11, color: "#64748B", lineHeight: 1.6 }}>
+                  You&apos;ve used your free AI import. Unlock unlimited extractions and keep building better trading habits.
+                </p>
+              </div>
+            </div>
+
+            {/* Feature list */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 10px", marginBottom: 14 }}>
+              {[
+                { icon: "✨", label: "Unlimited AI Imports"  },
+                { icon: "🧬", label: "Trading DNA"           },
+                { icon: "🖼️", label: "Multi-image Upload"    },
+                { icon: "📊", label: "Weekly AI Review"      },
+                { icon: "🤖", label: "AI Trade Extraction"   },
+                { icon: "🧠", label: "Psychology Analytics"  },
+                { icon: "🔔", label: "Smart Notifications"   },
+                { icon: "🏆", label: "Missions & Streaks"    },
+              ].map(({ icon, label }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, background: "rgba(13,158,110,0.1)", border: "1px solid rgba(13,158,110,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <span style={{ fontSize: 11, color: "#475569", fontWeight: 500 }}>{icon} {label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: "#E2E8F0", marginBottom: 14 }} />
+
+            {/* CTAs */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowPaywall(true)}
+                style={{
+                  width: "100%", padding: "13px", borderRadius: 10, border: "none",
+                  background: "linear-gradient(135deg,#B8860B,#D4A917)",
+                  color: "#0F1923", fontSize: 12, fontWeight: 800,
+                  letterSpacing: "0.1em", ...monoStyle,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 16px rgba(184,134,11,0.35)",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(184,134,11,0.45)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(184,134,11,0.35)"; }}
+              >
+                ✨ UPGRADE TO EDGECIPLINE PRO
+              </button>
+
+              <Link
+                href="/add-trade"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "10px", borderRadius: 10,
+                  border: "1px solid #E2E8F0", background: "#F8FAFC",
+                  color: "#64748B", fontSize: 11, fontWeight: 600,
+                  ...monoStyle, letterSpacing: "0.08em", textDecoration: "none",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F1923"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#64748B"; }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                CONTINUE WITH MANUAL ENTRY
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SmartPaywall modal — triggered by upgrade CTA */}
+      <SmartPaywall
+        isOpen={showPaywall}
+        variant="upgrade"
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => { setShowPaywall(false); setError(null); }}
+      />
+
+      {/* ── Non-subscription errors (wrong screenshot, upload failure, etc.) ── */}
+      {error && !isSubscriptionError && (
         <div style={{ marginTop: 14, borderRadius: 10, border: "1px solid #FCA5A5", background: "#FEF2F2", overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", background: "#FEE2E2", borderBottom: "1px solid #FCA5A5", display: "flex", alignItems: "center", gap: 8 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D63B3B" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <span style={{ fontSize: 12, fontWeight: 800, color: "#9B1C1C" }}>
-              {isSubscriptionError ? "Subscription Required" : isWrongScreenshotError ? "Wrong Image Uploaded" : "Upload Error"}
+              {isWrongScreenshotError ? "Wrong Image Uploaded" : "Upload Error"}
             </span>
           </div>
           <div style={{ padding: "10px 14px" }}>
             <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.65 }}>{error}</p>
-            {isSubscriptionError && (
-              <div style={{ marginTop: 10, fontSize: 11, color: "#7F1D1D", lineHeight: 1.6 }}>
-                Subscribe to continue using screenshot uploads. Manual trade entry will still work without uploading.
-              </div>
-            )}
             {isWrongScreenshotError && (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
                 {["Open your broker app (MT5, Zerodha Kite, Upstox, etc.)", "Go to your trade history or positions", "Take a screenshot showing pair, entry/exit price, and P&L", "Upload that screenshot here"].map((tip, i) => (
@@ -241,31 +346,72 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
         </div>
       )}
 
-      {/* Extract button */}
+      {/* Extract / Unlock button
+          Two states:
+          1. loading  → shows spinner + status text
+          2. normal   → opens confirmation modal → triggers extraction
+          When isSubscriptionError is true, the upgrade card above already
+          carries the "Upgrade" CTA — don't duplicate it here. */}
+      {!isSubscriptionError && (
       <button
         onClick={() => {
-          if (!file) {
-            setError("Select file");
-            return;
-          }
-          if (isInd && broker === "AUTO") {
-            setError("Select broker");
-            return;
-          }
+          if (!file) { setError("Select file"); return; }
+          if (isInd && broker === "AUTO") { setError("Select broker"); return; }
           setShowConfirmModal(true);
         }}
         disabled={loading || !file}
-        style={{ marginTop: 16, width: "100%", padding: "13px", fontSize: 12, ...monoStyle, fontWeight: 700, letterSpacing: "0.12em", color: (loading || !file) ? "#94A3B8" : "#FFFFFF", background: (loading || !file) ? "#F1F5F9" : "linear-gradient(135deg,#B8860B,#D4A917)", border: "none", borderRadius: 10, cursor: (loading || !file) ? "not-allowed" : "pointer", boxShadow: (loading || !file) ? "none" : "0 4px 16px rgba(184,134,11,0.32)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, transition: "all 0.25s" }}
+        style={{
+          marginTop: 16,
+          width: "100%",
+          padding: "13px",
+          fontSize: 12,
+          ...monoStyle,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          border: "none",
+          borderRadius: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          transition: "all 0.25s",
+          cursor: loading ? "not-allowed" : "pointer",
+          // colour shifts based on state
+          color:      loading   ? "#94A3B8"
+                    : !file    ? "#94A3B8"
+                    : "#FFFFFF",
+          background: loading   ? "#F1F5F9"
+                    : !file    ? "#F1F5F9"
+                    : "linear-gradient(135deg,#B8860B,#D4A917)",
+          boxShadow:  !loading && file
+                        ? "0 4px 16px rgba(184,134,11,0.32)"
+                        : "none",
+        }}
         onMouseEnter={e => { if (!loading && file) { e.currentTarget.style.transform = "translateY(-2px)"; } }}
         onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
       >
         {loading ? (
-          <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" style={{ animation: "spin 0.9s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            {processingStatus === "cancelling" ? "CANCELLING UPLOAD..." : processingStatus === "uploading" ? "UPLOADING SCREENSHOT..." : processingStatus === "pending" ? "QUEUED FOR EXTRACTION..." : "EXTRACTING TRADE DATA..."}</>
+          <>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" style={{ animation: "spin 0.9s linear infinite" }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            {processingStatus === "cancelling" ? "CANCELLING UPLOAD..."
+             : processingStatus === "uploading" ? "UPLOADING SCREENSHOT..."
+             : processingStatus === "pending"   ? "QUEUED FOR EXTRACTION..."
+             : "EXTRACTING TRADE DATA..."}
+          </>
         ) : (
-          <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>EXTRACT TRADE DATA</>
+          <>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            EXTRACT TRADE DATA
+          </>
         )}
       </button>
+      )}
 
       {/* Confirmation modal */}
       {showConfirmModal && (
@@ -362,7 +508,67 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
 // ── single trade form ─────────────────────────────────────────────────────────
 
-function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCreatedDate = "", todayInputMax = "" }) {
+function AccuracyDisclaimer({ isInd, checked, onChange }) {
+  const marketLabel = isInd ? "Indian Market" : "Forex";
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "34px minmax(0, 1fr)",
+        gap: 12,
+        padding: "14px 16px",
+        background: "#FFFBEB",
+        border: "1.5px solid #FCD34D",
+        borderRadius: 12,
+        margin: "12px 0",
+        boxShadow: "0 8px 22px rgba(180,83,9,0.07)",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 10,
+          background: "#FEF3C7",
+          color: "#B45309",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #FCD34D",
+          flexShrink: 0,
+        }}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, color: "#92400E", marginBottom: 4 }}>
+          Accuracy disclaimer for {marketLabel} uploads
+        </div>
+        <div style={{ fontSize: 12, color: "#78350F", lineHeight: 1.55, marginBottom: 10 }}>
+          Please correct every extracted field before saving: symbol, date, entry, exit, P&amp;L, size, setup, notes, mood, confidence, emotions, and trade quality. Your reports, coach, streaks, psychology patterns, and behavior analysis are only as accurate as the data you save.
+        </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", userSelect: "none" }}>
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => onChange(event.target.checked)}
+            style={{ width: 16, height: 16, marginTop: 1, accentColor: "#0D9E6E", flexShrink: 0 }}
+          />
+          <span style={{ fontSize: 11, fontWeight: 800, color: "#0F1923", lineHeight: 1.45 }}>
+            I reviewed and corrected the extracted trade and psychology data. Save this as my real trading record.
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCreatedDate = "", todayInputMax = "", accuracyAcknowledged = false, registerEvidenceRef = null }) {
   const isMulti = tradeIdx !== null;
   const trade   = isMulti ? state.trades[tradeIdx] : state.trade;
   const onChange = isMulti
@@ -396,9 +602,39 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
     onChange({ target: { name: "emotionalTags", value: updated } });
   };
 
+  // Visual evidence — additional proof screenshots beyond the OCR'd one.
+  // Uploads are deferred (like add-trade) so we commit any pending files
+  // right before save and pass the result as an override, sidestepping the
+  // setState async-closure issue (state.trade won't reflect the commit yet).
+  const evidenceRef = useRef(null);
+  const [committingEvidence, setCommittingEvidence] = useState(false);
+  // Re-register whenever tradeIdx changes — a card can survive a REMOVE ENTRY
+  // (same _rowId key) while its positional tradeIdx shifts, and the shared
+  // evidenceRefsRef map is keyed by that index. Without this dependency the
+  // map would keep pointing "Save All" at the row's stale pre-removal index.
+  useEffect(() => {
+    if (!registerEvidenceRef) return undefined;
+    registerEvidenceRef(tradeIdx, evidenceRef);
+    return () => registerEvidenceRef(tradeIdx, null);
+  }, [tradeIdx, registerEvidenceRef]);
+
   const handleSave = async () => {
-    if (isMulti) await state.saveExtractedTrade(tradeIdx);
-    else         await state.saveTrade();
+    // Demo mode never persists — skip the real evidence upload entirely so a
+    // demo run doesn't spend a genuine Cloudinary upload for nothing.
+    if (state.isDemo) { await state.saveTrade(); return; }
+    let tradeImages = trade?.tradeImages || [];
+    if (evidenceRef.current?.hasPending()) {
+      setCommittingEvidence(true);
+      try {
+        tradeImages = await evidenceRef.current.commitPending();
+      } catch {
+        setCommittingEvidence(false);
+        return;
+      }
+      setCommittingEvidence(false);
+    }
+    if (isMulti) await state.saveExtractedTrade(tradeIdx, { tradeImages });
+    else         await state.saveTrade({ tradeImages });
   };
 
   return (
@@ -479,6 +715,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
           <>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
               <FormInput label="QUANTITY" name="quantity" value={trade?.quantity} onChange={onChange} placeholder="50" type="number" />
+              <FormInput label="LOT SIZE" name="lotSize" value={trade?.lotSize} onChange={onChange} placeholder="25" type="number" />
               <FormSelect label="OPTION TYPE" name="optionType" value={trade?.optionType} onChange={onChange} options={[{ value: "CE", label: "CE — Call" }, { value: "PE", label: "PE — Put" }]} />
             </div>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
@@ -591,6 +828,17 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         <SetupChecklist rules={setupRules} onToggle={onToggle} onUpdateLabel={onUpdateLabel} onAdd={onAdd} onClear={onClear} />
       </SectionCard>
 
+      {/* ── Visual Evidence — extra proof screenshots on top of the OCR'd one ── */}
+      <SectionCard accentColor={isInd ? "#1B5E20" : "#B8860B"} title="Visual Evidence" subtitle="ATTACH ADDITIONAL PROOF SCREENSHOTS" delay={0.13}>
+        <TradeEvidenceSection
+          ref={evidenceRef}
+          value={trade?.tradeImages || []}
+          onChange={imgs => onChange({ target: { name: "tradeImages", value: imgs } })}
+          disabled={saved || state.savingAll || committingEvidence}
+          accentColor={isInd ? "#1B5E20" : "#B8860B"}
+        />
+      </SectionCard>
+
       {/* ── Psychology ── */}
       <SectionCard accentColor="#8B5CF6" title="Psychology" subtitle="HOW WERE YOU FEELING?" delay={0.14} cardRef={!isMulti ? psychologyRef : null}>
 
@@ -693,19 +941,33 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         )}
       </SectionCard>
 
-      {/* Save button */}
-      {!saved && (
+      {/* Save button — in demo mode the sample can't be saved; the button
+          becomes an inert "demo" affordance that surfaces the not-saved notice. */}
+      {!saved && state.isDemo && (
         <button
           onClick={handleSave}
-          disabled={state.savingAll}
-          style={{ width: "100%", padding: "15px", marginTop: 6, background: state.savingAll ? "#94A3B8" : "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: state.savingAll ? "not-allowed" : "pointer", boxShadow: "0 4px 16px rgba(13,158,110,0.3)", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
-          onMouseEnter={e => { if (!state.savingAll) e.currentTarget.style.transform = "translateY(-2px)"; }}
+          style={{ width: "100%", padding: "15px", marginTop: 6, background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          DEMO — NOT SAVED TO TRADE LOG
+        </button>
+      )}
+      {!saved && !state.isDemo && (
+        <button
+          onClick={handleSave}
+          disabled={state.savingAll || committingEvidence || !accuracyAcknowledged}
+          style={{ width: "100%", padding: "15px", marginTop: 6, background: state.savingAll || committingEvidence || !accuracyAcknowledged ? "#94A3B8" : "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: state.savingAll || committingEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(13,158,110,0.3)" : "none", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+          onMouseEnter={e => { if (!state.savingAll && !committingEvidence && accuracyAcknowledged) e.currentTarget.style.transform = "translateY(-2px)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
         >
-          {state.savingAll ? (
+          {committingEvidence ? (
+            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>
+          ) : state.savingAll ? (
             <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>
+          ) : !accuracyAcknowledged ? (
+            "REVIEW DATA TO ENABLE SAVE"
           ) : (
-            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>{isMulti ? `SAVE TRADE #${tradeIdx + 1}` : "SAVE TO JOURNAL"}</>
+            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>{isMulti ? `SAVE TRADE #${tradeIdx + 1}` : "SAVE TO TRADE LOG"}</>
           )}
         </button>
       )}
@@ -722,8 +984,9 @@ function UploadTradeContent() {
   const router  = useRouter();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams?.get("onboarding") === "1";
-  const { isInd, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax } = state;
+  const { isInd, isDemo, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax, isRedirecting } = state;
   const visibleTradeCount = trades.length > 1 ? trades.length : tradeCount;
+  const [accuracyAcknowledged, setAccuracyAcknowledged] = useState(false);
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
   const extractionStepMap = {
     uploading: { label: "Uploading screenshot", hint: "Securely sending image to server", progress: 25 },
@@ -744,6 +1007,39 @@ function UploadTradeContent() {
     prevTrade.current = trade;
   }, [trade]);
 
+  // Multi-trade evidence refs — each TradeFormCard registers its own
+  // TradeEvidenceSection ref here so "Save All" can commit any pending
+  // uploads across every card before building the batch payload.
+  const evidenceRefsRef = useRef({});
+  const registerEvidenceRef = useCallback((idx, ref) => {
+    if (ref) evidenceRefsRef.current[idx] = ref;
+    else delete evidenceRefsRef.current[idx];
+  }, []);
+  const [committingAllEvidence, setCommittingAllEvidence] = useState(false);
+  const handleSaveAll = async () => {
+    if (isDemo) { await saveAllTrades(); return; }
+    const overridesByIdx = {};
+    setCommittingAllEvidence(true);
+    try {
+      for (const [idxStr, ref] of Object.entries(evidenceRefsRef.current)) {
+        if (ref?.current?.hasPending?.()) {
+          overridesByIdx[idxStr] = await ref.current.commitPending();
+        }
+      }
+    } catch {
+      setCommittingAllEvidence(false);
+      return;
+    }
+    setCommittingAllEvidence(false);
+    await saveAllTrades(overridesByIdx);
+  };
+
+  useEffect(() => {
+    if (visibleTradeCount || !accuracyAcknowledged) return undefined;
+    const resetId = setTimeout(() => setAccuracyAcknowledged(false), 0);
+    return () => clearTimeout(resetId);
+  }, [visibleTradeCount, accuracyAcknowledged]);
+
   const totalPnl = trades.length > 0
     ? trades.reduce((s, t) => s + parseProfitValue(t?.profit), 0)
     : parseProfitValue(trade?.profit);
@@ -755,8 +1051,37 @@ function UploadTradeContent() {
           <div style={{ width: 32, height: 32, margin: "0 auto 12px", border: "2.5px solid #E2E8F0", borderTopColor: "#B8860B", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
           <div style={{ fontSize: 12, fontWeight: 700, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}>LOADING AI EXTRACTOR...</div>
         </div>
-        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeSlideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
       </main>
+    );
+  }
+
+  if (isRedirecting) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        <div style={{ textAlign: "center", padding: 40 }}>
+          {/* Animated checkmark circle */}
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,#0D9E6E,#22C78E)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "0 12px 32px rgba(13,158,110,0.35)", animation: "journalPop 0.5s cubic-bezier(0.22,1,0.36,1) both" }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#0F1923", marginBottom: 8, letterSpacing: "-0.01em" }}>
+            Trade saved!
+          </div>
+          <div style={{ fontSize: 13, color: "#64748B", marginBottom: 28, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
+            TAKING YOU TO YOUR TRADE LOG...
+          </div>
+          {/* Progress bar */}
+          <div style={{ width: 200, height: 4, background: "#E2E8F0", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "linear-gradient(90deg,#0D9E6E,#22C78E)", borderRadius: 99, animation: "journalProgress 1.1s ease-out forwards" }} />
+          </div>
+        </div>
+        <style>{`
+          @keyframes journalPop { from { opacity:0; transform:scale(0.6); } to { opacity:1; transform:scale(1); } }
+          @keyframes journalProgress { from { width:0%; } to { width:100%; } }
+        `}</style>
+      </div>
     );
   }
 
@@ -770,7 +1095,25 @@ function UploadTradeContent() {
         <TickerTape />
 
         <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box", animation: "fadeUp 0.45s ease both" }}>
-          {onboardingMode && (
+          {isDemo && (
+            <div style={{
+              padding: "14px 16px", borderRadius: 12,
+              background: "linear-gradient(135deg, rgba(14,165,233,0.10), rgba(14,165,233,0.04))",
+              border: "1px solid rgba(14,165,233,0.35)",
+              marginBottom: 18,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0284C7", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+                DEMO MODE · SAMPLE SCREENSHOT
+              </div>
+              <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
+                We loaded a <strong>sample {isInd ? "Indian broker" : "MT5"} screenshot</strong> for you. Hit <strong>Extract Trade Data</strong> to watch the AI read it — exactly how it works with your own screenshots. <strong>Nothing here is saved</strong> to your trade log.
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
+                Ready with your own? <Link href={isInd ? "/indian-market/upload-trade?onboarding=1" : "/upload-trade?onboarding=1"} style={{ color: "#0284C7", fontWeight: 700, textDecoration: "none" }}>Upload a real screenshot →</Link>
+              </div>
+            </div>
+          )}
+          {onboardingMode && !isDemo && (
             <div style={{
               padding: "14px 16px", borderRadius: 12,
               background: "linear-gradient(135deg, rgba(34,199,142,0.08), rgba(13,158,110,0.04))",
@@ -781,12 +1124,42 @@ function UploadTradeContent() {
                 STEP 2 OF 3 · LOG YOUR FIRST TRADE
               </div>
               <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
-                Upload a <strong>broker screenshot</strong> (MT4/MT5, Zerodha, Upstox, etc.) — our AI reads it and fills in pair, entry, exit, and P&L for you. Review, hit <strong>Save</strong>, and we&apos;ll take you to your journal.
+                Upload a <strong>broker screenshot</strong> (MT4/MT5, Zerodha, Upstox, etc.) — our AI reads it and fills in pair, entry, exit, and P&L for you. Review, hit <strong>Save</strong>, and we&apos;ll take you to your trade log.
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
                 Prefer typing it in? <Link href="/add-trade?onboarding=1" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
               </div>
             </div>
+          )}
+
+          {/* No screenshot of your own? Prominent demo option — loads the bundled
+              sample and blocks save so nothing is persisted. Shown in onboarding
+              as the clear fallback to uploading a real screenshot. */}
+          {onboardingMode && !isDemo && (
+            <Link
+              href={isInd ? "/indian-market/upload-trade?onboarding=1&demo=1" : "/upload-trade?onboarding=1&demo=1"}
+              style={{
+                display: "flex", alignItems: "center", gap: 14,
+                padding: "18px 18px", borderRadius: 14, marginBottom: 18,
+                background: "linear-gradient(135deg, rgba(14,165,233,0.14), rgba(14,165,233,0.05))",
+                border: "1.5px solid rgba(14,165,233,0.5)",
+                boxShadow: "0 4px 16px rgba(14,165,233,0.12)",
+                textDecoration: "none",
+              }}
+            >
+              <span aria-hidden style={{ width: 46, height: 46, borderRadius: 12, background: "#0EA5E9", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(14,165,233,0.4)" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="#FFFFFF" stroke="none"/></svg>
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#0C4A6E", marginBottom: 3 }}>
+                  Don&apos;t have a screenshot? Try a demo
+                </div>
+                <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.5 }}>
+                  We&apos;ll load a sample {isInd ? "Indian" : "Forex"} screenshot and run real AI extraction — so you see exactly how it works. Nothing is saved to your trade log.
+                </div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
+            </Link>
           )}
 
           {/* Page heading */}
@@ -860,7 +1233,7 @@ function UploadTradeContent() {
                   {visibleTradeCount === 1 ? "1 trade extracted" : `${visibleTradeCount} trades extracted`}
                 </div>
                 <div style={{ fontSize: 11, color: "#6EE7B7", ...monoStyle }}>
-                  Review the details below and save to your journal
+                  Review the details below and save to your trade log
                 </div>
               </div>
               <button
@@ -879,6 +1252,14 @@ function UploadTradeContent() {
               insights={state.extractionInsights}
               marketType={isInd ? "Indian_Market" : "Forex"}
               module={isInd ? "upload-trade-indian" : "upload-trade-forex"}
+            />
+          )}
+
+          {!loading && visibleTradeCount > 0 && (
+            <AccuracyDisclaimer
+              isInd={isInd}
+              checked={accuracyAcknowledged}
+              onChange={setAccuracyAcknowledged}
             />
           )}
 
@@ -908,13 +1289,19 @@ function UploadTradeContent() {
                 </SectionCard>
               )}
 
-              {/* Individual trade cards — collapse to a saved chip once saved */}
+              {/* Individual trade cards — collapse to a saved chip once saved.
+                  Keyed on the row's stable _rowId (not the array index): each
+                  card now owns real local state (pending evidence uploads), so
+                  an index-based key would let React reuse a card's instance —
+                  and its unsaved evidence — for a different trade after
+                  REMOVE ENTRY shifts the array. */}
               {trades.map((t, i) => {
+                const rowKey = t?._rowId ?? i;
                 if (savedTrades[i]) {
                   const bull = parseFloat(String(t?.profit || 0).replace(/,/g, "")) >= 0;
                   return (
                     <div
-                      key={i}
+                      key={rowKey}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -934,29 +1321,38 @@ function UploadTradeContent() {
                           Trade #{i + 1} — {t?.pair || "Saved"}
                         </div>
                         <div style={{ fontSize: 11, color: "#6EE7B7", fontFamily: "'JetBrains Mono',monospace" }}>
-                          {bull ? "+" : ""}{isInd ? "₹" : "$"}{Math.abs(parseFloat(String(t?.profit || 0).replace(/,/g, ""))).toFixed(2)} · Saved to journal
+                          {bull ? "+" : ""}{isInd ? "₹" : "$"}{Math.abs(parseFloat(String(t?.profit || 0).replace(/,/g, ""))).toFixed(2)} · Saved to trade log
                         </div>
                       </div>
                     </div>
                   );
                 }
-                return <TradeFormCard key={i} state={state} tradeIdx={i} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} />;
+                return <TradeFormCard key={rowKey} state={state} tradeIdx={i} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} accuracyAcknowledged={accuracyAcknowledged} registerEvidenceRef={registerEvidenceRef} />;
               })}
 
               {/* Save all */}
-              {savedTrades.some(s => !s) && (
+              {savedTrades.some(s => !s) && isDemo && (
                 <button
-                  onClick={saveAllTrades} disabled={savingAll}
-                  style={{ width: "100%", padding: "16px", background: savingAll ? "#F1F5F9" : "linear-gradient(135deg,#0F1923,#1a2d3d)", color: savingAll ? "#94A3B8" : "#22C78E", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: savingAll ? "not-allowed" : "pointer", boxShadow: "0 4px 16px rgba(15,25,35,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
+                  onClick={handleSaveAll}
+                  style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
                 >
-                  {savingAll ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>) : "SAVE ALL TRADES →"}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  DEMO — NOT SAVED TO TRADE LOG
+                </button>
+              )}
+              {savedTrades.some(s => !s) && !isDemo && (
+                <button
+                  onClick={handleSaveAll} disabled={savingAll || committingAllEvidence || !accuracyAcknowledged}
+                  style={{ width: "100%", padding: "16px", background: savingAll || committingAllEvidence || !accuracyAcknowledged ? "#F1F5F9" : "linear-gradient(135deg,#0F1923,#1a2d3d)", color: savingAll || committingAllEvidence || !accuracyAcknowledged ? "#94A3B8" : "#22C78E", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: savingAll || committingAllEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(15,25,35,0.2)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
+                >
+                  {committingAllEvidence ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>) : savingAll ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>) : !accuracyAcknowledged ? "REVIEW DATA TO ENABLE SAVE ALL" : "SAVE ALL TRADES"}
                 </button>
               )}
             </>
           )}
 
           {/* ── Single trade path ─────────────────────────────────────────── */}
-          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} />}
+          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} accuracyAcknowledged={accuracyAcknowledged} />}
 
           {/* No extraction yet */}
           {!loading && !trade && trades.length === 0 && (
@@ -968,11 +1364,12 @@ function UploadTradeContent() {
       </div>
 
       <style>{`
-        @keyframes blink   { 0%,100%{opacity:1} 50%{opacity:0.2} }
-        @keyframes spin    { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes ticker  { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-        @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+        @keyframes blink        { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        @keyframes spin         { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes ticker       { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+        @keyframes fadeUp       { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes shimmer      { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+        @keyframes fadeSlideUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         * { box-sizing:border-box; margin:0; padding:0; }
         textarea { resize:vertical; }
         input::placeholder, textarea::placeholder { color:#CBD5E1; font-size:12px; }
@@ -997,7 +1394,7 @@ function UploadErrorFallback({ error, resetError }) {
         <div style={{ padding: "24px 24px 20px" }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#9B1C1C", marginBottom: 8 }}>Something went wrong</div>
           <p style={{ fontSize: 12, color: "#7F1D1D", lineHeight: 1.6, margin: "0 0 16px" }}>
-            The upload form encountered an error. Your unsaved data may be lost, but your previously saved trades are safe in your journal.
+            The upload form encountered an error. Your unsaved data may be lost, but your previously saved trades are safe in your trade log.
           </p>
           {error?.message && (
             <pre style={{ fontSize: 10, color: "#94A3B8", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px", overflowX: "auto", marginBottom: 16 }}>
@@ -1015,7 +1412,7 @@ function UploadErrorFallback({ error, resetError }) {
               href="/trades"
               style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#FFF", color: "#4A5568", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
             >
-              MY JOURNAL
+              MY TRADE LOG
             </a>
           </div>
         </div>

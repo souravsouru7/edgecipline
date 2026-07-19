@@ -1,57 +1,25 @@
-import { API_URL as BASE_URL } from "@/config/api";
-import { getValidToken, hydrateAuthToken } from "@/utils/auth";
+import apiClient from "@/services/apiClient";
 
-const getAuthHeaders = async () => {
-  const token = getValidToken() || await hydrateAuthToken();
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-};
-
-const handleResponse = async (res) => {
-  if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = `Request failed with status ${res.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
-    } catch (e) {
-      // ignore
-    }
-    const err = new Error(errorMessage);
-    err.status = res.status;
-    throw err;
-  }
-  const payload = await res.json();
-  return payload?.success === true && Object.prototype.hasOwnProperty.call(payload, "data")
-    ? payload.data
-    : payload;
-};
+const WEEKLY_GENERATE_TIMEOUT_MS = 130_000;
 
 export const listWeeklyReports = async (limit = 12, marketType = "Forex") => {
-  const res = await fetch(
-    `${BASE_URL}/reports/weekly?limit=${encodeURIComponent(limit)}&marketType=${encodeURIComponent(marketType)}`,
-    { headers: await getAuthHeaders() }
+  return apiClient.get(
+    `/reports/weekly?limit=${encodeURIComponent(limit)}&marketType=${encodeURIComponent(marketType)}`
   );
-  return handleResponse(res);
 };
 
 export const getWeeklyReport = async (id) => {
-  const res = await fetch(`${BASE_URL}/reports/weekly/${id}`, {
-    headers: await getAuthHeaders(),
-  });
-  return handleResponse(res);
+  return apiClient.get(`/reports/weekly/${id}`);
 };
 
 export const generateWeeklyFeedbackNow = async (marketType = "Forex") => {
-  const res = await fetch(
-    `${BASE_URL}/reports/weekly/generate-now?marketType=${encodeURIComponent(marketType)}`,
+  return apiClient.post(
+    `/reports/weekly/generate-now?marketType=${encodeURIComponent(marketType)}`,
+    undefined,
     {
-      method: "POST",
-      headers: await getAuthHeaders(),
+      skipRateLimitRetry: true,
+      timeout: WEEKLY_GENERATE_TIMEOUT_MS,
     }
   );
-  return handleResponse(res);
 };
 

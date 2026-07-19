@@ -1,8 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { RefreshCw, TrendingUp, TrendingDown, Target, AlertTriangle, CheckSquare, Lightbulb } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { generateWeeklyFeedbackNow, listWeeklyReports } from "@/services/reportsApi";
@@ -336,10 +335,94 @@ function ImprovementCard({ item }) {
   );
 }
 
+function SkeletonBlock({ width = "100%", height = 12, radius = 8, style = {} }) {
+  return (
+    <div
+      className="wr-skeleton"
+      style={{
+        width,
+        height,
+        borderRadius: radius,
+        background: "#E8EDF2",
+        overflow: "hidden",
+        position: "relative",
+        ...style,
+      }}
+    />
+  );
+}
+
+function ReportHistorySkeleton() {
+  return (
+    <div style={{ padding: 16 }}>
+      {[0, 1, 2].map((item) => (
+        <div
+          key={item}
+          style={{
+            padding: item === 0 ? "0 0 14px" : "14px 0",
+            borderTop: item === 0 ? "none" : "1px solid #F1F5F9",
+          }}
+        >
+          <SkeletonBlock width="72%" height={12} radius={6} style={{ marginBottom: 9 }} />
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <SkeletonBlock width="34%" height={10} radius={6} />
+            <SkeletonBlock width="26%" height={10} radius={6} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportDetailSkeleton() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SkeletonBlock width="38%" height={16} radius={7} style={{ marginBottom: 8 }} />
+            <SkeletonBlock width="24%" height={10} radius={6} />
+          </div>
+          <SkeletonBlock width={118} height={34} radius={9} />
+        </div>
+        <div className="wr-kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+          {[0, 1, 2, 3, 4].map((item) => (
+            <div key={item} style={{ background: "#FAFAFA", borderRadius: 12, border: "1px solid #E8EDF2", padding: "14px 16px" }}>
+              <SkeletonBlock width="46%" height={9} radius={6} style={{ marginBottom: 10 }} />
+              <SkeletonBlock width="68%" height={21} radius={7} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+        <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, transparent)` }} />
+        <div style={{ padding: "18px 22px" }}>
+          <SkeletonBlock width={130} height={10} radius={6} style={{ marginBottom: 16 }} />
+          <SkeletonBlock width="100%" height={64} radius={10} style={{ marginBottom: 10 }} />
+          <SkeletonBlock width="88%" height={64} radius={10} />
+        </div>
+      </div>
+
+      <div className="wr-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {[C.bear, C.blue].map((accent, item) => (
+          <div key={item} style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+            <div style={{ height: 3, background: `linear-gradient(90deg, ${accent}, transparent)` }} />
+            <div style={{ padding: "18px 22px" }}>
+              <SkeletonBlock width="42%" height={10} radius={6} style={{ marginBottom: 16 }} />
+              <SkeletonBlock width="100%" height={48} radius={10} style={{ marginBottom: 10 }} />
+              <SkeletonBlock width="92%" height={48} radius={10} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // -- Main component ------------------------------------------------------------
 
 function WeeklyReportsContent() {
-  const router = useRouter();
   const { ready } = useRequireAuth();
   const searchParams = useSearchParams();
   const marketParam = searchParams.get("market");
@@ -360,7 +443,7 @@ function WeeklyReportsContent() {
     if (!ready) return;
     fetchReports().catch(e => setError(e.message || "Failed to load reports"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, router, currentMarket]);
+  }, [ready, currentMarket]);
 
   const ai   = useMemo(() => normalizeAiFeedback(selected?.aiFeedback), [selected]);
   const snap = selected?.snapshot;
@@ -421,7 +504,7 @@ function WeeklyReportsContent() {
           </div>
 
           {!reports ? (
-            <div style={{ padding: 20 }}><LoadingSpinner message="Loading..." /></div>
+            <ReportHistorySkeleton />
           ) : reports.length === 0 ? (
             <div style={{ padding: 20, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
               No reports yet.<br />Click <strong style={{ color: C.bull }}>Generate Report</strong> above.
@@ -472,7 +555,9 @@ function WeeklyReportsContent() {
             </div>
           )}
 
-          {!selected ? (
+          {!reports ? (
+            <ReportDetailSkeleton />
+          ) : !selected ? (
             <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "60px 24px", textAlign: "center" }}>
               <div style={{ fontSize: 13, color: C.muted }}>Select a report from the left panel.</div>
             </div>
@@ -622,7 +707,16 @@ function WeeklyReportsContent() {
 
       <style jsx global>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes wrShimmer { 100% { transform: translateX(100%); } }
         * { box-sizing: border-box; }
+        .wr-skeleton::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          transform: translateX(-100%);
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.68) 50%, transparent 100%);
+          animation: wrShimmer 1.2s ease-in-out infinite;
+        }
 
         /* -- Tablet ---------------------------------------- */
         @media (max-width: 900px) {

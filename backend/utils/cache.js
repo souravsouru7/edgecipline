@@ -1,4 +1,9 @@
-const { client, isRedisReady } = require("../config/redis");
+const {
+  client,
+  isRedisReady,
+  isRedisWriteAvailable = isRedisReady,
+  markRedisWriteFailure = () => false,
+} = require("../config/redis");
 const { logger } = require("./logger");
 const { acquireLock, releaseLock } = require("./distributedLock");
 
@@ -41,7 +46,7 @@ function applyJitter(ttlSeconds, ratio = DEFAULT_JITTER_RATIO) {
 }
 
 async function getCache(key) {
-  if (!isRedisReady()) return null;
+  if (!isRedisReady() || !isRedisWriteAvailable()) return null;
 
   try {
     const cached = await client.get(key);
@@ -56,12 +61,13 @@ async function getCache(key) {
 }
 
 async function setCache(key, data, ttlSeconds) {
-  if (!isRedisReady()) return false;
+  if (!isRedisReady() || !isRedisWriteAvailable()) return false;
 
   try {
     await client.set(key, JSON.stringify(data), "EX", ttlSeconds);
     return true;
   } catch (error) {
+    markRedisWriteFailure(error);
     logger.warn("Redis cache write failed", {
       key,
       ttlSeconds,
@@ -72,11 +78,12 @@ async function setCache(key, data, ttlSeconds) {
 }
 
 async function deleteCache(key) {
-  if (!isRedisReady()) return 0;
+  if (!isRedisReady() || !isRedisWriteAvailable()) return 0;
 
   try {
     return client.del(key);
   } catch (error) {
+    markRedisWriteFailure(error);
     logger.warn("Redis cache delete failed", {
       key,
       error: error.message,
@@ -86,7 +93,7 @@ async function deleteCache(key) {
 }
 
 async function deleteCacheByPattern(pattern) {
-  if (!isRedisReady()) return 0;
+  if (!isRedisReady() || !isRedisWriteAvailable()) return 0;
 
   let deleted = 0;
   let cursor = "0";
@@ -103,6 +110,7 @@ async function deleteCacheByPattern(pattern) {
 
     return deleted;
   } catch (error) {
+    markRedisWriteFailure(error);
     logger.warn("Redis cache pattern delete failed", {
       pattern,
       error: error.message,

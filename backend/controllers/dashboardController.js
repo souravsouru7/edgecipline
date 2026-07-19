@@ -108,6 +108,8 @@ function buildSummary(performance = {}) {
     totalCosts: fixed(performance.totalCosts),
     winningTrades: performance.winningTrades || performance.wins || 0,
     losingTrades: performance.losingTrades || performance.losses || 0,
+    pnlReadyTrades: performance.pnlReadyTrades || performance.analyticsTradeCount || 0,
+    tradesMissingPnl: performance.tradesMissingPnl || 0,
     avgSetupScore: fixed(performance.avgSetupScore ?? 0, 1),
   };
 }
@@ -116,11 +118,16 @@ function emptySummary() {
   return buildSummary({});
 }
 
-async function loadDashboardAnalytics(userId) {
+function resolveDashboardMarket(value) {
+  return value === "Indian_Market" ? "Indian_Market" : "Forex";
+}
+
+async function loadDashboardAnalytics(userId, market = "Forex") {
   try {
+    const resolvedMarket = resolveDashboardMarket(market);
     const snapshot = await analyticsSnapshotService.getSnapshot({
       userId,
-      market: "Forex",
+      market: resolvedMarket,
       period: "weekly",
     });
 
@@ -196,7 +203,7 @@ exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
   }
 
   const [analytics, notificationsSummary, onboardingProgress, streaks, reflection] = await Promise.all([
-    loadDashboardAnalytics(dashboardUser._id),
+    loadDashboardAnalytics(dashboardUser._id, req.query?.market),
     loadNotificationsSummary(dashboardUser._id),
     loadOnboardingProgress(dashboardUser._id),
     loadStreakSnapshot(dashboardUser._id),
@@ -244,7 +251,7 @@ exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
       journalSeen,
       analyticsSeen:      Boolean(o.analyticsSeen),
       notificationsSeen:  Boolean(o.notificationsSeen),
-      tourCompleted:      Boolean(o.tourCompleted) || Boolean(dashboardUser.isOnboardingCompleted),
+      tourCompleted:      Boolean(o.tourCompleted) || Boolean(dashboardUser.isOnboardingCompleted && o.completedAt),
       checklistDismissed: Boolean(o.checklistDismissed),
       completedAt:        o.completedAt || null,
       setupCount:         onboardingProgress.setupCount,

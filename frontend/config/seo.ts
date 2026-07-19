@@ -1,15 +1,15 @@
 export const siteConfig = {
   name: "Edgecipline",
-  description: "The AI-Powered Trading Journal with Automated OCR Trade Detection.",
+  description: "The AI Discipline Coach for retail traders — auto-logs your trades via screenshot OCR, then coaches you toward consistency with psychology analytics, missions, and streaks.",
   url: "https://edgecipline.com",
   ogImage: "/og-image.jpg",
   keywords: [
-    "trading journal app",
-    "AI trading journal",
+    "trading discipline app",
+    "AI trading coach",
+    "trading psychology analytics",
     "automated trading tracker",
     "OCR trading tool",
-    "best trading journal 2026",
-    "crypto trading tracker",
+    "trading habit tracker",
     "stock trading analytics"
   ],
   authors: [

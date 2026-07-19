@@ -21,6 +21,7 @@ const {
 const { invalidateAuthCache } = require("../services/authCacheService");
 const { buildTrialStart, TRIAL_DAYS } = require("../utils/premium");
 const analytics = require("../services/analyticsEventService");
+const { invalidateTradeCaches } = require("../utils/cacheUtils");
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -610,7 +611,12 @@ exports.updateOnboardingStep = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(req.user._id, update, { new: true });
 
   const o = user?.onboarding || {};
-  const coreDone = o.welcomeSeen && o.setupAdded && o.tradeAdded && o.journalSeen;
+  const coreDone =
+    o.welcomeSeen &&
+    o.marketSelected &&
+    o.setupAdded &&
+    o.tradeAdded &&
+    o.journalSeen;
   if (coreDone && !o.completedAt) {
     user.onboarding.completedAt = new Date();
     user.isOnboardingCompleted = true;
@@ -619,6 +625,11 @@ exports.updateOnboardingStep = asyncHandler(async (req, res) => {
   }
 
   await invalidateAuthCache(req.user._id);
+  await invalidateTradeCaches({
+    userId: req.user._id,
+    event: "onboarding_update",
+    source: "auth_onboarding_step",
+  });
 
   res.json({ onboarding: serializeOnboarding(user) });
 });

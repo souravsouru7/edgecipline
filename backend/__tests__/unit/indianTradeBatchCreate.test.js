@@ -25,7 +25,7 @@ const IndianTrade = require("../../models/IndianTrade");
 const mongoose = require("mongoose");
 const { invalidateTradeCaches } = require("../../utils/cacheUtils");
 const { evaluateSmartNotifications } = require("../../services/smartNotificationEvaluator");
-const { markOcrJobConfirmed } = require("../../services/ocrJob.service");
+const { getOcrConfirmationTrades, markOcrJobConfirmed } = require("../../services/ocrJob.service");
 const { createTradesBatch } = require("../../controllers/indianTradeController");
 
 function createReq(body) {
@@ -49,6 +49,7 @@ describe("indianTradeController.createTradesBatch", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.clearAllMocks();
+    getOcrConfirmationTrades.mockResolvedValue([]);
     jest.spyOn(mongoose, "startSession").mockResolvedValue({
       withTransaction: async (work) => work(),
       endSession: jest.fn(),
@@ -58,6 +59,10 @@ describe("indianTradeController.createTradesBatch", () => {
   afterAll(() => jest.restoreAllMocks());
 
   it("batch inserts Indian OCR trades and invalidates once", async () => {
+    getOcrConfirmationTrades.mockResolvedValue([
+      { pair: "NIFTY 25000 CE", type: "BUY", pnl: 100 },
+      { pair: "BANKNIFTY 52000 PE", type: "SELL", pnl: -50 },
+    ]);
     IndianTrade.insertMany.mockResolvedValue([
       { _id: "ind-1", pair: "NIFTY 25000 CE" },
       { _id: "ind-2", pair: "BANKNIFTY 52000 PE" },
@@ -100,7 +105,66 @@ describe("indianTradeController.createTradesBatch", () => {
     }));
   });
 
+  it("saves OCR-confirmed closed Indian positions from server P&L without deriving from prices", async () => {
+    getOcrConfirmationTrades.mockResolvedValue([
+      { symbol: "NIFTY", strike: 24200, optionType: "CE", quantity: 0, entryPrice: null, pnl: 1371.5 },
+      { symbol: "NIFTY", strike: 24300, optionType: "PE", quantity: 0, entryPrice: null, pnl: 968.5 },
+    ]);
+    IndianTrade.insertMany.mockImplementation(async (docs) =>
+      docs.map((doc, index) => ({ ...doc, _id: `ind-${index + 1}` }))
+    );
+
+    const req = createReq({
+      ocrJobId: "ocr-ind-closed",
+      trades: [
+        {
+          pair: "NIFTY 24200 CE",
+          type: "BUY",
+          optionType: "CE",
+          tradeDate: "2026-07-19",
+          quantity: 0,
+          lotSize: 25,
+          entryPrice: 157.17,
+          exitPrice: 1.15,
+          profit: 1371.5,
+        },
+        {
+          pair: "NIFTY 24300 PE",
+          type: "BUY",
+          optionType: "PE",
+          tradeDate: "2026-07-19",
+          quantity: 0,
+          lotSize: 25,
+          entryPrice: 33,
+          exitPrice: 133,
+          profit: 968.5,
+        },
+      ],
+    });
+
+    await createTradesBatch(req, createRes(), jest.fn());
+
+    const docs = IndianTrade.insertMany.mock.calls[0][0];
+    expect(docs).toEqual([
+      expect.objectContaining({
+        pair: "NIFTY 24200 CE",
+        optionType: "CE",
+        quantity: 0,
+        profit: 1371.5,
+      }),
+      expect.objectContaining({
+        pair: "NIFTY 24300 PE",
+        optionType: "PE",
+        quantity: 0,
+        profit: 968.5,
+      }),
+    ]);
+  });
+
   it("strips protected fields from every Indian OCR-confirmed trade", async () => {
+    getOcrConfirmationTrades.mockResolvedValue([
+      { pair: "NIFTY 25000 CE", type: "BUY", pnl: 100 },
+    ]);
     IndianTrade.insertMany.mockImplementation(async (docs) =>
       docs.map((doc, index) => ({ ...doc, _id: `ind-${index + 1}` }))
     );
@@ -112,6 +176,9 @@ describe("indianTradeController.createTradesBatch", () => {
         type: "BUY",
         optionType: "CE",
         tradeDate: "2026-06-01",
+        quantity: 0,
+        lotSize: 25,
+        profit: 100,
         notes: "allowed",
         user: "user-2",
         marketType: "Forex",

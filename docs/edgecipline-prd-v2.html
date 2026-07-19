@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edgecipline Product Requirements Document v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.55; color: #111; background: #fff; }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm 20mm 20mm 20mm; }
+  @media print {
+    .page { margin: 0; padding: 20mm; page-break-after: always; }
+    .no-break { page-break-inside: avoid; }
+  }
+  h1 { font-size: 26pt; font-weight: 900; margin-bottom: 6pt; }
+  h2 { font-size: 15pt; font-weight: 700; margin: 18pt 0 6pt 0; border-bottom: 1px solid #ccc; padding-bottom: 3pt; }
+  h3 { font-size: 12pt; font-weight: 700; margin: 12pt 0 4pt 0; }
+  h4 { font-size: 11pt; font-weight: 700; margin: 9pt 0 3pt 0; }
+  p { margin-bottom: 7pt; }
+  ul { margin: 4pt 0 8pt 18pt; }
+  li { margin-bottom: 2pt; }
+  .cover-title-block { margin-bottom: 10mm; }
+  .brand { font-size: 9pt; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 4pt; }
+  .subtitle { font-size: 13pt; font-weight: 700; margin-bottom: 8pt; }
+  .meta { font-size: 10pt; color: #444; margin-bottom: 4pt; }
+  .tag { display: inline-block; font-size: 8pt; background: #111; color: #fff; padding: 1pt 6pt; margin-right: 4pt; margin-bottom: 3pt; border-radius: 2pt; }
+  .section-num { color: #555; }
+  .callout { background: #f7f7f7; border-left: 3pt solid #111; padding: 8pt 12pt; margin: 8pt 0 10pt 0; font-style: italic; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; margin: 6pt 0; }
+  .box { border: 1pt solid #ccc; padding: 8pt 10pt; margin-bottom: 6pt; }
+  .box h4 { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0 12pt 0; font-size: 10pt; }
+  th { background: #111; color: #fff; padding: 5pt 8pt; text-align: left; font-weight: 700; }
+  td { border: 1pt solid #ccc; padding: 4pt 8pt; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .phase-block { border: 1pt solid #ccc; margin-bottom: 8pt; }
+  .phase-header { background: #111; color: #fff; padding: 5pt 10pt; font-weight: 700; font-size: 10pt; }
+  .phase-body { padding: 6pt 10pt; }
+  .status-done { color: #1a7f37; font-weight: 700; }
+  .toc-entry { display: flex; justify-content: space-between; padding: 2pt 0; border-bottom: 1pt dotted #ccc; }
+  .footer { font-size: 8pt; color: #888; text-align: center; margin-top: 20pt; }
+  hr { border: none; border-top: 1pt solid #ddd; margin: 14pt 0; }
+</style>
+</head>
+<body>
+
+<!-- ===== COVER PAGE ===== -->
+<div class="page">
+  <div style="margin-top: 40mm;">
+    <div class="brand">EDGECIPLINE</div>
+    <h1>Product Requirements<br>Document</h1>
+    <div class="subtitle">AI-powered trading journal, discipline coach &amp; gamified improvement system</div>
+    <div class="meta">Prepared from the Stratedge codebase</div>
+    <div class="meta">Last updated: 2026-07-11</div>
+    <div class="meta">Version: 2.0 — Full Current-State Edition</div>
+    <div style="margin-top: 12pt;">
+      <span class="tag">Web App</span>
+      <span class="tag">Android (Capacitor)</span>
+      <span class="tag">Next.js + Express</span>
+      <span class="tag">MongoDB + Redis</span>
+      <span class="tag">Gemini AI</span>
+      <span class="tag">Firebase FCM</span>
+      <span class="tag">Razorpay</span>
+    </div>
+    <div style="margin-top: 30mm;" class="callout">
+      "Upload your trade screenshot. Edgecipline builds your journal, finds your patterns, and helps you become a more disciplined trader."
+    </div>
+  </div>
+  <div class="footer">Edgecipline PRD v2 | 1</div>
+</div>
+
+<!-- ===== TABLE OF CONTENTS ===== -->
+<div class="page">
+  <h2>Table of Contents</h2>
+  <div class="toc-entry"><span>1. Product Summary</span><span>3</span></div>
+  <div class="toc-entry"><span>2. Problem Statement</span><span>4</span></div>
+  <div class="toc-entry"><span>3. Target Users</span><span>5</span></div>
+  <div class="toc-entry"><span>4. User Personas</span><span>6</span></div>
+  <div class="toc-entry"><span>5. Value Proposition</span><span>7</span></div>
+  <div class="toc-entry"><span>6. Product Goals</span><span>8</span></div>
+  <div class="toc-entry"><span>7. Core Features — Complete Current State</span><span>9</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.1 Authentication &amp; Account Setup</span><span>9</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.2 Market Mode Selection</span><span>10</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.3 Onboarding Flow</span><span>10</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.4 Screenshot Trade Upload</span><span>11</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.5 Manual Trade Entry</span><span>12</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.6 Trade Journal</span><span>12</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.7 Dashboard</span><span>13</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.8 Analytics &amp; Performance</span><span>13</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.9 Psychology &amp; Discipline Tracking</span><span>15</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.10 Daily Reflections &amp; Journal</span><span>16</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.11 Setup Strategies &amp; Checklists</span><span>16</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.12 Streaks &amp; Consistency</span><span>17</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.13 Missions &amp; Challenges</span><span>17</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.14 AI Coaching &amp; Morning Mentor</span><span>18</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.15 Trading DNA</span><span>19</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.16 Weekly Reports</span><span>20</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.17 Notifications</span><span>20</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.18 Subscriptions, Trial &amp; Payments</span><span>21</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.19 Subscription Rescue</span><span>22</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.20 Issue Reporting &amp; Feedback</span><span>22</span></div>
+  <div class="toc-entry"><span>&nbsp;&nbsp;&nbsp;7.21 Admin Console</span><span>23</span></div>
+  <div class="toc-entry"><span>8. Mobile Application (Android)</span><span>24</span></div>
+  <div class="toc-entry"><span>9. User Flows</span><span>25</span></div>
+  <div class="toc-entry"><span>10. Tech Stack &amp; Architecture</span><span>27</span></div>
+  <div class="toc-entry"><span>11. API Reference</span><span>29</span></div>
+  <div class="toc-entry"><span>12. Data Models</span><span>31</span></div>
+  <div class="toc-entry"><span>13. Background Jobs &amp; Workers</span><span>32</span></div>
+  <div class="toc-entry"><span>14. Success Metrics</span><span>33</span></div>
+  <div class="toc-entry"><span>15. What We Are Deliberately Not Building</span><span>34</span></div>
+  <div class="toc-entry"><span>16. Key Assumptions</span><span>35</span></div>
+  <div class="toc-entry"><span>17. Risks &amp; Mitigations</span><span>35</span></div>
+  <div class="toc-entry"><span>18. Roadmap Status</span><span>36</span></div>
+  <div class="toc-entry"><span>19. Open Product Questions</span><span>37</span></div>
+  <div class="toc-entry"><span>20. Positioning Recommendation</span><span>37</span></div>
+  <div class="footer">Edgecipline PRD v2 | 2</div>
+</div>
+
+<!-- ===== SECTION 1 ===== -->
+<div class="page">
+  <h2>1. Product Summary</h2>
+  <p>Edgecipline is an AI-powered trading journal, discipline coach, and gamified improvement system for retail traders — starting with Forex and Indian market traders. The product lets users upload screenshots from their broker, automatically extracts trade details using OCR and AI, saves those trades into a structured journal, and turns the journal into actionable analytics about performance, psychology, setup quality, discipline, and repeated mistakes.</p>
+  <p>Beyond journaling, Edgecipline wraps the data layer in a behavioral coaching engine: an AI coach that sends daily morning motivation, a missions system that assigns AI-recommended trading challenges, a streaks engine that rewards consistency, a reflections journal that tracks emotional patterns over time, and a Trading DNA system that generates a unique trader profile.</p>
+  <div class="callout">
+    "Upload your trade screenshot. Edgecipline builds your journal, finds your patterns, and helps you become a more disciplined trader."
+  </div>
+  <p>The product is available as a responsive web application and as a native Android application (Capacitor wrapper). It supports both Forex markets (MT4, MT5, cTrader, and similar platforms) and Indian markets (Zerodha, Upstox, Angel One, Dhan, Groww, Fyers, 5paisa, ICICI Direct, Kotak Securities, Paytm Money, and similar).</p>
+  <p>The app is not just a record-keeping tool. It is designed to help traders understand why they win, why they lose, when they break rules, which setups are actually working, what behavioral patterns are costing them money, and what they should focus on next — all without requiring manual data entry.</p>
+
+  <h2>2. Problem Statement</h2>
+  <p>Retail traders often know they should journal, but most do not do it consistently because manual journaling is slow, repetitive, and emotionally uncomfortable after losses. Even when traders do journal, their records are usually incomplete and do not connect execution behavior, psychology, setup rules, and P&amp;L outcomes.</p>
+  <p>As a result, traders struggle to answer important questions:</p>
+  <ul>
+    <li>Which market, session, setup, or instrument actually makes me money?</li>
+    <li>Am I following my trading plan or trading emotionally?</li>
+    <li>How much money do FOMO, revenge trading, overconfidence, or broken rules cost me?</li>
+    <li>Which mistakes repeat most often?</li>
+    <li>What should I improve next week?</li>
+    <li>Am I consistent enough in my process to see patterns, or do I trade randomly?</li>
+    <li>What kind of trader am I — and what is my genetic trading style?</li>
+  </ul>
+  <p>Edgecipline reduces the friction of journaling by extracting trade data from screenshots, converts that data into practical coaching insights, then uses a gamified behavioral layer (streaks, missions, morning mentor, reflections) to help traders build the consistent habits that produce long-term improvement.</p>
+
+  <div class="footer">Edgecipline PRD v2 | 3</div>
+</div>
+
+<!-- ===== SECTIONS 3-4 ===== -->
+<div class="page">
+  <h2>3. Target Users</h2>
+  <h3>Primary Users</h3>
+  <p>Retail Forex traders who use platforms such as MT4, MT5, or cTrader and want to improve consistency without manually entering every trade.</p>
+  <p>Indian retail traders, especially NSE/BSE options and F&amp;O traders using brokers such as Zerodha, Upstox, Angel One, Dhan, Groww, Fyers, 5paisa, ICICI Direct, Kotak Securities, and Paytm Money.</p>
+
+  <h3>Secondary Users</h3>
+  <p>Early-stage serious traders who are not yet profitable but are willing to review their behavior and build better habits.</p>
+  <p>Small trading communities, mentors, or educators who want their students to build journaling discipline.</p>
+  <p>Trading coaches who may eventually use aggregated journal data to review student performance.</p>
+
+  <h3>Excluded Users (Version 1)</h3>
+  <ul>
+    <li>Institutional trading desks.</li>
+    <li>High-frequency or fully automated traders.</li>
+    <li>Users who need direct broker sync as the only acceptable journaling method.</li>
+    <li>Users seeking trade signals, copy trading, or financial advice.</li>
+  </ul>
+
+  <h2>4. User Personas</h2>
+  <h3>Persona 1: The Inconsistent Retail Trader</h3>
+  <p>This user takes trades frequently but does not maintain a reliable journal. They often remember big wins and losses emotionally but cannot identify patterns objectively. They want quick answers and dislike manual admin work.</p>
+  <p><strong>Needs:</strong> Fast trade logging. Clear P&amp;L and win-rate views. Simple feedback on repeated mistakes. Low-friction mobile experience.</p>
+
+  <h3>Persona 2: The Discipline-Focused Trader</h3>
+  <p>This user already has a strategy and rules but struggles to follow them consistently. They care about process quality, not just outcome.</p>
+  <p><strong>Needs:</strong> Setup checklists. Plan adherence analytics. Psychology and emotional tags. Weekly review and discipline trend. Missions that target known weaknesses.</p>
+
+  <h3>Persona 3: The Indian Options Trader</h3>
+  <p>This user trades NIFTY, BANKNIFTY, CE/PE options, or intraday stocks and needs a product that understands Indian market terminology, brokers, rupee P&amp;L, lot sizes, expiry, strike price, and option type.</p>
+  <p><strong>Needs:</strong> Indian market mode. Broker-aware screenshot extraction. Option-specific fields. Indian analytics separate from Forex data.</p>
+
+  <h3>Persona 4: The Mobile-First Trader</h3>
+  <p>This user trades and reviews mostly from a phone. They want screenshot upload, journal review, and quick insights without desktop complexity.</p>
+  <p><strong>Needs:</strong> Native Android app. Fast mobile navigation. Upload from phone gallery. Push notifications and reminders. Morning motivation on wakeup.</p>
+
+  <h3>Persona 5: The Habit Builder</h3>
+  <p>This user is motivated by streaks, missions, and visible progress. They want gamified goals that push them toward better trading discipline over days and weeks.</p>
+  <p><strong>Needs:</strong> Daily streak tracking. AI-recommended missions. Morning mentor messages. Reflection journal. Visible progress through completed challenges.</p>
+
+  <div class="footer">Edgecipline PRD v2 | 4</div>
+</div>
+
+<!-- ===== SECTIONS 5-6 ===== -->
+<div class="page">
+  <h2>5. Value Proposition</h2>
+  <p>Edgecipline saves traders time by turning screenshots into structured trade entries, then uses the journal data to reveal behavioral and strategic patterns. The discipline and gamification layer then converts insight into action.</p>
+  <p><strong>Core value drivers:</strong></p>
+  <ul>
+    <li>Zero manual data entry — upload a screenshot and the journal fills itself.</li>
+    <li>Market-specific support for both Forex and Indian traders.</li>
+    <li>Psychology and discipline analytics that quantify the cost of emotional trading.</li>
+    <li>AI coaching that is contextual to each user's own data, not generic advice.</li>
+    <li>Trading DNA — a unique behavioral profile of each trader's style and patterns.</li>
+    <li>Missions and streaks that turn discipline into a daily habit.</li>
+    <li>Morning mentor — a daily AI motivation message delivered every morning.</li>
+    <li>Weekly review loop that produces one practical improvement target per week.</li>
+    <li>Native Android app with push notifications for reminders and insights.</li>
+    <li>Self-awareness score that tracks how well a trader understands their own behavior.</li>
+  </ul>
+
+  <h2>6. Product Goals</h2>
+  <h3>Business Goals</h3>
+  <ul>
+    <li>Acquire early retail traders in India and Forex communities.</li>
+    <li>Convert free users into paid subscribers after they experience screenshot extraction value.</li>
+    <li>Retain subscribers through behavioral engagement features (missions, streaks, morning mentor, reflections).</li>
+    <li>Reduce churn via the subscription rescue funnel before expiry.</li>
+    <li>Build a defensible data layer around trade behavior, psychology, setups, and outcomes.</li>
+    <li>Establish Edgecipline as a discipline-first trading journal, not another signal app.</li>
+  </ul>
+
+  <h3>User Goals</h3>
+  <ul>
+    <li>Log trades quickly without manual entry.</li>
+    <li>Understand what is working and what is not.</li>
+    <li>Follow trading rules more consistently.</li>
+    <li>Reduce emotional and impulsive trades.</li>
+    <li>Build daily consistency through streaks and missions.</li>
+    <li>Review each week with specific improvement actions.</li>
+    <li>Feel motivated to improve through coaching, missions, and daily messages.</li>
+  </ul>
+
+  <h3>Product Principles</h3>
+  <ul>
+    <li>Reduce journaling friction first.</li>
+    <li>Show insights only when enough data exists — never show empty generic advice.</li>
+    <li>Separate Forex and Indian market data cleanly.</li>
+    <li>Coach discipline without pretending to predict the market.</li>
+    <li>Make every insight actionable — explain what happened, why it matters, and what to do next.</li>
+    <li>Gamify behavior, not P&amp;L — reward process discipline, not just profits.</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 5</div>
+</div>
+
+<!-- ===== SECTION 7 — CORE FEATURES START ===== -->
+<div class="page">
+  <h2>7. Core Features — Complete Current State</h2>
+
+  <h3>7.1 Authentication &amp; Account Setup</h3>
+  <p>Users can register, log in, reset password via OTP, log in with Google, accept terms, and maintain a secure authenticated session across web and mobile.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Email/password signup and login.</li>
+    <li>Google OAuth login via Firebase Authentication.</li>
+    <li>OTP-based forgot password and reset password flow (rate-limited OTP delivery via email).</li>
+    <li>Terms acceptance gate — users cannot proceed without accepting terms.</li>
+    <li>Secure JWT session handling: 15-minute access tokens, httpOnly refresh cookie, auto-renewal.</li>
+    <li>Multi-device logout: logout current device or all devices simultaneously.</li>
+    <li>User profile page showing subscription status, trial status, and notification preferences.</li>
+    <li>Redis-backed auth cache to reduce database load on protected routes.</li>
+    <li>Rate limiting: 5 requests/60s on credential endpoints, 10 requests/60s on token refresh.</li>
+    <li>Firebase Admin SDK token verification for mobile-originated auth.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/auth/register</td><td>Create account (email/password)</td></tr>
+    <tr><td>POST</td><td>/api/auth/login</td><td>Email/password login</td></tr>
+    <tr><td>POST</td><td>/api/auth/google</td><td>Google OAuth login</td></tr>
+    <tr><td>POST</td><td>/api/auth/forgot-password</td><td>Send OTP for password reset</td></tr>
+    <tr><td>POST</td><td>/api/auth/verify-otp</td><td>Verify OTP token</td></tr>
+    <tr><td>POST</td><td>/api/auth/reset-password</td><td>Set new password after OTP</td></tr>
+    <tr><td>POST</td><td>/api/auth/refresh</td><td>Refresh access token via cookie</td></tr>
+    <tr><td>POST</td><td>/api/auth/logout</td><td>Logout current device</td></tr>
+    <tr><td>POST</td><td>/api/auth/logout-all</td><td>Logout all devices</td></tr>
+    <tr><td>GET</td><td>/api/auth/me</td><td>Get current user profile</td></tr>
+    <tr><td>GET</td><td>/api/auth/me/preferences</td><td>Get user preferences</td></tr>
+    <tr><td>PATCH</td><td>/api/auth/me/preferences</td><td>Update preferences</td></tr>
+    <tr><td>PATCH</td><td>/api/auth/me/onboarding</td><td>Update onboarding progress</td></tr>
+    <tr><td>POST</td><td>/api/auth/accept-terms</td><td>Accept terms and conditions</td></tr>
+  </table>
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/login — Login page</li>
+    <li>/register — Registration page</li>
+    <li>/forgot-password — Password reset initiation</li>
+    <li>/reset-password — New password form</li>
+    <li>/verify-otp — OTP entry</li>
+    <li>/accept-terms — Terms acceptance gate</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 6</div>
+</div>
+
+<div class="page">
+  <h3>7.2 Market Mode Selection</h3>
+  <p>Users work in either Forex mode or Indian Market mode. The two modes have completely separate data models, routes, analytics, and UI field sets. A global MarketContext controls the active mode and persists across sessions.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Global market toggle (Forex / Indian Market) in navigation.</li>
+    <li>Forex trade journal, analytics, and upload routes.</li>
+    <li>Indian market trade journal, analytics, and upload routes under /api/indian/.</li>
+    <li>Indian mode captures options and intraday stocks with F&amp;O-specific fields: strike price, option type (CE/PE), expiry date, lot size, underlying symbol.</li>
+    <li>Currency and field labels adapt to market type (pips vs. rupees, lots vs. lot size).</li>
+    <li>/indian-market dedicated landing page for Indian mode.</li>
+    <li>Broker detection auto-identifies market type from uploaded screenshots.</li>
+  </ul>
+
+  <h3>7.3 Onboarding Flow</h3>
+  <p>New users are guided through a multi-step onboarding sequence that configures their market preference, broker context, and initial trading profile before they reach the main journal.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Multi-step onboarding wizard on first login.</li>
+    <li>Market type selection step (Forex or Indian Market).</li>
+    <li>Broker selection step for extraction accuracy.</li>
+    <li>Progress tracking — individual steps marked complete via API.</li>
+    <li>Onboarding guide visible on dashboard for new users (guided tour via React Joyride).</li>
+    <li>Backfill service for existing users migrated from earlier versions.</li>
+    <li>7-day premium trial auto-granted on account creation.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/onboarding/start</td><td>Initialize onboarding session</td></tr>
+    <tr><td>POST</td><td>/api/onboarding/complete-step</td><td>Mark individual step complete</td></tr>
+    <tr><td>GET</td><td>/api/onboarding/status</td><td>Get onboarding progress</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/onboarding — Onboarding wizard</li></ul>
+
+  <h3>7.4 Screenshot Trade Upload</h3>
+  <p>Users upload broker screenshots and the system automatically extracts structured trade data through a three-layer OCR/AI pipeline: Gemini Vision 2.5 Flash → Google Cloud Vision → Tesseract.js fallback. Extraction runs asynchronously via BullMQ so the UI is never blocked.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Upload JPEG, PNG, or WebP files up to 10 MB.</li>
+    <li>Broker hint parameter for Indian market extraction accuracy.</li>
+    <li>Image stored on Cloudinary; original URL preserved in extraction log.</li>
+    <li>Async OCR/AI processing via BullMQ ocrQueue.</li>
+    <li>Job status polling: uploading → queued → processing → completed / failed.</li>
+    <li>Single-trade and multi-trade extraction from one screenshot.</li>
+    <li>Broker auto-detection across 20+ Forex and Indian brokers.</li>
+    <li>Extraction confidence score stored per trade.</li>
+    <li>Low-confidence extractions flagged as "needs review."</li>
+    <li>Extraction log (ExtractionLog model) records all attempts with errors and confidence.</li>
+    <li>OCRJob model tracks job lifecycle and result reference.</li>
+    <li>Non-trade image rejection with user-friendly error guidance.</li>
+    <li>User reviews and edits extracted fields before saving.</li>
+    <li>Batch save — save all extracted trades from one screenshot in a single action.</li>
+    <li>Regex-based parsing service (42KB) for layout-aware broker-specific extraction.</li>
+    <li>Soft-delete with restore: deleted trades can be recovered.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/upload</td><td>Upload screenshot, start OCR job</td></tr>
+    <tr><td>GET</td><td>/api/trades/status/:id</td><td>Poll extraction job status</td></tr>
+    <tr><td>POST</td><td>/api/trades/batch</td><td>Save multiple extracted trades</td></tr>
+  </table>
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/upload-trade — Screenshot upload interface</li>
+    <li>/upload — Alternative upload entry point</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 7</div>
+</div>
+
+<div class="page">
+  <h3>7.5 Manual Trade Entry</h3>
+  <p>Users can log trades without a screenshot when extraction is unavailable or undesired. The manual form supports both Forex and Indian market trade types.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Create trade without screenshot.</li>
+    <li>Forex fields: currency pair, direction (buy/sell), lot size, entry price, exit price, stop loss, take profit, swap, commission, P&amp;L, session, broker, date/time, notes.</li>
+    <li>Indian market fields: symbol, option type (CE/PE), strike price, expiry, lot size, entry, exit, P&amp;L, broker, trade type (intraday/positional).</li>
+    <li>Psychology and setup checklist fields available during manual entry.</li>
+    <li>Setup strategy selector during entry.</li>
+  </ul>
+  <h4>Web Route</h4>
+  <ul><li>/add-trade — Manual trade entry form</li></ul>
+
+  <h3>7.6 Trade Journal</h3>
+  <p>The trade journal is the core data layer. Users can view, search, filter, edit, and delete all logged trades. The journal is split into Forex and Indian market views.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Trade list page with pagination and filters (date range, pair, session, result, setup).</li>
+    <li>Trade detail page showing all extracted and user-entered metadata.</li>
+    <li>Edit trade — correct any field after saving.</li>
+    <li>Soft-delete trade with confirmation.</li>
+    <li>Restore deleted trade.</li>
+    <li>Separate Forex (/trades) and Indian market (/api/indian/trades) views.</li>
+    <li>Analytics invalidation on create, update, and delete events.</li>
+    <li>Redis cache invalidated after any trade mutation.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/trades/</td><td>Create single trade</td></tr>
+    <tr><td>GET</td><td>/api/trades/</td><td>List trades (filtered, paginated)</td></tr>
+    <tr><td>GET</td><td>/api/trades/:id</td><td>Get trade detail</td></tr>
+    <tr><td>PUT</td><td>/api/trades/:id</td><td>Update trade</td></tr>
+    <tr><td>DELETE</td><td>/api/trades/:id</td><td>Soft-delete trade</td></tr>
+    <tr><td>POST</td><td>/api/trades/:id/restore</td><td>Restore deleted trade</td></tr>
+    <tr><td>GET</td><td>/api/indian/trades/</td><td>List Indian market trades</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/trades — Trade journal list</li></ul>
+
+  <h3>7.7 Dashboard</h3>
+  <p>The dashboard is the home screen for returning users. It gives an instant snapshot of current trading state and surfaces the next priority action.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Total trades, win rate, net P&amp;L summary.</li>
+    <li>Current daily/weekly streak.</li>
+    <li>Equity curve chart.</li>
+    <li>Today's intelligence summary (AI-generated daily insight).</li>
+    <li>AI coach snapshot — recent coaching message preview.</li>
+    <li>Active missions widget showing current mission progress.</li>
+    <li>Quick actions: upload screenshot, log trade, run checklist, open weekly report, view Trading DNA.</li>
+    <li>Onboarding guide for new users (guided tour).</li>
+    <li>Market mode switcher prominently placed.</li>
+    <li>Subscription/trial status indicator.</li>
+  </ul>
+  <h4>Web Route</h4>
+  <ul><li>/dashboard — Main dashboard</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 8</div>
+</div>
+
+<div class="page">
+  <h3>7.8 Analytics &amp; Performance</h3>
+  <p>The analytics system aggregates journal data into performance, behavioral, and risk metrics. All analytics endpoints are Redis-cached per user (45–120 seconds) to ensure fast response even with large trade histories.</p>
+
+  <h4>Analytics Dashboard Requirements (Implemented)</h4>
+  <ul>
+    <li>Summary snapshot: total trades, win rate, net P&amp;L, profit factor, average RR.</li>
+    <li>Weekly P&amp;L chart with per-day breakdown.</li>
+    <li>Equity curve over time.</li>
+    <li>Best and worst performing currency pairs or instruments.</li>
+    <li>Strategy performance: win rate and P&amp;L per setup strategy.</li>
+    <li>Session and time-of-day performance analysis (which hours are most profitable).</li>
+    <li>Risk-reward distribution: scatter plot of actual RR vs. planned RR.</li>
+    <li>Calendar P&amp;L heatmap — daily P&amp;L color-coded across a month.</li>
+    <li>Maximum drawdown analysis: peak-to-trough calculation with recovery tracking.</li>
+    <li>Trade distribution: win/loss count by pair, session, direction.</li>
+    <li>Trade quality score per trade and rolling average.</li>
+    <li>Advanced analytics: Sharpe ratio, profit factor, consecutive win/loss streaks.</li>
+    <li>AI-generated insights from analytics data (Gemini-powered).</li>
+    <li>Separate Indian market analytics workspace at /api/indian/analytics/.</li>
+    <li>Unlock states when trade count is below threshold for a given metric.</li>
+  </ul>
+
+  <h4>Forex Analytics API Endpoints</h4>
+  <table>
+    <tr><th>Route</th><th>Cache TTL</th><th>Purpose</th></tr>
+    <tr><td>/api/analytics/snapshot</td><td>120s</td><td>Quick overview KPIs</td></tr>
+    <tr><td>/api/analytics/summary</td><td>45s</td><td>Dashboard summary</td></tr>
+    <tr><td>/api/analytics/weekly</td><td>90s</td><td>Weekly performance</td></tr>
+    <tr><td>/api/analytics/risk-reward</td><td>90s</td><td>Risk/reward analysis</td></tr>
+    <tr><td>/api/analytics/distribution</td><td>90s</td><td>Trade distribution</td></tr>
+    <tr><td>/api/analytics/performance</td><td>90s</td><td>Full performance metrics</td></tr>
+    <tr><td>/api/analytics/time-analysis</td><td>90s</td><td>Time-of-day win rates</td></tr>
+    <tr><td>/api/analytics/trade-quality</td><td>90s</td><td>Per-trade quality scores</td></tr>
+    <tr><td>/api/analytics/drawdown-analysis</td><td>90s</td><td>Drawdown and recovery</td></tr>
+    <tr><td>/api/analytics/psychology-analytics</td><td>90s</td><td>Psychology metrics</td></tr>
+    <tr><td>/api/analytics/self-awareness-score</td><td>120s</td><td>Self-awareness metric</td></tr>
+    <tr><td>/api/analytics/trading-dna</td><td>120s</td><td>DNA profile input data</td></tr>
+    <tr><td>/api/analytics/ai-insights</td><td>120s</td><td>AI-generated insights</td></tr>
+    <tr><td>/api/analytics/advanced-analytics</td><td>90s</td><td>Sharpe, profit factor</td></tr>
+  </table>
+
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/analytics — Main analytics dashboard</li>
+    <li>/intelligence — Trading intelligence insights page</li>
+  </ul>
+
+  <h4>Psychology Cost Analytics</h4>
+  <p>A dedicated metric calculates the total P&amp;L cost attributable to emotional and impulsive trades, measured against discipline-compliant trades from the same period. This gives traders a concrete dollar figure for how much emotional trading costs them.</p>
+
+  <h4>Self-Awareness Score</h4>
+  <p>A proprietary metric that measures how accurately a trader's self-assessment of their trades matches what the data shows. Traders who rate themselves highly but have poor discipline compliance will have a low self-awareness score, and vice versa.</p>
+
+  <h4>Psychology Timeline</h4>
+  <p>A chronological view of emotional states, discipline scores, and P&amp;L plotted together over time. Reveals correlations between emotional patterns and trading outcomes.</p>
+  <h4>Web Route</h4>
+  <ul><li>/psychology-timeline — Emotional pattern timeline</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 9</div>
+</div>
+
+<div class="page">
+  <h3>7.9 Psychology &amp; Discipline Tracking</h3>
+  <p>Every trade in Edgecipline can carry a rich behavioral metadata layer. This transforms the journal from a P&amp;L record into a behavioral database.</p>
+  <h4>Per-Trade Psychology Fields (Implemented)</h4>
+  <ul>
+    <li>Entry basis: plan-based, emotion-based, impulsive, or custom.</li>
+    <li>Mood rating (1–10 scale before and after trade).</li>
+    <li>Confidence level at entry.</li>
+    <li>Emotional tags: FOMO, revenge trading, fear, greed, calm, focused, rushed, overconfident, hesitant, and custom tags.</li>
+    <li>Mistake tags: moved stop loss, over-leveraged, missed entry, early exit, late entry, and custom.</li>
+    <li>Lesson field: free-text lesson learned from this trade.</li>
+    <li>Would-retake toggle: would the trader take this trade again given the same setup?</li>
+    <li>Discipline score: automated score based on checklist completion and rule adherence.</li>
+  </ul>
+  <h4>Psychology Analytics (Implemented)</h4>
+  <ul>
+    <li>Psychology cost calculator: total P&amp;L lost to emotional/impulsive trades.</li>
+    <li>Self-awareness score metric.</li>
+    <li>Repeated mistakes page: most frequent mistake tags ranked by frequency and P&amp;L impact.</li>
+    <li>Discipline trend: rolling discipline score over time.</li>
+    <li>Revenge and tilt detection: flags consecutive losses followed by position size increases or emotional tags.</li>
+    <li>Emotion frequency distribution: which emotional states appear most often.</li>
+    <li>Emotion vs. P&amp;L correlation: does being calm actually produce better trades for this user?</li>
+  </ul>
+  <h4>Discipline Page</h4>
+  <p>A dedicated discipline page separate from the main analytics view, focused on rule adherence, discipline score history, checklist completion rates, and qualitative discipline notes.</p>
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/discipline — Discipline tracking and score history</li>
+    <li>/psychology-timeline — Emotional timeline view</li>
+  </ul>
+
+  <h3>7.10 Daily Reflections &amp; Journal</h3>
+  <p>Beyond per-trade notes, Edgecipline provides a daily journal where traders can reflect on their entire trading session, emotional state, and what they learned — independent of individual trade records.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Create a daily reflection entry: free-text session summary, emotional state, overall session rating, key lessons.</li>
+    <li>AI-generated insights from reflections (pattern analysis across multiple entries via Gemini).</li>
+    <li>Reflection history with search and date filter.</li>
+    <li>Edit and delete reflections.</li>
+    <li>Evening reflection reminder cron job sent daily to encourage consistent journaling.</li>
+    <li>DailyReflection and DailyDisciplineEntry models stored separately from trades.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/reflections</td><td>List reflections</td></tr>
+    <tr><td>POST</td><td>/api/reflections</td><td>Create reflection</td></tr>
+    <tr><td>GET</td><td>/api/reflections/:id</td><td>Get reflection detail</td></tr>
+    <tr><td>PUT</td><td>/api/reflections/:id</td><td>Update reflection</td></tr>
+    <tr><td>DELETE</td><td>/api/reflections/:id</td><td>Delete reflection</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/reflection — Daily reflection journal</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 10</div>
+</div>
+
+<div class="page">
+  <h3>7.11 Setup Strategies &amp; Checklists</h3>
+  <p>Users define their own trading setup strategies and attach checklists of rules to each setup. When logging a trade, they complete the checklist to generate an adherence score. This makes plan-following measurable over time.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Create, edit, and delete setup strategies.</li>
+    <li>Add editable rules list to each setup (custom checklist items).</li>
+    <li>Attach a setup checklist to any trade (screenshot-extracted or manual).</li>
+    <li>Calculate setup adherence score based on checklist completion percentage.</li>
+    <li>Save ChecklistTracking record per trade session for historical trend.</li>
+    <li>Checklist available in both upload review flow and manual entry form.</li>
+    <li>Setup performance analytics: win rate and P&amp;L broken down by setup strategy.</li>
+    <li>Notification settings for checklist reminders per setup.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/setups</td><td>Create setup strategy</td></tr>
+    <tr><td>GET</td><td>/api/setups</td><td>List user's setups</td></tr>
+    <tr><td>GET</td><td>/api/setups/:id</td><td>Get setup detail</td></tr>
+    <tr><td>PUT</td><td>/api/setups/:id</td><td>Update setup</td></tr>
+    <tr><td>DELETE</td><td>/api/setups/:id</td><td>Delete setup</td></tr>
+    <tr><td>GET/POST</td><td>/api/checklists/</td><td>Checklist tracking CRUD</td></tr>
+  </table>
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/setups — Setup strategies management</li>
+    <li>/checklist — Pre-trade checklist runner</li>
+    <li>/checklist/notification-settings — Checklist-specific notification preferences</li>
+  </ul>
+
+  <h3>7.12 Streaks &amp; Consistency</h3>
+  <p>Edgecipline tracks daily trading consistency through a streak system. Streaks reward traders who maintain journaling and discipline habits without breaking the chain. A streak protector mechanism prevents single missed days from resetting long streaks.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Daily streak counter incremented when a user logs a trade or reflection.</li>
+    <li>Streak protection: a streak does not break on the first missed day if the user has a notification-driven grace period.</li>
+    <li>Streak milestones: notifications celebrate 7-day, 14-day, 30-day, and longer streaks.</li>
+    <li>Streak-at-risk alerts: push notification sent before streak breaks.</li>
+    <li>Streak history and record visible in UI.</li>
+    <li>Manual reset option for users who want to restart their streak intentionally.</li>
+    <li>Daily cron job (streakProtectorCron) manages grace periods and expiry.</li>
+    <li>Streak visible on dashboard and /streaks page.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/streaks</td><td>Get current streak data</td></tr>
+    <tr><td>POST</td><td>/api/streaks/reset</td><td>Manually reset streak</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/streaks — Streak history and milestones</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 11</div>
+</div>
+
+<div class="page">
+  <h3>7.13 Missions &amp; Challenges</h3>
+  <p>Missions is a gamified behavioral improvement system. Edgecipline's AI analyzes each trader's behavior profile and recommends specific trading challenges designed to target their identified weaknesses. Completing missions builds measurable discipline habits over time.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Mission template library: predefined missions across categories (discipline, consistency, risk management, psychology, setup adherence).</li>
+    <li>AI mission recommendation engine: Gemini-powered recommendations based on user's behavior profile (trading patterns, frequent mistakes, discipline scores).</li>
+    <li>Three simultaneous active mission limit per user to prevent overwhelm.</li>
+    <li>Mission acceptance: user reviews AI recommendation and explicitly accepts a mission.</li>
+    <li>Progress tracking: missions track specific measurable targets (e.g., complete checklist for 5 consecutive trades, avoid emotional trades for 7 days, achieve positive P&amp;L for 3 sessions).</li>
+    <li>Progress mode types: streak-based, count-based, target-based, and composite modes.</li>
+    <li>Daily mission progress cron job (missionProgressCron) updates progress automatically based on trade data.</li>
+    <li>Mission completion notifications.</li>
+    <li>Mission archive: completed and abandoned mission history.</li>
+    <li>Mission statistics: total accepted, completed, abandoned, completion rate.</li>
+    <li>Behavior profile endpoint: AI-generated trader behavior summary used for recommendations.</li>
+    <li>Premium mission gating: some missions are premium-only; free users see them locked.</li>
+    <li>Admin mission management: create, edit, and activate/deactivate mission templates.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/missions/templates</td><td>Browse mission template library</td></tr>
+    <tr><td>GET</td><td>/api/missions/</td><td>Get user's active missions</td></tr>
+    <tr><td>GET</td><td>/api/missions/history</td><td>Completed/archived missions</td></tr>
+    <tr><td>GET</td><td>/api/missions/:id</td><td>Mission detail and progress</td></tr>
+    <tr><td>GET</td><td>/api/missions/stats</td><td>Mission completion statistics</td></tr>
+    <tr><td>GET</td><td>/api/missions/profile</td><td>Trader behavior profile</td></tr>
+    <tr><td>POST</td><td>/api/missions/recommend</td><td>Get AI mission recommendations</td></tr>
+    <tr><td>POST</td><td>/api/missions/:id/accept</td><td>Accept a mission</td></tr>
+    <tr><td>POST</td><td>/api/missions/:id/archive</td><td>Archive/abandon mission</td></tr>
+  </table>
+  <h4>Data Models</h4>
+  <ul>
+    <li>MissionTemplate — Template definitions with category, difficulty, progress mode, target, and premium flag.</li>
+    <li>MissionAssignment — User-specific mission instances with progress, status, and accepted/completed dates.</li>
+  </ul>
+  <h4>Web Route</h4>
+  <ul><li>/missions — Missions dashboard with active missions, recommendations, and history</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 12</div>
+</div>
+
+<div class="page">
+  <h3>7.14 AI Coaching &amp; Morning Mentor</h3>
+  <p>Edgecipline provides two AI coaching surfaces: an interactive coach chat feed that responds to the user's own trading data, and a morning mentor system that sends a personalized motivational message every day at 6am.</p>
+
+  <h4>AI Coach (Interactive)</h4>
+  <ul>
+    <li>Conversational AI coach powered by Gemini.</li>
+    <li>Coaching context built from the user's trade history, psychology data, discipline scores, and recent behavior patterns — so coaching is specific, not generic.</li>
+    <li>Daily message quota to encourage thoughtful, focused interaction rather than spam.</li>
+    <li>Coach feed displays previous messages for continuity.</li>
+    <li>Psychology-focused coaching: targets emotional discipline, rule-following, and mindset, not technical analysis.</li>
+    <li>Actionable recommendations framed as "what to do next" not "what you did wrong."</li>
+    <li>Coaching context API provides current behavioral profile to the AI prompt.</li>
+    <li>CoachConversation and CoachMessage models store the full coaching history per user.</li>
+  </ul>
+
+  <h4>Morning Mentor</h4>
+  <ul>
+    <li>Daily push notification and/or in-app message delivered every morning at 6am via cron.</li>
+    <li>Content generated by Gemini based on the user's recent trading patterns and psychology data.</li>
+    <li>Motivational and discipline-focused tone — not market analysis.</li>
+    <li>Personalized per user: references their actual streak, recent mistakes, or current mission progress.</li>
+    <li>morningMentorCron schedules daily generation and delivery.</li>
+    <li>morningMentorService handles prompt construction and Gemini API call.</li>
+  </ul>
+
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/coach</td><td>Get coach feed / message history</td></tr>
+    <tr><td>POST</td><td>/api/coach/message</td><td>Send message to coach</td></tr>
+    <tr><td>GET</td><td>/api/coach/context</td><td>Get coaching behavioral context</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/coach — AI coaching chat interface</li></ul>
+
+  <h3>7.15 Trading DNA</h3>
+  <p>Trading DNA generates a unique behavioral profile ("genetic profile") that describes a trader's style, strengths, weaknesses, psychological tendencies, and patterns. It is processed asynchronously in the background via a BullMQ worker so it never blocks the UI.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Generate Trading DNA from trade history, psychology data, and discipline metrics.</li>
+    <li>Gemini-powered AI analysis with carefully engineered prompts (tradingDnaPromptService).</li>
+    <li>Background BullMQ job processing (tradingDnaWorker) — user polls for completion.</li>
+    <li>Job status polling endpoint with jobId returned on enqueue.</li>
+    <li>Multiple DNA reports stored — full history of generated profiles.</li>
+    <li>Report list and individual report view.</li>
+    <li>Shareable reports: generate a time-limited public URL for sharing DNA profile.</li>
+    <li>Public share viewer: shareable links are publicly accessible without login.</li>
+    <li>Rate limiting: DNA generation limited to 2 requests/minute; share creation to 10/minute.</li>
+    <li>TradingDnaReport model stores full profile data and share token.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/trading-dna/generate</td><td>Enqueue DNA generation (rate-limited)</td></tr>
+    <tr><td>GET</td><td>/api/trading-dna/</td><td>Get latest DNA report</td></tr>
+    <tr><td>GET</td><td>/api/trading-dna/list</td><td>List all DNA reports</td></tr>
+    <tr><td>GET</td><td>/api/trading-dna/jobs/:jobId</td><td>Poll generation job status</td></tr>
+    <tr><td>GET</td><td>/api/trading-dna/:id</td><td>Get specific report by ID</td></tr>
+    <tr><td>POST</td><td>/api/trading-dna/:id/share</td><td>Create shareable public link</td></tr>
+    <tr><td>GET</td><td>/api/trading-dna/share/:token</td><td>View public shared report</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/trading-dna — Trading DNA profile page</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 13</div>
+</div>
+
+<div class="page">
+  <h3>7.16 Weekly Reports</h3>
+  <p>Weekly reports are AI-generated summaries of a trader's weekly performance, discipline, psychology, and key improvement focus areas. They provide the structured weekly review loop.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Generate weekly report from trade history and analytics snapshot for selected week.</li>
+    <li>AI-powered content: Gemini generates the narrative sections.</li>
+    <li>Report sections: performance summary, discipline review, key patterns identified, one improvement focus for next week.</li>
+    <li>Store all generated reports (WeeklyReport model) — full report archive.</li>
+    <li>View reports in-app with formatted layout.</li>
+    <li>Daily 9am reminder cron (weeklyReportsCron) notifies users to generate/review their report.</li>
+    <li>Admin analytics accessible separately.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/reports</td><td>List weekly reports</td></tr>
+    <tr><td>POST</td><td>/api/reports/generate</td><td>Generate new report</td></tr>
+    <tr><td>GET</td><td>/api/reports/:id</td><td>Get report detail</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/weekly-reports — Weekly report list and viewer</li></ul>
+
+  <h3>7.17 Notification System</h3>
+  <p>Edgecipline has a full push notification and in-app notification center. Notifications are delivered via Firebase Cloud Messaging (FCM) for mobile push and stored in-app for the notification center. A smart timing engine prevents notification fatigue.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Push notifications to Android devices via FCM.</li>
+    <li>In-app notification center: paginated list with read/unread state.</li>
+    <li>Mark individual notification as read; mark all as read.</li>
+    <li>Notification engagement tracking: delivered, opened, and action events per notification.</li>
+    <li>Smart notification timing: evaluates urgency and user activity patterns before sending (smartNotificationEvaluator).</li>
+    <li>Quiet hours: user-configured do-not-disturb windows respected by the smart evaluator.</li>
+    <li>Notification preferences: per-category toggles (mission alerts, streak alerts, morning mentor, weekly reports, etc.).</li>
+    <li>Async delivery via BullMQ (smartNotificationQueue + smartNotificationWorker) so sending never blocks API responses.</li>
+    <li>Admin broadcast notifications: send push to all users or a subset.</li>
+    <li>Device token registration: FCM tokens stored per user device (DeviceToken model).</li>
+    <li>Notification debug logs for support and troubleshooting.</li>
+    <li>NotificationHistory model tracks delivery and engagement events.</li>
+  </ul>
+  <h4>Notification Types</h4>
+  <table>
+    <tr><th>Type</th><th>Trigger</th><th>Channel</th></tr>
+    <tr><td>Morning Mentor</td><td>Daily 6am cron</td><td>Push + In-app</td></tr>
+    <tr><td>Weekly Report Reminder</td><td>Daily 9am cron</td><td>Push + In-app</td></tr>
+    <tr><td>Reflection Reminder</td><td>Evening cron</td><td>Push + In-app</td></tr>
+    <tr><td>Session Reminder</td><td>Configurable cron</td><td>Push + In-app</td></tr>
+    <tr><td>Streak At Risk</td><td>streakProtectorCron</td><td>Push + In-app</td></tr>
+    <tr><td>Streak Milestone</td><td>On streak update</td><td>Push + In-app</td></tr>
+    <tr><td>Mission Progress</td><td>missionProgressCron</td><td>In-app</td></tr>
+    <tr><td>Mission Complete</td><td>On completion</td><td>Push + In-app</td></tr>
+    <tr><td>Subscription Expiry</td><td>subscriptionExpiryCron</td><td>Push + In-app</td></tr>
+    <tr><td>Subscription Rescue</td><td>subscriptionRescueCron</td><td>Push + In-app</td></tr>
+    <tr><td>Admin Broadcast</td><td>Admin action</td><td>Push</td></tr>
+  </table>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>GET</td><td>/api/notifications</td><td>List notifications (paginated)</td></tr>
+    <tr><td>PATCH</td><td>/api/notifications/read-all</td><td>Mark all as read</td></tr>
+    <tr><td>PATCH</td><td>/api/notifications/:id/read</td><td>Mark one as read</td></tr>
+    <tr><td>POST</td><td>/api/notifications/:id/opened</td><td>Track open event</td></tr>
+    <tr><td>POST</td><td>/api/notifications/:id/delivered</td><td>Track delivery event</td></tr>
+    <tr><td>POST</td><td>/api/notifications/:id/action</td><td>Track action event</td></tr>
+    <tr><td>POST</td><td>/api/profile/device-token</td><td>Register FCM device token</td></tr>
+  </table>
+  <h4>Web Route</h4>
+  <ul><li>/notifications — In-app notification center</li></ul>
+
+  <div class="footer">Edgecipline PRD v2 | 14</div>
+</div>
+
+<div class="page">
+  <h3>7.18 Subscriptions, Trial &amp; Payments</h3>
+  <p>Edgecipline uses a layered access model: a 7-day premium trial auto-granted on signup, followed by paid subscription plans. Payments are processed via Razorpay (India-focused). The trial and subscription systems are independent and tracked separately.</p>
+  <h4>Trial System (Implemented)</h4>
+  <ul>
+    <li>7-day premium trial automatically activated on account creation for every new user.</li>
+    <li>Trial grants full premium access for its duration.</li>
+    <li>Trial status tracked independently from subscription status on the Users model.</li>
+    <li>Trial status endpoint: current trial state, days remaining, expiry date.</li>
+    <li>Trial can be extended manually by admins for individual users.</li>
+    <li>Paywall context endpoint: smart UI state that considers trial + subscription together to determine what the user can access.</li>
+    <li>Trial event tracking: paywall impression, plan view, checkout start — for conversion analytics.</li>
+  </ul>
+  <h4>Subscription Plans (Implemented)</h4>
+  <ul>
+    <li>Free plan: limited to 1 screenshot upload (manual journaling remains free).</li>
+    <li>Monthly subscription plan.</li>
+    <li>Yearly subscription plan (discounted).</li>
+    <li>Custom plan: admin-configurable duration for special cases.</li>
+    <li>Subscription status and expiry date displayed on user profile.</li>
+  </ul>
+  <h4>Payment Flow (Implemented)</h4>
+  <ul>
+    <li>Razorpay order creation: backend creates signed order, returns to client for checkout.</li>
+    <li>Razorpay checkout on client (web and Android WebView).</li>
+    <li>Backend payment verification: signature verification before activating subscription.</li>
+    <li>Razorpay webhook: asynchronous payment event processing with signature validation.</li>
+    <li>Payment model stores order ID, amount, plan, transaction ID, and status.</li>
+    <li>WebhookEvent model logs all incoming Razorpay events.</li>
+    <li>Admin can manually activate or extend subscriptions.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/payments/order</td><td>Create Razorpay payment order</td></tr>
+    <tr><td>POST</td><td>/api/payments/verify</td><td>Verify payment and activate sub</td></tr>
+    <tr><td>POST</td><td>/api/payments/webhook</td><td>Razorpay async webhook (raw body)</td></tr>
+    <tr><td>GET</td><td>/api/trial/status</td><td>Get trial and subscription state</td></tr>
+    <tr><td>GET</td><td>/api/trial/paywall-context</td><td>UI paywall access state</td></tr>
+    <tr><td>POST</td><td>/api/trial/event</td><td>Track paywall event</td></tr>
+  </table>
+
+  <h3>7.19 Subscription Rescue</h3>
+  <p>The subscription rescue system is a churn prevention funnel that proactively engages users before their subscription expires with targeted offers and re-engagement nudges.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Daily cron (subscriptionRescueCron) identifies users in the rescue funnel (expiry approaching).</li>
+    <li>Tiered rescue notifications: days-out reminders → expiry-day offer → post-expiry win-back.</li>
+    <li>Rescue offers: extended trial, discounted renewal, or incentivized re-engagement.</li>
+    <li>RescueDispatch model tracks which offers were sent to which users and when.</li>
+    <li>Rescue context API: returns current user's rescue state for UI personalization.</li>
+    <li>Admin nudge endpoint: manually trigger rescue notification for a specific user.</li>
+    <li>Admin monitoring of expired users at /admin/expired-users.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/rescue/nudge</td><td>Send rescue offer notification</td></tr>
+    <tr><td>GET</td><td>/api/rescue/context</td><td>Get user rescue state for UI</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 15</div>
+</div>
+
+<div class="page">
+  <h3>7.20 Issue Reporting &amp; Feedback</h3>
+  <p>Users can submit in-app feedback and report bugs directly from the application. All submissions go to an admin review queue.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Feedback submission form: category, text, optional screenshot.</li>
+    <li>Bug/issue report form: title, description, reproduction steps, severity.</li>
+    <li>Feedback and IssueReport models store submissions with user context.</li>
+    <li>Admin feedback review page at /admin/feedback.</li>
+    <li>Admin issue management page at /admin/issues.</li>
+  </ul>
+  <h4>API Endpoints</h4>
+  <table>
+    <tr><th>Method</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td>/api/feedback</td><td>Submit user feedback</td></tr>
+    <tr><td>POST</td><td>/api/issues</td><td>Submit bug/issue report</td></tr>
+  </table>
+  <h4>Web Routes</h4>
+  <ul>
+    <li>/issues — Issue report submission form</li>
+    <li>/support — Support/help page</li>
+  </ul>
+
+  <h3>7.21 Admin Console</h3>
+  <p>A separate admin application accessible only via authenticated admin credentials. Provides full operational control without requiring database access.</p>
+  <h4>Requirements (Implemented)</h4>
+  <ul>
+    <li>Separate admin JWT authentication (/api/admin/auth/) independent from user auth.</li>
+    <li>User management: list, search, view individual users, manage subscription status, extend trials.</li>
+    <li>Subscription management: manually activate, deactivate, or extend subscriptions.</li>
+    <li>Payment history: full list of all transactions with status and amount.</li>
+    <li>Trade audit: view any user's trades for extraction quality review.</li>
+    <li>Platform analytics dashboard: signups, active users, trade volume, extraction success rates.</li>
+    <li>Feedback review: read and triage user feedback submissions.</li>
+    <li>Issue management: review and update status of bug reports.</li>
+    <li>Notification management: send broadcast push notifications to all users or subsets.</li>
+    <li>Mission management: create, edit, activate, and deactivate mission templates.</li>
+    <li>System monitoring: health check, error rates, queue depths.</li>
+    <li>Expired users: list of users with recently expired subscriptions for rescue targeting.</li>
+    <li>Auth cache metrics: Redis cache hit rates and memory for the auth layer.</li>
+  </ul>
+  <h4>Admin Web Routes</h4>
+  <ul>
+    <li>/admin/login — Admin authentication</li>
+    <li>/admin/dashboard — Admin overview</li>
+    <li>/admin/users — User management</li>
+    <li>/admin/payments — Payment history</li>
+    <li>/admin/trades — Trade audit</li>
+    <li>/admin/feedback — Feedback review</li>
+    <li>/admin/issues — Issue management</li>
+    <li>/admin/monitoring — System health</li>
+    <li>/admin/expired-users — Expired subscription management</li>
+  </ul>
+  <h4>Admin API Routes</h4>
+  <table>
+    <tr><th>Route Prefix</th><th>Purpose</th></tr>
+    <tr><td>/api/admin/auth/</td><td>Admin authentication</td></tr>
+    <tr><td>/api/admin/users/</td><td>User management</td></tr>
+    <tr><td>/api/admin/payments/</td><td>Payment audit</td></tr>
+    <tr><td>/api/admin/trades/</td><td>Trade review</td></tr>
+    <tr><td>/api/admin/notifications/</td><td>Broadcast notifications</td></tr>
+    <tr><td>/api/admin/feedback/</td><td>Feedback management</td></tr>
+    <tr><td>/api/admin/issues/</td><td>Issue management</td></tr>
+    <tr><td>/api/admin/missions/</td><td>Mission template management</td></tr>
+    <tr><td>/api/admin/analytics/</td><td>Platform analytics dashboard</td></tr>
+    <tr><td>/api/admin/auth-cache-metrics/</td><td>Auth cache health</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 16</div>
+</div>
+
+<!-- ===== SECTION 8: MOBILE ===== -->
+<div class="page">
+  <h2>8. Mobile Application (Android)</h2>
+  <p>Edgecipline ships as a native Android application built with Capacitor 6, which wraps the Next.js web application in a WebView. Native Android APIs are accessed through Capacitor plugins, providing push notifications, camera access, and device token management without a separate codebase.</p>
+
+  <h3>Architecture</h3>
+  <ul>
+    <li>Framework: Capacitor 6.2 (Ionic) wrapping Next.js static export.</li>
+    <li>WebView renders the full Next.js app natively on Android.</li>
+    <li>Firebase Authentication integrated at the client layer for Google Sign-In and token management.</li>
+    <li>Firebase Cloud Messaging (FCM) for push notifications via Capacitor Push Notifications plugin.</li>
+    <li>Camera/gallery access via Capacitor Camera plugin for screenshot uploads from phone gallery.</li>
+    <li>Device token registered with backend on app launch for push delivery.</li>
+    <li>Sentry Capacitor plugin captures native crashes and JavaScript errors with separate Android DSN.</li>
+  </ul>
+
+  <h3>Mobile-Specific UI Features</h3>
+  <ul>
+    <li>Mobile bottom navigation bar (MobileBottomNav component): primary navigation for Dashboard, Trades, Upload, Analytics, and Coach.</li>
+    <li>Mobile-first CSS optimizations (mobile-optimizations.css): touch targets, scroll behavior, layout adjustments.</li>
+    <li>Touch-optimized button components (TouchButton.js) for reliable tap response.</li>
+    <li>App-specific caching for faster subsequent loads.</li>
+    <li>Native camera picker for screenshot upload (gallery or camera).</li>
+    <li>Custom Capacitor plugin for interactive Android notifications (checklist notification with action buttons — WorkManager + BroadcastReceiver).</li>
+    <li>Interactive checklist notification: user can complete checklist items directly from the Android notification shade without opening the app.</li>
+  </ul>
+
+  <h3>Push Notification Implementation</h3>
+  <ul>
+    <li>FCM handles push delivery to Android devices.</li>
+    <li>notificationService.js on the backend builds FCM payloads and sends via Firebase Admin SDK.</li>
+    <li>DeviceToken model stores one or more FCM tokens per user (multi-device support).</li>
+    <li>Token refresh handled on app foreground via Capacitor event listener.</li>
+    <li>Notification click deep-links user to the relevant in-app page.</li>
+  </ul>
+
+  <h3>Android-Specific Pages</h3>
+  <ul>
+    <li>All web routes are accessible in the Android WebView.</li>
+    <li>/checklist/notification-settings — Configure notification preferences for checklist reminders.</li>
+  </ul>
+
+  <h3>Build &amp; Deployment</h3>
+  <ul>
+    <li>Next.js builds a static export consumed by Capacitor.</li>
+    <li>Android APK built with Capacitor sync + Android Studio / Gradle.</li>
+    <li>Sentry release tracking per APK build for crash monitoring.</li>
+    <li>PM2 manages backend process in production; frontend on Vercel.</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 17</div>
+</div>
+
+<!-- ===== SECTION 9: USER FLOWS ===== -->
+<div class="page">
+  <h2>9. User Flows</h2>
+
+  <h3>New User Registration Flow</h3>
+  <ol>
+    <li>User opens web app or Android app.</li>
+    <li>App checks for valid JWT session — if none, redirect to /login.</li>
+    <li>User registers with email/password or signs in with Google.</li>
+    <li>7-day premium trial auto-activated on account creation.</li>
+    <li>User is redirected to /accept-terms — must accept before proceeding.</li>
+    <li>User lands on /onboarding — completes market mode selection and broker preference.</li>
+    <li>User lands on /dashboard with guided tour visible.</li>
+    <li>Quick actions guide user to first screenshot upload or manual trade entry.</li>
+  </ol>
+
+  <h3>Screenshot Upload Flow</h3>
+  <ol>
+    <li>User selects Upload Screenshot from dashboard or bottom nav.</li>
+    <li>On mobile: native gallery or camera picker opens. On web: file picker dialog.</li>
+    <li>User selects market mode (Forex or Indian).</li>
+    <li>If Indian market: user selects broker from dropdown and trade subtype if required.</li>
+    <li>File uploaded to backend — stored on Cloudinary, OCR job created in BullMQ queue.</li>
+    <li>UI shows processing states: uploading → queued → processing.</li>
+    <li>OCR pipeline runs: Gemini Vision 2.5 Flash → Google Cloud Vision → Tesseract.js fallback.</li>
+    <li>Extraction completes. UI polls /api/trades/status/:id until completion.</li>
+    <li>User sees extracted trade(s) in review form — all fields pre-filled from extraction.</li>
+    <li>User corrects any incorrect fields.</li>
+    <li>User attaches psychology tags, setup strategy, and checklist.</li>
+    <li>User saves trade(s) — analytics cache invalidated.</li>
+    <li>Trade appears in journal. Dashboard KPIs update.</li>
+  </ol>
+
+  <h3>Manual Trade Entry Flow</h3>
+  <ol>
+    <li>User selects Log Trade from dashboard or navigation.</li>
+    <li>Manual entry form opens for active market mode (Forex or Indian).</li>
+    <li>User enters core trade details: pair/symbol, direction, size, entry, exit, P&amp;L, date.</li>
+    <li>User optionally selects a setup strategy and completes the checklist.</li>
+    <li>User adds psychology tags, mistake tags, lesson, and notes.</li>
+    <li>User saves trade. Analytics update.</li>
+  </ol>
+
+  <h3>Missions Flow</h3>
+  <ol>
+    <li>User opens /missions page.</li>
+    <li>App shows active missions (up to 3) with current progress bars.</li>
+    <li>User requests AI recommendations — Gemini analyzes behavior profile and returns tailored mission suggestions.</li>
+    <li>User reviews recommended missions and accepts up to available slots.</li>
+    <li>Daily cron updates mission progress based on trade activity.</li>
+    <li>User receives push notification on progress milestones and completion.</li>
+    <li>On completion, mission moves to history. New slot opens for another mission.</li>
+  </ol>
+
+  <h3>Analytics Flow</h3>
+  <ol>
+    <li>User opens /analytics or dashboard.</li>
+    <li>If trade count is below threshold, unlock states explain what data is needed.</li>
+    <li>With enough data: full analytics visible — performance, psychology cost, discipline trend, time analysis, drawdown, pair distribution.</li>
+    <li>User drills into specific sections: psychology timeline, Trading DNA, repeated mistakes, AI insights.</li>
+    <li>User leaves with one practical improvement target — fed directly into a mission recommendation or coaching message.</li>
+  </ol>
+
+  <h3>Trading DNA Flow</h3>
+  <ol>
+    <li>User navigates to /trading-dna.</li>
+    <li>User requests DNA generation — BullMQ job enqueued, jobId returned.</li>
+    <li>UI polls job status. Background worker runs Gemini analysis.</li>
+    <li>On completion: DNA profile rendered with trader type, strengths, weaknesses, psychological tendencies, and pattern analysis.</li>
+    <li>User optionally generates a shareable link — time-limited public URL created.</li>
+    <li>Shared link renders the profile publicly without requiring login.</li>
+  </ol>
+
+  <div class="footer">Edgecipline PRD v2 | 18</div>
+</div>
+
+<div class="page">
+  <h3>Subscription Flow</h3>
+  <ol>
+    <li>User uses 7-day free trial — full premium access during trial period.</li>
+    <li>Trial expires or user hits free plan upload limit (1 upload).</li>
+    <li>Paywall context endpoint returns restricted state — UI displays upgrade prompt.</li>
+    <li>User selects a subscription plan (Monthly or Yearly).</li>
+    <li>Backend creates Razorpay order — signed order returned to client.</li>
+    <li>Razorpay checkout opens (web modal or Android WebView).</li>
+    <li>User completes payment.</li>
+    <li>Backend verifies payment signature — subscription activated on Users model.</li>
+    <li>User receives confirmation notification. Premium access resumes.</li>
+    <li>Razorpay webhook (async) also fires and is logged to WebhookEvent model.</li>
+  </ol>
+
+  <h3>Subscription Rescue Flow</h3>
+  <ol>
+    <li>subscriptionExpiryCron runs daily — identifies users with subscriptions expiring within 7 days.</li>
+    <li>subscriptionRescueCron sends tiered nudges at configured intervals before expiry.</li>
+    <li>Rescue offer (extended trial or discount) sent via push notification and in-app message.</li>
+    <li>User clicks notification — deep-linked to subscription page with pre-applied offer.</li>
+    <li>RescueDispatch model records offer sent, user response, and outcome.</li>
+  </ol>
+
+  <h3>Weekly Review Flow</h3>
+  <ol>
+    <li>Daily 9am reminder notification prompts user to generate weekly report.</li>
+    <li>User opens /weekly-reports and generates report for the current or previous week.</li>
+    <li>Gemini generates narrative from analytics snapshot for the selected week.</li>
+    <li>Report displays: performance summary, top setup, discipline score, psychology cost, one improvement focus.</li>
+    <li>User reads report and optionally accepts a related mission for next week.</li>
+  </ol>
+
+  <div class="footer">Edgecipline PRD v2 | 19</div>
+</div>
+
+<!-- ===== SECTION 10: TECH STACK ===== -->
+<div class="page">
+  <h2>10. Tech Stack &amp; Architecture</h2>
+
+  <h3>Frontend</h3>
+  <table>
+    <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+    <tr><td>Next.js</td><td>16.1.6</td><td>React framework, static export for Capacitor</td></tr>
+    <tr><td>React</td><td>19.2</td><td>UI library</td></tr>
+    <tr><td>TypeScript</td><td>5</td><td>Type safety</td></tr>
+    <tr><td>Tailwind CSS</td><td>4</td><td>Utility-first styling</td></tr>
+    <tr><td>TanStack React Query</td><td>5.96</td><td>Server state management and caching</td></tr>
+    <tr><td>Framer Motion</td><td>Latest</td><td>Animations and transitions</td></tr>
+    <tr><td>Recharts</td><td>3.7</td><td>Charts and graphs</td></tr>
+    <tr><td>Axios</td><td>1.14</td><td>HTTP client with retry logic</td></tr>
+    <tr><td>Firebase</td><td>11.10</td><td>Auth (client), FCM messaging</td></tr>
+    <tr><td>Capacitor</td><td>6.2</td><td>Native Android wrapper</td></tr>
+    <tr><td>Sentry</td><td>Latest</td><td>Error tracking (web + Android DSN)</td></tr>
+    <tr><td>React Joyride</td><td>Latest</td><td>Guided onboarding tours</td></tr>
+    <tr><td>Lucide React</td><td>Latest</td><td>Icon library</td></tr>
+  </table>
+
+  <h3>Backend</h3>
+  <table>
+    <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+    <tr><td>Express</td><td>5.2</td><td>Web framework</td></tr>
+    <tr><td>Node.js</td><td>LTS</td><td>Runtime</td></tr>
+    <tr><td>MongoDB</td><td>Atlas</td><td>Primary database</td></tr>
+    <tr><td>Mongoose</td><td>9.2</td><td>MongoDB ODM</td></tr>
+    <tr><td>Redis</td><td>Cloud / Local</td><td>Caching, session store, job queue backend</td></tr>
+    <tr><td>BullMQ</td><td>5.71</td><td>Job queue (OCR, notifications, DNA)</td></tr>
+    <tr><td>Firebase Admin SDK</td><td>13.6</td><td>Auth verification, FCM sending</td></tr>
+    <tr><td>Google Generative AI</td><td>0.24</td><td>Gemini 2.5 Flash (vision + text)</td></tr>
+    <tr><td>Google Cloud Vision</td><td>5.3</td><td>Secondary OCR layer</td></tr>
+    <tr><td>Cloudinary</td><td>2.9</td><td>Screenshot image hosting</td></tr>
+    <tr><td>Tesseract.js</td><td>7</td><td>Fallback OCR (open-source)</td></tr>
+    <tr><td>Razorpay</td><td>2.9</td><td>Payment processing (India)</td></tr>
+    <tr><td>Nodemailer</td><td>8</td><td>SMTP email (OTP, reports)</td></tr>
+    <tr><td>Resend</td><td>6.12</td><td>Modern email API (primary)</td></tr>
+    <tr><td>JWT</td><td>9.0</td><td>Access token signing</td></tr>
+    <tr><td>bcryptjs</td><td>3.0</td><td>Password hashing</td></tr>
+    <tr><td>Winston</td><td>3.19</td><td>Structured logging</td></tr>
+    <tr><td>Sentry</td><td>10.47</td><td>Backend error tracking</td></tr>
+    <tr><td>Helmet</td><td>8.1</td><td>HTTP security headers</td></tr>
+    <tr><td>node-cron</td><td>Latest</td><td>Scheduled job runner</td></tr>
+    <tr><td>PM2</td><td>Latest</td><td>Process management (production)</td></tr>
+    <tr><td>Swagger UI</td><td>5.0</td><td>API documentation (/api/docs)</td></tr>
+    <tr><td>Zod</td><td>Latest</td><td>Request validation schemas</td></tr>
+  </table>
+
+  <h3>Infrastructure &amp; Services</h3>
+  <table>
+    <tr><th>Service</th><th>Purpose</th></tr>
+    <tr><td>Vercel</td><td>Frontend hosting (Next.js static export)</td></tr>
+    <tr><td>Railway / Render</td><td>Backend Node.js hosting</td></tr>
+    <tr><td>MongoDB Atlas</td><td>Managed MongoDB cluster</td></tr>
+    <tr><td>Redis Cloud</td><td>Managed Redis (cache + BullMQ)</td></tr>
+    <tr><td>Cloudinary</td><td>Image storage and CDN for screenshots</td></tr>
+    <tr><td>Firebase</td><td>Auth provider, FCM push delivery</td></tr>
+    <tr><td>Google Cloud</td><td>Vision API credentials</td></tr>
+    <tr><td>Razorpay</td><td>Payment gateway</td></tr>
+    <tr><td>Resend</td><td>Transactional email (OTP, reports)</td></tr>
+    <tr><td>Sentry</td><td>Error monitoring (3 DSNs: backend, web, Android)</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 20</div>
+</div>
+
+<!-- ===== SECTION 11: API REFERENCE ===== -->
+<div class="page">
+  <h2>11. API Reference</h2>
+  <p>Base URL: <strong>https://stratedge.live</strong> (production). All user endpoints require <code>Authorization: Bearer &lt;token&gt;</code> header except public share endpoints.</p>
+
+  <h3>Complete Route Map</h3>
+  <table>
+    <tr><th>Route Prefix</th><th>Purpose</th></tr>
+    <tr><td>/api/auth/</td><td>Authentication (register, login, Google, OTP reset, refresh, logout)</td></tr>
+    <tr><td>/api/trades/</td><td>Forex trade CRUD, batch, soft-delete, restore</td></tr>
+    <tr><td>/api/upload/</td><td>Screenshot file upload</td></tr>
+    <tr><td>/api/setups/</td><td>Trading setup strategies CRUD</td></tr>
+    <tr><td>/api/checklists/</td><td>Checklist tracking CRUD</td></tr>
+    <tr><td>/api/dashboard/</td><td>Dashboard data aggregation</td></tr>
+    <tr><td>/api/analytics/</td><td>Forex analytics (14 endpoints, Redis-cached)</td></tr>
+    <tr><td>/api/indian/trades/</td><td>Indian market trade CRUD</td></tr>
+    <tr><td>/api/indian/analytics/</td><td>Indian market analytics</td></tr>
+    <tr><td>/api/reports/</td><td>Weekly report generation and history</td></tr>
+    <tr><td>/api/trading-dna/</td><td>Trading DNA generation, list, share</td></tr>
+    <tr><td>/api/coach/</td><td>AI coaching chat and context</td></tr>
+    <tr><td>/api/missions/</td><td>Mission templates, active, history, AI recommend</td></tr>
+    <tr><td>/api/streaks/</td><td>Streak state and reset</td></tr>
+    <tr><td>/api/reflections/</td><td>Daily reflection journal CRUD</td></tr>
+    <tr><td>/api/notifications/</td><td>In-app notifications (read, track)</td></tr>
+    <tr><td>/api/profile/</td><td>User profile and FCM device token</td></tr>
+    <tr><td>/api/onboarding/</td><td>Onboarding flow management</td></tr>
+    <tr><td>/api/payments/</td><td>Razorpay order, verify, webhook</td></tr>
+    <tr><td>/api/trial/</td><td>Trial status, paywall context, event tracking</td></tr>
+    <tr><td>/api/rescue/</td><td>Subscription rescue nudge and context</td></tr>
+    <tr><td>/api/feedback/</td><td>User feedback submission</td></tr>
+    <tr><td>/api/issues/</td><td>Bug/issue report submission</td></tr>
+    <tr><td>/api/admin/auth/</td><td>Admin authentication</td></tr>
+    <tr><td>/api/admin/users/</td><td>Admin user management</td></tr>
+    <tr><td>/api/admin/payments/</td><td>Admin payment audit</td></tr>
+    <tr><td>/api/admin/trades/</td><td>Admin trade review</td></tr>
+    <tr><td>/api/admin/notifications/</td><td>Admin broadcast notifications</td></tr>
+    <tr><td>/api/admin/feedback/</td><td>Admin feedback review</td></tr>
+    <tr><td>/api/admin/issues/</td><td>Admin issue management</td></tr>
+    <tr><td>/api/admin/missions/</td><td>Admin mission template management</td></tr>
+    <tr><td>/api/admin/analytics/</td><td>Platform-wide analytics</td></tr>
+    <tr><td>/api/admin/auth-cache-metrics/</td><td>Redis auth cache health</td></tr>
+    <tr><td>/health</td><td>Backend health check</td></tr>
+    <tr><td>/api/docs</td><td>OpenAPI/Swagger documentation</td></tr>
+  </table>
+
+  <h3>Rate Limiting Summary</h3>
+  <table>
+    <tr><th>Endpoint Group</th><th>Limit</th><th>Window</th></tr>
+    <tr><td>Auth credentials (login, register)</td><td>5 requests</td><td>60 seconds</td></tr>
+    <tr><td>Token refresh</td><td>10 requests</td><td>60 seconds</td></tr>
+    <tr><td>Profile / me endpoints</td><td>60 requests</td><td>60 seconds</td></tr>
+    <tr><td>Trading DNA generate</td><td>2 requests</td><td>60 seconds</td></tr>
+    <tr><td>Trading DNA share create</td><td>10 requests</td><td>60 seconds</td></tr>
+    <tr><td>Trading DNA share view (public)</td><td>30 requests</td><td>60 seconds</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 21</div>
+</div>
+
+<!-- ===== SECTION 12: DATA MODELS ===== -->
+<div class="page">
+  <h2>12. Data Models</h2>
+  <table>
+    <tr><th>Model</th><th>Purpose</th><th>Key Fields</th></tr>
+    <tr><td>Users</td><td>User accounts</td><td>email, password (hashed), role, subscription (plan, expiry, status), trial (expiry, active), preferences, onboardingComplete, marketMode</td></tr>
+    <tr><td>RefreshToken</td><td>JWT refresh tokens</td><td>userId, token (hashed), expiresAt, deviceInfo</td></tr>
+    <tr><td>Trade</td><td>Forex trades</td><td>userId, pair, type (buy/sell), quantity, entryPrice, exitPrice, stopLoss, takeProfit, profitLoss, swap, commission, broker, session, date, psychology{}, setupId, checklistScore, notes, deletedAt</td></tr>
+    <tr><td>IndianTrade</td><td>Indian market trades</td><td>userId, symbol, optionType (CE/PE), strikePrice, expiry, lotSize, entryPrice, exitPrice, profitLoss, broker, tradeType, date, psychology{}</td></tr>
+    <tr><td>OCRJob</td><td>OCR job lifecycle</td><td>userId, status, jobId (BullMQ), uploadId, result, errorMessage, createdAt, completedAt</td></tr>
+    <tr><td>ExtractionLog</td><td>Extraction audit</td><td>uploadId, broker, confidence, status, errorMessage, extractedFields, ocrText, createdAt</td></tr>
+    <tr><td>SetupStrategy</td><td>Trading setups</td><td>userId, name, description, rules[], category, isActive</td></tr>
+    <tr><td>ChecklistTracking</td><td>Checklist history</td><td>userId, tradeId, setupId, sessionId, completedItems[], totalItems, score, completedAt</td></tr>
+    <tr><td>DailyReflection</td><td>Session journals</td><td>userId, date, text, emotionalState, sessionRating, lessons, aiInsights</td></tr>
+    <tr><td>DailyDisciplineEntry</td><td>Discipline records</td><td>userId, date, score, notes, emotions[], rulesBroken[]</td></tr>
+    <tr><td>MissionTemplate</td><td>Mission definitions</td><td>name, description, category, difficulty, progressMode, target, targetType, requiredPlan (free/premium), isActive</td></tr>
+    <tr><td>MissionAssignment</td><td>User missions</td><td>userId, templateId, status (active/completed/archived), progress, target, acceptedAt, completedAt</td></tr>
+    <tr><td>TradingDnaReport</td><td>DNA profiles</td><td>userId, profileData{}, traderType, strengths[], weaknesses[], patterns[], shareToken, shareTokenExpiry, generatedAt</td></tr>
+    <tr><td>CoachConversation</td><td>Coaching sessions</td><td>userId, messages[], context{}, lastMessageAt</td></tr>
+    <tr><td>CoachMessage</td><td>Individual messages</td><td>conversationId, sender (user/ai), text, timestamp</td></tr>
+    <tr><td>WeeklyReport</td><td>Weekly summaries</td><td>userId, weekStart, weekEnd, stats{}, narrative, disciplineScore, improvementFocus, generatedAt</td></tr>
+    <tr><td>Notification</td><td>In-app notifications</td><td>userId, type, title, body, data{}, readAt, createdAt</td></tr>
+    <tr><td>NotificationPreference</td><td>User notification settings</td><td>userId, type, enabled, quietHoursStart, quietHoursEnd</td></tr>
+    <tr><td>NotificationHistory</td><td>Delivery tracking</td><td>notificationId, userId, deliveredAt, openedAt, actionAt, actionType</td></tr>
+    <tr><td>NotificationDebugLog</td><td>Debug/troubleshooting</td><td>userId, notificationId, event, metadata, timestamp</td></tr>
+    <tr><td>DeviceToken</td><td>FCM device tokens</td><td>userId, token, platform (android/web), createdAt, lastUsedAt</td></tr>
+    <tr><td>Payment</td><td>Payment records</td><td>userId, orderId, razorpayPaymentId, amount, currency, plan, status, createdAt</td></tr>
+    <tr><td>RescueDispatch</td><td>Subscription rescue</td><td>userId, offerType, sentAt, acceptedAt, outcome</td></tr>
+    <tr><td>WebhookEvent</td><td>Webhook logs</td><td>provider, eventType, eventId, payload{}, processed, processedAt</td></tr>
+    <tr><td>Feedback</td><td>User feedback</td><td>userId, category, text, status, createdAt</td></tr>
+    <tr><td>IssueReport</td><td>Bug reports</td><td>userId, title, description, severity, status, createdAt</td></tr>
+    <tr><td>AnalyticsEvent</td><td>Event telemetry</td><td>userId, eventType, data{}, timestamp</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 22</div>
+</div>
+
+<!-- ===== SECTION 13: CRON JOBS ===== -->
+<div class="page">
+  <h2>13. Background Jobs &amp; Workers</h2>
+
+  <h3>Scheduled Cron Jobs (node-cron)</h3>
+  <table>
+    <tr><th>Job File</th><th>Schedule</th><th>Purpose</th></tr>
+    <tr><td>morningMentorCron.js</td><td>Daily 6:00am</td><td>Generate and send personalized morning motivation via Gemini + FCM push</td></tr>
+    <tr><td>weeklyReportsCron.js</td><td>Daily 9:00am</td><td>Remind users to generate/review their weekly report</td></tr>
+    <tr><td>sessionReminderCron.js</td><td>Configurable</td><td>Send trading session start reminders</td></tr>
+    <tr><td>reflectionReminderCron.js</td><td>Daily evening</td><td>Prompt users to complete their daily reflection journal</td></tr>
+    <tr><td>streakProtectorCron.js</td><td>Daily</td><td>Check streaks at risk, send alerts, manage grace period expiry</td></tr>
+    <tr><td>missionProgressCron.js</td><td>Daily</td><td>Update mission progress for all users based on trade activity; send milestone notifications</td></tr>
+    <tr><td>subscriptionExpiryCron.js</td><td>Daily</td><td>Check subscriptions expiring in next 7 days, send expiry alerts</td></tr>
+    <tr><td>subscriptionRescueCron.js</td><td>Daily</td><td>Execute rescue funnel — send tiered re-engagement offers to users pre/post-expiry</td></tr>
+    <tr><td>dataCleanupCron.js</td><td>Daily 3:00am</td><td>Delete old raw OCR text from extraction logs to reduce storage</td></tr>
+  </table>
+
+  <h3>BullMQ Workers (Async Job Queues — Redis-backed)</h3>
+  <table>
+    <tr><th>Worker</th><th>Queue</th><th>Purpose</th></tr>
+    <tr><td>ocrWorker.js</td><td>ocrQueue</td><td>Processes trade screenshot extraction jobs: runs Gemini Vision → Cloud Vision → Tesseract pipeline; stores extracted trade data; updates OCRJob status</td></tr>
+    <tr><td>smartNotificationWorker.js</td><td>smartNotificationQueue</td><td>Sends FCM push notifications asynchronously; evaluates smart timing rules and quiet hours before delivery; records NotificationHistory</td></tr>
+    <tr><td>tradingDnaWorker.js</td><td>tradingDnaQueue</td><td>Processes Trading DNA generation jobs; builds Gemini prompt from trade/psychology data; saves TradingDnaReport; updates job status for client polling</td></tr>
+  </table>
+
+  <h3>Process Management</h3>
+  <ul>
+    <li>PM2 manages the Node.js backend server and worker processes in production.</li>
+    <li>ecosystem.config.js defines all PM2 process definitions.</li>
+    <li>Workers can be scaled horizontally — BullMQ handles concurrency across multiple worker instances.</li>
+    <li>Graceful shutdown: server waits for in-flight requests before exiting.</li>
+    <li>Crash guards on workers: BullMQ retries failed jobs with backoff; worker crashes are reported to Sentry.</li>
+  </ul>
+
+  <h3>OCR Pipeline Detail</h3>
+  <table>
+    <tr><th>Layer</th><th>Technology</th><th>Role</th></tr>
+    <tr><td>Layer 1 (Primary)</td><td>Gemini Vision 2.5 Flash</td><td>Multimodal AI vision extraction — parses trade data directly from image</td></tr>
+    <tr><td>Layer 2 (Secondary)</td><td>Google Cloud Vision API</td><td>Traditional OCR text extraction — fed to parsingService for regex parsing</td></tr>
+    <tr><td>Layer 3 (Fallback)</td><td>Tesseract.js</td><td>Open-source OCR — last resort when cloud services unavailable</td></tr>
+    <tr><td>Parsing Engine</td><td>parsingService.js (42KB)</td><td>Broker-specific regex patterns for structured field extraction from raw OCR text</td></tr>
+    <tr><td>Quality Layer</td><td>extractionQualityService.js</td><td>Confidence scoring, broker detection, validation of extracted values</td></tr>
+  </table>
+
+  <div class="footer">Edgecipline PRD v2 | 23</div>
+</div>
+
+<!-- ===== SECTION 14: SUCCESS METRICS ===== -->
+<div class="page">
+  <h2>14. Success Metrics</h2>
+
+  <h3>Activation Metrics</h3>
+  <ul>
+    <li>Account creation to first saved trade conversion rate.</li>
+    <li>Percentage of new users who attempt screenshot upload within first session.</li>
+    <li>Screenshot extraction completion rate (valid uploads that complete successfully).</li>
+    <li>Percentage of extracted trades saved after user review.</li>
+    <li>Time from signup to first saved trade.</li>
+    <li>Onboarding completion rate (users who complete all steps).</li>
+  </ul>
+  <p><strong>Targets:</strong> 60%+ of registered users save at least one trade. 40%+ of new users try screenshot upload. 80%+ of valid uploads complete successfully.</p>
+
+  <h3>Engagement Metrics</h3>
+  <ul>
+    <li>Trades logged per active user per week.</li>
+    <li>Weekly active users (WAU).</li>
+    <li>Daily active users (DAU) — driven by morning mentor and streak alerts.</li>
+    <li>Checklist completion rate per trade.</li>
+    <li>Psychology field completion rate per trade.</li>
+    <li>Reflection journal entry rate (entries per week per active user).</li>
+    <li>Mission acceptance rate from AI recommendations.</li>
+    <li>Mission completion rate (accepted → completed).</li>
+    <li>Streak length distribution and average streak length.</li>
+    <li>Weekly report view rate.</li>
+    <li>Morning mentor notification open rate.</li>
+    <li>AI coach message send rate per active user per week.</li>
+  </ul>
+  <p><strong>Targets:</strong> Users who log 5+ trades materially more likely to return next week. 50%+ of active users view analytics at least once per week. 30%+ of active users complete at least one mission per month.</p>
+
+  <h3>Retention Metrics</h3>
+  <ul>
+    <li>D1, D7, D30 retention rates.</li>
+    <li>Weekly returning users.</li>
+    <li>Cohort retention by first successful screenshot upload.</li>
+    <li>Cohort retention by first analytics insight viewed.</li>
+    <li>Cohort retention by first mission accepted.</li>
+    <li>Cohort retention by streak reaching 7+ days.</li>
+  </ul>
+  <p><strong>Targets:</strong> Screenshot upload should correlate with higher D7 retention. Users with 10+ saved trades should show strong weekly retention. Users with active missions should show higher 30-day retention than users without.</p>
+
+  <h3>Monetization Metrics</h3>
+  <ul>
+    <li>Free-to-paid conversion rate (at trial expiry).</li>
+    <li>Subscription checkout start rate.</li>
+    <li>Payment success rate (started checkout → subscription active).</li>
+    <li>Monthly recurring revenue (MRR).</li>
+    <li>Monthly churn rate.</li>
+    <li>Rescue funnel acceptance rate (rescue offer → subscription renewed).</li>
+    <li>Upload limit hit rate → conversion rate (free users who hit limit and upgrade).</li>
+  </ul>
+
+  <h3>Quality Metrics</h3>
+  <ul>
+    <li>Extraction accuracy by broker and market type.</li>
+    <li>Manual correction rate after extraction (fields changed in review).</li>
+    <li>Failed upload rate (processing errors).</li>
+    <li>Non-trade image rejection accuracy (correctly rejected / total invalid images).</li>
+    <li>Average OCR processing time (queue → completion).</li>
+    <li>Support tickets per 100 uploads.</li>
+    <li>Mission progress cron success rate (jobs completing without errors).</li>
+    <li>Notification delivery rate and open rate by type.</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 24</div>
+</div>
+
+<!-- ===== SECTIONS 15-17 ===== -->
+<div class="page">
+  <h2>15. What We Are Deliberately Not Building</h2>
+  <p>Edgecipline is a journal, behavioral coach, and discipline system. It is not a trading platform. The following remain explicitly out of scope:</p>
+  <ul>
+    <li>Live trading execution or order placement.</li>
+    <li>Broker account linking or automatic trade sync via API.</li>
+    <li>Buy/sell signals or market analysis.</li>
+    <li>Copy trading.</li>
+    <li>Social feed or public trader profiles (shareable DNA reports are limited in scope).</li>
+    <li>Community chat or social interaction.</li>
+    <li>Portfolio management across multiple asset classes.</li>
+    <li>Tax filing or P&amp;L reporting for tax purposes.</li>
+    <li>Advanced options strategy payoff modeling.</li>
+    <li>Real-time market data terminal.</li>
+    <li>Backtesting engine.</li>
+    <li>Strategy marketplace or signal subscription.</li>
+    <li>Funded account challenge management.</li>
+    <li>Institutional risk desk features.</li>
+    <li>Complex team or multi-user organization permissions.</li>
+    <li>White-label broker partnerships.</li>
+    <li>Guaranteed financial advice or profit predictions.</li>
+  </ul>
+
+  <h2>16. Key Assumptions</h2>
+  <ul>
+    <li>Traders want to journal but avoid it because manual entry is too painful.</li>
+    <li>Screenshot upload is a strong enough wedge to drive first-use activation.</li>
+    <li>Traders will correct extracted fields if the app gets most fields right on the first pass.</li>
+    <li>Psychology and discipline insights are a stronger differentiator than generic P&amp;L charts.</li>
+    <li>Indian traders are underserved by generic Western trading journals.</li>
+    <li>A limited free trial (7 days) with real premium access converts better than a perpetual feature-limited free tier.</li>
+    <li>Mobile upload is important because many retail traders trade from phones and want to journal immediately after closing a trade.</li>
+    <li>Gamification (missions, streaks) meaningfully improves weekly retention for traders who engage with it.</li>
+    <li>Morning mentor messages drive daily active usage and keep the product top-of-mind.</li>
+    <li>A subscription rescue funnel meaningfully reduces churn compared to passive expiry.</li>
+  </ul>
+
+  <h2>17. Risks &amp; Mitigations</h2>
+  <h3>Risk: AI Extraction Accuracy Is Inconsistent</h3>
+  <p><strong>Mitigation:</strong> Store extraction confidence. Mark low-confidence trades as "needs review." Allow easy user correction. Three-layer fallback OCR pipeline (Gemini → Cloud Vision → Tesseract). Track broker-specific accuracy metrics. Keep manual entry as permanent fallback.</p>
+
+  <h3>Risk: Users Do Not Enter Psychology Data</h3>
+  <p><strong>Mitigation:</strong> Make psychology fields lightweight (chips and defaults). Show clear analytics unlocked by psychology data. Do not block trade saving if psychology is skipped. Use coaching messages to prompt psychology completion. Show psychology cost calculator as incentive.</p>
+
+  <h3>Risk: Analytics Feel Generic</h3>
+  <p><strong>Mitigation:</strong> Unlock states until enough data exists — never show empty charts. Tie all insights to specific user trade data. Prioritize "what to do next" framing over long explanations.</p>
+
+  <h3>Risk: Gamification Feels Hollow Without Enough Trades</h3>
+  <p><strong>Mitigation:</strong> Mission templates include low-barrier entry missions. Streaks can start from reflections, not just trades. Morning mentor sends even with zero trades that day.</p>
+
+  <h3>Risk: Traders Expect Signals or Market Analysis</h3>
+  <p><strong>Mitigation:</strong> Position product clearly as a journal and discipline coach in all copy and onboarding. Avoid any language implying prediction, guaranteed profits, or financial advice. Add compliance disclaimer on coaching and analytics outputs.</p>
+
+  <h3>Risk: Paid Conversion Is Weak After Trial</h3>
+  <p><strong>Mitigation:</strong> Make 7-day trial value immediate and obvious. Show premium features clearly during trial. Rescue funnel runs before expiry with tiered offers. Gate screenshot uploads (not manual journaling) to create specific paywall moment.</p>
+
+  <h3>Risk: Indian And Forex Complexity Slows Development</h3>
+  <p><strong>Mitigation:</strong> Completely separate data models, routes, and analytics for each market. Prioritize top brokers and most common screenshot layouts first. Avoid generalizing market-specific logic — keep it explicit per market.</p>
+
+  <h3>Risk: Notification Fatigue Reduces Engagement</h3>
+  <p><strong>Mitigation:</strong> Smart notification evaluator avoids over-sending. User quiet hours respected. Per-category notification preferences allow users to control what they receive. Engagement metrics tracked per notification type to tune frequency.</p>
+
+  <div class="footer">Edgecipline PRD v2 | 25</div>
+</div>
+
+<!-- ===== SECTION 18: ROADMAP STATUS ===== -->
+<div class="page">
+  <h2>18. Roadmap Status</h2>
+  <p>As of July 2026, all five original roadmap phases are complete. The product has shipped well beyond the MVP definition. The table below summarizes current completion status.</p>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 1: Reliable Journal Core — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      Auth and terms acceptance. Manual trade entry. Screenshot upload with OCR/AI. Trade journal CRUD. Dashboard with core KPIs. Forex and Indian market separation.
+    </div>
+  </div>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 2: Discipline Layer — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      Setup strategies. Trade checklists. Psychology fields on trades. Mistake tagging. Discipline analytics. Psychology cost calculator. Self-awareness score. Checklist notification settings. Daily discipline entries.
+    </div>
+  </div>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 3: Coaching and Review — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      Trading DNA with async generation and shareable links. Pattern detection. AI coach feed. Weekly report generation and archive. Self-awareness and psychology cost. Daily reflections journal. AI reflection insights. Morning mentor cron (6am daily).
+    </div>
+  </div>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 4: Monetization and Operations — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      7-day premium trial on signup. Subscription gating. Razorpay order/verify/webhook flow. Subscription rescue funnel with RescueDispatch model. Admin console (users, payments, trades, feedback, issues, missions, monitoring, expired users, cache metrics). Feedback and issue reporting. Notification preferences.
+    </div>
+  </div>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 5: Mobile Polish — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      Native Android APK (Capacitor 6). FCM push notifications (all notification types live). Mobile bottom navigation bar. Faster upload/review loop with gallery/camera picker. Custom Capacitor checklist notification plugin with Android WorkManager + BroadcastReceiver for interactive notifications. Sentry Android crash tracking.
+    </div>
+  </div>
+
+  <div class="phase-block">
+    <div class="phase-header">Phase 6: Behavioral Gamification — <span class="status-done">COMPLETE</span></div>
+    <div class="phase-body">
+      Streaks and consistency tracking with streak protection and milestone notifications. Missions and challenges system with AI-powered recommendations (Gemini behavior profile analysis). Mission progress tracking via daily cron. Premium and free mission tiers. Three-mission active limit. Mission completion notifications.
+    </div>
+  </div>
+
+  <h3>Potential Next Phase Items</h3>
+  <ul>
+    <li>Export to CSV/PDF for trade data and reports.</li>
+    <li>Calendar-based weekly review builder (visual week layout).</li>
+    <li>Community or mentor dashboards for coaching groups.</li>
+    <li>iOS application (Capacitor iOS build).</li>
+    <li>Advanced benchmark comparisons across anonymized user cohorts.</li>
+    <li>Trading plan document builder (formalize rules in-app).</li>
+    <li>Expanded broker coverage for less common Indian brokers.</li>
+    <li>Screenshot batch upload (multiple screenshots in a single upload session).</li>
+    <li>AI-generated improvement plan for next week (synthesized from weekly report + mission recommender).</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 26</div>
+</div>
+
+<!-- ===== SECTIONS 19-20 ===== -->
+<div class="page">
+  <h2>19. Open Product Questions</h2>
+  <ul>
+    <li>Should manual journaling remain free forever, or should some manual features also require subscription above a trade count threshold?</li>
+    <li>Which market should be publicly positioned first — Indian options, Forex, or both simultaneously?</li>
+    <li>What extraction accuracy threshold is acceptable for beta public launch? (Suggested: 85% field accuracy across top 10 brokers.)</li>
+    <li>Should weekly reports be generated automatically on a schedule or remain manually triggered?</li>
+    <li>Should the AI coach be marketed as "AI-powered" from day one, or should the product lead with "discipline analytics" and reveal the AI layer progressively?</li>
+    <li>What compliance disclaimer should appear around analytics outputs and coaching content? (India-specific financial advice regulations.)</li>
+    <li>Should mission completion award visible badges or points that accumulate over time (leaderboard potential)?</li>
+    <li>Should the shareable Trading DNA link expire (current implementation) or be permanent by user choice?</li>
+    <li>Should iOS be prioritized before or after strengthening Android feature parity?</li>
+    <li>At what trade volume should the product start offering cohort benchmarking (anonymized "traders like you" comparisons)?</li>
+  </ul>
+
+  <h2>20. Positioning Recommendation</h2>
+  <p>For an early-stage launch, the strongest single-line wedge is:</p>
+  <div class="callout">"The trading journal that fills itself from your broker screenshots."</div>
+  <p>The broader product vision — once users have experienced the journal — is:</p>
+  <div class="callout">"A discipline operating system for retail traders."</div>
+
+  <h3>Recommended Messaging Hierarchy</h3>
+  <ol>
+    <li><strong>Hook:</strong> Screenshot → journal in seconds. No manual data entry.</li>
+    <li><strong>Differentiator 1:</strong> Indian market support — Zerodha, Upstox, Angel One, and more.</li>
+    <li><strong>Differentiator 2:</strong> Psychology analytics — see how much FOMO and revenge trading cost you.</li>
+    <li><strong>Differentiator 3:</strong> Behavioral coaching — AI coach, missions, streaks, and morning mentor.</li>
+    <li><strong>Differentiator 4:</strong> Trading DNA — understand your unique trader profile.</li>
+  </ol>
+
+  <h3>Positioning Guard Rails</h3>
+  <ul>
+    <li>Never imply trade signals, market prediction, or guaranteed profits.</li>
+    <li>Always frame insights as behavioral and historical — "this is what your data shows" not "this is what the market will do."</li>
+    <li>Lead with process quality and discipline, not P&amp;L maximization.</li>
+    <li>Use "discipline," "consistency," "self-awareness," and "review" as emotional anchors.</li>
+    <li>For Indian market: acknowledge the specific brokers and terminology up front to establish immediate relevance.</li>
+  </ul>
+
+  <hr>
+  <p style="font-size: 9pt; color: #666; margin-top: 12pt;">
+    This document reflects the complete product as built in the Stratedge codebase as of July 2026. It covers all implemented features across the web application (Next.js), Android application (Capacitor), backend API (Express), database layer (MongoDB), caching layer (Redis), job queue system (BullMQ), scheduled cron jobs, and third-party integrations. Any features described here that were listed as "nice-to-have" in the previous PRD version (June 2026) are now fully implemented.
+  </p>
+
+  <div class="footer">Edgecipline PRD v2 | 27</div>
+</div>
+
+
+<!-- ===== INTELLIGENCE HUB — DEDICATED SECTION ===== -->
+<div class="page">
+  <h2>21. Intelligence Hub — Complete Feature Specification</h2>
+  <p>The Intelligence Hub (<strong>/intelligence</strong>) is the most analytically complex page in Edgecipline. It aggregates a trader's entire behavioral history into five distinct insight blocks that together answer the five most important questions a retail trader needs to ask themselves. Every number is evidence-backed from the user's own trade data — nothing is generic or invented.</p>
+
+  <div class="callout">
+    "The Intelligence Hub doesn't tell you what the market will do. It tells you what YOU do — and what it costs you."
+  </div>
+
+  <p>The page is structured around five questions, each powered by a separate analytics engine running in parallel on the backend. All engines share a single trade data load (up to 10,000 most recent trades per user) and cache results in Redis per user for 90–120 seconds.</p>
+
+  <table>
+    <tr><th>#</th><th>Question</th><th>Engine</th><th>Minimum Trades</th></tr>
+    <tr><td>1</td><td>What makes me money?</td><td>Trading DNA + Pattern Detection</td><td>~20 trades</td></tr>
+    <tr><td>2</td><td>What costs me money?</td><td>Psychology Cost Calculator</td><td>~10 trades with psychology tags</td></tr>
+    <tr><td>3</td><td>What should I improve?</td><td>Self-Awareness Engine + Discipline Analytics</td><td>~15 trades with quality ratings</td></tr>
+    <tr><td>4</td><td>How am I evolving?</td><td>Psychology Timeline</td><td>~2 weeks of data</td></tr>
+    <tr><td>5</td><td>What should I do now?</td><td>AI Coach Feed (Gemini-powered)</td><td>~10 trades</td></tr>
+  </table>
+
+  <p>All sections display <strong>unlock states</strong> when trade count is below threshold — never empty placeholders. Unlock states tell the user exactly how many more trades they need to log before that insight becomes available.</p>
+
+  <div class="footer">Edgecipline PRD v2 | 28</div>
+</div>
+
+<div class="page">
+  <h2>21.1 — "What Makes Me Money?" (Trading DNA)</h2>
+  <p>The Trading DNA engine analyses every trade the user has logged and finds the conditions under which they perform best. It produces a multi-dimensional behavioral fingerprint across six DNA dimensions: session, instrument/pair, mood, confidence, day of week, and entry basis.</p>
+
+  <h3>DNA Dimensions Explained</h3>
+
+  <h4>Session DNA (Forex)</h4>
+  <p>Groups trades by the trading session they were taken in and calculates win rate and net P&amp;L per session.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Session</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Label</th></tr>
+      <tr><td>London</td><td>34</td><td>68%</td><td>+$1,240</td><td>Your Best Session</td></tr>
+      <tr><td>London/NY Overlap</td><td>18</td><td>61%</td><td>+$620</td><td>Strong Edge</td></tr>
+      <tr><td>New York</td><td>22</td><td>45%</td><td>-$180</td><td>Average</td></tr>
+      <tr><td>Asia</td><td>9</td><td>33%</td><td>-$440</td><td>Your Worst Session — Avoid</td></tr>
+    </table>
+    <p><em>Coaching card generated: "You win 68% in London but only 33% in Asia. Consider restricting your Asia trades — that session alone has cost you $440."</em></p>
+  </div>
+
+  <h4>Instrument / Pair DNA</h4>
+  <p>Ranks each currency pair (Forex) or instrument (Indian: Equity, Options Buying, Options Selling, Futures) by win rate and net P&amp;L. Separates "best edge pairs" from "pairs that drain the account."</p>
+  <div class="box">
+    <h4>Example output (Forex)</h4>
+    <table>
+      <tr><th>Pair</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Label</th></tr>
+      <tr><td>GBPUSD</td><td>28</td><td>71%</td><td>+$1,560</td><td>Strongest Edge</td></tr>
+      <tr><td>EURUSD</td><td>31</td><td>55%</td><td>+$390</td><td>Solid Edge</td></tr>
+      <tr><td>GBPJPY</td><td>14</td><td>36%</td><td>-$720</td><td>Biggest Drain — Consider Stopping</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h4>Example output (Indian market)</h4>
+    <table>
+      <tr><th>Instrument Type</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th></tr>
+      <tr><td>Options Selling (PE/CE sold)</td><td>22</td><td>73%</td><td>+₹48,000</td></tr>
+      <tr><td>Options Buying (CE/PE bought)</td><td>19</td><td>37%</td><td>-₹22,000</td></tr>
+      <tr><td>Futures</td><td>11</td><td>55%</td><td>+₹8,500</td></tr>
+    </table>
+  </div>
+
+  <h4>Mood DNA</h4>
+  <p>Maps the user's pre-trade mood rating (1–5 scale: Stressed → Anxious → Neutral → Good → Peak) to actual trading outcomes. Shows which mood states produce edge and which destroy it.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Mood State</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th></tr>
+      <tr><td>Peak (5)</td><td>12</td><td>75%</td><td>+$890</td></tr>
+      <tr><td>Good (4)</td><td>27</td><td>63%</td><td>+$1,100</td></tr>
+      <tr><td>Neutral (3)</td><td>18</td><td>50%</td><td>+$120</td></tr>
+      <tr><td>Anxious (2)</td><td>14</td><td>36%</td><td>-$480</td></tr>
+      <tr><td>Stressed (1)</td><td>6</td><td>17%</td><td>-$620</td></tr>
+    </table>
+    <p><em>Coaching card: "When you feel Stressed or Anxious you lose 78% of the time and have lost $1,100 across 20 trades. Consider a rule: no trading below Neutral mood."</em></p>
+  </div>
+
+  <h4>Confidence DNA</h4>
+  <p>Maps confidence level at entry (Low / Medium / High / Overconfident) to win rates. A key insight here is detecting overconfidence — trades taken at 9–10/10 confidence often underperform trades taken at 7–8/10, which counterintuitively reveals a dangerous bias.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Confidence Level</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th></tr>
+      <tr><td>High (7–8/10)</td><td>24</td><td>67%</td><td>+$1,340</td></tr>
+      <tr><td>Medium (5–6/10)</td><td>21</td><td>57%</td><td>+$420</td></tr>
+      <tr><td>Overconfident (9–10/10)</td><td>16</td><td>38%</td><td>-$890</td></tr>
+      <tr><td>Low (1–4/10)</td><td>9</td><td>44%</td><td>-$200</td></tr>
+    </table>
+    <p><em>Coaching card: "Your overconfident trades (rated 9–10/10) are your worst performers at 38% WR. Your best trades happen when confidence is 7–8. Overconfidence appears to be a dangerous trigger for you."</em></p>
+  </div>
+
+  <h4>Day of Week DNA</h4>
+  <p>Shows win rate and net P&amp;L for each day of the week. Reveals if the trader has structural weaknesses on specific days (e.g., Friday revenge trading before the weekend, Monday overtrading).</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Day</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th></tr>
+      <tr><td>Tuesday</td><td>19</td><td>68%</td><td>+$760</td></tr>
+      <tr><td>Wednesday</td><td>22</td><td>64%</td><td>+$940</td></tr>
+      <tr><td>Thursday</td><td>18</td><td>56%</td><td>+$310</td></tr>
+      <tr><td>Monday</td><td>16</td><td>44%</td><td>-$120</td></tr>
+      <tr><td>Friday</td><td>11</td><td>27%</td><td>-$680</td></tr>
+    </table>
+    <p><em>Coaching card: "Friday is your worst day at 27% WR and -$680. You may be overtrading before the weekend close. Consider no new trades on Fridays."</em></p>
+  </div>
+
+  <div class="footer">Edgecipline PRD v2 | 29</div>
+</div>
+
+<div class="page">
+  <h3>Pattern Detection</h3>
+  <p>Beyond single-dimension DNA, the Pattern Detection engine finds multi-factor combinations that reliably predict good or bad outcomes. It tests combinations of session + mood + confidence + setup quality to find statistically meaningful patterns.</p>
+
+  <h4>Winning Pattern Example</h4>
+  <div class="box">
+    <h4>Pattern: "Calm + London Session + High Confidence"</h4>
+    <ul>
+      <li><strong>Trade count:</strong> 14 trades</li>
+      <li><strong>Win rate:</strong> 79%</li>
+      <li><strong>Net P&L:</strong> +$1,820</li>
+      <li><strong>Confidence level:</strong> High (14 trades = Medium data confidence)</li>
+      <li><strong>Insight:</strong> "When you feel calm, trade in London session, and rate your confidence 7–8/10, you win nearly 4 out of 5 trades. This combination represents your highest-edge state."</li>
+      <li><strong>Recommendation:</strong> "Prioritize waiting for this specific set of conditions before entering a trade. Consider making this a checklist item: Am I calm? Is this London session? Is my confidence 7–8?"</li>
+    </ul>
+  </div>
+
+  <h4>Losing Pattern Example</h4>
+  <div class="box">
+    <h4>Pattern: "Frustrated + Overconfident + Asia Session"</h4>
+    <ul>
+      <li><strong>Trade count:</strong> 8 trades</li>
+      <li><strong>Win rate:</strong> 13%</li>
+      <li><strong>Net P&L:</strong> -$1,140</li>
+      <li><strong>Confidence level:</strong> Low (8 trades = Low data confidence, flagged)</li>
+      <li><strong>Insight:</strong> "This combination has produced only 1 win in 8 trades and has cost $1,140. This is likely your revenge-trading pattern."</li>
+      <li><strong>Recommendation:</strong> "If you feel frustrated AND want to trade in the Asia session, treat this as a hard stop signal. Step away from the screen."</li>
+    </ul>
+  </div>
+
+  <h4>Loss Streak Impact Analysis</h4>
+  <p>Shows how performance changes after consecutive losing trades. Key for detecting tilt and revenge trading behavior.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Consecutive Losses Before Trade</th><th>Win Rate of Next Trade</th><th>P&L Impact</th></tr>
+      <tr><td>0 (no streak)</td><td>58%</td><td>+$48 avg</td></tr>
+      <tr><td>1 loss</td><td>52%</td><td>+$18 avg</td></tr>
+      <tr><td>2 losses</td><td>41%</td><td>-$32 avg</td></tr>
+      <tr><td>3+ losses</td><td>22%</td><td>-$147 avg</td></tr>
+    </table>
+    <p><em>Coaching card: "After 3 consecutive losses your win rate drops to 22% — less than half your normal rate. Your data strongly suggests you should stop trading after 2 losses in a day."</em></p>
+  </div>
+
+  <h4>Pattern Confidence Thresholds</h4>
+  <ul>
+    <li>Fewer than 5 trades in a pattern: pattern is hidden entirely (not shown to avoid noise).</li>
+    <li>5–9 trades: pattern shown with "Low Confidence — more data needed" label.</li>
+    <li>10–29 trades: "Medium Confidence" — pattern reliable enough to act on.</li>
+    <li>30+ trades: "High Confidence" — strong statistical signal.</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 30</div>
+</div>
+
+<div class="page">
+  <h2>21.2 — "What Costs Me Money?" (Psychology Cost Calculator)</h2>
+  <p>The Psychology Cost Calculator converts emotional and behavioral data attached to trades into a quantified P&amp;L cost. It answers the question traders rarely face directly: "How much money did my emotions take from me this month?"</p>
+
+  <h3>Psychology Score (0–100)</h3>
+  <p>A composite health score calculated from the ratio of healthy vs. unhealthy trade P&amp;L, weighted by plan adherence rate. A score of 100 means all trades were plan-based with no emotional tags. A score below 50 signals significant behavioral P&amp;L drag.</p>
+  <div class="box">
+    <h4>Example</h4>
+    <p>User has 80 trades total:</p>
+    <ul>
+      <li>52 trades tagged "Plan" entry: net P&amp;L = +$2,400 → Healthy P&amp;L</li>
+      <li>18 trades tagged "Emotional": net P&amp;L = -$890 → Unhealthy P&amp;L</li>
+      <li>10 trades tagged "Impulsive": net P&amp;L = -$440 → Unhealthy P&amp;L</li>
+      <li><strong>Psychology Score: 64/100</strong> — Moderate. Emotional trades are draining roughly $1,330 in P&amp;L that plan-based trades are earning.</li>
+    </ul>
+  </div>
+
+  <h3>Emotional Costs Breakdown</h3>
+  <p>For every emotional tag the user has applied (FOMO, Revenge, Fear, Greed, Calm, Focused, Rushed, etc.), the calculator shows: trade count, win rate, and net P&amp;L. This gives a dollar figure to each emotion.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Emotion Tag</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Avg P&L/Trade</th></tr>
+      <tr><td>Calm</td><td>26</td><td>73%</td><td>+$1,480</td><td>+$57</td></tr>
+      <tr><td>Focused</td><td>18</td><td>67%</td><td>+$840</td><td>+$47</td></tr>
+      <tr><td>FOMO</td><td>12</td><td>25%</td><td>-$680</td><td>-$57</td></tr>
+      <tr><td>Revenge</td><td>8</td><td>13%</td><td>-$920</td><td>-$115</td></tr>
+      <tr><td>Greed</td><td>7</td><td>29%</td><td>-$410</td><td>-$59</td></tr>
+      <tr><td>Rushed</td><td>9</td><td>33%</td><td>-$290</td><td>-$32</td></tr>
+    </table>
+    <p><em>Coaching card: "Revenge trading is your single most expensive emotion — $920 lost across just 8 trades, with only a 13% win rate. Your calm trades earn $57 per trade. Revenge trades cost $115 each — meaning one revenge trading sequence wipes out two calm trade wins."</em></p>
+  </div>
+
+  <h3>Mistake Cost Breakdown</h3>
+  <p>Every mistake tag applied to a trade (Moved Stop Loss, Over-Leveraged, Early Exit, Late Entry, Missed Entry, etc.) is quantified into a cost ranking.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Mistake Tag</th><th>Times Made</th><th>Win Rate</th><th>Total P&L Cost</th></tr>
+      <tr><td>Moved Stop Loss</td><td>9</td><td>22%</td><td>-$1,240</td></tr>
+      <tr><td>Early Exit (fear)</td><td>14</td><td>57%</td><td>-$380 (opportunity cost)</td></tr>
+      <tr><td>Over-Leveraged</td><td>5</td><td>40%</td><td>-$890</td></tr>
+      <tr><td>Late Entry (FOMO)</td><td>11</td><td>36%</td><td>-$540</td></tr>
+      <tr><td>Revenge Entry</td><td>7</td><td>14%</td><td>-$760</td></tr>
+    </table>
+    <p><em>Coaching card: "Moving your stop loss is your most expensive mistake — $1,240 lost across 9 trades. This single behavior has cost you more than any other mistake. Add a hard rule to your checklist: 'I will not move my stop loss after entry.'"</em></p>
+  </div>
+
+  <h3>Rule Violation Cost</h3>
+  <p>For users with setup strategies and checklists, the calculator shows which specific setup rules are broken most often and what each violation costs.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Setup Rule</th><th>Times Broken</th><th>Win Rate When Broken</th><th>Win Rate When Followed</th><th>P&L When Broken</th></tr>
+      <tr><td>"Only trade with trend on H4"</td><td>11</td><td>27%</td><td>65%</td><td>-$720</td></tr>
+      <tr><td>"Wait for candle close confirmation"</td><td>8</td><td>38%</td><td>62%</td><td>-$390</td></tr>
+      <tr><td>"Max 2 trades per session"</td><td>6</td><td>17%</td><td>61%</td><td>-$580</td></tr>
+    </table>
+    <p><em>Coaching card: "When you break your 'only trade with trend' rule your win rate drops from 65% to 27%. This rule violation alone has cost $720. Your data proves this rule is worth following."</em></p>
+  </div>
+
+  <h3>Healthy vs. Unhealthy Trade Summary</h3>
+  <div class="box">
+    <h4>Example summary card on Intelligence page</h4>
+    <ul>
+      <li><strong>Healthy trades (plan-based, no negative tags):</strong> 52 trades — Net P&amp;L: +$2,400 — Win rate: 67%</li>
+      <li><strong>Unhealthy trades (emotional/impulsive tags):</strong> 28 trades — Net P&amp;L: -$1,330 — Win rate: 29%</li>
+      <li><strong>Behavioral drag:</strong> $1,330 lost to behavioral errors this period.</li>
+      <li><strong>Projection:</strong> "If you eliminated unhealthy trades, your net P&amp;L would be +$3,730 instead of +$1,070."</li>
+    </ul>
+  </div>
+
+  <div class="footer">Edgecipline PRD v2 | 31</div>
+</div>
+
+<div class="page">
+  <h2>21.3 — "What Should I Improve?" (Self-Awareness Engine + Discipline Analytics)</h2>
+
+  <h3>Self-Awareness Score</h3>
+  <p>The Self-Awareness engine measures how accurately a trader can evaluate the quality of their own trades. After each trade, the user rates it as Great / Average / Poor. The system independently calculates an objective quality score based on execution metrics (setup score, entry basis, checklist completion, R:R, discipline). The Self-Awareness Score measures how often user ratings match the system's objective rating.</p>
+
+  <h4>The Problem It Solves</h4>
+  <p>Most traders rate profitable trades as "Great" even when the execution was poor, and rate losing trades as "Poor" even when execution was excellent. This is called <strong>outcome bias</strong> — judging process by result. The Self-Awareness Score quantifies this bias so traders can correct it.</p>
+
+  <div class="box">
+    <h4>Example: Self-Awareness Score output</h4>
+    <p><strong>Overall Self-Awareness Score: 58%</strong> — Moderate. You correctly evaluated 29 of your last 50 rated trades.</p>
+    <table>
+      <tr><th>Your Rating</th><th>System Rating</th><th>Count</th><th>What This Means</th></tr>
+      <tr><td>Great</td><td>Great</td><td>12</td><td>Correctly identified a well-executed win</td></tr>
+      <tr><td>Great</td><td>Poor</td><td>8</td><td>Rated as great because it was profitable, but execution was poor</td></tr>
+      <tr><td>Average</td><td>Average</td><td>9</td><td>Accurate self-assessment</td></tr>
+      <tr><td>Poor</td><td>Poor</td><td>8</td><td>Correctly identified a badly executed trade</td></tr>
+      <tr><td>Poor</td><td>Great</td><td>5</td><td>Rated as poor because it lost money, but execution was actually good</td></tr>
+      <tr><td>Poor</td><td>Average</td><td>8</td><td>Underrated a reasonable trade due to loss bias</td></tr>
+    </table>
+    <p><strong>Outcome Bias Detected:</strong> 8 trades were rated Great despite poor execution — because they happened to be profitable. <em>"You are rating 8 trades as 'Great' purely because they made money, not because of how you executed them. This prevents you from improving your process."</em></p>
+    <p><strong>Loss Bias Detected:</strong> 5 trades rated Poor despite excellent execution — because they lost money. <em>"You rated 5 well-executed trades as 'Poor' because they lost. These trades were good — the market moved against you. Recognizing good execution in losing trades is critical for mental resilience."</em></p>
+  </div>
+
+  <h4>Calibration by Category</h4>
+  <div class="box">
+    <ul>
+      <li><strong>Great trade accuracy:</strong> 60% (correctly rated 12 of 20 trades you called Great)</li>
+      <li><strong>Average trade accuracy:</strong> 69% (correctly rated 9 of 13)</li>
+      <li><strong>Poor trade accuracy:</strong> 47% (correctly rated 8 of 17) — Biggest blind spot</li>
+      <li><strong>Best-rated category:</strong> Average trades — you are most calibrated here</li>
+      <li><strong>Worst-rated category:</strong> Poor trades — high outcome bias causing over-criticism after losses</li>
+    </ul>
+  </div>
+
+  <h3>Discipline Analytics</h3>
+  <p>Discipline Analytics measures plan adherence quantitatively using setup scores, checklist completion, and entry basis data.</p>
+
+  <h4>Setup Score Range Performance</h4>
+  <p>Groups trades by setup adherence score into bands and shows win rate for each band, proving mathematically that following the plan produces better results.</p>
+  <div class="box">
+    <h4>Example output</h4>
+    <table>
+      <tr><th>Setup Score Range</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Label</th></tr>
+      <tr><td>81–100 (Perfect execution)</td><td>18</td><td>78%</td><td>+$1,620</td><td>Your best trades</td></tr>
+      <tr><td>61–80 (Good execution)</td><td>24</td><td>63%</td><td>+$820</td><td>Solid edge</td></tr>
+      <tr><td>41–60 (Partial execution)</td><td>19</td><td>47%</td><td>-$80</td><td>Breaking even</td></tr>
+      <tr><td>0–40 (Poor execution)</td><td>16</td><td>25%</td><td>-$1,140</td><td>Destroying edge</td></tr>
+    </table>
+    <p><em>Coaching card: "Your data is unambiguous — the more you follow your plan, the more you make. Trades with 81–100% plan adherence produce a 78% win rate. Trades below 40% adherence produce only 25%. Every point of setup score = real money."</em></p>
+  </div>
+
+  <h4>Rule Performance Analysis</h4>
+  <div class="box">
+    <h4>Most followed rules (positive reinforcement)</h4>
+    <ul>
+      <li>"Confirmed trend direction on H4" — followed 87% of the time → 66% WR when followed</li>
+      <li>"Risk max 1% per trade" — followed 82% of the time → 61% WR when followed</li>
+    </ul>
+    <h4>Most broken rules (improvement targets)</h4>
+    <ul>
+      <li>"No trading after 2 losses" — broken 14 times → 21% WR when broken vs 64% when followed</li>
+      <li>"Only trade A+ setups on Fridays" — broken 9 times → 22% WR when broken</li>
+    </ul>
+  </div>
+
+  <div class="footer">Edgecipline PRD v2 | 32</div>
+</div>
+
+<div class="page">
+  <h2>21.4 — "How Am I Evolving?" (Psychology Timeline)</h2>
+  <p>The Psychology Timeline plots the trader's behavioral and performance metrics over time in weekly or monthly buckets, allowing them to see whether their psychology is improving, stable, or deteriorating.</p>
+
+  <h3>Timeline Buckets</h3>
+  <p>Each bucket (daily / weekly / monthly) contains:</p>
+  <ul>
+    <li>Trade count and P&amp;L for the period.</li>
+    <li>Win rate for the period.</li>
+    <li>Average mood rating across all trades in that period.</li>
+    <li>Average setup score for that period.</li>
+    <li>Plan adherence rate: % of trades taken "by plan" vs. emotional/impulsive.</li>
+    <li>Quality trade %: proportion of trades rated Great or Average (vs. Poor).</li>
+    <li>Psychology Score for the period (0–100).</li>
+  </ul>
+
+  <div class="box">
+    <h4>Example Timeline (monthly buckets, last 4 months)</h4>
+    <table>
+      <tr><th>Month</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Avg Mood</th><th>Avg Setup Score</th><th>Plan %</th><th>Psych Score</th></tr>
+      <tr><td>April</td><td>28</td><td>43%</td><td>-$820</td><td>2.8</td><td>48/100</td><td>55%</td><td>41</td></tr>
+      <tr><td>May</td><td>31</td><td>52%</td><td>+$240</td><td>3.2</td><td>56/100</td><td>64%</td><td>55</td></tr>
+      <tr><td>June</td><td>26</td><td>58%</td><td>+$780</td><td>3.6</td><td>64/100</td><td>72%</td><td>67</td></tr>
+      <tr><td>July</td><td>22</td><td>64%</td><td>+$1,080</td><td>3.9</td><td>71/100</td><td>81%</td><td>76</td></tr>
+    </table>
+    <p><em>AI-generated summary: "Strong upward trend across all behavioral metrics over 4 months. Your psychology score has nearly doubled from 41 to 76, and your plan adherence has increased from 55% to 81%. This directly correlates with your win rate improving from 43% to 64%. You are demonstrating consistent behavioral improvement — this is exactly the trajectory that produces long-term profitability."</em></p>
+  </div>
+
+  <h3>Trend Detection</h3>
+  <p>The timeline engine automatically detects direction (improving / stable / declining) for each metric and labels them so the user gets an instant health check at the top of the timeline.</p>
+  <div class="box">
+    <h4>Example trend summary card</h4>
+    <ul>
+      <li>Win Rate: <strong>Improving</strong> — up 21 points over 4 months</li>
+      <li>Psychology Score: <strong>Improving</strong> — up 35 points over 4 months</li>
+      <li>Plan Adherence: <strong>Improving</strong> — up 26% over 4 months</li>
+      <li>Average Setup Score: <strong>Improving</strong> — up 23 points</li>
+      <li>Average Mood: <strong>Stable</strong> — minimal change</li>
+    </ul>
+  </div>
+
+  <h3>Milestones</h3>
+  <p>The timeline highlights significant achievement milestones as visual markers:</p>
+  <ul>
+    <li>"First 10-trade winning streak" — date achieved</li>
+    <li>"Psychology score exceeded 70 for the first time" — date achieved</li>
+    <li>"Plan adherence reached 80% for the first time" — date achieved</li>
+    <li>"Win rate sustained above 55% for full month for first time" — date achieved</li>
+  </ul>
+
+  <h3>Weekly Report Connection</h3>
+  <p>The timeline feeds directly into weekly report generation — the AI report narrative is built from comparing the current week's bucket to the previous week's bucket and flagging the largest movement (positive or negative) as the headline finding.</p>
+
+  <div class="footer">Edgecipline PRD v2 | 33</div>
+</div>
+
+<div class="page">
+  <h2>21.5 — "What Should I Do Now?" (AI Coach Feed)</h2>
+  <p>The AI Coach Feed is the Intelligence Hub's synthesis layer. It takes the output of all four preceding engines and generates 5–15 prioritized, actionable coaching insights. These are not generic — every insight references specific numbers from the user's own data.</p>
+
+  <h3>How Insights Are Generated</h3>
+  <p>Five insight generators run in parallel, each targeting a different behavioral domain:</p>
+  <ul>
+    <li><strong>Psychology Insights Generator:</strong> Finds biggest emotional leak, biggest emotional strength, healthy vs. unhealthy trade contrast, most expensive rule violation.</li>
+    <li><strong>Trading DNA Insights Generator:</strong> Highlights best session/instrument/confidence combinations; flags dangerous states (overconfidence, Asia session, Stress mood).</li>
+    <li><strong>Pattern Insights Generator:</strong> Surfaces top winning and losing multi-factor patterns; loss streak impact warning; dangerous combination detection.</li>
+    <li><strong>Self-Awareness Insights Generator:</strong> Flags outcome bias, calibration accuracy by category, biggest blind spot in self-evaluation.</li>
+    <li><strong>Discipline Insights Generator:</strong> Surfaces setup score threshold performance; strongest and weakest rules; plan adherence score vs. expectation.</li>
+  </ul>
+
+  <h3>Insight Prioritization Rules</h3>
+  <ul>
+    <li>Each insight gets an <strong>impact score</strong> (1–100) calculated as: abs(P&amp;L impact) / total trade volume × 300, capped at 100.</li>
+    <li>Insights below a $50 P&amp;L threshold are filtered out to avoid noise from tiny amounts.</li>
+    <li>Insights with fewer than 5 supporting trades are hidden (insufficient evidence).</li>
+    <li>Feed is balanced: approximately 70% negative insights (leaks, costs, warnings) and 30% positive (strengths, edges, improvements to reinforce).</li>
+    <li>Duplicate topics are deduplicated — no two insights cover the same metric.</li>
+    <li>Final output is sorted by impact score: HIGH → MEDIUM → LOW priority.</li>
+  </ul>
+
+  <h3>Insight Data Structure</h3>
+  <p>Every insight returned contains exactly these fields:</p>
+  <div class="box">
+    <h4>Insight object structure</h4>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>id</td><td>string</td><td>Unique identifier for this insight</td></tr>
+      <tr><td>category</td><td>string</td><td>Psychology / Confidence / Discipline / Pattern / TradingDNA / SelfAwareness / Improvement</td></tr>
+      <tr><td>type</td><td>string</td><td>positive / negative / neutral</td></tr>
+      <tr><td>priority</td><td>string</td><td>HIGH / MEDIUM / LOW</td></tr>
+      <tr><td>impactScore</td><td>number</td><td>1–100 (normalized P&L impact)</td></tr>
+      <tr><td>title</td><td>string</td><td>Actionable headline — what to do or what to know</td></tr>
+      <tr><td>insight</td><td>string</td><td>Evidence-backed statement using specific numbers</td></tr>
+      <tr><td>evidence</td><td>object</td><td>Raw data: {tradeCount, winRate, netPnL, ...}</td></tr>
+      <tr><td>recommendation</td><td>string</td><td>Concrete next action — specific and measurable</td></tr>
+    </table>
+  </div>
+
+  <h3>Full Example: 5 AI Coach Feed Insights for One User</h3>
+
+  <div class="box">
+    <h4>Insight 1 — Priority: HIGH | Category: Psychology | Type: negative | Impact: 87</h4>
+    <p><strong>Title:</strong> "Revenge trading is destroying your edge"</p>
+    <p><strong>Insight:</strong> "Your 8 revenge trades have produced a 13% win rate and cost you $920 — the single most expensive behavior in your trading history."</p>
+    <p><strong>Evidence:</strong> {tradeCount: 8, winRate: 13%, netPnL: -$920, avgLoss: -$115}</p>
+    <p><strong>Recommendation:</strong> "Add a hard rule: if you have just lost a trade, wait 30 minutes before entering another position. Also add this to your checklist: 'Is this trade motivated by trying to win back a previous loss?'"</p>
+  </div>
+
+  <div class="box">
+    <h4>Insight 2 — Priority: HIGH | Category: TradingDNA | Type: negative | Impact: 76</h4>
+    <p><strong>Title:</strong> "Stop trading in the Asia session"</p>
+    <p><strong>Insight:</strong> "Your Asia session win rate is 33% with -$440 net P&L across 9 trades. Your London session win rate is 68% with +$1,240. You are 2× more likely to win in London than Asia."</p>
+    <p><strong>Evidence:</strong> {asiaTrades: 9, asiaWinRate: 33%, asiaPnL: -$440, londonTrades: 34, londonWinRate: 68%, londonPnL: +$1,240}</p>
+    <p><strong>Recommendation:</strong> "Consider a session restriction rule: only trade during London and London/NY overlap. This alone could significantly improve your overall win rate by eliminating your worst-performing context."</p>
+  </div>
+
+  <div class="box">
+    <h4>Insight 3 — Priority: MEDIUM | Category: SelfAwareness | Type: negative | Impact: 54</h4>
+    <p><strong>Title:</strong> "You have outcome bias — you judge trades by P&L, not execution"</p>
+    <p><strong>Insight:</strong> "8 of your trades were rated 'Great' despite poor execution scores — because they happened to be profitable. Your self-awareness score is 58%, meaning you misjudge about 4 in 10 trades."</p>
+    <p><strong>Evidence:</strong> {selfAwarenessScore: 58%, outcomeBiasCount: 8, totalRated: 50}</p>
+    <p><strong>Recommendation:</strong> "After each trade, rate the EXECUTION first (did I follow my plan?) before looking at the P&L. A good trade that lost money is still a good trade. A bad trade that won is still bad — it just got lucky."</p>
+  </div>
+
+  <div class="box">
+    <h4>Insight 4 — Priority: MEDIUM | Category: Discipline | Type: negative | Impact: 48</h4>
+    <p><strong>Title:</strong> "Breaking 'no trading after 2 losses' rule costs 43% win rate"</p>
+    <p><strong>Insight:</strong> "When you follow your 'no trading after 2 losses' rule your win rate is 64%. When you break it (14 times), your win rate drops to 21%. That rule is worth $960 in P&L difference."</p>
+    <p><strong>Evidence:</strong> {ruleBreakCount: 14, brokenWinRate: 21%, followedWinRate: 64%, pnlDifference: +$960}</p>
+    <p><strong>Recommendation:</strong> "Make this rule a checklist item and treat it as non-negotiable. After 2 losses on the same day, close your trading platform. Resume tomorrow."</p>
+  </div>
+
+  <div class="box">
+    <h4>Insight 5 — Priority: MEDIUM | Category: TradingDNA | Type: positive | Impact: 44</h4>
+    <p><strong>Title:</strong> "Your best state: Calm + High Confidence + London session"</p>
+    <p><strong>Insight:</strong> "When you are calm, trade in London, and rate your confidence 7–8/10, you win 79% of the time (+$1,820 across 14 trades). This is your highest-edge combination."</p>
+    <p><strong>Evidence:</strong> {tradeCount: 14, winRate: 79%, netPnL: +$1,820, confidence: "Medium data confidence"}</p>
+    <p><strong>Recommendation:</strong> "Build a pre-trade checklist question: 'Am I calm? Is this London session? Is my confidence 7–8?' If yes to all three, prioritize this trade above others. These are your A+ conditions."</p>
+  </div>
+
+  <h3>Dashboard Intelligence Snapshot</h3>
+  <p>The dashboard shows a condensed version of the AI Coach Feed — one card per dimension, surfacing only the single highest-impact item from each engine:</p>
+  <div class="box">
+    <h4>Dashboard "Today's Intelligence" card example</h4>
+    <ul>
+      <li><strong>Biggest Leak:</strong> Revenge Trading — $920 cost (Psychology)</li>
+      <li><strong>Biggest Edge:</strong> London Session, 68% WR (Trading DNA)</li>
+      <li><strong>Blind Spot:</strong> Outcome bias on 8 trades (Self-Awareness)</li>
+      <li><strong>Priority Action:</strong> Add stop-after-2-losses rule to checklist (Discipline)</li>
+    </ul>
+  </div>
+
+  <div class="footer">Edgecipline PRD v2 | 34</div>
+</div>
+
+<div class="page">
+  <h2>21.6 — Intelligence: Technical Specifications</h2>
+
+  <h3>Data Flow Architecture</h3>
+  <ol>
+    <li>Request hits <code>GET /api/analytics/snapshot</code> (or individual sub-endpoint).</li>
+    <li>Redis cache checked: if hit, return cached result. TTL: 90–120 seconds per user.</li>
+    <li>On cache miss: load user's trades (up to 10,000 most recent from MongoDB).</li>
+    <li>Five analytics engines run in <strong>parallel</strong> (Promise.all):
+      <ul>
+        <li>computeTradingDNA(trades, marketType)</li>
+        <li>computePsychologyCost(trades)</li>
+        <li>computePatternDetection(trades)</li>
+        <li>computeSelfAwarenessAnalytics(trades)</li>
+        <li>computeDisciplineAnalytics(trades)</li>
+        <li>computePsychologyTimeline(trades, period)</li>
+      </ul>
+    </li>
+    <li>AI Coach Feed generator synthesizes all engine outputs into prioritized insights array.</li>
+    <li>Full result object cached in Redis with user-specific key.</li>
+    <li>Response returned to client.</li>
+  </ol>
+
+  <h3>Individual Analytics API Endpoints</h3>
+  <table>
+    <tr><th>Endpoint</th><th>Engine</th><th>Cache TTL</th></tr>
+    <tr><td>GET /api/analytics/snapshot</td><td>All engines combined</td><td>120s</td></tr>
+    <tr><td>GET /api/analytics/trading-dna</td><td>computeTradingDNA</td><td>120s</td></tr>
+    <tr><td>GET /api/analytics/patterns</td><td>computePatternDetection</td><td>90s</td></tr>
+    <tr><td>GET /api/analytics/psychology-analytics</td><td>computePsychologyCost</td><td>90s</td></tr>
+    <tr><td>GET /api/analytics/self-awareness-score</td><td>computeSelfAwarenessAnalytics</td><td>120s</td></tr>
+    <tr><td>GET /api/analytics/advanced-analytics</td><td>computeDisciplineAnalytics</td><td>90s</td></tr>
+    <tr><td>GET /api/analytics/ai-insights</td><td>AI Coach Feed generator</td><td>120s</td></tr>
+    <tr><td>GET /api/analytics/psychology-timeline (or similar)</td><td>computePsychologyTimeline</td><td>90s</td></tr>
+  </table>
+
+  <h3>Thresholds &amp; Filtering Rules</h3>
+  <table>
+    <tr><th>Rule</th><th>Value</th><th>Why</th></tr>
+    <tr><td>Pattern minimum trades</td><td>5 trades</td><td>Below 5, P&amp;L variance too high to signal pattern</td></tr>
+    <tr><td>Low confidence label</td><td>5–9 trades</td><td>Pattern shown but labeled — data not yet reliable</td></tr>
+    <tr><td>Medium confidence label</td><td>10–29 trades</td><td>Reliable enough for coaching action</td></tr>
+    <tr><td>High confidence label</td><td>30+ trades</td><td>Strong statistical signal</td></tr>
+    <tr><td>Insight minimum P&amp;L</td><td>$50</td><td>Filter noise from tiny impacts</td></tr>
+    <tr><td>Setup score: Great</td><td>≥ 70/100</td><td>Execution followed plan closely</td></tr>
+    <tr><td>Setup score: Average</td><td>45–69/100</td><td>Partial execution</td></tr>
+    <tr><td>Setup score: Poor</td><td>< 45/100</td><td>Significant rule violations</td></tr>
+    <tr><td>Impact score formula</td><td>abs(P&L) / totalVolume × 300 (cap 100)</td><td>Normalizes by account size/volume</td></tr>
+    <tr><td>Feed balance</td><td>~70% negative / 30% positive insights</td><td>Ensures improvement focus without being purely critical</td></tr>
+    <tr><td>Overconfidence threshold</td><td>Confidence rated 9–10/10</td><td>Treats extreme confidence as risk signal</td></tr>
+    <tr><td>Loss streak tilt threshold</td><td>3+ consecutive losses</td><td>Flags revenge trading risk window</td></tr>
+  </table>
+
+  <h3>Unlock States</h3>
+  <p>Every intelligence section has explicit unlock states shown to users who don't yet have enough data. Each state tells the user exactly what they need to do to unlock that insight:</p>
+  <div class="box">
+    <h4>Example unlock state messages</h4>
+    <ul>
+      <li>Trading DNA: "Add 8 more trades with session and mood data to unlock your Session DNA."</li>
+      <li>Psychology Cost: "Tag the emotions on 5 more trades to see your Psychology Cost breakdown."</li>
+      <li>Self-Awareness: "Rate the quality of 10 more trades as Great/Average/Poor to unlock your Self-Awareness Score."</li>
+      <li>Pattern Detection: "You need 5 trades that share the same combination of mood + session to detect behavioral patterns."</li>
+      <li>Psychology Timeline: "Log trades for 2 more weeks to see how your psychology is evolving over time."</li>
+    </ul>
+  </div>
+
+  <h3>Web Route</h3>
+  <ul>
+    <li>/intelligence — Full Intelligence Hub page (all 5 sections in one scrollable view)</li>
+    <li>/psychology-timeline — Dedicated timeline drill-down page</li>
+    <li>/discipline — Dedicated discipline analytics drill-down page</li>
+  </ul>
+
+  <div class="footer">Edgecipline PRD v2 | 35</div>
+</div>
+
+</body>
+</html>

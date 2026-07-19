@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
+import { markOnboardingStep } from "@/services/api";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { fetchSetups } from "@/services/setupApi";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -73,6 +74,7 @@ function IndianOptionsAddTradeContent() {
   const { addToast } = useToast();
   const searchParams = useSearchParams();
   const submitLockRef = useRef(false);
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const { accountCreatedDate } = useUserProfile();
   const [tradeSubType, setTradeSubType] = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
@@ -368,8 +370,13 @@ function IndianOptionsAddTradeContent() {
       const result = await createTrade(tradeData, MARKETS.INDIAN_MARKET);
       if (result?._id) {
         invalidateTradeDependentQueries(queryClient);
-        addToast("Trade saved to your journal!", "success");
-        router.push("/indian-market/dashboard");
+        addToast("Trade saved to your trade log!", "success");
+        markOnboardingStep("tradeAdded", true).catch(() => {});
+        if (onboardingMode) {
+          router.push("/indian-market/trades?onboarding=1");
+        } else {
+          router.push("/indian-market/dashboard");
+        }
       } else {
         throw new Error(result?.message || "Failed to save");
       }

@@ -46,7 +46,7 @@ export default function LoginForm({
             <h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 24, fontWeight: 800, color: "#0F1923", lineHeight: 1.15, margin: 0, marginBottom: 6, letterSpacing: "-0.02em" }}>
               Welcome back,<br /><span style={{ color: "#0D9E6E" }}>Trader</span>
             </h2>
-            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>YOUR AI JOURNAL AWAITS</p>
+            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>YOUR AI COACH AWAITS</p>
           </div>
           {/* Candle icon cluster */}
           <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
@@ -57,7 +57,7 @@ export default function LoginForm({
           </svg>
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 16, flexWrap: "wrap" }}>
-          {[{ label: "Resume Journal", icon: "📓" }, { label: "AI Insights", icon: "🤖" }, { label: "Trade History", icon: "📊" }].map(f => (
+          {[{ label: "Resume Coaching", icon: "🧭" }, { label: "AI Insights", icon: "🤖" }, { label: "Trade History", icon: "📊" }].map(f => (
             <div key={f.label} style={{ fontSize: 10, color: "#0D9E6E", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600, background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 20, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ fontSize: 11 }}>{f.icon}</span> {f.label}
             </div>
@@ -149,7 +149,7 @@ export default function LoginForm({
           {loading ? (
             <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>AUTHENTICATING...</>
           ) : (
-            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>ACCESS JOURNAL</>
+            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>ACCESS DASHBOARD</>
           )}
         </button>
 

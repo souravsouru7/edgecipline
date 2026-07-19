@@ -75,6 +75,23 @@ function computePerformanceMetrics(trades, marketLabel) {
   return calculatePerformanceMetrics(trades, marketLabel);
 }
 
+function hasRecordedProfit(trade = {}) {
+  if (trade.profit == null || trade.profit === "") return false;
+  return Number.isFinite(Number(trade.profit));
+}
+
+function withPnlReadiness(performance, totalTrades, pnlReadyTrades) {
+  const readyCount = Number(pnlReadyTrades) || 0;
+  const totalCount = Number(totalTrades) || 0;
+  return {
+    ...performance,
+    totalTrades: totalCount,
+    pnlReadyTrades: readyCount,
+    tradesMissingPnl: Math.max(0, totalCount - readyCount),
+    analyticsTradeCount: readyCount,
+  };
+}
+
 function buildDateQuery(dateRange) {
   if (!dateRange?.from && !dateRange?.to) return {};
   const range = {};
@@ -208,6 +225,12 @@ async function aggregatePerformance({ userId, market = "Forex", instrumentType, 
     { $match: buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange }) },
     {
       $project: {
+        hasProfit: {
+          $and: [
+            { $ne: [{ $type: "$profit" }, "missing"] },
+            { $ne: ["$profit", null] },
+          ],
+        },
         profit: { $ifNull: ["$profit", 0] },
         fee: feeExpression,
         setupScore: 1,
@@ -217,23 +240,24 @@ async function aggregatePerformance({ userId, market = "Forex", instrumentType, 
       $group: {
         _id: null,
         totalTrades: { $sum: 1 },
-        wins: { $sum: { $cond: [{ $gt: ["$profit", 0] }, 1, 0] } },
-        losses: { $sum: { $cond: [{ $lt: ["$profit", 0] }, 1, 0] } },
-        breakEven: { $sum: { $cond: [{ $eq: ["$profit", 0] }, 1, 0] } },
-        grossPnL: { $sum: "$profit" },
-        fees: { $sum: "$fee" },
-        netPnL: { $sum: { $subtract: ["$profit", "$fee"] } },
-        totalVolume: { $sum: { $abs: "$profit" } },
-        totalWinPnL: { $sum: { $cond: [{ $gt: ["$profit", 0] }, "$profit", 0] } },
-        totalLossPnL: { $sum: { $cond: [{ $lt: ["$profit", 0] }, "$profit", 0] } },
+        pnlReadyTrades: { $sum: { $cond: ["$hasProfit", 1, 0] } },
+        wins: { $sum: { $cond: [{ $and: ["$hasProfit", { $gt: ["$profit", 0] }] }, 1, 0] } },
+        losses: { $sum: { $cond: [{ $and: ["$hasProfit", { $lt: ["$profit", 0] }] }, 1, 0] } },
+        breakEven: { $sum: { $cond: [{ $and: ["$hasProfit", { $eq: ["$profit", 0] }] }, 1, 0] } },
+        grossPnL: { $sum: { $cond: ["$hasProfit", "$profit", 0] } },
+        fees: { $sum: { $cond: ["$hasProfit", "$fee", 0] } },
+        netPnL: { $sum: { $cond: ["$hasProfit", { $subtract: ["$profit", "$fee"] }, 0] } },
+        totalVolume: { $sum: { $cond: ["$hasProfit", { $abs: "$profit" }, 0] } },
+        totalWinPnL: { $sum: { $cond: [{ $and: ["$hasProfit", { $gt: ["$profit", 0] }] }, "$profit", 0] } },
+        totalLossPnL: { $sum: { $cond: [{ $and: ["$hasProfit", { $lt: ["$profit", 0] }] }, "$profit", 0] } },
         avgSetupScore: { $avg: "$setupScore" },
       },
     },
   ]);
 
   return {
-    ...finalizePerformance({
-      totalTrades: result.totalTrades || 0,
+    ...withPnlReadiness(finalizePerformance({
+      totalTrades: result.pnlReadyTrades || 0,
       wins: result.wins || 0,
       losses: result.losses || 0,
       breakEven: result.breakEven || 0,
@@ -243,7 +267,7 @@ async function aggregatePerformance({ userId, market = "Forex", instrumentType, 
       totalVolume: result.totalVolume || 0,
       totalWinPnL: result.totalWinPnL || 0,
       totalLossPnL: result.totalLossPnL || 0,
-    }),
+    }), result.totalTrades || 0, result.pnlReadyTrades || 0),
     avgSetupScore: result.avgSetupScore == null ? null : Number(result.avgSetupScore.toFixed(1)),
   };
 }
@@ -392,8 +416,18 @@ async function aggregatePnlBreakdown({ userId, market = "Forex", instrumentType,
   }
 
   const Model = getTradeModel(marketLabel);
+  const dateToStringOptions = marketLabel === "Indian_Market"
+    ? { format: "%Y-%m-%d", date: "$dateValue", timezone: "Asia/Kolkata" }
+    : { format: "%Y-%m-%d", date: "$dateValue" };
+  const yearExpression = marketLabel === "Indian_Market"
+    ? { $year: { date: "$dateValue", timezone: "Asia/Kolkata" } }
+    : { $year: "$dateValue" };
+  const monthExpression = marketLabel === "Indian_Market"
+    ? { $month: { date: "$dateValue", timezone: "Asia/Kolkata" } }
+    : { $month: "$dateValue" };
   const [result = {}] = await Model.aggregate([
     { $match: buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange }) },
+    { $match: { profit: { $exists: true, $ne: null } } },
     {
       $project: {
         dateValue: { $ifNull: ["$tradeDate", "$createdAt"] },
@@ -403,7 +437,7 @@ async function aggregatePnlBreakdown({ userId, market = "Forex", instrumentType,
     {
       $facet: {
         daily: [
-          { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$dateValue" } }, profit: { $sum: "$profit" } } },
+          { $group: { _id: { $dateToString: dateToStringOptions }, profit: { $sum: "$profit" } } },
           { $sort: { _id: 1 } },
           { $project: { _id: 0, date: "$_id", profit: { $round: ["$profit", 2] } } },
         ],
@@ -432,7 +466,7 @@ async function aggregatePnlBreakdown({ userId, market = "Forex", instrumentType,
         monthly: [
           {
             $group: {
-              _id: { year: { $year: "$dateValue" }, month: { $month: "$dateValue" } },
+              _id: { year: yearExpression, month: monthExpression },
               profit: { $sum: "$profit" },
             },
           },
@@ -691,7 +725,12 @@ function generateSnapshotFromTrades({ trades, marketLabel, period }) {
   const tradingDNA = enrichTradingDNAWithPatterns(dnaRaw, patterns);
   const discipline = computeDisciplineAnalytics(trades, { marketType: resolvedMarketLabel, period, offsetHours });
   const timeline = computePsychologyTimeline(trades, { marketType: resolvedMarketLabel, period, offsetHours });
-  const performance = computePerformanceMetrics(trades, resolvedMarketLabel);
+  const pnlReadyTrades = trades.filter(hasRecordedProfit);
+  const performance = withPnlReadiness(
+    computePerformanceMetrics(pnlReadyTrades, resolvedMarketLabel),
+    trades.length,
+    pnlReadyTrades.length
+  );
 
   return {
     sourceTradeCount: trades.length,

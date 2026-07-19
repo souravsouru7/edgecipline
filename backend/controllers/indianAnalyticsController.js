@@ -54,11 +54,17 @@ const INDIAN_ANALYTICS_PROJECTION = [
 ].join(" ");
 
 const userQuery = (req) => {
-  const instrumentType = (req.query.instrumentType || "OPTION").toUpperCase();
-  if (!["OPTION", "EQUITY"].includes(instrumentType)) {
+  const requestedType = typeof req.query.instrumentType === "string"
+    ? req.query.instrumentType.trim().toUpperCase()
+    : "";
+  if (requestedType && requestedType !== "ALL" && !["OPTION", "EQUITY"].includes(requestedType)) {
     throw new ApiError(400, "Invalid instrumentType");
   }
-  return { user: req.user._id, instrumentType, deletedAt: null };
+  const query = { user: req.user._id, deletedAt: null };
+  if (requestedType && requestedType !== "ALL") {
+    query.instrumentType = requestedType;
+  }
+  return query;
 };
 
 // Hard cap on trades pulled into Node memory by any single analytics endpoint.
@@ -97,6 +103,8 @@ exports.getSummary = asyncHandler(async (req, res) => {
       totalCosts: fixed(performance.totalCosts),
       winningTrades: performance.winningTrades,
       losingTrades: performance.losingTrades,
+      pnlReadyTrades: performance.pnlReadyTrades || performance.analyticsTradeCount || 0,
+      tradesMissingPnl: performance.tradesMissingPnl || 0,
       avgSetupScore: fixed(avgSetupScore, 1)
     });
   } catch (error) {
@@ -141,13 +149,11 @@ exports.getPnLBreakdown = asyncHandler(async (req, res) => {
 exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
   try {
     const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
-    const tradesWithRR = trades.filter(t => t.stopLoss && t.takeProfit && t.entryPrice);
-
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
     const avgWin = winningTrades.length ? winningTrades.reduce((acc, t) => acc + t.profit, 0) / winningTrades.length : 0;
     const avgLoss = losingTrades.length ? Math.abs(losingTrades.reduce((acc, t) => acc + t.profit, 0) / losingTrades.length) : 0;
-    const actualRR = avgLoss > 0 ? avgWin / avgLoss : 0;
+    const actualRR = winningTrades.length && losingTrades.length && avgLoss > 0 ? avgWin / avgLoss : null;
 
     let plannedRR = 0;
     let totalRRFromPrices = 0;
@@ -196,10 +202,9 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
     });
 
     plannedRR = tradesCountedForRR > 0 ? totalRRFromPrices / tradesCountedForRR : 0;
-    let avgRR = 0;
+    let avgRR = null;
     if (fieldRRCount > 0) avgRR = fieldRRTotal / fieldRRCount;
     else if (plannedRR > 0) avgRR = plannedRR;
-    else avgRR = actualRR;
     const riskPerTrade = tradesCountedForRR > 0 ? totalRisk / tradesCountedForRR : 0;
 
     const winRate = trades.length > 0 ? (winningTrades.length / trades.length) * 100 : 0;
@@ -210,15 +215,21 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
     const variance = returns.length > 0 ? returns.reduce((acc, r) => acc + Math.pow(r - meanReturn, 2), 0) / returns.length : 0;
     const stdDev = Math.sqrt(variance);
     const riskAdjustedReturn = stdDev > 0 ? meanReturn / stdDev : 0;
+    const fixedMaybe = (value, digits = 2) => {
+      if (value == null || value === "") return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(digits) : null;
+    };
+    const plannedRRCount = fieldRRCount > 0 ? fieldRRCount : tradesCountedForRR;
 
     res.json({
-      avgRR: avgRR.toFixed(2),
-      actualRR: actualRR.toFixed(2),
-      plannedRR: tradesWithRR.length > 0 ? plannedRR.toFixed(2) : "N/A",
-      riskPerTrade: riskPerTrade.toFixed(2),
+      avgRR: fixedMaybe(avgRR),
+      actualRR: fixedMaybe(actualRR),
+      plannedRR: fixedMaybe(avgRR),
+      riskPerTrade: tradesCountedForRR > 0 ? riskPerTrade.toFixed(2) : null,
       riskAdjustedReturn: riskAdjustedReturn.toFixed(2),
-      tradesWithRR: tradesWithRR.length,
-      tradesWithoutRR: trades.length - tradesWithRR.length,
+      tradesWithRR: plannedRRCount,
+      tradesWithoutRR: trades.length - plannedRRCount,
       avgWin: avgWin.toFixed(2),
       avgLoss: avgLoss.toFixed(2),
       expectancy,
@@ -379,14 +390,14 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     let bestDay = ["0", { profit: 0, winRate: 0 }];
     let worstDay = ["0", { profit: 0, winRate: 0 }];
     
-    if (dayEntries.length > 0) {
+    if (dayEntries.length > 1) {
       // Sort by profit desc
       const sortedDays = [...dayEntries].sort((a, b) => parseFloat(b[1].profit) - parseFloat(a[1].profit));
       if (parseFloat(sortedDays[0][1].profit) > 0) {
         bestDay = sortedDays[0];
       }
       // Only set worst if it's different and we have enough data
-      if (sortedDays.length > 1) {
+      if (sortedDays.length > 1 && parseFloat(sortedDays[sortedDays.length - 1][1].profit) < 0) {
         worstDay = sortedDays[sortedDays.length - 1];
       }
     }
@@ -403,12 +414,12 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     let bestHour = [0, { profit: 0, winRate: 0 }];
     let worstHour = [0, { profit: 0, winRate: 0 }];
 
-    if (hourEntries.length > 0) {
+    if (hourEntries.length > 1) {
       const sortedHours = [...hourEntries].sort((a, b) => parseFloat(b[1].profit) - parseFloat(a[1].profit));
       if (parseFloat(sortedHours[0][1].profit) > 0) {
         bestHour = sortedHours[0];
       }
-      if (sortedHours.length > 1) {
+      if (sortedHours.length > 1 && parseFloat(sortedHours[sortedHours.length - 1][1].profit) < 0) {
         worstHour = sortedHours[sortedHours.length - 1];
       }
     }

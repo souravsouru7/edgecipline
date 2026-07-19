@@ -83,6 +83,7 @@ describe("onboardingBackfillService.buildBackfillUpdate", () => {
     expect(set["onboarding.tradeAdded"]).toBe(true);
     expect(set["onboarding.welcomeSeen"]).toBe(true);
     expect(set["onboarding.firstInsightSeen"]).toBe(true);
+    expect(set["onboarding.journalSeen"]).toBe(true);
     expect(set.isOnboardingCompleted).toBe(true);
     expect(set.hasSeenWelcomeGuide).toBe(true);
     expect(min["onboarding.firstTradeAt"]).toEqual(signals.earliestTradeAt);
@@ -105,7 +106,7 @@ describe("onboardingBackfillService.buildBackfillUpdate", () => {
   it("never overwrites a flag the user has already set", () => {
     const user = {
       preferredMarket: "Forex",
-      onboarding: { tradeAdded: true, setupAdded: true, marketSelected: true, welcomeSeen: true, firstInsightSeen: true, completedAt: new Date("2026-01-01") },
+      onboarding: { tradeAdded: true, setupAdded: true, marketSelected: true, welcomeSeen: true, firstInsightSeen: true, journalSeen: true, completedAt: new Date("2026-01-01") },
       isOnboardingCompleted: true,
     };
     const signals = { tradeCount: 5, setupCount: 2, earliestTradeAt: new Date("2026-02-15"), earliestTradeFromOcr: false };
@@ -120,7 +121,7 @@ describe("onboardingBackfillService.buildBackfillUpdate", () => {
     expect(set.isOnboardingCompleted).toBeUndefined();
   });
 
-  it("only marks isOnboardingCompleted when trade + setup + welcome + insight all line up", () => {
+  it("only marks isOnboardingCompleted when trade + setup + welcome + journal all line up", () => {
     const userWithOnlySetup = {
       preferredMarket: "Forex",
       onboarding: { setupAdded: true },
@@ -137,10 +138,11 @@ describe("onboardingBackfillService.buildBackfillUpdate", () => {
     };
     const signalsTraded = { tradeCount: 3, setupCount: 0, earliestTradeAt: new Date("2026-02-15"), earliestTradeFromOcr: false };
     const { set: setB } = backfill.buildBackfillUpdate({ user: userTradedButNoSetup, signals: signalsTraded });
-    // tradeAdded + welcomeSeen + firstInsightSeen flip, but setupAdded does not
+    // tradeAdded + welcomeSeen + journalSeen flip, but setupAdded does not
     // (no setup count) → not fully activated yet.
     expect(setB.isOnboardingCompleted).toBeUndefined();
     expect(setB["onboarding.tradeAdded"]).toBe(true);
+    expect(setB["onboarding.journalSeen"]).toBe(true);
   });
 });
 
@@ -181,6 +183,7 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
     expect(update.$set["onboarding.tradeAdded"]).toBe(true);
     expect(update.$set["onboarding.marketSelected"]).toBe(true);
     expect(update.$set["onboarding.firstInsightSeen"]).toBe(true);
+    expect(update.$set["onboarding.journalSeen"]).toBe(true);
     expect(update.$set.isOnboardingCompleted).toBe(true);
     expect(update.$min["onboarding.firstTradeAt"]).toBeInstanceOf(Date);
     expect(update.$min["onboarding.firstScreenshotUploadAt"]).toBeInstanceOf(Date);
@@ -195,6 +198,7 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
         setupAdded: true,
         tradeAdded: true,
         firstInsightSeen: true,
+        journalSeen: true,
         firstTradeAt: new Date("2026-02-15"),
       },
       isOnboardingCompleted: true,
@@ -238,6 +242,7 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
         setupAdded: true,
         tradeAdded: true,
         firstInsightSeen: true,
+        journalSeen: true,
         firstTradeAt: new Date("2026-02-15"),
       },
       isOnboardingCompleted: true,

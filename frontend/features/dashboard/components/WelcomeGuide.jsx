@@ -34,7 +34,7 @@ const STEPS = [
   {
     id: "journal",
     icon: "📓",
-    title: "Trade Journal",
+    title: "Trade Log",
     subtitle: "LOG EVERY TRADE YOU TAKE",
     desc: "Your complete trading diary. Add trades manually with full details — psychology, mistakes, strategy, and more.",
     features: [
@@ -125,7 +125,7 @@ const STEPS = [
       { icon: "💱", text: "Forex — MT4/MT5 global currency pairs" },
       { icon: "🇮🇳", text: "Indian Market — NSE/BSE stocks & F&O" },
       { icon: "🔀", text: "Tap the market switcher in the header" },
-      { icon: "📊", text: "Separate analytics & journals per market" },
+      { icon: "📊", text: "Separate analytics & trade logs per market" },
       { icon: "🤖", text: "AI extraction tailored to each broker's UI" },
     ],
   },
@@ -375,7 +375,7 @@ export default function WelcomeGuide({ onClose }) {
               onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = isLast ? "0 4px 14px rgba(13,158,110,0.25)" : "0 4px 14px rgba(0,0,0,0.15)"; }}
             >
               {isLast
-                ? "🚀 START JOURNALING"
+                ? "🚀 START BUILDING DISCIPLINE"
                 : `NEXT: ${STEPS[step + 1].title} →`}
             </button>
           </div>

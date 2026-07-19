@@ -21,23 +21,29 @@ function hideSplash() {
   }
 }
 
+function setupRouteForMarket(market) {
+  return market === MARKETS.INDIAN_MARKET
+    ? "/indian-market/setups?onboarding=1"
+    : "/setups?onboarding=1";
+}
+
 export function useDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { currentMarket, toggleMarket } = useMarket();
+  const { currentMarket, toggleMarket, isLoading: marketLoading } = useMarket();
   const [mounted, setMounted] = useState(false);
-  const [showFirstLogin, setShowFirstLogin] = useState(false);
+  const [firstLoginDismissed, setFirstLoginDismissed] = useState(false);
 
   const {
     data: snapshot = null,
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: ["dashboard", "snapshot"],
-    queryFn: ({ signal }) => getDashboardSnapshot(signal),
+    queryKey: ["dashboard", "snapshot", currentMarket],
+    queryFn: ({ signal }) => getDashboardSnapshot(signal, currentMarket),
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 30 * 60 * 1000,
-    enabled: mounted && hasValidAuthToken(),
+    enabled: mounted && !marketLoading && hasValidAuthToken(),
   });
 
   useEffect(() => {
@@ -77,7 +83,6 @@ export function useDashboard() {
 
   useEffect(() => {
     if (!error) return;
-    const status = error?.status;
 
     if (error?.data?.errorCode === "TERMS_NOT_ACCEPTED") {
       router.replace("/accept-terms");
@@ -98,22 +103,52 @@ export function useDashboard() {
     toggleMarket(preferred);
   }, [snapshot?.preferredMarket, currentMarket, toggleMarket]);
 
-  // First-login welcome (full-screen modal). Runs ONCE per user. Once the user
-  // closes it, we route them into the forced setup -> trade -> journal loop.
   useEffect(() => {
-    if (!mounted || !snapshot?.onboarding) return;
-    if (snapshot.onboarding.welcomeSeen) return;
-    if (snapshot.welcomeGuide?.isOnboardingCompleted) return;
-    setShowFirstLogin(true);
-  }, [mounted, snapshot?.onboarding, snapshot?.welcomeGuide]);
+    const onboarding = snapshot?.onboarding;
+    if (!mounted || loading || !onboarding) return;
+    if (onboarding.checklistDismissed || onboarding.tourCompleted || onboarding.completedAt) return;
+    if (!onboarding.welcomeSeen || !onboarding.marketSelected || onboarding.setupAdded) return;
+
+    const market = snapshot?.preferredMarket || currentMarket;
+    router.replace(setupRouteForMarket(market));
+  }, [
+    mounted,
+    loading,
+    snapshot?.onboarding,
+    snapshot?.preferredMarket,
+    currentMarket,
+    router,
+  ]);
+
+  // First-login welcome (full-screen modal). Runs once per user unless the
+  // current session dismisses it before the refreshed snapshot arrives.
+  const showFirstLogin = Boolean(
+    mounted &&
+    snapshot?.onboarding &&
+    !snapshot.onboarding.welcomeSeen &&
+    !snapshot.welcomeGuide?.isOnboardingCompleted &&
+    !firstLoginDismissed
+  );
 
   const closeFirstLogin = () => {
-    setShowFirstLogin(false);
+    setFirstLoginDismissed(true);
     queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"] });
   };
 
-  const refreshOnboarding = () => {
-    queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"] });
+  const refreshOnboarding = (nextOnboarding = null) => {
+    if (nextOnboarding) {
+      queryClient.setQueriesData({ queryKey: ["dashboard", "snapshot"], exact: false }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          onboarding: {
+            ...(old.onboarding || {}),
+            ...nextOnboarding,
+          },
+        };
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"], exact: false });
   };
 
   return {
@@ -123,6 +158,7 @@ export function useDashboard() {
     showFirstLogin,
     closeFirstLogin,
     refreshOnboarding,
+    currentMarket,
     onboarding: snapshot?.onboarding || null,
     error,
     selfAwareness: snapshot?.selfAwareness || null,

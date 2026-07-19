@@ -102,6 +102,24 @@ function parseFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function requirePositiveNumber(value, label) {
+  const parsed = parseFiniteNumber(value);
+  if (parsed == null || parsed <= 0) {
+    throw new ApiError(400, `${label} must be greater than 0`, "VALIDATION_ERROR");
+  }
+  return parsed;
+}
+
+function normalizeOptionalNumber(target, field) {
+  const parsed = parseFiniteNumber(target[field]);
+  if (parsed == null) {
+    delete target[field];
+    return null;
+  }
+  target[field] = parsed;
+  return parsed;
+}
+
 function buildIndianTradeDocument(
   userId,
   payload,
@@ -163,22 +181,73 @@ function buildIndianTradeDocument(
     user: userId,
   };
   tradeData.effectiveTradeDate = tradeData.tradeDate;
+
+  const trustedOcrProfit = trustedOcrProfitForTrade({
+    ...payload,
+    pair: symbol,
+    optionType: ot,
+    strikePrice: editablePayload.strikePrice ?? strikePrice,
+    underlying: editablePayload.underlying ?? underlying,
+  }, extractedTrades, tradeIndex);
+
   if (!isEquity) {
     tradeData.optionType = ot;
     tradeData.instrumentType = "OPTION";
     tradeData.segment = "F&O";
+    if (trustedOcrProfit !== null) {
+      const quantity = parseFiniteNumber(tradeData.quantity);
+      const lotSize = parseFiniteNumber(tradeData.lotSize);
+      if (quantity !== null && quantity < 0) {
+        throw new ApiError(400, "Quantity cannot be negative", "VALIDATION_ERROR");
+      }
+      if (lotSize !== null && lotSize <= 0) {
+        throw new ApiError(400, "Lot size must be greater than 0", "VALIDATION_ERROR");
+      }
+      if (quantity === null) delete tradeData.quantity;
+      else tradeData.quantity = quantity;
+      if (lotSize === null) delete tradeData.lotSize;
+      else tradeData.lotSize = lotSize;
+    } else {
+      tradeData.quantity = requirePositiveNumber(tradeData.quantity, "Quantity");
+      tradeData.lotSize = requirePositiveNumber(tradeData.lotSize, "Lot size");
+    }
   } else {
     tradeData.instrumentType = "EQUITY";
     tradeData.segment = "EQUITY";
     tradeData.tradeType = "INTRADAY";
+    tradeData.sharesQty = requirePositiveNumber(tradeData.sharesQty, "Shares quantity");
   }
 
-  const derivedProfit = deriveIndianProfit(tradeData);
-  if (derivedProfit !== null) {
-    tradeData.profit = derivedProfit;
+  // entryPrice/exitPrice are only mandatory when we have to *derive* the P&L
+  // from them. Many closed Indian positions (Avg = 0.00 on the broker
+  // screenshot) legitimately have no per-unit entry/exit price — only an
+  // aggregate P&L — so when the caller already submits a trusted profit
+  // value, don't force a fabricated price into these fields just to pass
+  // validation.
+  normalizeOptionalNumber(tradeData, "entryPrice");
+  normalizeOptionalNumber(tradeData, "exitPrice");
+  normalizeOptionalNumber(tradeData, "brokerage");
+  normalizeOptionalNumber(tradeData, "sttTaxes");
+  normalizeOptionalNumber(tradeData, "stopLoss");
+  normalizeOptionalNumber(tradeData, "takeProfit");
+  normalizeOptionalNumber(tradeData, "strikePrice");
+
+  const submittedProfit = parseFiniteNumber(tradeData.profit);
+  if (trustedOcrProfit !== null) {
+    tradeData.profit = trustedOcrProfit;
+  } else if (submittedProfit !== null) {
+    tradeData.profit = submittedProfit;
   } else {
-    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
-    if (trustedProfit !== null) tradeData.profit = trustedProfit;
+    tradeData.entryPrice = requirePositiveNumber(tradeData.entryPrice, "Entry price");
+    tradeData.exitPrice = requirePositiveNumber(tradeData.exitPrice, "Exit price");
+    const derivedProfit = deriveIndianProfit(tradeData);
+    if (derivedProfit !== null) {
+      tradeData.profit = derivedProfit;
+    }
+  }
+
+  if (parseFiniteNumber(tradeData.profit) === null) {
+    throw new ApiError(400, "P&L is required", "VALIDATION_ERROR");
   }
 
   return tradeData;
@@ -245,8 +314,10 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   // confirm fails the trades roll back, preventing a half-written batch with
   // an un-confirmed job. Cache invalidation and notification dispatch run
   // AFTER commit since they touch external systems (Redis, queues).
-  const session = await mongoose.startSession();
+  // Standalone MongoDB (local dev) does not support transactions — falls back
+  // to direct inserts when the session rejects the transaction start.
   let createdTrades;
+  const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
       createdTrades = await IndianTrade.insertMany(docs, { ordered: true, session });
@@ -258,6 +329,20 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
         });
       }
     });
+  } catch (txErr) {
+    const isStandaloneError =
+      txErr?.codeName === "IllegalOperation" ||
+      String(txErr?.message || "").includes("Transaction numbers are only allowed") ||
+      String(txErr?.message || "").includes("replica set");
+    if (!isStandaloneError) throw txErr;
+    // Fallback: non-transactional path for standalone MongoDB
+    createdTrades = await IndianTrade.insertMany(docs, { ordered: true });
+    if (ocrJobId && createdTrades[0]) {
+      await markOcrJobConfirmed(req.user._id, ocrJobId, {
+        tradeId: createdTrades[0]._id,
+        collection: "indian",
+      });
+    }
   } finally {
     await session.endSession();
   }
@@ -280,6 +365,9 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
       collection: "indian",
     });
   }
+  onboardingService
+    .markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
+    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
   for (const t of createdTrades) {
     try { await streakService.recordTradeEvent(req.user._id, t); } catch (e) {
       logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
@@ -415,7 +503,28 @@ exports.updateTrade = asyncHandler(async (req, res) => {
   }
 
   if (shouldDeriveProfit) {
-    update.profit = deriveIndianProfit({ ...(existing || {}), ...update });
+    const candidate = { ...(existing || {}), ...update };
+    const submittedProfit = parseFiniteNumber(update.profit);
+    if (submittedProfit !== null) {
+      // A trusted P&L was submitted directly — don't force entry/exit price
+      // validation for closed positions that never showed a per-unit price.
+      update.profit = submittedProfit;
+    } else {
+      const isEquity = String(candidate.instrumentType || "").toUpperCase() === "EQUITY";
+      if (isEquity) {
+        candidate.sharesQty = requirePositiveNumber(candidate.sharesQty, "Shares quantity");
+      } else {
+        candidate.quantity = requirePositiveNumber(candidate.quantity, "Quantity");
+        candidate.lotSize = requirePositiveNumber(candidate.lotSize, "Lot size");
+      }
+      candidate.entryPrice = requirePositiveNumber(candidate.entryPrice, "Entry price");
+      candidate.exitPrice = requirePositiveNumber(candidate.exitPrice, "Exit price");
+      const derivedProfit = deriveIndianProfit(candidate);
+      if (derivedProfit === null) {
+        throw new ApiError(400, "P&L is required", "VALIDATION_ERROR");
+      }
+      update.profit = derivedProfit;
+    }
   }
 
   // Diff tradeImages to identify removed Cloudinary assets for cleanup.

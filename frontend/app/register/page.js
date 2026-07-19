@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { googleLogin, registerUser, acceptTerms as acceptTermsApi, testConnection as apiTestConnection } from "@/services/api";
-import { signInWithFirebaseGoogle, handleGoogleRedirectResult } from "@/services/firebaseAuth";
+import {
+  signInWithFirebaseGoogle,
+  handleGoogleRedirectResult,
+  getGoogleAuthErrorMessage,
+} from "@/services/firebaseAuth";
 import { setAuthToken, getValidToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -115,7 +119,7 @@ function TickerTape() {
 }
 
 /* ─────────────────────────────────────────
-   JOURNAL PREVIEW — auto-cycling widget
+   COACH FEED PREVIEW — auto-cycling widget
 ───────────────────────────────────────── */
 const feedItems = [
   { pair:"BTC/USD", pnl:"+$342", rr:"2.4R", bull:true,  note:"AI flagged breakout before entry ✓" },
@@ -123,7 +127,7 @@ const feedItems = [
   { pair:"GOLD",    pnl:"+$210", rr:"1.9R", bull:true,  note:"Perfect retest, AI confidence 91%" },
 ];
 
-function JournalPreview() {
+function CoachFeedPreview() {
   const [active, setActive] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setActive(a => (a+1) % feedItems.length), 2800);
@@ -142,7 +146,7 @@ function JournalPreview() {
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <div style={{ width:5, height:5, borderRadius:"50%", background:"#0D9E6E", animation:"blink 1.2s ease-in-out infinite" }}/>
           <span style={{ fontSize:9, letterSpacing:"0.12em", color:"#94A3B8", fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
-            AI JOURNAL PREVIEW
+            AI COACH FEED
           </span>
         </div>
         <div style={{ display:"flex", gap:4 }}>
@@ -199,12 +203,12 @@ export default function RegisterPage() {
     // Pick up idToken after mobile redirect Google sign-in on register page
     handleGoogleRedirectResult()
       .then(idToken => { if (idToken) return googleLogin(idToken); })
-      .then(data => {
+      .then(async data => {
         if (!data?.token) return;
         await setAuthToken(data.token);
         router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
       })
-      .catch(err => alert("Google login failed: " + (err?.message || err)));
+      .catch(err => alert("Google login failed: " + getGoogleAuthErrorMessage(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -283,7 +287,7 @@ export default function RegisterPage() {
         alert(data.message || "Google login failed.");
       }
     } catch (err) {
-      alert("Google Login Error: " + (err.message || JSON.stringify(err)));
+      alert("Google Login Error: " + getGoogleAuthErrorMessage(err));
     } finally {
       setGoogleLoading(false);
     }
@@ -349,7 +353,7 @@ export default function RegisterPage() {
           <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
           <div>
             <div style={{ display: "none" }}>EDGEDISCIPLINE</div>
-            <div style={{ fontSize:9, letterSpacing:"0.18em", color:"#0D9E6E", marginTop:1, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>AI JOURNAL</div>
+            <div style={{ fontSize:9, letterSpacing:"0.18em", color:"#0D9E6E", marginTop:1, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>AI DISCIPLINE COACH</div>
           </div>
         </div>
 
@@ -380,8 +384,8 @@ export default function RegisterPage() {
           transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)",
         }}>
 
-          {/* Journal preview widget */}
-          <JournalPreview/>
+          {/* Coach feed preview widget */}
+          <CoachFeedPreview/>
 
           {/* ── CARD ── */}
           <div style={{
@@ -400,11 +404,11 @@ export default function RegisterPage() {
                     fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:24, fontWeight:800,
                     color:"#0F1923", lineHeight:1.15, margin:0, marginBottom:6, letterSpacing:"-0.02em",
                   }}>
-                    Create your<br/>
-                    <span style={{ color:"#0D9E6E" }}>Journal</span> account
+                    Build your<br/>
+                    <span style={{ color:"#0D9E6E" }}>Discipline</span> account
                   </h2>
                   <p style={{ fontSize:11, color:"#94A3B8", margin:0, fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.06em" }}>
-                    LET AI ANALYZE YOUR TRADES
+                    LET AI COACH YOUR TRADING
                   </p>
                 </div>
 
@@ -684,7 +688,7 @@ export default function RegisterPage() {
                       <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
                       <polyline points="16 7 22 7 22 13"/>
                     </svg>
-                    START JOURNALING
+                    START BUILDING DISCIPLINE
                   </>
                 )}
               </button>
@@ -697,7 +701,7 @@ export default function RegisterPage() {
 
               {/* Sign in link */}
               <div style={{ textAlign:"center", marginTop:20, fontSize:12, color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                Already journaling?{" "}
+                Already have an account?{" "}
                 <span
                   style={{ color:"#D63B3B", cursor:"pointer", fontWeight:700, borderBottom:"1px solid rgba(214,59,59,0.3)", paddingBottom:1 }}
                   onClick={() => router.push("/login")}

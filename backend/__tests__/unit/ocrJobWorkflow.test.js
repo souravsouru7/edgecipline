@@ -187,7 +187,7 @@ describe("OCR job workflow", () => {
     expect(tradeRepository.deleteForexTradeByUser).not.toHaveBeenCalled();
   });
 
-  test("cancel completed OCRJob clears stale extraction data and deletes Cloudinary image", async () => {
+  test("cancel ignores completed OCRJob so extracted data survives refresh cleanup", async () => {
     const save = jest.fn().mockResolvedValue(undefined);
     const destroy = jest.fn().mockResolvedValue(undefined);
     const jobDoc = {
@@ -230,10 +230,13 @@ describe("OCR job workflow", () => {
 
     const result = await cancelOcrJob(validUserId, validJobId);
 
-    expect(result.status).toBe("CANCELLED");
-    expect(jobDoc.extractedData).toBeNull();
-    expect(jobDoc.extractionConfidence).toBe(0);
-    expect(destroy).toHaveBeenCalledWith("ocr/completed", { resource_type: "image" });
+    expect(result.status).toBe("COMPLETED");
+    expect(result.data).toEqual({ parsedTrade: { pair: "EURUSD" } });
+    expect(jobDoc.status).toBe("COMPLETED");
+    expect(jobDoc.extractedData).toEqual({ parsedTrade: { pair: "EURUSD" } });
+    expect(jobDoc.extractionConfidence).toBe(88);
+    expect(save).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
   });
 
   test("double cancel is idempotent", async () => {

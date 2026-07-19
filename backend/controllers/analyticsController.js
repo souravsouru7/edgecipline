@@ -134,14 +134,12 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
       .limit(ANALYTICS_TRADE_CAP);
     const truncated = trades.length === ANALYTICS_TRADE_CAP;
 
-    const tradesWithRR = trades.filter(t => t.stopLoss && t.takeProfit && t.entryPrice);
-
     // Calculate realized R:R from actual profits (works for all trades with profit/loss)
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
     const avgWin = winningTrades.length ? winningTrades.reduce((acc, t) => acc + t.profit, 0) / winningTrades.length : 0;
     const avgLoss = losingTrades.length ? Math.abs(losingTrades.reduce((acc, t) => acc + t.profit, 0) / losingTrades.length) : 0;
-    const actualRR = avgLoss > 0 ? avgWin / avgLoss : 0;
+    const actualRR = winningTrades.length && losingTrades.length && avgLoss > 0 ? avgWin / avgLoss : null;
 
     // Calculate planned R:R from SL/TP (only for trades with stopLoss and takeProfit)
     let plannedRR = 0;
@@ -208,13 +206,11 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
     // 1) Prefer the explicit RR field entered by the user (1:2, 1:3, custom)
     // 2) Fallback to price‑based planned RR
     // 3) Finally, fallback to realized RR from P&L
-    let avgRR = 0;
+    let avgRR = null;
     if (fieldRRCount > 0) {
       avgRR = fieldRRTotal / fieldRRCount;
     } else if (plannedRR > 0) {
       avgRR = plannedRR;
-    } else {
-      avgRR = actualRR;
     }
     const riskPerTrade = tradesCountedForRR > 0 ? totalRisk / tradesCountedForRR : 0;
 
@@ -228,15 +224,21 @@ exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
     const variance = returns.length > 0 ? returns.reduce((acc, r) => acc + Math.pow(r - meanReturn, 2), 0) / returns.length : 0;
     const stdDev = Math.sqrt(variance);
     const riskAdjustedReturn = stdDev > 0 ? meanReturn / stdDev : 0;
+    const fixedMaybe = (value, digits = 2) => {
+      if (value == null || value === "") return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(digits) : null;
+    };
+    const plannedRRCount = fieldRRCount > 0 ? fieldRRCount : tradesCountedForRR;
 
     res.json({
-      avgRR: avgRR.toFixed(2),
-      actualRR: actualRR.toFixed(2),
-      plannedRR: tradesWithRR.length > 0 ? plannedRR.toFixed(2) : "N/A",
-      riskPerTrade: riskPerTrade.toFixed(2),
+      avgRR: fixedMaybe(avgRR),
+      actualRR: fixedMaybe(actualRR),
+      plannedRR: fixedMaybe(avgRR),
+      riskPerTrade: tradesCountedForRR > 0 ? riskPerTrade.toFixed(2) : null,
       riskAdjustedReturn: riskAdjustedReturn.toFixed(2),
-      tradesWithRR: tradesWithRR.length,
-      tradesWithoutRR: trades.length - tradesWithRR.length,
+      tradesWithRR: plannedRRCount,
+      tradesWithoutRR: trades.length - plannedRRCount,
       avgWin: avgWin.toFixed(2),
       avgLoss: avgLoss.toFixed(2),
       expectancy,
@@ -464,14 +466,14 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     let bestDay = ["0", { profit: 0, winRate: 0 }];
     let worstDay = ["0", { profit: 0, winRate: 0 }];
 
-    if (dayEntries.length > 0) {
+    if (dayEntries.length > 1) {
       // Sort by profit desc
       const sortedDays = [...dayEntries].sort((a, b) => parseFloat(b[1].profit) - parseFloat(a[1].profit));
       if (parseFloat(sortedDays[0][1].profit) > 0) {
         bestDay = sortedDays[0];
       }
       // Only set worst if it's different and we have enough data
-      if (sortedDays.length > 1) {
+      if (sortedDays.length > 1 && parseFloat(sortedDays[sortedDays.length - 1][1].profit) < 0) {
         worstDay = sortedDays[sortedDays.length - 1];
       }
     }
@@ -488,12 +490,12 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
     let bestHour = [0, { profit: 0, winRate: 0 }];
     let worstHour = [0, { profit: 0, winRate: 0 }];
 
-    if (hourEntries.length > 0) {
+    if (hourEntries.length > 1) {
       const sortedHours = [...hourEntries].sort((a, b) => parseFloat(b[1].profit) - parseFloat(a[1].profit));
       if (parseFloat(sortedHours[0][1].profit) > 0) {
         bestHour = sortedHours[0];
       }
-      if (sortedHours.length > 1) {
+      if (sortedHours.length > 1 && parseFloat(sortedHours[sortedHours.length - 1][1].profit) < 0) {
         worstHour = sortedHours[sortedHours.length - 1];
       }
     }

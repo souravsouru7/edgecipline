@@ -103,6 +103,15 @@ function toOptionalNumber(value) {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function hasNumber(value) {
+  return toOptionalNumber(value) !== undefined;
+}
+
+function hasPositiveNumber(value) {
+  const n = toOptionalNumber(value);
+  return n !== undefined && n > 0;
+}
+
 function IndianEditTradeContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -195,6 +204,33 @@ function IndianEditTradeContent() {
       return;
     }
     setDateError("");
+    if (!hasPositiveNumber(formData.entryPrice)) {
+      alert("Entry price is required.");
+      return;
+    }
+    if (!hasPositiveNumber(formData.exitPrice)) {
+      alert("Exit price is required.");
+      return;
+    }
+    if (!hasNumber(formData.profit)) {
+      alert("P&L is required.");
+      return;
+    }
+    if (equityTrade) {
+      if (!hasPositiveNumber(formData.sharesQty)) {
+        alert("Shares quantity is required.");
+        return;
+      }
+    } else {
+      if (!hasPositiveNumber(formData.quantity)) {
+        alert("Quantity/lots is required.");
+        return;
+      }
+      if (!hasPositiveNumber(formData.lotSize)) {
+        alert("Lot size is required.");
+        return;
+      }
+    }
     if (!formData.riskRewardRatio) {
       alert("Select risk : reward ratio.");
       return;
@@ -210,6 +246,10 @@ function IndianEditTradeContent() {
     const _emotionalTagsArr = String(formData.emotionalTags || "").split(",").map(t => t.trim()).filter(Boolean);
     if (_emotionalTagsArr.length === 0) {
       alert("Add at least one emotional tag.");
+      return;
+    }
+    if (!formData.tradeQuality) {
+      alert("Select trade quality.");
       return;
     }
 
@@ -296,7 +336,7 @@ function IndianEditTradeContent() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, padding: 24, fontFamily: C.sans }}>
         <p style={{ color: C.bear, marginBottom: 12 }}>Trade not found.</p>
-        <Link href="/indian-market/trades" style={{ color: C.bull, fontWeight: 700, textDecoration: "none" }}>Back to Journal</Link>
+        <Link href="/indian-market/trades" style={{ color: C.bull, fontWeight: 700, textDecoration: "none" }}>Back to Trade Log</Link>
       </div>
     );
   }
@@ -312,7 +352,7 @@ function IndianEditTradeContent() {
               Edit <span style={{ color: C.bull }}>{equityTrade ? "Stock Trade" : "Options Trade"}</span>
             </h1>
             <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, letterSpacing: "0.08em", marginTop: 6 }}>
-              UPDATE ALL JOURNAL DETAILS
+              UPDATE ALL TRADE LOG DETAILS
             </div>
           </div>
           <Link href={`/indian-market/trades/view?id=${id}`} style={{ textDecoration: "none", color: C.ink2, border: `1px solid ${C.border}`, background: "#FFF", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>

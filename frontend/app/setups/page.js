@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
@@ -15,6 +14,39 @@ import { Trash2, X } from "lucide-react";
 import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
 
 const MAX_IMAGES = 20;
+
+const STARTER_TEMPLATES = [
+  {
+    name: "Breakout Setup",
+    description: "Use when price breaks a clear range with momentum.",
+    rules: [
+      "Market is trending or breaking out of a clean range",
+      "Breakout candle closes beyond the key level",
+      "Volume or momentum confirms the move",
+      "Stop loss is below the breakout level",
+    ],
+  },
+  {
+    name: "Pullback Setup",
+    description: "Use when price returns to value inside an existing trend.",
+    rules: [
+      "Trend direction is clear before entry",
+      "Price pulls back to support, resistance, or moving average",
+      "Entry candle rejects the pullback area",
+      "Target gives at least 1:2 risk reward",
+    ],
+  },
+  {
+    name: "Reversal Setup",
+    description: "Use only when price rejects an important level.",
+    rules: [
+      "Price reaches a major support or resistance zone",
+      "There is rejection wick or failed breakout",
+      "Entry happens after confirmation, not before",
+      "Risk is small if the level breaks",
+    ],
+  },
+];
 
 function genId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -91,6 +123,21 @@ export default function SetupStrategiesPage() {
     setStrategies(prev => {
       const nextId = (prev[prev.length - 1]?.id || 0) + 1;
       return [...prev, { id: nextId, name: "", rules: [], referenceImages: [] }];
+    });
+  };
+
+  const addStarterTemplate = (template) => {
+    setError("");
+    setStrategies(prev => {
+      const nextId = (prev[prev.length - 1]?.id || 0) + 1;
+      const nextStrategy = {
+        id: nextId,
+        name: template.name,
+        rules: template.rules.map((label, index) => ({ id: index + 1, label })),
+        referenceImages: [],
+      };
+      setExpandedIds(ids => new Set([...ids, nextId]));
+      return [...prev, nextStrategy];
     });
   };
 
@@ -254,7 +301,10 @@ export default function SetupStrategiesPage() {
       if (hasNamedStrategy) {
         markOnboardingStep("setupAdded", true).catch(() => {});
         if (onboardingMode) {
-          setTimeout(() => router.push("/upload-trade?onboarding=1"), 600);
+          const uploadRoute = currentMarket === "Indian_Market"
+            ? "/indian-market/upload-trade?onboarding=1"
+            : "/upload-trade?onboarding=1";
+          setTimeout(() => router.push(uploadRoute), 600);
         }
       }
     } catch (e) {
@@ -290,6 +340,24 @@ export default function SetupStrategiesPage() {
         .sp-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
         .sp-section-title { font-size: 13px; font-weight: 700; color: #0F1923; }
         .sp-section-sub { font-size: 12px; color: #8A97A6; margin-top: 2px; }
+        .sp-helper { margin-bottom: 14px; padding: 14px; border-radius: 14px; background: #FFFFFF; border: 1px solid #DDEFE8; box-shadow: 0 1px 4px rgba(15,25,35,0.04); }
+        .sp-helper-title { font-size: 13px; font-weight: 800; color: #0F1923; margin-bottom: 4px; }
+        .sp-helper-body { font-size: 12px; color: #64748B; line-height: 1.6; margin-bottom: 12px; }
+        .sp-onboarding-panel { margin-bottom: 16px; padding: 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(34,199,142,0.10), rgba(14,165,233,0.05)); border: 1px solid rgba(13,158,110,0.28); box-shadow: 0 2px 10px rgba(15,25,35,0.04); }
+        .sp-onboarding-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; }
+        .sp-onboarding-title { font-size: 15px; font-weight: 800; color: #0F1923; margin-bottom: 5px; }
+        .sp-onboarding-copy { font-size: 12px; color: #475569; line-height: 1.6; margin-bottom: 12px; max-width: 620px; }
+        .sp-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .sp-flow-step { padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.72); border: 1px solid rgba(13,158,110,0.16); }
+        .sp-flow-num { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 3px; }
+        .sp-flow-label { font-size: 12px; font-weight: 800; color: #0F1923; margin-bottom: 3px; }
+        .sp-flow-desc { font-size: 11px; color: #64748B; line-height: 1.45; }
+        .sp-template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .sp-template-card { min-height: 116px; padding: 12px; border-radius: 12px; border: 1px solid #E2E8F0; background: #F8FAFB; text-align: left; cursor: pointer; font-family: 'Inter', sans-serif; transition: border-color 0.15s, background 0.15s; }
+        .sp-template-card:hover { border-color: #0D9E6E; background: #EEF9F4; }
+        .sp-template-name { font-size: 12px; font-weight: 800; color: #0F1923; margin-bottom: 5px; }
+        .sp-template-desc { font-size: 11px; color: #64748B; line-height: 1.45; margin-bottom: 10px; }
+        .sp-template-action { font-size: 10px; font-weight: 800; color: #0D9E6E; letter-spacing: 0.08em; text-transform: uppercase; }
         .sp-btn-add-strategy { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 10px; border: 1.5px dashed #0D9E6E; background: transparent; color: #0D9E6E; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: background 0.15s; }
         .sp-btn-add-strategy:hover { background: #EEF9F4; }
         .sp-card { background: #FFFFFF; border-radius: 14px; border: 1px solid #E8ECF0; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(15,25,35,0.05); }
@@ -339,6 +407,10 @@ export default function SetupStrategiesPage() {
         .sp-empty-sub { font-size: 12px; color: #8A97A6; margin-bottom: 18px; }
         .sp-empty-btn { height: 38px; padding: 0 20px; border-radius: 10px; border: none; background: linear-gradient(135deg, #0D9E6E, #0BB866); color: #FFFFFF; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; }
         .sp-skel-card { background: #FFFFFF; border-radius: 14px; border: 1px solid #E8ECF0; padding: 16px; margin-bottom: 14px; }
+        @media (max-width: 700px) {
+          .sp-template-grid { grid-template-columns: 1fr; }
+          .sp-flow { grid-template-columns: 1fr; }
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
@@ -385,17 +457,30 @@ export default function SetupStrategiesPage() {
 
       <main className="sp-main">
         {onboardingMode && (
-          <div style={{
-            padding: "12px 14px", borderRadius: 10,
-            background: "linear-gradient(135deg, rgba(34,199,142,0.08), rgba(13,158,110,0.04))",
-            border: "1px solid rgba(34,199,142,0.25)",
-            marginBottom: 14,
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
-              STEP 1 OF 3 · ADD A SETUP
+          <div className="sp-onboarding-panel">
+            <div className="sp-onboarding-kicker">
+              ONBOARDING - STEP 1 OF 3
             </div>
-            <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.55 }}>
-              Add at least one strategy with a name (e.g. <strong>"Breakout"</strong>), then hit <strong>Save</strong>. We'll take you to log your first trade next.
+            <div className="sp-onboarding-title">Create one setup or strategy first.</div>
+            <div className="sp-onboarding-copy">
+              A setup is the pattern you wait for before entering a trade. Pick an example below or create your own, add simple rules, then press <strong>Save Setups</strong>. After saving, we will take you to import your first trade.
+            </div>
+            <div className="sp-flow">
+              <div className="sp-flow-step">
+                <div className="sp-flow-num">01</div>
+                <div className="sp-flow-label">Setup</div>
+                <div className="sp-flow-desc">Name the strategy and add your entry rules.</div>
+              </div>
+              <div className="sp-flow-step">
+                <div className="sp-flow-num">02</div>
+                <div className="sp-flow-label">Import trade</div>
+                <div className="sp-flow-desc">Upload a broker screenshot or enter a trade manually.</div>
+              </div>
+              <div className="sp-flow-step">
+                <div className="sp-flow-num">03</div>
+                <div className="sp-flow-label">Log & Review</div>
+                <div className="sp-flow-desc">Review the saved trade and continue from your dashboard.</div>
+              </div>
             </div>
           </div>
         )}
@@ -420,6 +505,27 @@ export default function SetupStrategiesPage() {
           </>
         ) : (
           <>
+            <div className="sp-helper">
+              <div className="sp-helper-title">What is a setup?</div>
+              <div className="sp-helper-body">
+                A setup is the trading pattern you wait for. Rules are the checklist you confirm before entering, so you do not trade randomly.
+              </div>
+              <div className="sp-template-grid">
+                {STARTER_TEMPLATES.map(template => (
+                  <button
+                    key={template.name}
+                    type="button"
+                    className="sp-template-card"
+                    onClick={() => addStarterTemplate(template)}
+                  >
+                    <div className="sp-template-name">{template.name}</div>
+                    <div className="sp-template-desc">{template.description}</div>
+                    <div className="sp-template-action">Use this example</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="sp-section-header">
               <div>
                 <div className="sp-section-title">Your Strategies</div>

@@ -182,6 +182,33 @@ describe("dashboard snapshot controller", () => {
     }));
   });
 
+  it("loads Indian market analytics when the dashboard snapshot requests Indian market", async () => {
+    analyticsSnapshotService.getSnapshot.mockResolvedValue({
+      sourceTradeCount: 2,
+      performance: { totalTrades: 2, grossPnL: 300, netPnL: 290 },
+    });
+    IndianTrade.countDocuments.mockResolvedValue(2);
+
+    const req = createReq();
+    req.query = { market: "Indian_Market" };
+    const res = createRes();
+    const next = jest.fn();
+
+    await getDashboardSnapshot(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(analyticsSnapshotService.getSnapshot).toHaveBeenCalledWith({
+      userId: req.user._id,
+      market: "Indian_Market",
+      period: "weekly",
+    });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      summary: expect.objectContaining({ totalTrades: 2, netProfit: "290.00" }),
+      onboarding: expect.objectContaining({ tradeCount: 2, tradeAdded: true }),
+      sourceTradeCount: 2,
+    }));
+  });
+
   it("derives onboarding progress from saved preferences and real setup/trade counts", async () => {
     analyticsSnapshotService.getSnapshot.mockResolvedValue({
       sourceTradeCount: 1,

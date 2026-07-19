@@ -10,7 +10,7 @@ const { invalidateAuthCache } = require("./authCacheService");
 //   - 0 or more SetupStrategy rows
 //   - 0 or more Trade / IndianTrade rows
 //   - `onboarding.welcomeSeen` likely true (from the legacy FirstLoginWelcome)
-//   - NONE of the new flags: marketSelected, styleSelected, firstInsightSeen,
+//   - NONE of the new flags: marketSelected, journalSeen,
 //     tradeSkipped, the timestamp fields
 //
 // Without a backfill, the new funnel reports them as 0/6 and `resolveLandingPath`
@@ -77,10 +77,10 @@ function buildBackfillUpdate({ user, signals }) {
     // touch welcomeSeen unilaterally for users without trades; they may
     // still benefit from the welcome slide.
     if (!o.welcomeSeen) set["onboarding.welcomeSeen"] = true;
-    // First insight: if they have trades, they've already had every existing
-    // dashboard surface fire insights at them. The onboarding step is a
-    // formality — mark it seen so the new funnel matches reality.
+    // If they already have trades, they are past the import and journal
+    // review steps. Keep firstInsightSeen for legacy state compatibility.
     if (!o.firstInsightSeen) set["onboarding.firstInsightSeen"] = true;
+    if (!o.journalSeen) set["onboarding.journalSeen"] = true;
   }
 
   if (signals.earliestTradeAt) {
@@ -101,13 +101,12 @@ function buildBackfillUpdate({ user, signals }) {
     }
   }
 
-  // Top-level "fully activated" mirror. We require trade + setup so a user
-  // who only created a setup but never traded still flows through the new
-  // funnel (their `firstInsightSeen` will stay false until they do).
+  // Top-level "fully activated" mirror. We require trade + setup + journal so
+  // a user who only created a setup still flows through the import/review loop.
   const wouldBeFullyActivated =
     (o.setupAdded || set["onboarding.setupAdded"]) &&
     (o.tradeAdded || set["onboarding.tradeAdded"]) &&
-    (o.firstInsightSeen || set["onboarding.firstInsightSeen"]) &&
+    (o.journalSeen || set["onboarding.journalSeen"]) &&
     (o.welcomeSeen || set["onboarding.welcomeSeen"]);
 
   if (wouldBeFullyActivated && !user.isOnboardingCompleted) {
@@ -137,7 +136,7 @@ async function backfillUserOnboarding(userId, opts = {}) {
   const o = user.onboarding || {};
   const alreadyConsistent =
     user.isOnboardingCompleted &&
-    o.tradeAdded && o.setupAdded && o.firstInsightSeen && o.welcomeSeen &&
+    o.tradeAdded && o.setupAdded && o.journalSeen && o.welcomeSeen &&
     (o.firstTradeAt || !opts.force);
   if (alreadyConsistent && !opts.force) {
     return { changed: false, reason: "already_consistent" };

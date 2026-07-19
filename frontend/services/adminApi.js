@@ -1,5 +1,10 @@
 import { API_URL as BASE_URL } from "@/config/api";
 
+export const hasAdminSession = () => {
+  if (typeof window === "undefined") return false;
+  return Boolean(localStorage.getItem("adminName"));
+};
+
 export const clearAdminSession = async () => {
   if (typeof window === "undefined") return;
   localStorage.removeItem("adminName");

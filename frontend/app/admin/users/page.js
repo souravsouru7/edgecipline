@@ -25,7 +25,7 @@ const notificationTemplates = [
     deepLink: "/add-trade",
   },
   {
-    label: "Journal Reminder",
+    label: "Log Reminder",
     title: "Log your trade 📝",
     body: "Your edge improves when your data is complete. Add the entry, exit, screenshot, and emotion while it is fresh. ✅",
     deepLink: "/add-trade",
@@ -45,7 +45,7 @@ const notificationTemplates = [
   {
     label: "Subscription",
     title: "Keep your edge active 🚀",
-    body: "Your trading journal keeps your progress visible. Renew your plan to continue tracking every improvement. ✨",
+    body: "Your discipline coach keeps your progress visible. Renew your plan to continue tracking every improvement. ✨",
     deepLink: "/pricing",
   },
 ];

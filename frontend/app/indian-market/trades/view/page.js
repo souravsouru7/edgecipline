@@ -205,12 +205,13 @@ function IndianTradeDetailContent() {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, padding: 24, fontFamily: C.sans }}>
         <p style={{ color: C.bear, marginBottom: 12 }}>Trade not found.</p>
-        <Link href="/indian-market/trades" style={{ color: C.bull, fontWeight: 600 }}>← Back to Journal</Link>
+        <Link href="/indian-market/trades" style={{ color: C.bull, fontWeight: 600 }}>← Back to Trade Log</Link>
       </div>
     );
   }
 
   // ── Derived values ──────────────────────────────────────────────────────────
+  const isEquity   = String(trade.instrumentType || "").toUpperCase() === "EQUITY";
   const bull       = parseFloat(trade.profit) >= 0;
   const profitNum  = parseFloat(trade.profit) || 0;
   const optType    = trade.optionType || "CE";
@@ -326,7 +327,7 @@ function IndianTradeDetailContent() {
                   border: `1px solid rgba(255,255,255,0.2)`,
                   borderRadius: 6, padding: "3px 10px",
                 }}>
-                  {trade.type === "BUY" ? "▲ BUY" : "▼ SELL"} {optType}
+                  {trade.type === "BUY" ? "▲ BUY" : "▼ SELL"}{isEquity ? "" : ` ${optType}`}
                 </span>
                 <span style={{
                   fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.6)",
@@ -373,7 +374,9 @@ function IndianTradeDetailContent() {
             <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.5)", fontFamily: C.mono, letterSpacing: "0.12em" }}>NSE</span>
             <span style={{ width: 1, height: 10, background: "rgba(255,255,255,0.15)" }} />
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: C.mono }}>
-              {trade.underlying || "NIFTY"} · {optType === "CE" ? "Call" : "Put"} Option
+              {isEquity
+                ? `${trade.exchange || "NSE"} · Equity ${trade.tradeType || "INTRADAY"}`
+                : `${trade.underlying || "NIFTY"} · ${optType === "CE" ? "Call" : "Put"} Option`}
             </span>
             {trade.setupScore != null && (
               <>
@@ -413,12 +416,23 @@ function IndianTradeDetailContent() {
 
         {/* ── Trade Details ── */}
         <SectionCard title="TRADE DETAILS" icon="📋" accent={C.ink2} className="section-card">
-          <StatRow label="Underlying"  value={trade.underlying || "—"} />
-          <StatRow label="Strike Price" value={trade.strikePrice != null ? `₹${trade.strikePrice}` : "—"} mono />
-          <StatRow label="Option Type"  value={optType === "CE" ? "🟢 Call (CE)" : "🔴 Put (PE)"} />
-          <StatRow label="Lots"      value={lots > 0 ? `${lots} lot${lots !== 1 ? "s" : ""}` : "—"} mono />
-          <StatRow label="Lot Size"  value={lotSize ? `${lotSize} qty/lot` : "—"} mono />
-          <StatRow label="Total Qty" value={totalQty > 0 ? String(totalQty) : "—"} mono />
+          {isEquity ? (
+            <>
+              <StatRow label="Stock Symbol" value={trade.stockSymbol || trade.pair || "—"} />
+              <StatRow label="Exchange"     value={trade.exchange || "—"} />
+              <StatRow label="Shares Qty"   value={trade.sharesQty != null ? String(trade.sharesQty) : "—"} mono />
+              <StatRow label="Sector"       value={trade.sector || "—"} />
+            </>
+          ) : (
+            <>
+              <StatRow label="Underlying"  value={trade.underlying || "—"} />
+              <StatRow label="Strike Price" value={trade.strikePrice != null ? `₹${trade.strikePrice}` : "—"} mono />
+              <StatRow label="Option Type"  value={optType === "CE" ? "🟢 Call (CE)" : "🔴 Put (PE)"} />
+              <StatRow label="Lots"      value={lots > 0 ? `${lots} lot${lots !== 1 ? "s" : ""}` : "—"} mono />
+              <StatRow label="Lot Size"  value={lotSize ? `${lotSize} qty/lot` : "—"} mono />
+              <StatRow label="Total Qty" value={totalQty > 0 ? String(totalQty) : "—"} mono />
+            </>
+          )}
           <StatRow label="Trade Type"    value={trade.tradeType || "—"} />
           <StatRow label="Entry Basis"
             value={trade.entryBasis === "Custom" && trade.entryBasisCustom ? trade.entryBasisCustom : (trade.entryBasis || "—")}
@@ -483,9 +497,9 @@ function IndianTradeDetailContent() {
           </SectionCard>
         )}
 
-        {/* ── Journal ── */}
+        {/* ── Trade notes ── */}
         {(trade.setup || trade.strategy || trade.mistakeTag || trade.lesson) && (
-          <SectionCard title="JOURNAL" icon="📓" accent={C.gold}>
+          <SectionCard title="NOTES" icon="📓" accent={C.gold}>
             {trade.strategy && <StatRow label="Trading Setup" value={trade.strategy} />}
             {trade.setup     && <StatRow label="Setup"       value={trade.setup} />}
             {trade.mistakeTag && (
@@ -565,7 +579,7 @@ function IndianTradeDetailContent() {
             borderRadius: 8, border: `1px solid ${C.border}`,
             background: C.card, transition: "color 0.2s",
           }}>
-            ← Back to Journal
+            ← Back to Trade Log
           </Link>
         </div>
       </main>

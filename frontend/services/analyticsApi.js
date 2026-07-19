@@ -1,5 +1,6 @@
 import { API_URL as BASE_URL } from "@/config/api";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
+import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 
 const DEFAULT_MARKET = "Forex";
 const VALID_MARKETS = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks", "Indian_Market"]);
@@ -23,10 +24,26 @@ const getBaseUrl = (marketType) => {
   return BASE_URL;
 };
 
-const getAuthHeaders = async (signal) => {
-  const token = getValidToken() || await hydrateAuthToken();
+const createAuthError = (message, status = 401, errorCode = "AUTH_REQUIRED") => {
+  const err = new Error(message);
+  err.status = status;
+  err.data = { errorCode, message };
+  return err;
+};
+
+const resolveAccessToken = async ({ forceRefresh = false } = {}) => {
+  const token = forceRefresh
+    ? await silentRefresh({ force: true })
+    : (getValidToken() || await hydrateAuthToken() || await silentRefresh());
+
+  if (token) return token;
+  throw createAuthError("Authentication required. Please sign in again.");
+};
+
+const getAuthHeaders = async (signal, options = {}) => {
+  const token = await resolveAccessToken(options);
   return {
-    headers: { Authorization: token ? `Bearer ${token}` : "" },
+    headers: { Authorization: `Bearer ${token}` },
     ...(signal ? { signal } : {}),
   };
 };
@@ -71,6 +88,12 @@ const handleResponse = async (res) => {
 
     const err = new Error(errorMessage);
     err.status = res.status;
+    try {
+      err.data = JSON.parse(errorText);
+      err.data.message = errorMessage;
+    } catch {
+      err.data = { message: errorMessage };
+    }
     throw err;
   }
   const payload = await res.json();
@@ -93,6 +116,26 @@ const fetchWithRateLimitRetry = async (url, options, maxRetries = 4) => {
     } catch (networkErr) {
       if (attempt >= maxRetries) throw networkErr;
       continue;
+    }
+
+    if (res.status === 401 && !options._authRetried) {
+      try {
+        const token = await resolveAccessToken({ forceRefresh: true });
+        options = {
+          ...options,
+          _authRetried: true,
+          headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`,
+          },
+        };
+        continue;
+      } catch (refreshError) {
+        if (isAuthRefreshTransientError(refreshError)) {
+          throw createAuthError("Authentication refresh is temporarily unavailable. Please try again.", 0, "AUTH_REFRESH_TRANSIENT");
+        }
+        throw refreshError;
+      }
     }
 
     if (res.status !== 429) {

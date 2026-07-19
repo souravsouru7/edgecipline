@@ -4,61 +4,83 @@ import Link from "next/link";
 import { useState } from "react";
 import { markOnboardingStep } from "@/services/api";
 
-// New 6-step model that mirrors the backend activation funnel. Each item links
-// to the dedicated step inside /onboarding so a user who bounced mid-flow can
-// resume exactly where they left off — and one-off items (analytics, journal)
-// still link to their pages.
-//
-// Reward: when every step is complete, we render the celebratory state with
-// the date the user activated. We do NOT auto-dismiss — the user gets the
-// satisfaction of tapping "Done".
-//
-// Edge: a user who explicitly chose "I haven't traded yet" gets the trade row
-// rendered as completed-but-skipped (no strikethrough, "explorer mode" tag,
-// link still points at upload-trade). This matches the backend's `isStepDone`
-// helper exactly.
+// Dashboard resume nudge for users who leave /onboarding mid-flow.
+// Keep this order in sync with frontend/app/onboarding/page.js and
+// onboardingService.FLOW_STEPS.
+function getItems(routes = {}) {
+  return [
+    {
+      key: "welcomeSeen",
+      label: "Start onboarding",
+      sub: "Quick setup for your trading workspace",
+      href: "/onboarding?step=welcomeSeen",
+    },
+    {
+      key: "setupAdded",
+      label: "Create your first setup",
+      sub: "Strategy name, rules, and examples",
+      href: "/setups?onboarding=1",
+    },
+    {
+      key: "tradeAdded",
+      label: "Import your first trade",
+      sub: "Screenshot import or manual entry",
+      href: `${routes.uploadTrade || "/upload-trade"}?onboarding=1`,
+    },
+  ];
+}
+
 function rowDone(item, onboarding) {
   if (onboarding[item.key]) return true;
   if (item.key === "tradeAdded" && onboarding.tradeSkipped) return true;
   return false;
 }
 
-const ITEMS = [
-  { key: "marketSelected",  label: "Choose your market",       sub: "Forex or Indian market",              href: "/onboarding?step=marketSelected" },
-  { key: "styleSelected",   label: "Pick a trading style",     sub: "Scalper, intraday, swing, position",   href: "/onboarding?step=styleSelected" },
-  { key: "setupAdded",      label: "Save a default setup",     sub: "Style-matched template, 1 tap",       href: "/onboarding?step=setupAdded" },
-  { key: "tradeAdded",      label: "Log your first trade",     sub: "Upload a screenshot — AI fills it",    href: "/upload-trade?onboarding=1" },
-  { key: "firstInsightSeen", label: "See your first AI insight", sub: "Grounded in your real data",       href: "/onboarding?step=firstInsightSeen" },
-  { key: "journalSeen",     label: "Open your journal",        sub: "Every trade in one place",            href: "/trades?onboarding=1" },
-];
-
-export default function GettingStartedCard({ onboarding, onMutate }) {
+export default function GettingStartedCard({ onboarding, onMutate, routes }) {
   const [dismissing, setDismissing] = useState(false);
+  const [locallyDismissed, setLocallyDismissed] = useState(false);
+  const items = getItems(routes);
 
   if (
     !onboarding ||
+    locallyDismissed ||
     onboarding.checklistDismissed ||
     onboarding.tourCompleted ||
     onboarding.completedAt
   ) return null;
 
-  const done = ITEMS.filter((item) => rowDone(item, onboarding)).length;
-  const allDone = done === ITEMS.length;
-  const pct = Math.round((done / ITEMS.length) * 100);
-  const nextItem = ITEMS.find((item) => !rowDone(item, onboarding));
+  const done = items.filter((item) => rowDone(item, onboarding)).length;
+  const allDone = done === items.length;
+  const pct = Math.round((done / items.length) * 100);
+  const nextItem = items.find((item) => !rowDone(item, onboarding));
 
   async function dismiss() {
     setDismissing(true);
+    setLocallyDismissed(true);
+    const step = allDone ? "tourCompleted" : "checklistDismissed";
+    const optimisticOnboarding = {
+      [step]: true,
+      ...(allDone ? { checklistDismissed: true } : null),
+    };
+    onMutate?.(optimisticOnboarding);
     try {
-      await markOnboardingStep("checklistDismissed", true);
+      await markOnboardingStep(step, true);
+      if (allDone) {
+        await markOnboardingStep("checklistDismissed", true);
+      }
+      onMutate?.(optimisticOnboarding);
+    } catch {
+      setLocallyDismissed(false);
       onMutate?.();
-    } catch { /* non-blocking */ }
+    } finally {
+      setDismissing(false);
+    }
   }
 
   return (
     <section style={{
       background: allDone
-        ? "linear-gradient(135deg, rgba(34,199,142,0.25), rgba(15,25,35,1) 80%)"
+        ? "linear-gradient(135deg, #14352A 0%, #0F1923 80%)"
         : "linear-gradient(135deg, #0F1923 0%, #1a2937 100%)",
       borderRadius: 14,
       border: `1px solid ${allDone ? "rgba(34,199,142,0.45)" : "rgba(34,199,142,0.2)"}`,
@@ -70,27 +92,33 @@ export default function GettingStartedCard({ onboarding, onMutate }) {
       <div style={{ height: 3, background: "linear-gradient(90deg, #22C78E, transparent)" }} />
       <div style={{ padding: "18px 22px" }}>
         <div style={{
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          marginBottom: 14, gap: 12,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 14,
+          gap: 12,
         }}>
           <div style={{ minWidth: 0 }}>
             <div style={{
-              fontSize: 10, fontWeight: 800, color: "#22C78E",
-              letterSpacing: "0.12em", fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10,
+              fontWeight: 800,
+              color: "#22C78E",
+              letterSpacing: "0.12em",
+              fontFamily: "'JetBrains Mono', monospace",
               marginBottom: 4,
             }}>
-              ACTIVATION · {done}/{ITEMS.length}
+              ACTIVATION &middot; {done}/{items.length}
             </div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9" }}>
               {allDone
-                ? "You're activated. 🎉 Edgecipline is fully tuned to you."
+                ? "You're activated. Edgecipline is fully tuned to you."
                 : nextItem
                   ? `Next: ${nextItem.label}`
                   : "Finish activation to unlock the full coach."}
             </div>
             {!allDone && (
               <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
-                Market, style, setup, trade, AI insight, journal. Your progress saves after every step.
+Start, setup, import. Your progress saves after every step.
               </div>
             )}
           </div>
@@ -115,11 +143,15 @@ export default function GettingStartedCard({ onboarding, onMutate }) {
         </div>
 
         <div style={{
-          height: 4, borderRadius: 99, background: "rgba(255,255,255,0.06)",
-          overflow: "hidden", marginBottom: 14,
+          height: 4,
+          borderRadius: 99,
+          background: "rgba(255,255,255,0.06)",
+          overflow: "hidden",
+          marginBottom: 14,
         }}>
           <div style={{
-            height: "100%", width: `${pct}%`,
+            height: "100%",
+            width: `${pct}%`,
             background: allDone
               ? "linear-gradient(90deg, #22C78E, #F59E0B)"
               : "linear-gradient(90deg, #22C78E, #0D9E6E)",
@@ -128,25 +160,22 @@ export default function GettingStartedCard({ onboarding, onMutate }) {
         </div>
 
         <div style={{ display: "grid", gap: 8 }}>
-          {ITEMS.map((item) => {
+          {items.map((item) => {
             const isDone = rowDone(item, onboarding);
-            const isSkipped =
-              item.key === "tradeAdded" &&
-              !onboarding.tradeAdded &&
-              Boolean(onboarding.tradeSkipped);
-            const labelText = isSkipped ? "Log a trade when you have one" : item.label;
-            const subText = isSkipped
-              ? "You marked yourself as exploring — come back any time."
-              : item.sub;
-            const linkHref = isSkipped ? "/upload-trade?onboarding=1" : item.href;
+            const labelText = item.label;
+            const subText = item.sub;
+            const linkHref = item.href;
 
             return (
               <Link
                 key={item.key}
                 href={linkHref}
                 style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 12px", borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 12px",
+                  borderRadius: 10,
                   background: isDone ? "rgba(34,199,142,0.06)" : "rgba(255,255,255,0.03)",
                   border: `1px solid ${isDone ? "rgba(34,199,142,0.2)" : "rgba(255,255,255,0.06)"}`,
                   textDecoration: "none",
@@ -155,37 +184,36 @@ export default function GettingStartedCard({ onboarding, onMutate }) {
                 }}
               >
                 <div style={{
-                  width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  flexShrink: 0,
                   background: isDone ? "#22C78E" : "transparent",
                   border: `2px solid ${isDone ? "#22C78E" : "#475569"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#0F1923", fontSize: 12, fontWeight: 900,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#0F1923",
+                  fontSize: 12,
+                  fontWeight: 900,
                 }}>
-                  {isDone ? "✓" : ""}
+                  {isDone ? <span aria-hidden="true">&#10003;</span> : ""}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 12, fontWeight: 800,
+                    fontSize: 12,
+                    fontWeight: 800,
                     color: isDone ? "#94A3B8" : "#F1F5F9",
-                    textDecoration: isDone && !isSkipped ? "line-through" : "none",
+                    textDecoration: isDone ? "line-through" : "none",
                   }}>
                     {labelText}
-                    {isSkipped && (
-                      <span style={{
-                        marginLeft: 6, fontSize: 9, fontWeight: 800,
-                        color: "#22C78E", letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                      }}>
-                        · explorer mode
-                      </span>
-                    )}
                   </div>
                   <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>
                     {subText}
                   </div>
                 </div>
-                {(!isDone || isSkipped) && (
-                  <span style={{ fontSize: 16, color: "#22C78E", fontWeight: 700 }}>→</span>
+                {!isDone && (
+                  <span style={{ fontSize: 16, color: "#22C78E", fontWeight: 700 }}>&rarr;</span>
                 )}
               </Link>
             );
