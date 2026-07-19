@@ -156,6 +156,7 @@ const isAllowedProductionOrigin = (origin) => {
     "https://stratedge.live",
     "https://www.stratedge.live",
     "https://stratedge-stageing.vercel.app",
+    "https://edgecipline.soutavr5.workers.dev",
   ]);
 
   if (staticAllowedOrigins.has(normalizedOrigin)) {
