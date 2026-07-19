@@ -1,0 +1,11 @@
+name = "edgecipline"
+compatibility_date = "2025-01-01"
+
+# next.config.ts uses `output: "export"` — the Android/Capacitor app is built from
+# this same static export, so it must stay a plain static site here too. Without
+# this file, Cloudflare auto-detects "Next.js" and runs the OpenNext SSR build
+# (`opennextjs-cloudflare build`), which fails because there is no server build
+# to wrap (no .next/standalone) — this project has never used SSR.
+[assets]
+directory = "./out"
+not_found_handling = "404-page"
