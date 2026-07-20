@@ -25,6 +25,9 @@ function forexContractSize(pair) {
   if (symbol.includes("XAU")) return 100;
   if (symbol.includes("XAG")) return 5000;
   if (symbol.includes("USOIL") || symbol.includes("WTI")) return 1000;
+  if (/^(BTC|ETH|LTC|XRP|ADA|DOGE|SOL|BNB)/.test(symbol)) return null;
+  if (/\d/.test(symbol)) return null;
+  if (!/^[A-Z]{6}/.test(symbol)) return null;
   return 100_000;
 }
 
@@ -46,10 +49,13 @@ function deriveForexProfit(trade) {
 
   const commission = Math.abs(toFiniteNumber(trade?.commission) || 0);
   const swap = toFiniteNumber(trade?.swap) || 0;
+  const contractSize = forexContractSize(trade?.pair);
+  if (contractSize == null) return null;
+
   let gross = direction
     * (exitPrice - entryPrice)
     * lots
-    * forexContractSize(trade?.pair);
+    * contractSize;
 
   // Forex price deltas are denominated in the quote currency. The journal's
   // Forex P&L is USD-denominated, so direct USD-base pairs need conversion.

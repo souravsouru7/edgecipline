@@ -70,13 +70,16 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
 
   const ocrJobId = payload.ocrJobId;
   const tradePayload = pickForexTradeFields(payload);
-  const derivedProfit = deriveForexProfit(tradePayload);
-  if (derivedProfit !== null) {
-    tradePayload.profit = derivedProfit;
-  } else if (ocrJobId) {
+  let trustedProfit = null;
+  if (ocrJobId) {
     const extractedTrades = await getOcrConfirmationTrades(userId, ocrJobId, "Forex");
-    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades);
-    if (trustedProfit !== null) tradePayload.profit = trustedProfit;
+    trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades);
+  }
+  if (trustedProfit !== null) {
+    tradePayload.profit = trustedProfit;
+  } else {
+    const derivedProfit = deriveForexProfit(tradePayload);
+    if (derivedProfit !== null) tradePayload.profit = derivedProfit;
   }
   const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
   const trade = await tradeRepository.createTrade({
@@ -152,12 +155,12 @@ function buildCreateTradeDocument(
   }
 
   const tradePayload = pickForexTradeFields(payload);
-  const derivedProfit = deriveForexProfit(tradePayload);
-  if (derivedProfit !== null) {
-    tradePayload.profit = derivedProfit;
+  const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
+  if (trustedProfit !== null) {
+    tradePayload.profit = trustedProfit;
   } else {
-    const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
-    if (trustedProfit !== null) tradePayload.profit = trustedProfit;
+    const derivedProfit = deriveForexProfit(tradePayload);
+    if (derivedProfit !== null) tradePayload.profit = derivedProfit;
   }
   const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
   return {

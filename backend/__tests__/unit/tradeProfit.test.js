@@ -54,6 +54,43 @@ describe("server-derived trade P&L", () => {
     })).toBeNull();
   });
 
+  test("does not apply Forex contract size to index CFDs", () => {
+    expect(deriveForexProfit({
+      pair: "NAS100.x",
+      type: "BUY",
+      entryPrice: 28663.62,
+      exitPrice: 28612.84,
+      lotSize: 0.1,
+    })).toBeNull();
+    expect(deriveForexProfit({
+      pair: "NASDAQ100",
+      type: "BUY",
+      entryPrice: 28663.62,
+      exitPrice: 28612.84,
+      lotSize: 0.1,
+    })).toBeNull();
+  });
+
+  test("does not derive crypto CFD P&L without broker contract specs", () => {
+    expect(deriveForexProfit({
+      pair: "BTCUSD",
+      type: "BUY",
+      entryPrice: 65000,
+      exitPrice: 65100,
+      lotSize: 0.1,
+    })).toBeNull();
+  });
+
+  test("still derives supported metal CFD P&L", () => {
+    expect(deriveForexProfit({
+      pair: "XAUUSD",
+      type: "BUY",
+      entryPrice: 2300,
+      exitPrice: 2305,
+      lotSize: 0.1,
+    })).toBe(50);
+  });
+
   test("derives Indian option P&L from lots and lot size", () => {
     expect(deriveIndianProfit({
       instrumentType: "OPTION",

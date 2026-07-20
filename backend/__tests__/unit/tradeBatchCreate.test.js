@@ -33,7 +33,10 @@ jest.mock("../../models/Trade", () => ({}));
 const tradeRepository = require("../../repositories/trade.repository");
 const { invalidateTradeCaches } = require("../../utils/cacheUtils");
 const { evaluateSmartNotifications } = require("../../services/smartNotificationEvaluator");
-const { markOcrJobConfirmed } = require("../../services/ocrJob.service");
+const {
+  getOcrConfirmationTrades,
+  markOcrJobConfirmed,
+} = require("../../services/ocrJob.service");
 const tradeService = require("../../services/trade.service");
 
 describe("tradeService.createTradesBatch", () => {
@@ -137,6 +140,31 @@ describe("tradeService.createTradesBatch", () => {
     expect(doc).not.toHaveProperty("ocrJobId");
     expect(doc).not.toHaveProperty("role");
     expect(doc).not.toHaveProperty("extractionConfidence");
+  });
+
+  it("uses broker OCR P&L for index CFDs instead of deriving with Forex contract size", async () => {
+    getOcrConfirmationTrades.mockResolvedValueOnce([
+      { pair: "NAS100.x", type: "BUY", profit: -50.78 },
+    ]);
+    tradeRepository.createTrades.mockImplementation(async (docs) =>
+      docs.map((doc, index) => ({ ...doc, _id: `trade-${index + 1}` }))
+    );
+
+    await tradeService.createTradesBatch("user-1", {
+      ocrJobId: "ocr-1",
+      trades: [{
+        pair: "NAS100.x",
+        type: "BUY",
+        tradeDate: "2026-07-20",
+        entryPrice: 28663.62,
+        exitPrice: 28612.84,
+        lotSize: 0.1,
+        profit: -50.78,
+      }],
+    }, { accountCreatedAt: new Date("2026-01-01") });
+
+    const [doc] = tradeRepository.createTrades.mock.calls[0][0];
+    expect(doc.profit).toBe(-50.78);
   });
 
   it("allows a Forex edit but never forwards protected fields", async () => {
