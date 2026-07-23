@@ -14,6 +14,9 @@ import {
   ResponsiveContainer, ReferenceLine, LineChart, Line,
 } from "recharts";
 
+// Matches backend MIN_INSIGHT_TRADES in disciplineAnalytics.js
+const MIN_SAMPLE_TRADES = 3;
+
 // ── Palette ────────────────────────────────────────────────────────────────────
 
 const C = {
@@ -311,7 +314,8 @@ function DisciplineContent() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {topByCost.slice(0, 5).map((r, i) => {
               const cost = parseFloat(r.costOfBreaking || 0);
-              const diff = parseFloat(r.pnlDifference || 0);
+              const hasDiff = r.timesFollowed > 0 && r.pnlDifference !== null && r.pnlDifference !== undefined;
+              const diff = hasDiff ? parseFloat(r.pnlDifference) : 0;
               return (
                 <div key={i} style={{
                   display: "flex", alignItems: "center", gap: 12,
@@ -331,7 +335,7 @@ function DisciplineContent() {
                     </div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
                       Broken {r.timesBroken} times
-                      {diff !== 0 && <> · <span style={{ color: diff >= 0 ? C.green : C.red, fontWeight: 700 }}>{diff >= 0 ? "+" : ""}{fmt(diff, cur)}/trade when followed</span></>}
+                      {hasDiff && diff !== 0 && <> · <span style={{ color: diff >= 0 ? C.green : C.red, fontWeight: 700 }}>{diff >= 0 ? "+" : ""}{fmt(diff, cur)}/trade when followed</span></>}
                     </div>
                   </div>
                   {cost > 0 && (
@@ -414,9 +418,9 @@ function DisciplineContent() {
       {/* ── Which setups do you follow best ─────────────────────────────────── */}
       {setupsForChart.length > 0 && (
         <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: "18px 16px" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Which setups are profitable?</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Setup performance ranking</div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-            Ranked by net profit
+            Ranked by net P&amp;L — green is profitable, red is losing
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {setupsForChart.map((s, i) => {
@@ -466,20 +470,25 @@ function DisciplineContent() {
           </div>
           <div style={{ height: 130 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.psychologyCorrelation.bySetupRange.map(r => ({ name: r.range, pnl: r.avgPnL ?? 0, wr: r.winRate ?? 0 }))}>
+              <BarChart data={data.psychologyCorrelation.bySetupRange.map(r => ({ name: `${r.range} (n=${r.count})`, pnl: r.avgPnL ?? 0, wr: r.winRate ?? 0, count: r.count }))}>
                 <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 8, fill: C.muted }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: C.muted }} width={36} axisLine={false} tickLine={false} />
                 <Tooltip content={<Tip />} />
                 <ReferenceLine y={0} stroke="#CBD5E1" />
                 <Bar dataKey="pnl" name="Avg P&L" radius={[4, 4, 0, 0]}>
                   {data.psychologyCorrelation.bySetupRange.map((r, i) => (
-                    <rect key={i} fill={(r.avgPnL ?? 0) >= 0 ? C.green : C.red} />
+                    <rect key={i} fill={(r.avgPnL ?? 0) >= 0 ? C.green : C.red} fillOpacity={r.count < MIN_SAMPLE_TRADES ? 0.35 : 1} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {data.psychologyCorrelation.bySetupRange.some(r => r.count < MIN_SAMPLE_TRADES) && (
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+              Faded bars are based on fewer than {MIN_SAMPLE_TRADES} trades — not enough data to draw a conclusion yet.
+            </div>
+          )}
         </div>
       )}
 

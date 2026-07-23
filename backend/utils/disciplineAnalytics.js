@@ -198,8 +198,8 @@ function computeRuleAnalytics(trades) {
 
     const fNet  = fix2(e.followedPnls.reduce((s, p) => s + p, 0));
     const bNet  = fix2(e.brokenPnls.reduce((s, p) => s + p, 0));
-    const fAvg  = fCount ? fix2(fNet / fCount) : 0;
-    const bAvg  = bCount ? fix2(bNet / bCount) : 0;
+    const fAvg  = fCount ? fix2(fNet / fCount) : null;
+    const bAvg  = bCount ? fix2(bNet / bCount) : null;
 
     results.push({
       label:            e.label,
@@ -212,7 +212,8 @@ function computeRuleAnalytics(trades) {
       netPnLBroken:     bNet,
       avgPnLFollowed:   fAvg,
       avgPnLBroken:     bAvg,
-      pnlDifference:    fix2(fAvg - bAvg),   // +ve = following is better
+      // Only a meaningful edge when the rule has been both followed and broken at least once
+      pnlDifference:    (fCount && bCount) ? fix2(fAvg - bAvg) : null,   // +ve = following is better
       costOfBreaking:   bCount > 0 ? fix2(Math.max(0, -bNet)) : 0,
       confidence:       getConfidence(total),
     });
@@ -592,8 +593,8 @@ function computeDNAIntegration(ruleAnalytics, setupData) {
     : null;
 
   // Most valuable: highest pnlDifference (following >> breaking)
-  const mostValuableRule = qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES).length
-    ? [...qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES)]
+  const mostValuableRule = qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES && r.pnlDifference !== null).length
+    ? [...qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES && r.pnlDifference !== null)]
         .sort((a, b) => b.pnlDifference - a.pnlDifference)[0]
     : null;
 
