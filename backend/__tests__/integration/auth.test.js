@@ -43,6 +43,7 @@ jest.mock('../../config/redis', () => ({
 
 jest.mock('../../models/Users', () => ({
   findOne:           jest.fn(),
+  findOneAndUpdate:   jest.fn(),
   findById:          jest.fn(),
   create:            jest.fn(),
   findByIdAndUpdate: jest.fn(),
@@ -84,6 +85,7 @@ const jwt      = require('jsonwebtoken');
 const bcrypt   = require('bcryptjs');
 const User     = require('../../models/Users');
 const tokenSvc = require('../../services/tokenService');
+const { getFirebaseAdmin } = require('../../config/firebaseAdmin');
 const { appConfig } = require('../../config');
 
 // Use the same secret the middleware uses — avoids any env-capture-timing mismatch.
@@ -94,6 +96,7 @@ const { sanitizeInput } = require('../../middleware/sanitizeInput');
 const { errorHandler }  = require('../../middleware/errorHandler');
 const { protect }       = require('../../middleware/authMiddleware');
 const authRoutes         = require('../../routes/authRoutes');
+const originalFetch = global.fetch;
 
 function buildApp() {
   const app = express();
@@ -137,6 +140,21 @@ const userDoc = (overrides = {}) => ({
   termsAcceptance: { termsVersion: 'v1.0' },
   save:            jest.fn().mockResolvedValue(undefined),
   ...overrides,
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  User.findOne.mockReset();
+  User.findOneAndUpdate.mockReset();
+  User.findById.mockReset();
+  User.create.mockReset();
+  User.findByIdAndUpdate.mockReset();
+  getFirebaseAdmin.mockReset();
+  global.fetch = jest.fn();
+});
+
+afterAll(() => {
+  global.fetch = originalFetch;
 });
 
 // ---------------------------------------------------------------------------
@@ -305,6 +323,18 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(401);
     expect(res.body.errorCode).toBe('INVALID_CREDENTIALS');
   });
+
+  test('Google-provider account login with password is rejected with provider guidance', async () => {
+    const user = userDoc({ authProvider: 'google', password: null });
+    User.findOne.mockReturnValueOnce(chainQuery(user));
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'test@example.com', password: 'TestPass1!' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_PROVIDER_MISMATCH');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -471,6 +501,193 @@ describe('GET /api/auth/me', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.errorCode).toBe('AUTH_FAILED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T2: POST /api/auth/google
+// ---------------------------------------------------------------------------
+
+describe('POST /api/auth/google', () => {
+  const makeGoogleToken = (payload) => ({
+    auth: () => ({
+      verifyIdToken: jest.fn().mockResolvedValue(payload),
+    }),
+  });
+
+  const makeFirebasePayload = (overrides = {}) => ({
+    email: 'google@example.com',
+    email_verified: true,
+    name: 'Google User',
+    firebase: { sign_in_provider: 'google.com', identities: { 'google.com': ['google-sub-123'] } },
+    aud: appConfig.firebase.projectId || 'firebase-project-id',
+    iss: 'https://accounts.google.com',
+    ...overrides,
+  });
+
+  test('new Google user signs in once and gets a session', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload({
+      picture: 'https://example.com/avatar.png',
+    })));
+    User.findOne.mockResolvedValueOnce(null);
+    User.findOneAndUpdate.mockResolvedValueOnce(userDoc({
+      email: 'google@example.com',
+      name: 'Google User',
+      authProvider: 'google',
+      termsAcceptance: { acceptedTerms: false, acceptedPrivacy: false, termsVersion: null },
+    }));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ token: 'test-access-token', email: 'google@example.com' });
+    expect(User.findOneAndUpdate).toHaveBeenCalled();
+  });
+
+  test('existing Google user signs in again without account conversion', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload()));
+    User.findOne
+      .mockResolvedValueOnce(userDoc({ email: 'google@example.com', authProvider: 'google' }))
+      .mockResolvedValueOnce(userDoc({ email: 'google@example.com', authProvider: 'google' }));
+    User.findOneAndUpdate.mockResolvedValueOnce(userDoc({
+      email: 'google@example.com',
+      name: 'Google User',
+      authProvider: 'google',
+      termsAcceptance: { acceptedTerms: true, acceptedPrivacy: true, termsVersion: 'v1.0' },
+    }));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe('google@example.com');
+    expect(User.findOneAndUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  test('password account attempting Google login is blocked', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload()));
+    User.findOne.mockResolvedValueOnce(userDoc({ email: 'google@example.com', authProvider: 'local' }));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.errorCode).toBe('AUTH_PROVIDER_CONFLICT');
+    expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('unverified Google email is rejected', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload({ email_verified: false })));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_FAILED');
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+
+  test('expired or invalid Firebase token is rejected safely', async () => {
+    getFirebaseAdmin.mockReturnValue({
+      auth: () => ({
+        verifyIdToken: jest.fn().mockRejectedValue(Object.assign(new Error('expired'), {
+          code: 'auth/id-token-expired',
+        })),
+      }),
+    });
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: jest.fn().mockResolvedValue({}),
+    });
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'expired-firebase-token' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_FAILED');
+    expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('Firebase verification timeout is recoverable and does not create duplicates', async () => {
+    getFirebaseAdmin.mockReturnValue({
+      auth: () => ({
+        verifyIdToken: jest.fn().mockRejectedValue(Object.assign(new Error('expired'), {
+          code: 'auth/id-token-expired',
+        })),
+      }),
+    });
+    global.fetch.mockRejectedValueOnce(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'slow-token' });
+
+    expect(res.status).toBe(504);
+    expect(res.body.errorCode).toBe('GOOGLE_AUTH_TIMEOUT');
+    expect(User.findOne).not.toHaveBeenCalled();
+    expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('Google token from the wrong Firebase project is rejected', async () => {
+    getFirebaseAdmin.mockReturnValue({
+      auth: () => ({
+        verifyIdToken: jest.fn().mockRejectedValue(Object.assign(new Error('wrong-project'), {
+          code: 'auth/invalid-id-token',
+        })),
+      }),
+    });
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        email: 'google@example.com',
+        email_verified: true,
+        name: 'Google User',
+        sub: 'google-sub-123',
+        iss: 'accounts.google.com',
+        aud: `${appConfig.firebase.projectId || 'firebase-project-id'}-other`,
+      }),
+    });
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'wrong-project-token' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_FAILED');
+    expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('same Google login submitted twice still creates only one account record', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload()));
+    User.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(userDoc({ email: 'google@example.com', authProvider: 'google' }));
+    User.findOneAndUpdate
+      .mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: 11000 }))
+      .mockResolvedValue(userDoc({
+        email: 'google@example.com',
+        name: 'Google User',
+        authProvider: 'google',
+        termsAcceptance: { acceptedTerms: false, acceptedPrivacy: false, termsVersion: null },
+      }));
+
+    const first = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+    const second = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(User.findOneAndUpdate).toHaveBeenCalled();
+    expect(User.create).not.toHaveBeenCalled();
   });
 });
 

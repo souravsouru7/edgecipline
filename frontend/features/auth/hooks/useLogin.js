@@ -15,6 +15,7 @@ import {
   hasRedirectPending,
   clearRedirectPending,
   getGoogleAuthErrorMessage,
+  signOutFirebase,
 } from "@/services/firebaseAuth";
 import {
   ensurePushRegistration,
@@ -339,6 +340,9 @@ export function useLogin() {
     },
     onError: (err) => {
       triggerShake();
+      clearRedirectPending();
+      clearAuthToken().catch(() => {});
+      signOutFirebase().catch(() => {});
       const msg = String(err?.message || "");
       if (/disallowed_useragent/i.test(msg) || err?.code === "DISALLOWED_USER_AGENT") {
         alert(
@@ -370,6 +374,7 @@ export function useLogin() {
   };
 
   const handleGoogleSignIn = () => {
+    if (googleMutation.isPending) return;
     googleMutation.mutate();
   };
 

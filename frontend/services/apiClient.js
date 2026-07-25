@@ -518,6 +518,18 @@ function handleTermsRequired() {
 // sending two concurrent /auth/refresh requests with the same cookie, which
 // the backend correctly detects as a replay attack and revokes the token family.
 let _refreshInFlight = null;
+let _consecutiveTransientRefreshFailures = 0;
+
+const MAX_TRANSIENT_REFRESH_FAILURES = 3;
+
+function resetTransientRefreshFailureCount() {
+  _consecutiveTransientRefreshFailures = 0;
+}
+
+function recordTransientRefreshFailure() {
+  _consecutiveTransientRefreshFailures += 1;
+  return _consecutiveTransientRefreshFailures >= MAX_TRANSIENT_REFRESH_FAILURES;
+}
 
 async function executeRefreshRequest() {
   console.info('AUTH_REFRESH_START', {
@@ -527,6 +539,7 @@ async function executeRefreshRequest() {
   const res = await refreshClient.post('/auth/refresh');
   const token = unwrapApiEnvelope(res.data)?.token;
   if (token) {
+    resetTransientRefreshFailureCount();
     await setAuthToken(token);
     publishRefreshSuccess(token);
     console.info('AUTH_REFRESH_SUCCESS', {
@@ -605,14 +618,21 @@ export function silentRefresh({ force = false } = {}) {
         }
         if (!isTerminalRefreshFailure(error)) {
           const reason = getRefreshFailureReason(error);
+          const shouldFailClosed = recordTransientRefreshFailure();
           console.warn(reason.includes('timed out') ? 'AUTH_REFRESH_TIMEOUT' : 'AUTH_REFRESH_FAILED', {
             at: new Date().toISOString(),
             status: error?.response?.status || error?.status || 0,
             reason,
             tokenState: getAuthDiagnostics(),
           });
+          if (shouldFailClosed) {
+            resetTransientRefreshFailureCount();
+            await clearAuthToken();
+            return null;
+          }
           throw createTransientRefreshError(error, reason);
         }
+        resetTransientRefreshFailureCount();
         console.warn('[Auth] refresh:terminal-failure', {
           at: new Date().toISOString(),
           status: error?.response?.status || error?.status || 0,

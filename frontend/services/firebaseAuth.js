@@ -151,7 +151,7 @@ const getFirebaseErrorText = (err) => [
 
 const shouldUseRedirectFallback = (err) => {
   const text = getFirebaseErrorText(err);
-  return /popup|unsupported|cancelled-popup-request|popup-closed-by-user/i.test(text);
+  return /popup-blocked|operation-not-supported-in-this-environment|unsupported|web-storage-unsupported/i.test(text);
 };
 
 const signInWithWebGoogle = async () => {

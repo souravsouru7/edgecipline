@@ -6,8 +6,10 @@ import {
   signInWithFirebaseGoogle,
   handleGoogleRedirectResult,
   getGoogleAuthErrorMessage,
+  clearRedirectPending,
+  signOutFirebase,
 } from "@/services/firebaseAuth";
-import { setAuthToken, getValidToken } from "@/utils/auth";
+import { clearAuthToken, setAuthToken, getValidToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -270,6 +272,7 @@ export default function RegisterPage() {
       setTermsError("You must accept the Terms & Privacy Policy to continue");
       return;
     }
+    if (googleLoading) return;
     setTermsError("");
     setGoogleLoading(true);
     try {
@@ -287,6 +290,9 @@ export default function RegisterPage() {
         alert(data.message || "Google login failed.");
       }
     } catch (err) {
+      clearRedirectPending();
+      await clearAuthToken().catch(() => {});
+      await signOutFirebase().catch(() => {});
       alert("Google Login Error: " + getGoogleAuthErrorMessage(err));
     } finally {
       setGoogleLoading(false);

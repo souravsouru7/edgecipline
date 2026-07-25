@@ -4,31 +4,43 @@ import { useMarket, MARKETS } from '@/context/MarketContext';
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function MarketSwitcher() {
-  const { currentMarket, switchMarket, getCurrencySymbol, getMarketLabel } = useMarket();
+  const { currentMarket, toggleMarket, getCurrencySymbol, getMarketLabel } = useMarket();
   const router = useRouter();
   const pathname = usePathname();
 
   const handleSwitch = () => {
-    
+    const targetMarket = currentMarket === MARKETS.FOREX
+      ? MARKETS.INDIAN_MARKET
+      : MARKETS.FOREX;
 
-    // Map current path to new market equivalent
-    let newPath = pathname;
+    let newPath = pathname || '/dashboard';
 
-    // If we're on a market-specific page, switch to the other market's version
-    if (pathname.startsWith('/indian-market')) {
-      newPath = pathname.replace('/indian-market', '');
-      if (newPath === '' || newPath === '/') newPath = '/dashboard';
-    } else {
-      // If we're in the standard dashboard or other main pages, switch to indian-market version
-      if (pathname === '/dashboard' || pathname === '/trades' || pathname === '/add-trade' || pathname === '/upload-trade' || pathname === '/analytics' || pathname === '/') {
-        newPath = `/indian-market${pathname === '/' ? '/dashboard' : pathname}`;
-
-        // Ensure /dashboard becomes /indian-market/dashboard
-        if (pathname === '/dashboard' || pathname === '/') newPath = '/indian-market/dashboard';
+    if (targetMarket === MARKETS.FOREX) {
+      if (newPath.startsWith('/indian-market')) {
+        newPath = newPath.replace('/indian-market', '');
       }
+      if (newPath === '' || newPath === '/') newPath = '/dashboard';
+      if (newPath === '/weekly-reports') {
+        newPath = '/weekly-reports?market=Forex';
+      }
+    } else if (newPath === '/' || newPath === '/dashboard') {
+      newPath = '/indian-market/dashboard';
+    } else if (
+      newPath === '/trades' ||
+      newPath.startsWith('/trades/') ||
+      newPath === '/add-trade' ||
+      newPath === '/upload-trade' ||
+      newPath === '/setups' ||
+      newPath === '/discipline'
+    ) {
+      newPath = `/indian-market${newPath}`;
+    } else if (newPath === '/analytics' || newPath.startsWith('/analytics/')) {
+      newPath = '/indian-market/analytics';
+    } else if (newPath === '/weekly-reports') {
+      newPath = '/weekly-reports?market=Indian_Market';
     }
 
-    // Navigate immediately. The Context URL-sync will handle the rest.
+    toggleMarket(targetMarket);
     router.push(newPath);
   };
 

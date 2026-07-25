@@ -1,5 +1,11 @@
 jest.mock("../../models/IndianTrade", () => ({
   create: jest.fn(),
+  findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+}));
+
+jest.mock("../../services/tradeLifecycle.service", () => ({
+  softDeleteTrade: jest.fn(),
 }));
 
 jest.mock("../../utils/cacheUtils", () => ({
@@ -46,15 +52,22 @@ jest.mock("../../utils/logger", () => ({
 }));
 
 const IndianTrade = require("../../models/IndianTrade");
-const { createTrade } = require("../../controllers/indianTradeController");
+const tradeLifecycleService = require("../../services/tradeLifecycle.service");
+const {
+  createTrade,
+  getTrade,
+  updateTrade,
+  deleteTrade,
+} = require("../../controllers/indianTradeController");
 
-function createReq(body) {
+function createReq(body, params = {}) {
   return {
     user: {
       _id: "user-1",
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
     },
     body,
+    params,
   };
 }
 
@@ -127,5 +140,73 @@ describe("indian trade controller", () => {
     }));
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ profit: 500 }));
+  });
+
+  it("scopes Indian trade reads to the authenticated user", async () => {
+    IndianTrade.findOne.mockResolvedValue(null);
+    const req = createReq({}, { id: "trade-a" });
+    const res = createRes();
+    const next = jest.fn();
+
+    await getTrade(req, res, next);
+
+    expect(IndianTrade.findOne).toHaveBeenCalledWith({
+      _id: "trade-a",
+      user: "user-1",
+      deletedAt: null,
+    });
+    expect(res.json).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 404,
+      errorCode: "NOT_FOUND",
+    }));
+  });
+
+  it("scopes Indian trade updates to the authenticated user", async () => {
+    IndianTrade.findOneAndUpdate.mockResolvedValue(null);
+    const req = createReq({ notes: "changed" }, { id: "trade-a" });
+    const res = createRes();
+    const next = jest.fn();
+
+    await updateTrade(req, res, next);
+
+    expect(IndianTrade.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: "trade-a",
+        user: "user-1",
+        deletedAt: null,
+      },
+      expect.objectContaining({ notes: "changed" }),
+      { returnDocument: "after", runValidators: true }
+    );
+    expect(res.json).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 404,
+      errorCode: "NOT_FOUND",
+    }));
+  });
+
+  it("scopes Indian trade deletes to the authenticated user", async () => {
+    tradeLifecycleService.softDeleteTrade.mockResolvedValue(null);
+    const req = createReq({}, { id: "trade-a" });
+    const res = createRes();
+    const next = jest.fn();
+
+    await deleteTrade(req, res, next);
+
+    expect(tradeLifecycleService.softDeleteTrade).toHaveBeenCalledWith(
+      IndianTrade,
+      expect.objectContaining({
+        tradeId: "trade-a",
+        userId: "user-1",
+        deletedBy: "user-1",
+        deletedSource: "user",
+      })
+    );
+    expect(res.json).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 404,
+      errorCode: "NOT_FOUND",
+    }));
   });
 });

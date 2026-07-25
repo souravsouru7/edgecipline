@@ -513,6 +513,38 @@ describe("OCR job workflow", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  test("status polling rejects unauthorized OCRJob ownership", async () => {
+    jest.doMock("../../models/OCRJob", () => ({
+      OCRJob: {
+        findOne: jest.fn().mockResolvedValue(null),
+      },
+    }));
+    jest.doMock("../../queues/ocrQueue", () => ({
+      enqueueOcrJob: jest.fn(),
+      getOcrJobSnapshot: jest.fn(),
+      ocrQueue: { getJob: jest.fn() },
+    }));
+    jest.doMock("../../config/cloudinary", () => ({
+      uploader: { destroy: jest.fn() },
+    }));
+    jest.doMock("../../utils/logger", () => ({
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+    }));
+
+    const { OCRJob } = require("../../models/OCRJob");
+    const { getOcrJobSnapshot, ocrQueue } = require("../../queues/ocrQueue");
+    const { getOcrJobStatus } = require("../../services/ocrJob.service");
+
+    await expect(getOcrJobStatus("user-b", validJobId)).rejects.toMatchObject({
+      statusCode: 404,
+      errorCode: "NOT_FOUND",
+    });
+
+    expect(OCRJob.findOne).toHaveBeenCalledWith({ _id: validJobId, user: "user-b" });
+    expect(getOcrJobSnapshot).not.toHaveBeenCalled();
+    expect(ocrQueue.getJob).not.toHaveBeenCalled();
+  });
+
   test("cancel rejects unauthorized OCRJob ownership", async () => {
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
@@ -531,12 +563,17 @@ describe("OCR job workflow", () => {
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
     }));
 
+    const { OCRJob } = require("../../models/OCRJob");
+    const { ocrQueue } = require("../../queues/ocrQueue");
     const { cancelOcrJob } = require("../../services/ocrJob.service");
 
-    await expect(cancelOcrJob(validUserId, validJobId)).rejects.toMatchObject({
+    await expect(cancelOcrJob("user-b", validJobId)).rejects.toMatchObject({
       statusCode: 404,
       errorCode: "NOT_FOUND",
     });
+
+    expect(OCRJob.findOne).toHaveBeenCalledWith({ _id: validJobId, user: "user-b" });
+    expect(ocrQueue.getJob).not.toHaveBeenCalled();
   });
 
   test("processing cancellation exits as CANCELLED without writing extraction results", async () => {

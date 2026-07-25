@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import MobileUserDrawer from "@/features/shared/components/MobileUserDrawer";
@@ -35,6 +36,7 @@ const DRAWER_NAV_ITEMS = NAV_ITEMS.filter(n => n.href !== "/indian-market/add-tr
 export default function IndianMarketHeader() {
   const router   = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { profile } = useUserProfile();
 
@@ -46,9 +48,10 @@ export default function IndianMarketHeader() {
   const handleLogout = async () => {
     await onUserLoggedOut();
     try { await apiClient.post("/auth/logout"); } catch {}
+    queryClient.clear();
     await clearAuthToken();
     await signOutFirebase();
-    router.push("/login");
+    router.replace("/login");
   };
 
   return (
@@ -126,6 +129,7 @@ export default function IndianMarketHeader() {
         onLogout={handleLogout}
         profile={profile}
         navItems={DRAWER_NAV_ITEMS}
+        extraSlot={<MarketSwitcher />}
       />
 
       <style jsx>{`

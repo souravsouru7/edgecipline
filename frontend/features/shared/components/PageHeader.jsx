@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { CreditCard, LogOut } from "lucide-react";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import PricingModal from "@/components/PricingModal";
@@ -55,6 +56,7 @@ export default function PageHeader({
 }) {
   const router   = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
@@ -64,9 +66,10 @@ export default function PageHeader({
   const handleLogout = async () => {
     await onUserLoggedOut();
     try { await apiClient.post("/auth/logout"); } catch {}
+    queryClient.clear();
     await clearAuthToken();
     await signOutFirebase();
-    router.push("/login");
+    router.replace("/login");
   };
 
   const isActive = (href) => pathname === href || pathname?.startsWith(href.split("?")[0]);

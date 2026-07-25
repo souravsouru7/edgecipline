@@ -178,6 +178,12 @@ async function verifyGoogleIdToken(googleIdToken) {
   if (!["accounts.google.com", "https://accounts.google.com"].includes(payload.iss)) {
     throw new ApiError(401, "Invalid Google token issuer", "AUTH_FAILED");
   }
+  if (!appConfig.firebase.projectId) {
+    throw new ApiError(500, "Server misconfigured for Firebase login", "FIREBASE_CONFIG_MISSING");
+  }
+  if (payload.aud !== appConfig.firebase.projectId) {
+    throw new ApiError(401, "Google token was issued for a different project", "AUTH_FAILED");
+  }
   if (!payload.email || !emailVerified) {
     throw new ApiError(401, "Google email not verified", "AUTH_FAILED");
   }
