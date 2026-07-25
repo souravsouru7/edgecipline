@@ -203,19 +203,83 @@ async function getWeeklySummary(userId) {
   const latestWithInsight = items.find((r) => r.aiInsight);
   return {
     weekly,
-    latestInsight: latestWithInsight
-      ? {
-          day: latestWithInsight.day,
-          insight: latestWithInsight.aiInsight,
-          model: latestWithInsight.aiInsightModel || null,
-          fallback: Boolean(latestWithInsight.aiInsightFallback),
-          generatedAt: latestWithInsight.aiInsightGeneratedAt || null,
-        }
-      : null,
+    latestInsight: insightFromReflection(latestWithInsight),
   };
 }
 
 // ─── Writes ──────────────────────────────────────────────────────────────────
+function formatTradeCount(count) {
+  const safeCount = Math.max(0, Number(count) || 0);
+  return `${safeCount} trade${safeCount === 1 ? "" : "s"}`;
+}
+
+function insightFromReflection(reflection) {
+  if (!reflection?.aiInsight) return null;
+  return {
+    day: reflection.day,
+    insight: reflection.aiInsight,
+    model: reflection.aiInsightModel || null,
+    fallback: Boolean(reflection.aiInsightFallback),
+    generatedAt: reflection.aiInsightGeneratedAt || null,
+  };
+}
+
+function buildActiveInsight(today, weeklySummary = {}) {
+  const context = today?.context || {};
+  const currentInsight = insightFromReflection(today?.reflection);
+  if (currentInsight) return currentInsight;
+
+  if (today?.completed) {
+    return {
+      day: today.day,
+      insight: context.hadTrades
+        ? `${formatTradeCount(context.tradeCount)} saved. Your reflection is in; the coach line will refresh from today's answers shortly.`
+        : "Reflection saved. The coach line will refresh from today's answers shortly.",
+      model: null,
+      fallback: false,
+      generatedAt: null,
+      pending: true,
+    };
+  }
+
+  if (today?.skipped) {
+    return {
+      day: today.day,
+      insight: "Skipped today. You can still add the reflection later if there is a lesson worth capturing.",
+      model: null,
+      fallback: false,
+      generatedAt: null,
+      pending: true,
+    };
+  }
+
+  if (context.hadTrades) {
+    return {
+      day: today.day,
+      insight: `${formatTradeCount(context.tradeCount)} waiting for review. Close the day so the coach updates from today's trades, emotions, and execution.`,
+      model: null,
+      fallback: false,
+      generatedAt: null,
+      pending: true,
+    };
+  }
+
+  return weeklySummary.latestInsight || null;
+}
+
+async function getSummarySnapshot(userId) {
+  const [today, summary] = await Promise.all([
+    getTodayContext(userId),
+    getWeeklySummary(userId),
+  ]);
+
+  return {
+    today,
+    weekly: summary.weekly,
+    latestInsight: buildActiveInsight(today, summary),
+  };
+}
+
 function sanitizeUpdateFields(payload) {
   const update = {};
   if (payload.followedPlan !== undefined) update.followedPlan = payload.followedPlan;
@@ -310,9 +374,11 @@ async function attachAiInsight(reflectionId, { insight, model, fallback }) {
 module.exports = {
   WEEKLY_WINDOW_DAYS,
   attachAiInsight,
+  buildActiveInsight,
   computeWeeklyScore,
   getRecentReflections,
   getReflectionForDay,
+  getSummarySnapshot,
   getTodayContext,
   getWeeklySummary,
   loadTradeContextForDay,

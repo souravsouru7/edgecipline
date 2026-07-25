@@ -1,8 +1,14 @@
 "use client";
 
+import { useEffect } from "react";
 import { validateEnvironment } from "@/config/environment";
+import { hideNativeSplash } from "@/utils/nativeSplash";
 
 export default function EnvironmentGuard({ children }) {
+  useEffect(() => {
+    hideNativeSplash();
+  }, []);
+
   try {
     validateEnvironment();
     return children;

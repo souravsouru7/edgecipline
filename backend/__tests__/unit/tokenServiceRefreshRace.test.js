@@ -114,6 +114,29 @@ describe("rotateRefreshToken race handling", () => {
       { $set: { revokedAt: null } }
     );
   });
+
+  test("disabled users cannot rotate refresh tokens", async () => {
+    const existing = {
+      _id: "refresh-1",
+      userId: {
+        _id: "user-1",
+        role: "user",
+        accountStatus: "disabled",
+        tokenVersion: 0,
+      },
+      family: "family-1",
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    RefreshToken.findOneAndUpdate.mockReturnValueOnce(chainPopulate(existing));
+
+    await expect(rotateRefreshToken("raw-token", { userAgent: "same-agent" }))
+      .rejects.toMatchObject({
+        statusCode: 401,
+        errorCode: "ACCOUNT_DISABLED",
+      });
+
+    expect(RefreshToken.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("refresh cookie reliability", () => {

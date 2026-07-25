@@ -1,6 +1,6 @@
-// TEMPORARY SANDBOX — simulates the full Razorpay checkout flow without real keys.
+// TEMPORARY SANDBOX - simulates the full checkout flow without real keys.
 // Auto-activated by SmartPaywall when NEXT_PUBLIC_RAZORPAY_KEY_ID is not set.
-// Delete this file and the injectMockRazorpay() calls once real Razorpay keys are added.
+// Also used by Android debug builds so no real payment SDK opens in the APK.
 
 const STYLES = `
   #mock-rzp-overlay {
@@ -115,10 +115,10 @@ class MockRazorpay {
       <style>${STYLES}</style>
       <div id="mock-rzp-card">
         <div id="mock-rzp-header">
-          <button id="mock-rzp-close-btn" aria-label="Close">✕</button>
-          <div id="mock-rzp-sandbox-badge">⚡ Sandbox Mode</div>
-          <div id="mock-rzp-brand">Razorpay</div>
-          <div id="mock-rzp-amount">₹${amountRupees}</div>
+          <button id="mock-rzp-close-btn" aria-label="Close">x</button>
+          <div id="mock-rzp-sandbox-badge">Sandbox Mode</div>
+          <div id="mock-rzp-brand">Demo Checkout</div>
+          <div id="mock-rzp-amount">Rs ${amountRupees}</div>
           <div id="mock-rzp-desc">${desc}</div>
         </div>
         <div id="mock-rzp-body">
@@ -147,14 +147,14 @@ class MockRazorpay {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
             </svg>
-            Pay ₹${amountRupees}
+            Pay Rs ${amountRupees}
           </button>
           ${failureButton}
           <div id="mock-rzp-footer">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
-            Secured by Razorpay · Sandbox — no real charge
+            Demo sandbox - no real charge
           </div>
         </div>
       </div>

@@ -82,6 +82,8 @@ export default function LoginForm({
                 onChange={handleChange}
                 onFocus={() => setFocused(field.name)}
                 onBlur={() => setFocused(null)}
+                required
+                autoComplete={field.name === "email" ? "email" : "current-password"}
                 style={{ width: "100%", boxSizing: "border-box", background: focused === field.name ? "#F0FDF9" : "#F8FAFC", border: `1.5px solid ${focused === field.name ? "#0D9E6E" : "#E2E8F0"}`, borderRadius: 8, padding: "12px 40px 12px 38px", color: "#0F1923", fontSize: 13, fontFamily: "'JetBrains Mono',monospace", outline: "none", transition: "all 0.2s", boxShadow: focused === field.name ? "0 0 0 3px rgba(13,158,110,0.1)" : "none" }}
               />
               {field.name === "password" && (

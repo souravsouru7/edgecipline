@@ -78,7 +78,9 @@ export default function PageHeader({
       <header style={{
         position: "sticky", top: 0, zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 20px", height: 60,
+        padding: "env(safe-area-inset-top, 0px) calc(20px + env(safe-area-inset-right, 0px)) 0 calc(20px + env(safe-area-inset-left, 0px))",
+        height: "calc(60px + env(safe-area-inset-top, 0px))",
+        minHeight: "calc(60px + env(safe-area-inset-top, 0px))",
         background: "rgba(240,238,233,0.97)",
         borderBottom: "1px solid var(--color-border-subtle)",
         boxShadow: "0 1px 0 rgba(15,25,35,0.06)",
@@ -160,7 +162,7 @@ export default function PageHeader({
         <button
           className="hdr-mobile"
           onClick={() => setDrawerOpen(true)}
-          style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,var(--color-primary),var(--color-primary-light))", color: "var(--color-surface)", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-plus-jakarta-sans)", boxShadow: "0 4px 10px var(--color-primary-shadow)", flexShrink: 0 }}
+          style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg,var(--color-primary),var(--color-primary-light))", color: "var(--color-surface)", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-plus-jakarta-sans)", boxShadow: "0 4px 10px var(--color-primary-shadow)", flexShrink: 0 }}
         >
           {getInitials(profile?.name)}
         </button>

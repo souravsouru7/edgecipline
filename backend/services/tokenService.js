@@ -41,6 +41,10 @@ const REFRESH_COOKIE_NAME = "sid";
 const REFRESH_REUSE_GRACE_MS =
   Number(process.env.REFRESH_REUSE_GRACE_MS) || 60_000;
 
+function isAccountActive(user) {
+  return !user?.accountStatus || user.accountStatus === "active";
+}
+
 // ---------------------------------------------------------------------------
 // Crypto helpers
 // ---------------------------------------------------------------------------
@@ -179,7 +183,7 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
     { tokenHash, revokedAt: null },
     { $set: { revokedAt: rotatedAt } },
     { new: false } // Return original (pre-update) document
-  ).populate("userId", "_id role tokenVersion");
+  ).populate("userId", "_id role accountStatus tokenVersion");
 
   if (!existing) {
     // Token not found with revokedAt: null — either genuinely unknown or already revoked.
@@ -230,6 +234,10 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
 
   if (!existing.userId) {
     throw new ApiError(401, "Session expired, please login again", "AUTH_REQUIRED");
+  }
+
+  if (!isAccountActive(existing.userId)) {
+    throw new ApiError(401, "Account disabled", "ACCOUNT_DISABLED");
   }
 
   if (existing.expiresAt < new Date()) {

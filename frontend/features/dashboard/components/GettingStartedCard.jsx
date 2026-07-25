@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { markOnboardingStep } from "@/services/api";
+
+const DISMISS_STORAGE_KEY = "edgecipline:activation-card-dismissed";
 
 // Dashboard resume nudge for users who leave /onboarding mid-flow.
 // Keep this order in sync with frontend/app/onboarding/page.js and
@@ -36,10 +38,37 @@ function rowDone(item, onboarding) {
   return false;
 }
 
-export default function GettingStartedCard({ onboarding, onMutate, routes }) {
+export default function GettingStartedCard({ onboarding, onMutate, routes, userId }) {
   const [dismissing, setDismissing] = useState(false);
-  const [locallyDismissed, setLocallyDismissed] = useState(false);
+  const storageKey = userId ? `${DISMISS_STORAGE_KEY}:${userId}` : DISMISS_STORAGE_KEY;
+  const [locallyDismissed, setLocallyDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(storageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const items = getItems(routes);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(storageKey) === "1") {
+        setLocallyDismissed(true);
+      }
+    } catch {
+      // Storage can be unavailable in restricted WebViews.
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!onboarding?.checklistDismissed && !onboarding?.tourCompleted && !onboarding?.completedAt) return;
+    try {
+      window.localStorage.setItem(storageKey, "1");
+    } catch {
+      // Storage can be unavailable in restricted WebViews.
+    }
+  }, [onboarding?.checklistDismissed, onboarding?.tourCompleted, onboarding?.completedAt, storageKey]);
 
   if (
     !onboarding ||
@@ -55,23 +84,27 @@ export default function GettingStartedCard({ onboarding, onMutate, routes }) {
   const nextItem = items.find((item) => !rowDone(item, onboarding));
 
   async function dismiss() {
+    if (dismissing) return;
     setDismissing(true);
     setLocallyDismissed(true);
-    const step = allDone ? "tourCompleted" : "checklistDismissed";
     const optimisticOnboarding = {
-      [step]: true,
-      ...(allDone ? { checklistDismissed: true } : null),
+      checklistDismissed: true,
+      ...(allDone ? { tourCompleted: true } : null),
     };
+    try {
+      window.localStorage.setItem(storageKey, "1");
+    } catch {
+      // Non-critical fallback only.
+    }
     onMutate?.(optimisticOnboarding);
     try {
-      await markOnboardingStep(step, true);
+      await markOnboardingStep("checklistDismissed", true);
       if (allDone) {
-        await markOnboardingStep("checklistDismissed", true);
+        markOnboardingStep("tourCompleted", true).catch(() => {});
       }
       onMutate?.(optimisticOnboarding);
     } catch {
-      setLocallyDismissed(false);
-      onMutate?.();
+      onMutate?.(optimisticOnboarding);
     } finally {
       setDismissing(false);
     }

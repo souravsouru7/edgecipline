@@ -86,6 +86,23 @@ describe('Redis rate limiter failure behavior', () => {
     expect(res.body).toEqual({ error: 'Authentication temporarily unavailable' });
   });
 
+  test('auth limiter blocks rapid login attempts after the configured budget', async () => {
+    mockIsRedisReady.mockReturnValue(true);
+    mockEval.mockResolvedValueOnce([6, 60_000]);
+    const res = createRes();
+    const next = jest.fn();
+
+    await authRateLimiter(createReq(), res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(429);
+    expect(res.body).toMatchObject({
+      status: 'error',
+      message: 'Too many authentication attempts. Please try again later.',
+    });
+    expect(res.headers['Retry-After']).toBe('60');
+  });
+
   test('webhook limiter fails closed when distributed limiting is unavailable', async () => {
     const res = createRes();
     const next = jest.fn();

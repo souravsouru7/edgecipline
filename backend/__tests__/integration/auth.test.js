@@ -92,6 +92,7 @@ const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 const { sanitizeInput } = require('../../middleware/sanitizeInput');
 const { errorHandler }  = require('../../middleware/errorHandler');
+const { protect }       = require('../../middleware/authMiddleware');
 const authRoutes         = require('../../routes/authRoutes');
 
 function buildApp() {
@@ -100,6 +101,7 @@ function buildApp() {
   app.use(cookie());
   app.use(sanitizeInput);
   app.use('/api/auth', authRoutes);
+  app.get('/api/product/dashboard', protect, (_req, res) => res.json({ ok: true }));
   app.use((_req, res) => res.status(404).json({ message: 'Not found' }));
   app.use(errorHandler);
   return app;
@@ -127,6 +129,7 @@ const userDoc = (overrides = {}) => ({
   email:           'test@example.com',
   password:        'hashed_TestPass1!',
   role:            'user',
+  accountStatus:   'active',
   authProvider:    'local',
   tokenVersion:    0,
   loginAttempts:   0,
@@ -193,6 +196,27 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(400);
   });
+  test('lost register response retry does not create another account; login still works', async () => {
+    const existing = userDoc({ email: 'new@example.com', name: 'New User' });
+    const createCallsBefore = User.create.mock.calls.length;
+    User.findOne.mockResolvedValueOnce(existing);
+
+    const retry = await request(app).post('/api/auth/register').send(validBody);
+
+    expect(retry.status).toBe(400);
+    expect(retry.body.errorCode).toBe('VALIDATION_ERROR');
+    expect(User.create.mock.calls.length).toBe(createCallsBefore);
+
+    User.findOne.mockReturnValueOnce(chainQuery(existing));
+    bcrypt.compare.mockResolvedValueOnce(true);
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: validBody.email, password: validBody.password });
+
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ token: 'test-access-token' });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -238,6 +262,49 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(429);
     expect(res.body.errorCode).toBe('ACCOUNT_LOCKED');
   });
+
+  test('login from two devices issues independent refresh sessions', async () => {
+    tokenSvc.createRefreshToken.mockClear();
+    const firstUser = userDoc({ _id: 'device-user-1' });
+    const secondUser = userDoc({ _id: 'device-user-1' });
+    User.findOne
+      .mockReturnValueOnce(chainQuery(firstUser))
+      .mockReturnValueOnce(chainQuery(secondUser));
+    bcrypt.compare
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+    tokenSvc.createRefreshToken
+      .mockResolvedValueOnce('refresh-device-a')
+      .mockResolvedValueOnce('refresh-device-b');
+
+    const first = await request(app)
+      .post('/api/auth/login')
+      .set('User-Agent', 'device-a')
+      .send({ email: 'test@example.com', password: 'TestPass1!' });
+    const second = await request(app)
+      .post('/api/auth/login')
+      .set('User-Agent', 'device-b')
+      .send({ email: 'test@example.com', password: 'TestPass1!' });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(tokenSvc.createRefreshToken).toHaveBeenCalledTimes(2);
+    expect(first.headers['set-cookie'].join(';')).toContain('refresh-device-a');
+    expect(second.headers['set-cookie'].join(';')).toContain('refresh-device-b');
+  });
+
+  test('disabled account login is rejected safely', async () => {
+    const user = userDoc({ accountStatus: 'disabled' });
+    User.findOne.mockReturnValueOnce(chainQuery(user));
+    bcrypt.compare.mockResolvedValueOnce(true);
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'test@example.com', password: 'TestPass1!' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('INVALID_CREDENTIALS');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -262,13 +329,26 @@ describe('POST /api/auth/refresh', () => {
   });
 
   test('no refresh cookie → 401', async () => {
-    tokenSvc.rotateRefreshToken.mockRejectedValueOnce(
-      Object.assign(new Error('Session expired'), { statusCode: 401, errorCode: 'AUTH_REQUIRED' })
-    );
-
+    tokenSvc.rotateRefreshToken.mockClear();
     const res = await request(app).post('/api/auth/refresh');
 
     expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_REQUIRED');
+    expect(tokenSvc.rotateRefreshToken).not.toHaveBeenCalled();
+  });
+
+  test('expired refresh token clears the refresh cookie', async () => {
+    tokenSvc.rotateRefreshToken.mockRejectedValueOnce(
+      Object.assign(new Error('expired'), { statusCode: 401, errorCode: 'REFRESH_TOKEN_EXPIRED' })
+    );
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', 'sid=expired-refresh-token');
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('REFRESH_TOKEN_EXPIRED');
+    expect((res.headers['set-cookie'] || []).join(';')).toContain('sid=');
   });
 
   test('same-client refresh race -> 409 without clearing refresh cookie', async () => {
@@ -374,5 +454,102 @@ describe('GET /api/auth/me', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.errorCode).toBe('INVALID_TOKEN');
+  });
+
+  test('token belonging to a deleted user is rejected', async () => {
+    User.findById.mockReturnValueOnce(chainQuery(null));
+
+    const token = jwt.sign(
+      { id: TEST_USER_ID, role: 'user', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.errorCode).toBe('AUTH_FAILED');
+  });
+});
+
+describe('POST /api/auth/logout-all', () => {
+  test('logout-all revokes refresh tokens, bumps tokenVersion, and clears cookie', async () => {
+    tokenSvc.revokeAllUserTokens.mockClear();
+    User.findByIdAndUpdate.mockClear();
+    User.findById.mockReturnValueOnce(chainQuery(userDoc({
+      termsAcceptance: {
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        termsVersion: 'v1.0',
+      },
+    })));
+
+    const token = jwt.sign(
+      { id: TEST_USER_ID, role: 'user', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .post('/api/auth/logout-all')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', 'sid=active-refresh-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(tokenSvc.revokeAllUserTokens).toHaveBeenCalledWith(TEST_USER_ID);
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(TEST_USER_ID, { $inc: { tokenVersion: 1 } });
+    expect((res.headers['set-cookie'] || []).join(';')).toContain('sid=');
+  });
+});
+
+describe('Protected product routes terms gate', () => {
+  test('authenticated user without current terms is blocked from dashboard API', async () => {
+    const user = userDoc({
+      termsAcceptance: {
+        acceptedTerms: false,
+        acceptedPrivacy: false,
+        termsVersion: null,
+      },
+    });
+    User.findById.mockReturnValueOnce(chainQuery(user));
+
+    const token = jwt.sign(
+      { id: TEST_USER_ID, role: 'user', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .get('/api/product/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.errorCode).toBe('TERMS_NOT_ACCEPTED');
+  });
+
+  test('authenticated user with current terms can access dashboard API', async () => {
+    User.findById.mockReturnValueOnce(chainQuery(userDoc({
+      termsAcceptance: {
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        termsVersion: 'v1.0',
+      },
+    })));
+
+    const token = jwt.sign(
+      { id: TEST_USER_ID, role: 'user', tokenVersion: 0 },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const res = await request(app)
+      .get('/api/product/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
   });
 });

@@ -21,10 +21,8 @@ async function loadStreakSnapshot(userId) {
 
 async function loadReflectionSnapshot(userId) {
   try {
-    const [today, summary] = await Promise.all([
-      reflectionService.getTodayContext(userId),
-      reflectionService.getWeeklySummary(userId),
-    ]);
+    const snapshot = await reflectionService.getSummarySnapshot(userId);
+    const today = snapshot.today;
     return {
       today: {
         day:           today.day,
@@ -37,8 +35,8 @@ async function loadReflectionSnapshot(userId) {
         mood:          today.reflection?.mood ?? null,
         confidence:    today.reflection?.confidence ?? null,
       },
-      weekly:        summary.weekly,
-      latestInsight: summary.latestInsight,
+      weekly:        snapshot.weekly,
+      latestInsight: snapshot.latestInsight,
       error: null,
     };
   } catch (error) {

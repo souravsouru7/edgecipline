@@ -2,16 +2,38 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { initializePushNotifications } from "@/services/pushNotifications";
 import PushNotificationToast from "@/components/PushNotificationToast";
 
 export default function PushNotificationBootstrap() {
   const router = useRouter();
 
   useEffect(() => {
-    initializePushNotifications().catch((error) => {
-      console.error("Push notification initialization failed", error);
-    });
+    let cancelled = false;
+    let idleId = null;
+    let timerId = null;
+
+    const init = () => {
+      if (cancelled) return;
+      import("@/services/pushNotifications")
+        .then(({ initializePushNotifications }) => initializePushNotifications())
+        .catch((error) => {
+          console.error("Push notification initialization failed", error);
+        });
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(init, { timeout: 3500 });
+    } else {
+      timerId = window.setTimeout(init, 1600);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId != null) window.clearTimeout(timerId);
+    };
   }, []);
 
   useEffect(() => {

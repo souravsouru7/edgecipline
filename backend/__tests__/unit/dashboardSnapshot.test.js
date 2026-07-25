@@ -28,8 +28,7 @@ jest.mock("../../services/streak.service", () => ({
 }));
 
 jest.mock("../../services/reflectionService", () => ({
-  getTodayContext: jest.fn(),
-  getWeeklySummary: jest.fn(),
+  getSummarySnapshot: jest.fn(),
 }));
 
 jest.mock("../../services/onboardingBackfillService", () => ({
@@ -100,14 +99,14 @@ describe("dashboard snapshot controller", () => {
     });
     onboardingBackfillService.backfillUserOnboarding.mockResolvedValue({ changed: false });
     streakService.getStreakSnapshot.mockResolvedValue(null);
-    reflectionService.getTodayContext.mockResolvedValue({
-      day: "2026-01-01",
-      completed: false,
-      skipped: false,
-      context: { hadTrades: false, tradeCount: 0 },
-      reflection: null,
-    });
-    reflectionService.getWeeklySummary.mockResolvedValue({
+    reflectionService.getSummarySnapshot.mockResolvedValue({
+      today: {
+        day: "2026-01-01",
+        completed: false,
+        skipped: false,
+        context: { hadTrades: false, tradeCount: 0 },
+        reflection: null,
+      },
       weekly: null,
       latestInsight: null,
     });

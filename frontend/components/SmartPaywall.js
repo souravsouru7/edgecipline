@@ -12,8 +12,18 @@ import FocusTrap from "@/features/shared/components/FocusTrap";
 
 let razorpayCheckoutPromise = null;
 
+function isNativeAndroidApp() {
+  if (typeof window === "undefined") return false;
+  const capacitor = window.Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.getPlatform === "function") {
+    return capacitor.getPlatform() === "android";
+  }
+  return Boolean(capacitor.isNativePlatform?.()) && /Android/i.test(window.navigator?.userAgent || "");
+}
+
 function isSandboxCheckout() {
-  return !String(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "").trim();
+  return isNativeAndroidApp() || !String(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "").trim();
 }
 
 function loadRazorpayCheckout() {
@@ -127,7 +137,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
       });
 
       const environment = validateEnvironment();
-      const isSandbox = !environment.razorpayKeyId;
+      const isSandbox = isSandboxCheckout();
       const RazorpayCheckout = await loadRazorpayCheckout();
 
       const order = await createPaymentOrder();

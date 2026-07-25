@@ -21,8 +21,10 @@ export default function RouteTransitionProgress() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [active, setActive] = useState(false);
+  const [settling, setSettling] = useState(false);
   const startedAtRef = useRef(0);
   const timeoutRef = useRef(null);
+  const settleTimeoutRef = useRef(null);
 
   useEffect(() => {
     const clearPendingTimeout = () => {
@@ -30,10 +32,15 @@ export default function RouteTransitionProgress() {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      if (settleTimeoutRef.current) {
+        clearTimeout(settleTimeoutRef.current);
+        settleTimeoutRef.current = null;
+      }
     };
 
     const start = () => {
       clearPendingTimeout();
+      setSettling(false);
       startedAtRef.current = Date.now();
       setActive(true);
       timeoutRef.current = setTimeout(() => setActive(false), FAILSAFE_MS);
@@ -63,9 +70,16 @@ export default function RouteTransitionProgress() {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      setSettling(true);
       setActive(false);
+      settleTimeoutRef.current = setTimeout(() => {
+        settleTimeoutRef.current = null;
+        setSettling(false);
+      }, 260);
     }, remaining);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [pathname, searchParams, active]);
 
   return (
@@ -73,12 +87,12 @@ export default function RouteTransitionProgress() {
       aria-hidden
       style={{
         position: "fixed",
-        top: 0,
+        top: "env(safe-area-inset-top, 0px)",
         left: 0,
         right: 0,
         height: 3,
         zIndex: 2147483647,
-        opacity: active ? 1 : 0,
+        opacity: active || settling ? 1 : 0,
         pointerEvents: "none",
         transition: active ? "opacity 0.08s ease" : "opacity 0.22s ease 0.08s",
       }}
@@ -86,12 +100,14 @@ export default function RouteTransitionProgress() {
       <div
         style={{
           height: "100%",
-          width: active ? "86%" : "0%",
+          width: active ? "86%" : settling ? "100%" : "0%",
           background: "linear-gradient(90deg, #0D9E6E 0%, #22C78E 48%, #B8860B 100%)",
-          boxShadow: active ? "0 0 16px rgba(13,158,110,0.32)" : "none",
+          boxShadow: active || settling ? "0 0 16px rgba(13,158,110,0.32)" : "none",
           transition: active
             ? "width 1.4s cubic-bezier(0.16, 1, 0.3, 1)"
-            : "width 0s linear 0.25s",
+            : settling
+              ? "width 0.18s ease-out"
+              : "width 0s linear 0.25s",
         }}
       />
     </div>

@@ -76,13 +76,6 @@ exports.listReflections = asyncHandler(async (req, res) => {
 });
 
 exports.getReflectionSummary = asyncHandler(async (req, res) => {
-  const [today, summary] = await Promise.all([
-    reflectionService.getTodayContext(req.user._id),
-    reflectionService.getWeeklySummary(req.user._id),
-  ]);
-  res.json({
-    today,
-    weekly: summary.weekly,
-    latestInsight: summary.latestInsight,
-  });
+  const summary = await reflectionService.getSummarySnapshot(req.user._id);
+  res.json(summary);
 });

@@ -489,7 +489,7 @@ function DashboardContent() {
           </div>
 
           {/* ── Getting Started checklist (auto-hides when dismissed/complete) ── */}
-          <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} routes={marketRoutes} />
+          <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} routes={marketRoutes} userId={profile?._id} />
 
           <TradingGrowthPath onboarding={onboarding} stats={stats} routes={marketRoutes} />
 

@@ -1,6 +1,7 @@
 const TRADE_DEPENDENT_QUERY_KEYS = [
   ["trades"],
   ["dashboard"],
+  ["reflection"],
   ["analytics"],
   ["tradingDNA"],
   ["psychologyTimeline"],

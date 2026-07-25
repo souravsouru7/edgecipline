@@ -1,16 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import AppLoadingShell from "@/components/AppLoadingShell";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { hideNativeSplash } from "@/utils/nativeSplash";
+
+const STARTUP_REVEAL_TIMEOUT_MS = 1400;
 
 export default function AuthSessionBootstrap({ children }) {
   const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
 
   useEffect(() => {
     let active = true;
     let nativeListener = null;
     let resumeInFlight = null;
+    let revealTimer = null;
+
+    const revealApp = (reason) => {
+      if (!active || readyRef.current) return;
+      readyRef.current = true;
+      setReady(true);
+      hideNativeSplash();
+      if (reason === "timeout") {
+        console.warn("AUTH_STARTUP_SOFT_TIMEOUT", {
+          timeoutMs: STARTUP_REVEAL_TIMEOUT_MS,
+          platform: window.Capacitor?.isNativePlatform?.() ? "capacitor" : "web",
+        });
+      }
+    };
 
     const restore = async (trigger) => {
       if (resumeInFlight) return resumeInFlight;
@@ -38,8 +57,13 @@ export default function AuthSessionBootstrap({ children }) {
       return resumeInFlight;
     };
 
+    revealTimer = window.setTimeout(() => revealApp("timeout"), STARTUP_REVEAL_TIMEOUT_MS);
     restore("startup").finally(() => {
-      if (active) setReady(true);
+      if (revealTimer) {
+        window.clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+      revealApp("auth-ready");
     });
 
     const onVisible = () => {
@@ -56,13 +80,20 @@ export default function AuthSessionBootstrap({ children }) {
 
     return () => {
       active = false;
+      if (revealTimer) window.clearTimeout(revealTimer);
       document.removeEventListener("visibilitychange", onVisible);
       nativeListener?.remove?.();
     };
   }, []);
 
   if (!ready) {
-    return <div role="status" aria-label="Restoring session" style={{ minHeight: "100vh", background: "#F4F2EE" }} />;
+    return (
+      <AppLoadingShell
+        title="Restoring Edgecipline"
+        subtitle="Checking your secure session"
+        dense
+      />
+    );
   }
 
   return children;

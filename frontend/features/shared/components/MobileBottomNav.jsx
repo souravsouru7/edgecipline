@@ -48,7 +48,7 @@ const INDIAN_TABS = [
   { href: "/profile",                 label: "Profile",   Icon: User },
 ];
 
-const NAV_HEIGHT = 64;
+const NAV_HEIGHT = 68;
 const ACCENT = "var(--color-primary)";
 const MUTED = "var(--color-text-disabled)";
 
@@ -76,8 +76,11 @@ function MobileBottomNav() {
           right: 0,
           bottom: 0,
           zIndex: 900,
-          background: "rgba(240,238,233,0.97)",
+          background: "rgba(244,242,238,0.9)",
           borderTop: "1px solid var(--color-border-subtle)",
+          boxShadow: "0 -12px 34px rgba(15,25,35,0.12)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
           paddingBottom: "env(safe-area-inset-bottom)",
           justifyContent: "space-around",
           alignItems: "stretch",
@@ -105,9 +108,11 @@ function MobileBottomNav() {
                   textDecoration: "none",
                   minWidth: 0,
                   height: NAV_HEIGHT,
+                  WebkitTapHighlightColor: "transparent",
                 }}
               >
                 <span
+                  className="mobile-bottom-nav-primary"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -117,7 +122,7 @@ function MobileBottomNav() {
                     borderRadius: "50%",
                     background: ACCENT,
                     color: "var(--color-surface)",
-                    boxShadow: "0 8px 20px var(--color-primary-shadow)",
+                    boxShadow: "0 10px 24px var(--color-primary-shadow)",
                     transform: "translateY(-12px)",
                   }}
                 >
@@ -149,10 +154,36 @@ function MobileBottomNav() {
                 minWidth: 0,
                 height: NAV_HEIGHT,
                 transition: "color 0.15s ease",
+                position: "relative",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  top: 7,
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  background: ACCENT,
+                  opacity: active ? 1 : 0,
+                  transform: active ? "scale(1)" : "scale(0.6)",
+                  transition: "opacity 0.16s ease, transform 0.16s ease",
+                }}
+              />
               <Icon size={22} strokeWidth={active ? 2.4 : 2} />
-              <span>{label}</span>
+              <span
+                style={{
+                  maxWidth: "100%",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.1,
+                }}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}
@@ -169,6 +200,18 @@ function MobileBottomNav() {
         @media (max-width: 768px) {
           .mobile-bottom-nav {
             display: flex;
+          }
+          .mobile-bottom-nav a {
+            outline-offset: -6px;
+          }
+          .mobile-bottom-nav a:active {
+            transform: translateY(1px);
+          }
+          .mobile-bottom-nav-primary {
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+          }
+          .mobile-bottom-nav a:active .mobile-bottom-nav-primary {
+            transform: translateY(-10px) scale(0.96) !important;
           }
           .mobile-bottom-nav-spacer {
             display: block;

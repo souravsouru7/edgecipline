@@ -285,6 +285,16 @@ function isTerminalRefreshFailure(error) {
   );
 }
 
+function isTerminalAccessFailure(payload) {
+  const errorCode = getApiErrorCode(payload);
+  return [
+    'INVALID_TOKEN',
+    'TOKEN_INVALIDATED',
+    'AUTH_FAILED',
+    'ACCOUNT_DISABLED',
+  ].includes(errorCode);
+}
+
 function getRefreshFailureReason(error) {
   const status = error?.response?.status || error?.status;
   if (!error?.response) {
@@ -391,6 +401,12 @@ apiClient.interceptors.response.use(
       // Auth entry paths getting a 401 means bad credentials / bad session — don't refresh.
       if (isAuthEntryPath(config.url)) {
         handleUnauthenticated('auth_entry_unauthorized');
+        return Promise.reject(buildError(error));
+      }
+
+      if (isTerminalAccessFailure(error.response.data)) {
+        await clearAuthToken();
+        handleUnauthenticated('access_terminal_failure');
         return Promise.reject(buildError(error));
       }
 

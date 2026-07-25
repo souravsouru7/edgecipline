@@ -26,6 +26,10 @@ function hasAcceptedCurrentTerms(user) {
   );
 }
 
+function isAccountActive(user) {
+  return !user?.accountStatus || user.accountStatus === "active";
+}
+
 // Fetch the user via Redis cache first, fall back to MongoDB on miss or
 // any cache failure. Returns a lean object (NOT a mongoose doc); downstream
 // controllers that need to mutate the user must re-fetch.
@@ -86,6 +90,11 @@ const protect = asyncHandler(async (req, res, next) => {
   if (!user) {
     console.warn(`[Security] Token for missing user | path=${req.originalUrl} | ip=${req.ip}`);
     throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+  }
+
+  if (!isAccountActive(user)) {
+    console.warn(`[Security] Disabled account token | path=${req.originalUrl} | ip=${req.ip}`);
+    throw new ApiError(401, "Account disabled", "ACCOUNT_DISABLED");
   }
 
   // ─── 3. SECURITY GATE: tokenVersion must match what the cache/DB reports ──

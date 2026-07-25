@@ -75,6 +75,10 @@ function needsTermsAcceptance(user) {
   );
 }
 
+function isAccountActive(user) {
+  return !user?.accountStatus || user.accountStatus === "active";
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -275,7 +279,7 @@ exports.loginUser = asyncHandler(async (req, res) => {
   const candidateHash = user?.password || DUMMY_BCRYPT_HASH;
   const isPasswordValid = await bcrypt.compare(password, candidateHash);
 
-  if (!user || !isPasswordValid) {
+  if (!user || !isPasswordValid || !isAccountActive(user)) {
     if (user) {
       user.loginAttempts = (user.loginAttempts || 0) + 1;
       if (user.loginAttempts >= LOGIN_MAX_ATTEMPTS) {
@@ -600,6 +604,9 @@ exports.updateOnboardingStep = asyncHandler(async (req, res) => {
 
   const truthy = value === undefined ? true : Boolean(value);
   const set = { [`onboarding.${step}`]: truthy };
+  if (truthy && step === "tourCompleted") {
+    set["onboarding.checklistDismissed"] = true;
+  }
   if (
     truthy &&
     !["welcomeSeen", "checklistDismissed"].includes(step)

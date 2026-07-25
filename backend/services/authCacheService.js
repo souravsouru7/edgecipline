@@ -21,6 +21,7 @@ const AUTH_CACHE_TTL_SECONDS = Math.max(
 const CACHE_PROJECTION = [
   "_id",
   "role",
+  "accountStatus",
   "tokenVersion",
   "subscriptionStatus",
   "subscriptionPlan",

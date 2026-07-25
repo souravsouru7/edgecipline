@@ -60,9 +60,10 @@ jest.mock('../../utils/logger', () => ({
 
 const bcrypt = require('bcryptjs');
 const User   = require('../../models/Users');
+const tokenService = require('../../services/tokenService');
 const { invalidateAuthCache } = require('../../services/authCacheService');
 const { invalidateTradeCaches } = require('../../utils/cacheUtils');
-const { registerUser, loginUser, forgotPassword, verifyOTP, updateOnboardingStep } = require('../../controllers/authController');
+const { registerUser, loginUser, forgotPassword, verifyOTP, resetPassword, updateOnboardingStep } = require('../../controllers/authController');
 
 /** Creates a mock response that records what the controller calls */
 const mockRes = () => {
@@ -114,6 +115,7 @@ const userDoc = (overrides = {}) => ({
   email:           'test@example.com',
   password:        'hashed_TestPass1!',
   role:            'user',
+  accountStatus:   'active',
   authProvider:    'local',
   tokenVersion:    0,
   loginAttempts:   0,
@@ -268,7 +270,24 @@ describe('loginUser — success and failure paths', () => {
     expect(next.mock.calls[0][0].errorCode).toBe('AUTH_PROVIDER_MISMATCH');
   });
 
-  test('locked account → 429 ACCOUNT_LOCKED (no bcrypt call)', async () => {
+  test('disabled account with correct password is rejected without issuing tokens', async () => {
+    const disabled = userDoc({ accountStatus: 'disabled' });
+    User.findOne.mockReturnValueOnce(chainQuery(disabled));
+    bcrypt.compare.mockResolvedValueOnce(true);
+
+    const req = mockReq({ email: 'test@example.com', password: 'TestPass1!' });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await loginUser(req, res, next);
+
+    expect(next.mock.calls[0][0].statusCode).toBe(401);
+    expect(next.mock.calls[0][0].errorCode).toBe('INVALID_CREDENTIALS');
+    expect(tokenService.createRefreshToken).not.toHaveBeenCalled();
+    expect(res.cookie).not.toHaveBeenCalled();
+  });
+
+  test('locked account returns 429 ACCOUNT_LOCKED without bcrypt', async () => {
     const locked = userDoc({ loginLockedUntil: new Date(Date.now() + 10 * 60 * 1000) });
     User.findOne.mockReturnValueOnce(chainQuery(locked));
 
@@ -281,6 +300,60 @@ describe('loginUser — success and failure paths', () => {
     expect(next.mock.calls[0][0].statusCode).toBe(429);
     expect(next.mock.calls[0][0].errorCode).toBe('ACCOUNT_LOCKED');
     expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
+  test('expired lock with correct password succeeds and clears lock state', async () => {
+    const user = userDoc({
+      loginAttempts: 4,
+      loginLockedUntil: new Date(Date.now() - 60 * 1000),
+    });
+    User.findOne.mockReturnValueOnce(chainQuery(user));
+    bcrypt.compare.mockResolvedValueOnce(true);
+
+    const req = mockReq({ email: 'test@example.com', password: 'TestPass1!' });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await loginUser(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: 'mock-access-token' }));
+    expect(user.loginAttempts).toBe(0);
+    expect(user.loginLockedUntil).toBeUndefined();
+    expect(user.save).toHaveBeenCalled();
+  });
+});
+
+describe('resetPassword session revocation', () => {
+  test('password reset bumps tokenVersion and revokes every refresh token', async () => {
+    tokenService.revokeAllUserTokens.mockClear();
+    invalidateAuthCache.mockClear();
+
+    const user = userDoc({
+      tokenVersion: 2,
+      resetPasswordToken: 'reset-token-123',
+      resetPasswordTokenExpires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    User.findOne.mockResolvedValueOnce(user);
+
+    const req = mockReq({
+      email: 'test@example.com',
+      resetToken: 'reset-token-123',
+      password: 'NewStrong1!Pass',
+    });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resetPassword(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(user.tokenVersion).toBe(3);
+    expect(user.save).toHaveBeenCalled();
+    expect(tokenService.revokeAllUserTokens).toHaveBeenCalledWith(user._id);
+    expect(invalidateAuthCache).toHaveBeenCalledWith(user._id);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Password reset successful'),
+    }));
   });
 });
 
@@ -364,6 +437,51 @@ describe('updateOnboardingStep', () => {
     }));
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       onboarding: expect.objectContaining({ checklistDismissed: true }),
+    }));
+  });
+
+  test('marks activation card dismissed when tour is completed', async () => {
+    invalidateAuthCache.mockClear();
+    invalidateTradeCaches.mockClear();
+    User.findByIdAndUpdate.mockReset();
+
+    const user = userDoc({
+      onboarding: {
+        welcomeSeen: true,
+        setupAdded: true,
+        tradeAdded: true,
+        tourCompleted: true,
+        checklistDismissed: true,
+      },
+    });
+    User.findByIdAndUpdate.mockResolvedValueOnce(user);
+
+    const req = mockReq(
+      { step: 'tourCompleted', value: true },
+      { user: { _id: user._id } }
+    );
+    const res = mockRes();
+    const next = jest.fn();
+
+    await updateOnboardingStep(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
+      user._id,
+      {
+        $set: {
+          'onboarding.tourCompleted': true,
+          'onboarding.checklistDismissed': true,
+          'onboarding.welcomeSeen': true,
+        },
+      },
+      { new: true }
+    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      onboarding: expect.objectContaining({
+        tourCompleted: true,
+        checklistDismissed: true,
+      }),
     }));
   });
 });

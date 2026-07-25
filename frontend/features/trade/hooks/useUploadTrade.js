@@ -404,6 +404,37 @@ function isTransientPollingError(error) {
  * useUploadTrade
  * Refactored to use TanStack Query for orchestration and useToast for feedback.
  */
+const OCR_STAGE_ORDER = {
+  "": 0,
+  uploading: 1,
+  cancelling: 1,
+  pending: 2,
+  processing: 3,
+  completed: 4,
+};
+
+function normalizeOcrStage(status, { isUploading = false, hasJob = false, isCancelling = false } = {}) {
+  if (isCancelling) return "cancelling";
+  if (isUploading) return "uploading";
+
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "completed" || normalized === "confirmed") return "completed";
+  if (normalized === "processing") return "processing";
+  if (normalized === "pending") return "pending";
+  if (hasJob) return "pending";
+  return "";
+}
+
+function keepProgressMovingForward(currentStage, nextStage) {
+  if (!nextStage) return "";
+  if (nextStage === "cancelling") return "cancelling";
+  if (!currentStage || currentStage === "cancelling") return nextStage;
+
+  const currentOrder = OCR_STAGE_ORDER[currentStage] || 0;
+  const nextOrder = OCR_STAGE_ORDER[nextStage] || 0;
+  return nextOrder >= currentOrder ? nextStage : currentStage;
+}
+
 export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const router        = useRouter();
   const searchParams  = useSearchParams();
@@ -444,6 +475,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [extractedText, setExtractedText]     = useState("");
   const [extractionInsights, setExtractionInsights] = useState(null);
   const [activeToastId, setActiveToastId]     = useState(null);
+  const [visibleOcrStage, setVisibleOcrStage] = useState("");
   const [preExtractDate, setPreExtractDate]   = useState(getTodayInputValue());
   const [isCancellingUpload, setIsCancellingUpload] = useState(false);
   const processedTradeIdRef                   = useRef(null);
@@ -566,6 +598,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
       processedTradeIdRef.current = null;
       userEditedFormRef.current = false;
+      setVisibleOcrStage((current) => keepProgressMovingForward(current, "pending"));
       setJobId(nextJobId);
       setUploadedJobId(nextJobId);
       setError(null);
@@ -633,6 +666,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     processedTradeIdRef.current = null;
     userEditedFormRef.current = false;
     saveAllLockRef.current = false;
+    setVisibleOcrStage("");
     setJobId("");
     setUploadedJobId(null);
     setTrade(null);
@@ -956,11 +990,17 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   }, [jobStatusQuery.error]);
 
   const loading = uploadJobMutation.isPending || !!jobId || isCancellingUpload;
-  const processingStatus = isCancellingUpload
-    ? "cancelling"
-    : uploadJobMutation.isPending
-    ? "uploading"
-    : (String(jobStatusQuery.data?.status || "").toLowerCase() || (jobId ? "processing" : ""));
+  const serverOcrStage = normalizeOcrStage(jobStatusQuery.data?.status, {
+    isUploading: uploadJobMutation.isPending,
+    hasJob: Boolean(jobId),
+    isCancelling: isCancellingUpload,
+  });
+
+  useEffect(() => {
+    setVisibleOcrStage((current) => keepProgressMovingForward(current, serverOcrStage));
+  }, [serverOcrStage]);
+
+  const processingStatus = visibleOcrStage || serverOcrStage;
 
   // 7. Save Mutation
   const saveTradeMutation = useMutation({
@@ -1059,6 +1099,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     const cleared = await clearOcrSession({ nextFile: fileToUpload, cancelJob: true });
     if (!cleared) return;
 
+    setVisibleOcrStage("uploading");
     uploadJobMutation.mutate({
       fileObj: fileToUpload,
       sessionId,

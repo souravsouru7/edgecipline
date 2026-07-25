@@ -355,7 +355,18 @@ export function useLogin() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    loginMutation.mutate(form);
+    const credentials = {
+      email: form.email.trim(),
+      password: form.password,
+    };
+
+    if (!credentials.email || !credentials.password) {
+      triggerShake();
+      alert("Please enter your email and password.");
+      return;
+    }
+
+    loginMutation.mutate(credentials);
   };
 
   const handleGoogleSignIn = () => {

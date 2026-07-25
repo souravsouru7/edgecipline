@@ -85,6 +85,59 @@ describe("reflectionService.computeWeeklyScore", () => {
   });
 });
 
+describe("reflectionService.buildActiveInsight", () => {
+  it("prefers today's pending trade review over an older no-trade insight", () => {
+    const result = reflectionService.buildActiveInsight(
+      {
+        day: "2026-06-28",
+        completed: false,
+        skipped: false,
+        reflection: null,
+        context: { hadTrades: true, tradeCount: 2 },
+      },
+      {
+        latestInsight: {
+          day: "2026-06-27",
+          insight: "Even with no trades, keep the habit warm.",
+        },
+      }
+    );
+
+    expect(result).toMatchObject({
+      day: "2026-06-28",
+      pending: true,
+    });
+    expect(result.insight).toContain("2 trades waiting for review");
+    expect(result.insight).not.toContain("Even with no trades");
+  });
+
+  it("keeps today's generated insight when it exists", () => {
+    const result = reflectionService.buildActiveInsight(
+      {
+        day: "2026-06-28",
+        completed: true,
+        skipped: false,
+        reflection: {
+          day: "2026-06-28",
+          aiInsight: "Your exits tightened after the first loss.",
+          aiInsightModel: "gemini-test",
+          aiInsightFallback: false,
+          aiInsightGeneratedAt: new Date("2026-06-28T12:00:00.000Z"),
+        },
+        context: { hadTrades: true, tradeCount: 2 },
+      },
+      { latestInsight: null }
+    );
+
+    expect(result).toMatchObject({
+      day: "2026-06-28",
+      insight: "Your exits tightened after the first loss.",
+      model: "gemini-test",
+      fallback: false,
+    });
+  });
+});
+
 describe("reflectionService.upsertReflection", () => {
   const DailyReflection = require("../../models/DailyReflection");
   const IndianTrade = require("../../models/IndianTrade");
