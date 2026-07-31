@@ -5,12 +5,12 @@ const config: CapacitorConfig = {
   appName: 'Edgecipline',
   webDir: 'out',
   plugins: {
-    SplashScreen: {
-      launchAutoHide: false,
-      backgroundColor: '#F4F2EE',
-      showSpinner: false,
-      launchFadeOutDuration: 200,
-    },
+    // No SplashScreen block here on purpose. @capacitor/splash-screen is not a
+    // dependency of this app, so any config under that key is inert — and
+    // `launchAutoHide: false` in particular would hang the boot screen forever
+    // if the plugin were ever added, because nothing guarantees a hide() call.
+    // The boot splash is the AndroidX one: AppTheme.NoActionBarLaunch in
+    // styles.xml, dismissed by installSplashScreen() in MainActivity.
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ['google.com'],

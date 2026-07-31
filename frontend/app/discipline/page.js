@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getDisciplineAnalytics } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
+import { ruleSample, LOW_RULE_SAMPLE, pickWeakestRule, pickStrongestRule } from "@/utils/disciplineRules";
 import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -68,27 +69,30 @@ function InterpretationGrid({ items, accent = C.blue }) {
 }
 
 function buildDisciplineInterpretation({ rules, topByCost, compliance, stats }) {
-  const strongest = [...(rules || [])].sort((a, b) => (b.compliancePct ?? 0) - (a.compliancePct ?? 0))[0];
-  const weakest = [...(rules || [])].sort((a, b) => (a.compliancePct ?? 0) - (b.compliancePct ?? 0))[0];
+  const strongest = pickStrongestRule(rules);
+  const weakest = pickWeakestRule(rules);
   const expensive = topByCost?.[0];
   const score = compliance?.compliancePct;
   return [
     {
       label: "Strongest Discipline Habit",
       text: strongest
-        ? `You follow "${strongest.label}" ${strongest.compliancePct}% of the time. This is the rule currently most embedded in your process.`
+        ? `You follow "${strongest.label}" ${strongest.compliancePct}% of the time (${strongest.timesFollowed || 0} of ${ruleSample(strongest)} logged). This is the rule currently most embedded in your process.`
         : "Edgecipline will identify your strongest rule once enough setup-rule history is logged.",
     },
     {
       label: "Weakest Discipline Habit",
       text: weakest
-        ? `"${weakest.label}" is your weakest tracked rule at ${weakest.compliancePct}% follow rate. This is where discipline can improve fastest.`
+        ? `"${weakest.label}" is your weakest tracked rule at ${weakest.compliancePct}% follow rate (${weakest.timesFollowed || 0} of ${ruleSample(weakest)} logged).` +
+          (ruleSample(weakest) < LOW_RULE_SAMPLE
+            ? " That is a small sample, so treat it as a flag to watch rather than a verdict."
+            : " This is where discipline can improve fastest.")
         : "Add checklist and setup-rule data to reveal which rule breaks most often.",
     },
     {
       label: "Most Expensive Rule Violation",
       text: expensive
-        ? `Breaking "${expensive.label}" has cost roughly ${fmt(expensive.costOfBreaking || 0, stats?.currency || "$")} across the tracked sample.`
+        ? `Breaking "${expensive.label}" has cost roughly ${fmt(-Math.abs(expensive.costOfBreaking || 0), stats?.currency || "$")} across the tracked sample.`
         : "Once rule violations connect to P&L, this section will show the behavior costing the most money.",
     },
     {
@@ -215,6 +219,9 @@ function DisciplineContent() {
   const insights     = (data.coachInsights || []).slice(0, 4);
   const dna          = data.dnaIntegration || {};
   const stats        = data.stats || {};
+  // Same source as the interpretation card above, so both name the same rule
+  const strongestRule = pickStrongestRule(rules);
+  const weakestRule   = pickWeakestRule(rules);
   const disciplineInterpretation = buildDisciplineInterpretation({ rules, topByCost, compliance, stats });
 
   const score = compliance.compliancePct;
@@ -339,7 +346,7 @@ function DisciplineContent() {
                     </div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
                       Broken {r.timesBroken} times
-                      {hasDiff && diff !== 0 && <> · <span style={{ color: diff >= 0 ? C.green : C.red, fontWeight: 700 }}>{diff >= 0 ? "+" : ""}{fmt(diff, cur)}/trade when followed</span></>}
+                      {hasDiff && diff !== 0 && <> · <span style={{ color: diff >= 0 ? C.green : C.red, fontWeight: 700 }}>{fmt(diff, cur)}/trade when followed</span></>}
                     </div>
                   </div>
                   {cost > 0 && (
@@ -428,8 +435,10 @@ function DisciplineContent() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {setupsForChart.map((s, i) => {
-              const isBest  = s.setupName === data.bestSetup?.setupName;
-              const isWorst = s.setupName === data.worstSetup?.setupName;
+              // Rank alone does not earn the badge: the top setup is still a
+              // losing one when every setup loses money.
+              const isBest  = s.setupName === data.bestSetup?.setupName  && s.netPnL > 0;
+              const isWorst = s.setupName === data.worstSetup?.setupName && s.netPnL < 0;
               return (
                 <div key={i} style={{
                   display: "flex", alignItems: "center", gap: 12,
@@ -495,9 +504,10 @@ function DisciplineContent() {
           )}
         </div>
       )}
+      
 
       {/* ── Key takeaways ────────────────────────────────────────────────────── */}
-      {(dna.mostValuableRule || dna.strongestRule || dna.weakestRule) && (
+      {(dna.mostValuableRule || strongestRule || weakestRule) && (
         <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: "18px 16px" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 14 }}>Key takeaways</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -507,23 +517,30 @@ function DisciplineContent() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{dna.mostValuableRule.label}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>
                   Following this rule gives you{" "}
-                  <strong style={{ color: C.green }}>+{fmt(dna.mostValuableRule.pnlDifference, cur)}/trade</strong>{" "}
+                  <strong style={{ color: C.green }}>{fmt(dna.mostValuableRule.pnlDifference, cur)}/trade</strong>{" "}
                   more than when you skip it.
                 </div>
               </div>
             )}
-            {dna.strongestRule && (
+            {strongestRule && (
               <div style={{ padding: "12px 14px", borderRadius: 12, background: "#F0FDF4", border: "1px solid #0D9E6E22" }}>
                 <div style={{ fontSize: 10, color: C.green, fontWeight: 800, marginBottom: 4 }}>MOST CONSISTENT RULE</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{dna.strongestRule.label}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>You follow this {dna.strongestRule.compliancePct}% of the time — your strongest habit.</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{strongestRule.label}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  You follow this {strongestRule.compliancePct}% of the time ({strongestRule.timesFollowed || 0} of {ruleSample(strongestRule)} logged) — your strongest habit.
+                </div>
               </div>
             )}
-            {dna.weakestRule && dna.weakestRule.label !== dna.strongestRule?.label && (
+            {weakestRule && weakestRule.label !== strongestRule?.label && (
               <div style={{ padding: "12px 14px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #DC262622" }}>
                 <div style={{ fontSize: 10, color: C.red, fontWeight: 800, marginBottom: 4 }}>MOST SKIPPED RULE</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{dna.weakestRule.label}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>You only follow this {dna.weakestRule.compliancePct}% of the time — your biggest blind spot.</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{weakestRule.label}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  You follow this {weakestRule.compliancePct}% of the time ({weakestRule.timesFollowed || 0} of {ruleSample(weakestRule)} logged)
+                  {ruleSample(weakestRule) < LOW_RULE_SAMPLE
+                    ? " — still a small sample, so keep tracking it."
+                    : " — your biggest blind spot."}
+                </div>
               </div>
             )}
           </div>

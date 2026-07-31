@@ -82,6 +82,12 @@ function pickBestWorst(list) {
   };
 }
 
+// pickBestWorst returns a pure arg-max, which is still a losing bucket when
+// every bucket loses money. Any claim that frames a condition as a strength
+// must go through this first. Mirrors the guard already used by
+// computeEmotionDNA / computeMistakeDNA.
+const profitableOnly = (entry) => (entry && entry.netPnL > 0 ? entry : null);
+
 // ── Module 1: Forex DNA ────────────────────────────────────────────────────────
 
 function computeForexSessionDNA(trades) {
@@ -546,17 +552,21 @@ function buildDNASummary(dna, totalTrades, marketType) {
   const strengths = [];
   const weaknesses = [];
 
-  // Identity
+  // Identity — only claim an edge on conditions that actually made money
+  const bestSession    = profitableOnly(dna.sessionDNA?.best);
+  const bestStyle      = profitableOnly(dna.styleDNA?.best);
+  const bestInstrument = profitableOnly(dna.instrumentDNA?.best);
+
   const identityParts = [];
-  if (!isIndian && dna.sessionDNA?.best) {
-    identityParts.push(`${dna.sessionDNA.best.name} session trader`);
-  } else if (dna.styleDNA?.best) {
-    identityParts.push(`${dna.styleDNA.best.name.toLowerCase()} trader`);
+  if (!isIndian && bestSession) {
+    identityParts.push(`${bestSession.name} session trader`);
+  } else if (bestStyle) {
+    identityParts.push(`${bestStyle.name.toLowerCase()} trader`);
   }
-  if (!isIndian && dna.instrumentDNA?.best) {
-    identityParts.push(`with edge on ${dna.instrumentDNA.best.name}`);
-  } else if (isIndian && dna.instrumentDNA?.best) {
-    identityParts.push(`specialising in ${dna.instrumentDNA.best.name}`);
+  if (!isIndian && bestInstrument) {
+    identityParts.push(`with edge on ${bestInstrument.name}`);
+  } else if (isIndian && bestInstrument) {
+    identityParts.push(`specialising in ${bestInstrument.name}`);
   }
 
   const identity =
@@ -565,10 +575,13 @@ function buildDNASummary(dna, totalTrades, marketType) {
       : "You are a systematic trader with a developing edge. ";
 
   // What makes them profitable
-  if (dna.moodDNA?.best) strengths.push(dna.moodDNA.best.name);
+  const bestMood       = profitableOnly(dna.moodDNA?.best);
+  const bestConfidence = profitableOnly(dna.confidenceDNA?.best);
+  const bestDay        = profitableOnly(dna.dayDNA?.best);
+  if (bestMood) strengths.push(bestMood.name);
   if (dna.emotionDNA?.mostProfitable) strengths.push(dna.emotionDNA.mostProfitable.name);
-  if (dna.confidenceDNA?.best) strengths.push(`${dna.confidenceDNA.best.name.toLowerCase()} confidence`);
-  if (dna.dayDNA?.best) strengths.push(`${dna.dayDNA.best.name}`);
+  if (bestConfidence) strengths.push(`${bestConfidence.name.toLowerCase()} confidence`);
+  if (bestDay) strengths.push(`${bestDay.name}`);
 
   // What makes them lose
   if (dna.emotionDNA?.mostExpensive) weaknesses.push(`trading with ${dna.emotionDNA.mostExpensive.name}`);
@@ -579,9 +592,18 @@ function buildDNASummary(dna, totalTrades, marketType) {
   }
   if (dna.dayDNA?.worst) weaknesses.push(`${dna.dayDNA.worst.name} trading`);
 
+  // Distinguish "nothing measured yet" (no bucket cleared the sample floor)
+  // from "measured, and none of it is profitable" — they need different copy.
+  const anyMeasured = [
+    dna.sessionDNA?.best, dna.styleDNA?.best, dna.instrumentDNA?.best,
+    dna.moodDNA?.best, dna.confidenceDNA?.best, dna.dayDNA?.best,
+  ].some(Boolean);
+
   const profitLine =
     strengths.length > 0
       ? `You perform best when trading in a ${strengths.slice(0, 2).join(" or ")} state.`
+      : anyMeasured
+      ? "No tracked condition is net profitable yet, so there is no repeatable edge to lean on."
       : "";
 
   const lossLine =

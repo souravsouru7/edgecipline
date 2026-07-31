@@ -60,6 +60,27 @@ function getConfidenceLevel(count) {
 const fix2 = (n) => Math.round((n || 0) * 100) / 100;
 const fix1 = (n) => Math.round((n || 0) * 10) / 10;
 
+// Signed currency for insight prose — matches the PnL badge format in the UI
+const money = (n) => `${(n || 0) >= 0 ? "+" : "-"}$${Math.abs(fix2(n)).toFixed(2)}`;
+
+/**
+ * Decide how a best/worst insight is allowed to be phrased.
+ *
+ * A superlative ("your sweet spot", "your best day") is only honest when there
+ * is something to compare against AND the leader actually makes money. With a
+ * single qualifying bucket there is no comparison to make, and when every
+ * bucket is negative the leader is merely the least bad — calling it "best"
+ * tells the trader to lean into a losing condition.
+ */
+function comparativeVerdict(items, best, worst) {
+  if (!best) return null;
+  return {
+    solo: items.length < 2,              // only one bucket cleared the 5-trade floor
+    bestIsProfitable: best.netPnl > 0,
+    showWorst: Boolean(worst) && worst.netPnl < 0,
+  };
+}
+
 function buildStats(trades) {
   if (!trades || trades.length === 0) return null;
   const wins = trades.filter((t) => (t.profit || 0) > 0);
@@ -203,11 +224,19 @@ function detectConfidencePatterns(trades) {
   const best = sorted[0];
   const worst = sorted[sorted.length - 1].range !== best.range ? sorted[sorted.length - 1] : null;
 
+  const verdict = comparativeVerdict(byRange, best, worst);
   let insight = null;
-  if (best) {
-    insight = `Confidence range ${best.range} is your sweet spot: ${best.winRate}% win rate, net P&L ${best.netPnl >= 0 ? "+" : ""}${best.netPnl}.`;
-    if (worst && worst.netPnl < 0) {
-      insight += ` Confidence ${worst.range} is your worst zone: ${worst.winRate}% win rate, net P&L ${worst.netPnl}.`;
+  if (verdict) {
+    const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
+    if (verdict.solo) {
+      insight = `Confidence ${best.range} is the only range with enough trades to analyze (${best.count} trades): ${stat}.`;
+    } else if (verdict.bestIsProfitable) {
+      insight = `Confidence range ${best.range} is your sweet spot: ${stat}.`;
+    } else {
+      insight = `No confidence range is profitable yet — ${best.range} loses the least: ${stat}.`;
+    }
+    if (verdict.showWorst) {
+      insight += ` Confidence ${worst.range} is your worst zone: ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -246,10 +275,20 @@ function detectMoodPatterns(trades) {
   const best = sorted[0];
   const worst = sorted.length > 1 && sorted[sorted.length - 1].mood !== best.mood ? sorted[sorted.length - 1] : null;
 
+  const verdict = comparativeVerdict(byMood, best, worst);
   let insight = null;
-  if (best) {
-    insight = `You perform best at mood level ${best.mood} (${best.label}): ${best.winRate}% win rate, net P&L ${best.netPnl >= 0 ? "+" : ""}${best.netPnl}.`;
-    if (worst) insight += ` Avoid trading at mood ${worst.mood} (${worst.label}): only ${worst.winRate}% win rate.`;
+  if (verdict) {
+    const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
+    if (verdict.solo) {
+      insight = `Mood ${best.mood} (${best.label}) is the only mood level with enough trades to analyze (${best.count} trades): ${stat}.`;
+    } else if (verdict.bestIsProfitable) {
+      insight = `You perform best at mood level ${best.mood} (${best.label}): ${stat}.`;
+    } else {
+      insight = `No mood level is profitable yet — mood ${best.mood} (${best.label}) loses the least: ${stat}.`;
+    }
+    if (verdict.showWorst) {
+      insight += ` Avoid trading at mood ${worst.mood} (${worst.label}): only ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
+    }
   }
 
   return { byMood, bestMood: best || null, worstMood: worst || null, insight };
@@ -372,11 +411,19 @@ function detectSessionPatterns(trades) {
   const best = sorted[0];
   const worst = sorted.length > 1 && sorted[sorted.length - 1].session !== best.session ? sorted[sorted.length - 1] : null;
 
+  const verdict = comparativeVerdict(bySessions, best, worst);
   let insight = null;
-  if (best) {
-    insight = `${best.session} is your strongest session: ${best.winRate}% win rate, net P&L ${best.netPnl >= 0 ? "+" : ""}${best.netPnl}.`;
-    if (worst && worst.netPnl < 0) {
-      insight += ` ${worst.session} is your weakest session: only ${worst.winRate}% win rate.`;
+  if (verdict) {
+    const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
+    if (verdict.solo) {
+      insight = `${best.session} is the only session with enough trades to analyze (${best.count} trades): ${stat}.`;
+    } else if (verdict.bestIsProfitable) {
+      insight = `${best.session} is your strongest session: ${stat}.`;
+    } else {
+      insight = `No session is profitable yet — ${best.session} loses the least: ${stat}.`;
+    }
+    if (verdict.showWorst) {
+      insight += ` ${worst.session} is your weakest session: only ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -412,11 +459,19 @@ function detectDayOfWeekPatterns(trades) {
   const best = sorted[0];
   const worst = sorted.length > 1 && sorted[sorted.length - 1].day !== best.day ? sorted[sorted.length - 1] : null;
 
+  const verdict = comparativeVerdict(byDay, best, worst);
   let insight = null;
-  if (best) {
-    insight = `${best.day} is your best trading day: ${best.winRate}% win rate, net P&L ${best.netPnl >= 0 ? "+" : ""}${best.netPnl}.`;
-    if (worst && worst.netPnl < 0) {
-      insight += ` Avoid trading on ${worst.day}: only ${worst.winRate}% win rate, net P&L ${worst.netPnl}.`;
+  if (verdict) {
+    const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
+    if (verdict.solo) {
+      insight = `${best.day} is the only day with enough trades to analyze (${best.count} trades): ${stat}.`;
+    } else if (verdict.bestIsProfitable) {
+      insight = `${best.day} is your best trading day: ${stat}.`;
+    } else {
+      insight = `No day of the week is profitable yet — ${best.day} loses the least: ${stat}.`;
+    }
+    if (verdict.showWorst) {
+      insight += ` Avoid trading on ${worst.day}: only ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -455,12 +510,20 @@ function detectSetupScorePatterns(trades) {
   const best = sorted[0];
   const worst = sorted.length > 1 && sorted[sorted.length - 1].range !== best.range ? sorted[sorted.length - 1] : null;
 
+  const verdict = comparativeVerdict(byRange, best, worst);
   let insight = null;
-  if (best) {
-    insight = `Setup score ${best.range} is your optimal range: ${best.winRate}% win rate, net P&L ${best.netPnl >= 0 ? "+" : ""}${best.netPnl}.`;
-  }
-  if (worst && worst.netPnl < 0) {
-    insight = (insight ? insight + " " : "") + `Setup score ${worst.range} consistently hurts performance: net P&L ${worst.netPnl}.`;
+  if (verdict) {
+    const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
+    if (verdict.solo) {
+      insight = `Setup score ${best.range} is the only range with enough trades to analyze (${best.count} trades): ${stat}.`;
+    } else if (verdict.bestIsProfitable) {
+      insight = `Setup score ${best.range} is your optimal range: ${stat}.`;
+    } else {
+      insight = `No setup score range is profitable yet — ${best.range} loses the least: ${stat}.`;
+    }
+    if (verdict.showWorst) {
+      insight += ` Setup score ${worst.range} consistently hurts performance: net P&L ${money(worst.netPnl)}.`;
+    }
   }
 
   return { byRange, optimalThreshold: best?.range || null, worstRange: worst?.range || null, insight };

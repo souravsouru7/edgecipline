@@ -308,19 +308,39 @@ function UnlockState({ title, text, accent = C.purple }) {
 
 function buildTradingDNAInterpretation(dna) {
   if (!dna || dna.insufficient) return null;
-  const bestSession = dna.sessionDNA?.best;
-  const bestInstrument = dna.instrumentDNA?.best;
-  const bestSetupRange = dna.disciplineDNA?.bestSetupRange;
   const worstEmotion = dna.emotionDNA?.mostExpensive;
-  const strength = bestSession || bestInstrument || bestSetupRange;
-  const strengthName = strength?.name || strength?.label || "your highest quality repeatable conditions";
-  const strengthPnl = strength?.netPnL ?? strength?.profit;
+  const pnlOf = (c) => c?.netPnL ?? c?.profit ?? null;
+  const nameOf = (c) => c?.name || c?.label || null;
+
+  const candidates = [dna.sessionDNA?.best, dna.instrumentDNA?.best, dna.disciplineDNA?.bestSetupRange].filter(Boolean);
+  // Only a net-positive condition counts as an edge. These fields are ranked
+  // by P&L, so the top entry is still a loser when everything loses.
+  const strength = candidates.find((c) => (pnlOf(c) ?? 0) > 0) || null;
+
+  const identity = { label: "Your Trading Identity", text: dna.dnaSummary?.tradingIdentity || "Edgecipline is using your repeated conditions, behaviors, and review data to describe the trader you actually are." };
+
+  if (strength) {
+    const strengthName = nameOf(strength) || "your highest quality repeatable conditions";
+    const strengthPnl = pnlOf(strength);
+    return [
+      identity,
+      { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your data shows the clearest repeatable advantage.` },
+      { label: "Why It Matters", text: strengthPnl != null ? `That condition is contributing ${moneyText(strengthPnl)}, so it deserves more attention than random lower-quality trades.` : "A repeatable edge gives you a better review target than looking at every win and loss equally." },
+      { label: "Action Plan", text: `Prioritize trades that match ${strengthName} and reduce trades that do not match your strongest conditions.` },
+      { label: "Expected Outcome", text: worstEmotion ? `More consistency and fewer leaks from ${worstEmotion.name || "your most expensive emotional state"}.` : "Higher consistency, cleaner trade selection, and fewer impulsive entries." },
+    ];
+  }
+
+  // Nothing is profitable yet — say so instead of promoting the least-bad loser
+  const leader = candidates[0] || null;
+  const leaderName = nameOf(leader);
+  const leaderPnl = pnlOf(leader);
   return [
-    { label: "Your Trading Identity", text: dna.dnaSummary?.tradingIdentity || `Your current identity is forming around ${strengthName}. Edgecipline is using your repeated conditions, behaviors, and review data to describe the trader you actually are.` },
-    { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your data shows the clearest repeatable advantage.` },
-    { label: "Why It Matters", text: strengthPnl != null ? `That condition is contributing ${moneyText(strengthPnl)}, so it deserves more attention than random lower-quality trades.` : "A repeatable edge gives you a better review target than looking at every win and loss equally." },
-    { label: "Action Plan", text: `Prioritize trades that match ${strengthName} and reduce trades that do not match your strongest conditions.` },
-    { label: "Expected Outcome", text: worstEmotion ? `More consistency and fewer leaks from ${worstEmotion.name || "your most expensive emotional state"}.` : "Higher consistency, cleaner trade selection, and fewer impulsive entries." },
+    identity,
+    { label: "What This Means", text: leaderName ? `No tracked condition is net profitable yet. ${leaderName} is currently your least negative at ${moneyText(leaderPnl)}, which is not the same as an edge.` : "No tracked condition is net profitable yet, so there is no repeatable edge to build on." },
+    { label: "Why It Matters", text: "Treating a losing condition as a strength leads to trading more of it. Until something is net positive, the useful work is cutting your largest losses, not scaling anything up." },
+    { label: "Action Plan", text: worstEmotion ? `Start by reducing trades driven by ${worstEmotion.name || "your most expensive emotional state"}, then review this page again once you have more closed trades.` : "Focus on removing your largest recurring loss source, then review this page again once you have more closed trades." },
+    { label: "Expected Outcome", text: "A smaller loss rate first. A measurable edge only becomes visible once the biggest leaks are closed." },
   ];
 }
 

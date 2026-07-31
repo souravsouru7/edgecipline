@@ -12,6 +12,7 @@ import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.splashscreen.SplashScreen;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -22,6 +23,13 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // AndroidX splash handshake. The activity theme is AppTheme.NoActionBarLaunch
+        // (parent Theme.SplashScreen) with postSplashScreenTheme=AppTheme.NoActionBar.
+        // Without this call Android never performs the theme swap, so the launch
+        // theme stays applied for the life of the activity and its
+        // android:background=@drawable/splash keeps painting the logo behind the
+        // WebView for the whole boot. Must run before super.onCreate().
+        SplashScreen.installSplashScreen(this);
         registerPlugin(ChecklistNotificationPlugin.class);
         registerPlugin(EdgeAuthStoragePlugin.class);
         super.onCreate(savedInstanceState);

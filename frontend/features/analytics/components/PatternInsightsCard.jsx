@@ -40,6 +40,15 @@ function confidencePill(level) {
   );
 }
 
+// Rank alone does not earn a color: the "best" bucket is still a losing one
+// when every bucket loses money, so green requires actual profit.
+function rowAccent({ isBest, isWorst, netPnl }) {
+  const v = parseFloat(netPnl || 0);
+  if (isBest && v > 0) return C.bull;
+  if (isWorst && v < 0) return C.bear;
+  return C.muted;
+}
+
 function PnLBadge({ netPnl }) {
   const v = parseFloat(netPnl || 0);
   return (
@@ -348,7 +357,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 netPnl={r.netPnl}
                 count={r.count}
                 confidence={r.confidence}
-                accent={r.range === confidence.bestRange ? C.bull : r.range === confidence.worstRange ? C.bear : C.muted}
+                accent={rowAccent({ isBest: r.range === confidence.bestRange, isWorst: r.range === confidence.worstRange, netPnl: r.netPnl })}
               />
             ))}
             {confidence.insight && <InsightBanner text={confidence.insight} color={C.gold} />}
@@ -367,7 +376,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 netPnl={m.netPnl}
                 count={m.count}
                 confidence={m.confidence}
-                accent={m.mood === mood.bestMood?.mood ? C.bull : m.mood === mood.worstMood?.mood ? C.bear : C.muted}
+                accent={rowAccent({ isBest: m.mood === mood.bestMood?.mood, isWorst: m.mood === mood.worstMood?.mood, netPnl: m.netPnl })}
               />
             ))}
             {mood.insight && <InsightBanner text={mood.insight} color={C.info} />}
@@ -390,7 +399,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 netPnl={s.netPnl}
                 count={s.count}
                 confidence={s.confidence}
-                accent={s.session === sessions.bestSession?.session ? C.bull : s.session === sessions.worstSession?.session ? C.bear : C.muted}
+                accent={rowAccent({ isBest: s.session === sessions.bestSession?.session, isWorst: s.session === sessions.worstSession?.session, netPnl: s.netPnl })}
               />
             ))}
             {sessions.insight && <InsightBanner text={sessions.insight} color={C.bull} />}
@@ -409,7 +418,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 netPnl={d.netPnl}
                 count={d.count}
                 confidence={d.confidence}
-                accent={d.day === dayOfWeek.bestDay?.day ? C.bull : d.day === dayOfWeek.worstDay?.day ? C.bear : C.muted}
+                accent={rowAccent({ isBest: d.day === dayOfWeek.bestDay?.day, isWorst: d.day === dayOfWeek.worstDay?.day, netPnl: d.netPnl })}
               />
             ))}
             {dayOfWeek.insight && <InsightBanner text={dayOfWeek.insight} color={C.purple} />}
@@ -432,7 +441,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 netPnl={r.netPnl}
                 count={r.count}
                 confidence={r.confidence}
-                accent={r.range === setupScore.optimalThreshold ? C.bull : r.range === setupScore.worstRange ? C.bear : C.muted}
+                accent={rowAccent({ isBest: r.range === setupScore.optimalThreshold, isWorst: r.range === setupScore.worstRange, netPnl: r.netPnl })}
               />
             ))}
             {setupScore.insight && <InsightBanner text={setupScore.insight} color={C.gold} />}

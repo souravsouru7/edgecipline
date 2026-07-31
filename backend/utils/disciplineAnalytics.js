@@ -592,10 +592,16 @@ function computeDNAIntegration(ruleAnalytics, setupData) {
     ? [...qualified].sort((a, b) => (a.compliancePct ?? 100) - (b.compliancePct ?? 100))[0]
     : null;
 
-  // Most valuable: highest pnlDifference (following >> breaking)
-  const mostValuableRule = qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES && r.pnlDifference !== null).length
-    ? [...qualified.filter(r => r.timesFollowed >= MIN_INSIGHT_TRADES && r.pnlDifference !== null)]
-        .sort((a, b) => b.pnlDifference - a.pnlDifference)[0]
+  // Most valuable: highest pnlDifference (following >> breaking).
+  // Both sides need a real sample — a single broken trade cannot establish a
+  // per-trade edge, and pnlDifference is a difference of two averages.
+  const valuableCandidates = qualified.filter(
+    r => r.timesFollowed >= MIN_INSIGHT_TRADES &&
+         r.timesBroken   >= MIN_INSIGHT_TRADES &&
+         r.pnlDifference !== null
+  );
+  const mostValuableRule = valuableCandidates.length
+    ? [...valuableCandidates].sort((a, b) => b.pnlDifference - a.pnlDifference)[0]
     : null;
 
   // Most expensive violation: highest cost of breaking (absolute loss)
@@ -625,6 +631,9 @@ function computeCoachInsights(data, currency) {
     if (abs >= 1000)    return `${sym}${(abs / 1000).toFixed(1)}K`;
     return `${sym}${abs.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   };
+  // fmtAmt is magnitude-only; use this whenever the value can be negative so
+  // the sign lands before the currency symbol ("-$94", never "$-94").
+  const signedAmt = (v) => `${(v || 0) < 0 ? "-" : ""}${fmtAmt(v)}`;
 
   const insights = [];
 
@@ -667,7 +676,7 @@ function computeCoachInsights(data, currency) {
       type:           "positive",
       priority:       r.pnlDifference > 100 ? "high" : "medium",
       title:          `Following "${r.label}" Adds ${fmtAmt(r.pnlDifference)} Per Trade`,
-      insight:        `When you follow "${r.label}", avg P&L is ${sym}${r.avgPnLFollowed.toFixed(0)} vs ${sym}${r.avgPnLBroken.toFixed(0)} when broken.`,
+      insight:        `When you follow "${r.label}", avg P&L is ${signedAmt(r.avgPnLFollowed)} vs ${signedAmt(r.avgPnLBroken)} when broken.`,
       evidence:       `Followed: ${r.timesFollowed} trades · Broken: ${r.timesBroken} trades · WR followed: ${r.winRateFollowed}%`,
       recommendation: `This rule is generating measurable edge. Protect it — never skip it in the name of speed.`,
     });
@@ -688,8 +697,9 @@ function computeCoachInsights(data, currency) {
     });
   }
 
-  // 5. Best discipline pattern
-  if (patterns.best && patterns.best.count >= MIN_INSIGHT_TRADES) {
+  // 5. Best discipline pattern — only an "edge" if it actually made money.
+  // The top-ranked pattern is still a losing one when every pattern loses.
+  if (patterns.best && patterns.best.count >= MIN_INSIGHT_TRADES && patterns.best.netPnL > 0) {
     const p = patterns.best;
     insights.push({
       id:             `discipline-pattern-best-${p.key}`,
@@ -697,7 +707,7 @@ function computeCoachInsights(data, currency) {
       priority:       "medium",
       title:          `Your Best Pattern: ${p.label}`,
       insight:        `${p.label} produces a ${p.winRate}% win rate across ${p.count} trades.`,
-      evidence:       `${p.count} trades · Net P&L: ${p.netPnL >= 0 ? "+" : ""}${sym}${Math.abs(p.netPnL).toFixed(0)} · Confidence: ${p.confidence}`,
+      evidence:       `${p.count} trades · Net P&L: ${signedAmt(p.netPnL)} · Confidence: ${p.confidence}`,
       recommendation: `This is your edge. Seek out trades that match this exact combination.`,
     });
   }
