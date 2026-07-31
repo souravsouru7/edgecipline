@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edgecipline B2B Institution Expansion — Business Plan</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.55; color: #111; background: #fff; }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm 20mm 20mm 20mm; }
+  @media print {
+    .page { margin: 0; padding: 20mm; page-break-after: always; }
+    .no-break { page-break-inside: avoid; }
+  }
+  h1 { font-size: 26pt; font-weight: 900; margin-bottom: 6pt; }
+  h2 { font-size: 15pt; font-weight: 700; margin: 18pt 0 6pt 0; border-bottom: 1px solid #ccc; padding-bottom: 3pt; }
+  h3 { font-size: 12pt; font-weight: 700; margin: 12pt 0 4pt 0; }
+  h4 { font-size: 11pt; font-weight: 700; margin: 9pt 0 3pt 0; }
+  p { margin-bottom: 7pt; }
+  ul { margin: 4pt 0 8pt 18pt; }
+  ol { margin: 4pt 0 8pt 18pt; }
+  li { margin-bottom: 2pt; }
+  .cover-title-block { margin-bottom: 10mm; }
+  .brand { font-size: 9pt; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 4pt; }
+  .subtitle { font-size: 13pt; font-weight: 700; margin-bottom: 8pt; }
+  .meta { font-size: 10pt; color: #444; margin-bottom: 4pt; }
+  .tag { display: inline-block; font-size: 8pt; background: #111; color: #fff; padding: 1pt 6pt; margin-right: 4pt; margin-bottom: 3pt; border-radius: 2pt; }
+  .section-num { color: #555; }
+  .callout { background: #f7f7f7; border-left: 3pt solid #111; padding: 8pt 12pt; margin: 8pt 0 10pt 0; font-style: italic; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; margin: 6pt 0; }
+  .box { border: 1pt solid #ccc; padding: 8pt 10pt; margin-bottom: 6pt; }
+  .box h4 { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0 12pt 0; font-size: 10pt; }
+  th { background: #111; color: #fff; padding: 5pt 8pt; text-align: left; font-weight: 700; }
+  td { border: 1pt solid #ccc; padding: 4pt 8pt; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .phase-block { border: 1pt solid #ccc; margin-bottom: 8pt; }
+  .phase-header { background: #111; color: #fff; padding: 5pt 10pt; font-weight: 700; font-size: 10pt; }
+  .phase-body { padding: 6pt 10pt; }
+  .status-done { color: #1a7f37; font-weight: 700; }
+  .risk-high { color: #b91c1c; font-weight: 700; }
+  .risk-med { color: #b45309; font-weight: 700; }
+  .risk-low { color: #1a7f37; font-weight: 700; }
+  .toc-entry { display: flex; justify-content: space-between; padding: 2pt 0; border-bottom: 1pt dotted #ccc; }
+  .footer { font-size: 8pt; color: #888; text-align: center; margin-top: 20pt; }
+  hr { border: none; border-top: 1pt solid #ddd; margin: 14pt 0; }
+</style>
+</head>
+<body>
+
+<!-- ===== COVER ===== -->
+<div class="page">
+  <div style="margin-top: 40mm;">
+    <div class="brand">EDGECIPLINE</div>
+    <h1>B2B Expansion: Institution &amp; Academy Program</h1>
+    <div class="subtitle">Bringing Edgecipline into trading academies, prop firms and coaching institutes — with a dedicated Institution Admin portal</div>
+    <div class="meta">Prepared from the Stratedge codebase</div>
+    <div class="meta">Last updated: 2026-07-22</div>
+    <div class="meta">Version: 1.0 — Strategic Plan &amp; Product Spec</div>
+    <div style="margin-top: 12pt;">
+      <span class="tag">B2B2C SaaS</span>
+      <span class="tag">Multi-Tenant Admin</span>
+      <span class="tag">Trading Academies</span>
+      <span class="tag">Prop Firms</span>
+      <span class="tag">Seat-Based Pricing</span>
+    </div>
+    <div style="margin-top: 30mm;" class="callout">
+      "Edgecipline already proves discipline, not just P&amp;L. That is exactly what an academy needs to prove to its students — and what a prop firm needs to see before handing out capital."
+    </div>
+  </div>
+  <div class="footer">Edgecipline B2B Plan | 1</div>
+</div>
+
+<!-- ===== TOC ===== -->
+<div class="page">
+  <h2>Table of Contents</h2>
+  <div class="toc-entry"><span>1. Opinion — Should We Do This?</span><span>3</span></div>
+  <div class="toc-entry"><span>2. Why Edgecipline Is Well-Positioned for B2B</span><span>4</span></div>
+  <div class="toc-entry"><span>3. Target Segments</span><span>5</span></div>
+  <div class="toc-entry"><span>4. The Offer — What an Institution Buys</span><span>6</span></div>
+  <div class="toc-entry"><span>5. Institution Admin Portal — Product Spec</span><span>7</span></div>
+  <div class="toc-entry"><span>6. Data Privacy &amp; Consent Model</span><span>9</span></div>
+  <div class="toc-entry"><span>7. Technical Architecture &amp; Build Plan</span><span>10</span></div>
+  <div class="toc-entry"><span>8. Pricing &amp; Packaging</span><span>12</span></div>
+  <div class="toc-entry"><span>9. Go-To-Market Plan</span><span>13</span></div>
+  <div class="toc-entry"><span>10. Phased Roadmap</span><span>14</span></div>
+  <div class="toc-entry"><span>11. Financial Projection (Illustrative)</span><span>15</span></div>
+  <div class="toc-entry"><span>12. Risks &amp; Mitigations</span><span>16</span></div>
+  <div class="toc-entry"><span>13. Success Metrics</span><span>17</span></div>
+  <div class="toc-entry"><span>14. Recommendation &amp; Next Steps</span><span>17</span></div>
+  <div class="footer">Edgecipline B2B Plan | 2</div>
+</div>
+
+<!-- ===== SECTION 1 ===== -->
+<div class="page">
+  <h2><span class="section-num">1.</span> Opinion — Should We Do This?</h2>
+  <p><strong>Yes — this is one of the better expansion moves available to Edgecipline right now, and it fits the product you already have rather than requiring a new one.</strong> The core B2C product (screenshot-in, journal-out, discipline coaching) is a single-player tool. The moment a trading academy, mentorship program or prop firm is added on top, the same data becomes a supervision tool — and supervision is something institutions will pay a recurring seat fee for, on top of (not instead of) what individual traders already pay.</p>
+  <p>Three things make this a "second stage," not a rebuild:</p>
+  <ul>
+    <li>The admin layer is <strong>already architecturally separate</strong> — `backend/admin/` has its own routes, controllers and JWT middleware, isolated from the regular user auth flow. Adding a third tenant-scoped admin role is an extension of a pattern that already exists, not a new one.</li>
+    <li>The metrics an institution actually wants to see — checklist adherence, discipline/psychology scores, mission completion, streaks, weekly reports — <strong>already exist per user.</strong> Nothing new needs to be measured; it needs to be aggregated and exposed to a second party.</li>
+    <li>Monetization is additive. Institution licensing is a new revenue line sold to a different buyer (the academy owner, not the trader), so it does not cannibalize the existing Razorpay subscription revenue — it can subsidize it.</li>
+  </ul>
+  <div class="callout">The honest caveat: this is a B2B sales motion layered on a product built for self-serve B2C growth. It needs a real (even if small) sales/onboarding effort — academies do not sign up the way individual traders do. Budget for that explicitly; do not assume it will grow itself.</div>
+  <h3>Bottom line</h3>
+  <p>Build a lightweight Institution Admin tier first (Phase 1, 4–6 weeks), sell it to 5–10 design-partner academies for free or heavily discounted in exchange for feedback and case studies, then turn on paid seat billing once the workflow is proven. Do not build the full white-label / LMS-integration vision up front — that is a Phase 3 problem.</p>
+  <div class="footer">Edgecipline B2B Plan | 3</div>
+</div>
+
+<!-- ===== SECTION 2 ===== -->
+<div class="page">
+  <h2><span class="section-num">2.</span> Why Edgecipline Is Well-Positioned for B2B</h2>
+  <p>Most trading-journal competitors (TradeZella, Tradervue, generic spreadsheet templates) sell analytics on P&amp;L. Edgecipline's actual differentiator — discipline scoring, psychology tagging, checklist adherence, missions, streaks — is a much better fit for an institutional buyer than for an individual trader, for one simple reason: <strong>an academy's core problem is proving that its teaching changed student behavior, not just whether a student made money.</strong> A student can lose money while following the plan perfectly (good process, bad variance) or make money while breaking every rule (good luck, bad process). Academies need to see the process. Edgecipline already logs the process.</p>
+  <table>
+    <tr><th>Data Edgecipline already captures per user</th><th>Why an institution cares</th></tr>
+    <tr><td>Checklist adherence per trade (setupScore, followedRules)</td><td>Did the student trade the strategy they were taught?</td></tr>
+    <tr><td>Psychology tags — mood, confidence, entryBasis (Plan/Emotion/Impulsive), FOMO/revenge flags</td><td>Behavioral red flags an instructor can intervene on early</td></tr>
+    <tr><td>Discipline missions (risk-per-trade, stop-loss-required, no-revenge-trade, daily reflection)</td><td>Structured, gamified reinforcement of exactly what a course teaches</td></tr>
+    <tr><td>Streaks &amp; consistency tracking</td><td>Attendance/engagement proxy for a cohort</td></tr>
+    <tr><td>Weekly AI-generated reports</td><td>Ready-made progress reports an instructor can forward to a student's parent/sponsor or use in a batch review call</td></tr>
+    <tr><td>OCR-based screenshot capture (near-zero logging friction)</td><td>Students in a course will actually keep it up — friction is the #1 reason journaling mandates fail in academies today</td></tr>
+  </table>
+  <p>In short: the product was built to answer "is this trader becoming more disciplined?" — which is precisely the question every trading educator, mentor and prop-firm evaluator is trying to answer about the people under them. B2B here is not a pivot; it is selling the same insight to the person who is paying for the outcome, not just the person experiencing it.</p>
+  <div class="footer">Edgecipline B2B Plan | 4</div>
+</div>
+
+<!-- ===== SECTION 3 ===== -->
+<div class="page">
+  <h2><span class="section-num">3.</span> Target Segments</h2>
+  <div class="box">
+    <h4>Segment 1 — Trading Education Academies &amp; Finfluencer Courses (primary, start here)</h4>
+    <p>India has a large and growing market of paid trading courses — YouTube educators, Telegram/Discord mentorship groups, structured academies (NSE/BSE-adjacent options and F&amp;O training). These already charge students ₹5,000–₹50,000+ for a course and are actively looking for a way to prove outcomes and differentiate from low-quality competitors. Edgecipline becomes their "student progress dashboard." <strong>Lowest sales friction, fastest to close, most aligned product fit — prioritize this segment for the Phase 1 pilot.</strong></p>
+  </div>
+  <div class="box">
+    <h4>Segment 2 — Prop Trading Firms &amp; Funded-Account Programs</h4>
+    <p>Prop firms and funding-challenge providers need to evaluate trader discipline before allocating capital, and monitor it afterward to protect the firm's capital. Edgecipline's discipline score and rule-violation flags map directly onto their risk criteria (max daily loss, stop-loss discipline, revenge-trading detection). Slower sales cycle than academies but much higher willingness to pay per seat, and a strong "we caught this risk before it blew an account" story.</p>
+  </div>
+  <div class="box">
+    <h4>Segment 3 — Corporate / Institutional Trading Desks &amp; Internal Mentorship Programs</h4>
+    <p>Smaller near-term opportunity but a credible longer-term one: brokerages or fintechs running internal trainee desks, or wealth-management firms with junior trader onboarding programs. Longest sales cycle, needs compliance sign-off — treat as Phase 3+, not a launch target.</p>
+  </div>
+  <h3>Recommended sequencing</h3>
+  <p>Segment 1 → Segment 2 → Segment 3. Academies validate the product and pricing fastest; prop firms validate willingness-to-pay at a higher price point once the discipline-scoring product is proven; corporate desks come once there is a case-study library to point to.</p>
+  <div class="footer">Edgecipline B2B Plan | 5</div>
+</div>
+
+<!-- ===== SECTION 4 ===== -->
+<div class="page">
+  <h2><span class="section-num">4.</span> The Offer — What an Institution Buys</h2>
+  <p>An academy owner (or prop-firm risk manager) buys a license that gives them a bounded, cohort-scoped window into their own students — not a general admin panel, and never visibility into other institutions' students or platform-wide data.</p>
+  <div class="two-col">
+    <div class="box">
+      <h4>For the institution</h4>
+      <ul>
+        <li>Invite students under their own institution code</li>
+        <li>Roster view: who has joined, who is active, who has gone quiet</li>
+        <li>Cohort-level discipline &amp; adherence analytics</li>
+        <li>Per-student drill-down (with consent — see Section 6)</li>
+        <li>Assign checklists/missions to the whole batch at once</li>
+        <li>Exportable weekly progress reports per student/cohort</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h4>For the student</h4>
+      <ul>
+        <li>Same Edgecipline app they already know</li>
+        <li>Clear, explicit consent screen on what their instructor can see</li>
+        <li>Discounted subscription (subsidized by the institution license)</li>
+        <li>Cohort leaderboard — opt-in, discipline-based not P&amp;L-based (avoids toxic "who made more money" comparison)</li>
+      </ul>
+    </div>
+  </div>
+  <p>Note the deliberate asymmetry: the institution gets aggregated behavioral insight, the student keeps full ownership of their raw trade data and can revoke visibility. This is both an ethical necessity and a selling point academies can use with their own students ("we track your discipline, not your losses").</p>
+  <div class="footer">Edgecipline B2B Plan | 6</div>
+</div>
+
+<!-- ===== SECTION 5 ===== -->
+<div class="page">
+  <h2><span class="section-num">5.</span> Institution Admin Portal — Product Spec</h2>
+  <p>A third, tenant-scoped admin tier — separate from both the regular user app and the existing platform-level admin console. Same architectural pattern as `backend/admin/`, but every query is filtered to `institutionId`.</p>
+  <h3>5.1 Roles</h3>
+  <table>
+    <tr><th>Role</th><th>Scope</th><th>Example</th></tr>
+    <tr><td>Platform Admin (existing)</td><td>Everything, all institutions, all users</td><td>Internal Edgecipline ops team</td></tr>
+    <tr><td>Institution Owner (new)</td><td>Their own institution: roster, billing, cohort settings</td><td>Academy founder</td></tr>
+    <tr><td>Institution Staff (new, optional Phase 2)</td><td>Same as Owner minus billing</td><td>Course mentor / TA</td></tr>
+    <tr><td>Student (existing)</td><td>Their own data; consents to institution visibility</td><td>Enrolled trader</td></tr>
+  </table>
+  <h3>5.2 Core screens</h3>
+  <div class="phase-block">
+    <div class="phase-header">Roster</div>
+    <div class="phase-body">
+      <p>List of enrolled students with join date, active/inactive status, subscription status, last trade logged. Invite via unique join code or emailed link; bulk CSV import for existing batches. Remove/archive a student without deleting their personal account.</p>
+    </div>
+  </div>
+  <div class="phase-block">
+    <div class="phase-header">Cohort Analytics</div>
+    <div class="phase-body">
+      <p>Aggregated, anonymized-by-default view: average discipline/checklist-adherence score, % following stop-loss rule, % completing daily reflections, mission completion rate, distribution of psychology tags (FOMO/revenge/plan-based) across the batch. This view needs <strong>no per-student consent</strong> since it is aggregate-only.</p>
+    </div>
+  </div>
+  <div class="phase-block">
+    <div class="phase-header">Student Drill-Down (consent-gated)</div>
+    <div class="phase-body">
+      <p>Per-student discipline score, checklist history, mission progress, weekly report summary. Raw trade P&amp;L, account balance and instrument details are hidden by default and only shown if the student has explicitly opted in to "full visibility" beyond the default "discipline metrics only" consent tier.</p>
+    </div>
+  </div>
+  <div class="phase-block">
+    <div class="phase-header">Batch Actions</div>
+    <div class="phase-body">
+      <p>Assign a mission or checklist template to the entire cohort at once; push an announcement/notification to the batch; export a cohort progress report (PDF/CSV) for a parent call, sponsor update, or internal review.</p>
+    </div>
+  </div>
+  <div class="footer">Edgecipline B2B Plan | 7</div>
+</div>
+
+<div class="page">
+  <h3>5.3 Student-side additions</h3>
+  <ul>
+    <li>"Join with institution code" step during onboarding or from Profile</li>
+    <li>One-time, explicit consent modal on join: two tiers — <strong>"Discipline metrics only"</strong> (default) vs <strong>"Full visibility including trades &amp; P&amp;L"</strong> (opt-in)</li>
+    <li>Visible badge in-app: "Enrolled under [Academy Name] — [consent tier] visible to your instructor" with a one-tap revoke</li>
+    <li>Cohort leaderboard opt-in toggle, ranked by discipline score not profit</li>
+  </ul>
+  <h3>5.4 Explicitly out of scope for Phase 1</h3>
+  <ul>
+    <li>White-label branding (custom domain/logo per institution) — Phase 3</li>
+    <li>LMS integrations (Google Classroom, custom course platforms) — Phase 3</li>
+    <li>Institution-to-institution comparison/benchmarking — not planned; conflicts with the privacy stance</li>
+    <li>Automated grading/certification — Phase 3, only if academies explicitly ask for it</li>
+  </ul>
+  <div class="footer">Edgecipline B2B Plan | 8</div>
+</div>
+
+<!-- ===== SECTION 6 ===== -->
+<div class="page">
+  <h2><span class="section-num">6.</span> Data Privacy &amp; Consent Model</h2>
+  <p>Trade and P&amp;L data is financially sensitive personal data. This is the one area where cutting corners will cost trust with both students and academies, so it is treated as a first-class design constraint, not an afterthought.</p>
+  <h3>Principles</h3>
+  <ol>
+    <li><strong>Opt-in, not opt-out.</strong> A student's data is never visible to an institution until they explicitly join that institution and accept a consent screen.</li>
+    <li><strong>Tiered visibility, aggregate by default.</strong> Cohort-level aggregates require no per-student consent. Individual drill-down requires consent. Raw P&amp;L/balance requires a second, separate consent tier.</li>
+    <li><strong>Revocable at any time.</strong> A student can leave an institution or downgrade their consent tier from their own Profile page, instantly cutting off future visibility (historical reports already generated are not retroactively un-shared — this is disclosed up front).</li>
+    <li><strong>Institution isolation.</strong> An institution admin can never query or see data belonging to another institution's students, or platform-wide data. Enforced at the query layer (`institutionId` filter on every admin repository call), not just in the UI.</li>
+    <li><strong>Minors &amp; account ownership.</strong> Institution accounts must confirm the student is the account owner and of legal age, or route through a parent/guardian consent flow if the academy serves minors — flag this explicitly in institution onboarding terms.</li>
+  </ol>
+  <div class="callout">This consent model is also a marketing asset, not just a compliance box: "your instructor sees your discipline, not your losses" is a genuinely differentiated, trust-building pitch students will respond to — most existing academy tracking (screenshots in a WhatsApp group, manual spreadsheets) has zero privacy model at all.</div>
+  <div class="footer">Edgecipline B2B Plan | 9</div>
+</div>
+
+<!-- ===== SECTION 7 ===== -->
+<div class="page">
+  <h2><span class="section-num">7.</span> Technical Architecture &amp; Build Plan</h2>
+  <p>This extends the existing codebase rather than forking it. It reuses the pattern already established by `backend/admin/` (separate routes, separate JWT middleware) and the existing per-trade discipline/checklist/mission data that already exists on <code>Trade</code>, <code>IndianTrade</code>, <code>ChecklistTracking</code>, <code>MissionAssignment</code> and <code>WeeklyReport</code>.</p>
+  <h3>New data model</h3>
+  <table>
+    <tr><th>Model</th><th>Key fields</th></tr>
+    <tr><td>Institution (new)</td><td>name, joinCode, plan, seatLimit, billingContact, contactEmail, brandingConfig (Phase 3), createdAt</td></tr>
+    <tr><td>InstitutionMembership (new)</td><td>userId, institutionId, role (owner/staff/student), consentTier (discipline_only/full), status (active/archived), joinedAt</td></tr>
+    <tr><td>User (extend existing)</td><td>add optional institutionId reference; role enum extended with institution_owner / institution_staff</td></tr>
+  </table>
+  <h3>New backend surface</h3>
+  <ul>
+    <li><code>backend/institution/routes/</code> and <code>controllers/</code> — mirrors the existing `backend/admin/` structure, own JWT middleware scoped by institutionId</li>
+    <li><code>POST /api/institution/join</code> — student redeems join code + consent tier</li>
+    <li><code>GET /api/institution/roster</code>, <code>GET /api/institution/analytics/cohort</code>, <code>GET /api/institution/students/:id</code> (consent-gated), <code>POST /api/institution/missions/assign-batch</code></li>
+    <li><code>backend/services/institutionAnalyticsService.js</code> — aggregates existing per-user discipline/checklist/mission data by institutionId; no new metrics need to be computed, only new aggregation queries</li>
+    <li>Repository-layer enforcement: every institution query is filtered by <code>institutionId</code> at the repository, not just the controller, so a bug in one endpoint cannot leak cross-tenant data</li>
+  </ul>
+  <h3>New frontend surface</h3>
+  <ul>
+    <li><code>frontend/app/institution-admin/</code> — separate route tree, separate auth guard from the regular app and from the platform admin</li>
+    <li>Reuses existing analytics/chart components (Recharts) already built for the personal dashboard — cohort view is largely the same components fed aggregated data</li>
+    <li>Consent modal + institution badge added to the existing onboarding flow and Profile page</li>
+  </ul>
+  <div class="footer">Edgecipline B2B Plan | 10</div>
+</div>
+
+<div class="page">
+  <h3>Why this is a moderate, not a large, engineering lift</h3>
+  <p>The three hardest parts of a "multi-tenant admin" feature — role-based auth separation, aggregating behavioral metrics, and a query/analytics UI layer — already exist in the codebase in a form that can be extended:</p>
+  <table>
+    <tr><th>Needed capability</th><th>Already exists as</th></tr>
+    <tr><td>Separate admin auth/JWT tier</td><td><code>backend/admin/</code> + <code>adminAuth.js</code> middleware</td></tr>
+    <tr><td>Per-user discipline/behavioral scoring</td><td>Mission progress, checklist score, psychology tags, weekly reports</td></tr>
+    <tr><td>Analytics aggregation &amp; charting</td><td><code>analyticsController</code> endpoints + Recharts components</td></tr>
+    <tr><td>Bulk notification delivery</td><td><code>notificationService.js</code> / <code>admin/notifications</code></td></tr>
+  </table>
+  <p>What is genuinely new: the <code>Institution</code>/<code>InstitutionMembership</code> data model, the consent flow, and the tenant-scoped query filtering. Estimated effort for Phase 1 (Section 10): 4–6 engineering weeks for a single full-stack developer, assuming no white-labeling or billing automation yet.</p>
+  <div class="footer">Edgecipline B2B Plan | 11</div>
+</div>
+
+<!-- ===== SECTION 8 ===== -->
+<div class="page">
+  <h2><span class="section-num">8.</span> Pricing &amp; Packaging</h2>
+  <table>
+    <tr><th>Tier</th><th>Who it's for</th><th>Price (illustrative)</th><th>What's included</th></tr>
+    <tr><td>Pilot / Design Partner</td><td>First 5–10 academies</td><td>Free for 60–90 days</td><td>Full Phase 1 feature set, in exchange for feedback + a case study/testimonial</td></tr>
+    <tr><td>Academy Standard</td><td>Trading education academies, up to ~100 seats</td><td>₹99–149 / student / month (billed to institution, annual discount available)</td><td>Roster, cohort analytics, consent-gated drill-down, batch mission assignment</td></tr>
+    <tr><td>Prop Firm / Funded Program</td><td>Prop firms, funding-challenge providers</td><td>₹199–299 / seat / month or per-evaluation fee</td><td>Everything in Standard + risk-flagging alerts (stop-loss violations, daily-loss-limit breaches, revenge-trade detection) surfaced in near real time</td></tr>
+    <tr><td>Enterprise (Phase 3)</td><td>Large academies, brokers, corporate desks</td><td>Custom / negotiated</td><td>White-label branding, LMS/API integration, dedicated support</td></tr>
+  </table>
+  <p>Individual students under an institution license still pay their own discounted Edgecipline subscription (or it is bundled into the institution's course fee) — the institution license is a separate line covering the admin/analytics layer, not a replacement for the existing Razorpay subscription revenue.</p>
+  <div class="footer">Edgecipline B2B Plan | 12</div>
+</div>
+
+<!-- ===== SECTION 9 ===== -->
+<div class="page">
+  <h2><span class="section-num">9.</span> Go-To-Market Plan</h2>
+  <h3>Channel 1 — Direct outreach to trading educators (primary)</h3>
+  <p>India has a large, identifiable population of trading course creators on YouTube/Telegram/Instagram running paid cohorts. Direct DM/email outreach with a short demo ("here's what your batch's discipline dashboard would look like") converts faster than any paid channel at this stage. Target: 30–50 outbound conversations to land 5–10 pilot academies.</p>
+  <h3>Channel 2 — Existing user referral</h3>
+  <p>Some current Edgecipline users are themselves mentors or run small trading groups informally. Surface an "Are you a trading mentor/educator? Bring your students to Edgecipline" prompt inside the app to the existing user base — near-zero cost, high-intent lead source.</p>
+  <h3>Channel 3 — Prop firm partnerships (Segment 2, after pilot proof)</h3>
+  <p>Once 2–3 academy case studies exist ("this cohort's stop-loss adherence went from 40% to 78% in 6 weeks"), use them to open conversations with prop/funding-challenge firms — a much more skeptical, data-driven buyer that needs proof before a pilot.</p>
+  <h3>Pilot success criteria before charging</h3>
+  <ul>
+    <li>At least 3 of 5–10 pilot academies have &gt;60% of their roster actively logging trades weekly</li>
+    <li>At least one measurable cohort-level improvement in a discipline metric over the pilot period</li>
+    <li>At least 2 academies willing to go on record with a testimonial/case study</li>
+  </ul>
+  <div class="footer">Edgecipline B2B Plan | 13</div>
+</div>
+
+<!-- ===== SECTION 10 ===== -->
+<div class="page">
+  <h2><span class="section-num">10.</span> Phased Roadmap</h2>
+  <div class="phase-block">
+    <div class="phase-header">Phase 1 — MVP (Weeks 1–6)</div>
+    <div class="phase-body">
+      <p>Institution &amp; InstitutionMembership models. Join-code flow + consent modal. Institution admin auth (separate tier, same pattern as existing admin). Roster view. Cohort analytics (aggregated, no consent needed). Consent-gated per-student drill-down. Manual/free onboarding for 5–10 design-partner academies.</p>
+    </div>
+  </div>
+  <div class="phase-block">
+    <div class="phase-header">Phase 2 — Monetize &amp; Strengthen (Weeks 7–14)</div>
+    <div class="phase-body">
+      <p>Seat-based Razorpay billing at the institution level. Batch mission/checklist assignment. Opt-in discipline leaderboard. Institution Staff role (mentors/TAs, not just owners). Exportable PDF/CSV cohort reports. Begin Segment 2 (prop firm) conversations using pilot case studies.</p>
+    </div>
+  </div>
+  <div class="phase-block">
+    <div class="phase-header">Phase 3 — Scale (Month 4+)</div>
+    <div class="phase-body">
+      <p>White-label branding per institution. Risk-flagging/alerting for prop-firm use cases (real-time stop-loss/daily-loss-limit breach notifications to the institution admin). LMS/API integration for larger academies. Evaluate demand for institution-to-institution benchmarking cautiously, respecting the privacy stance in Section 6.</p>
+    </div>
+  </div>
+  <div class="footer">Edgecipline B2B Plan | 14</div>
+</div>
+
+<!-- ===== SECTION 11 ===== -->
+<div class="page">
+  <h2><span class="section-num">11.</span> Financial Projection (Illustrative)</h2>
+  <p>Rough, conservative modeling to size the opportunity — not a forecast. Assumes Academy Standard pricing at ₹120/student/month average (blended after annual discounts) and a slow, outbound-driven ramp.</p>
+  <table>
+    <tr><th>Milestone</th><th>Academies</th><th>Avg seats/academy</th><th>Total students</th><th>Monthly institution revenue (approx.)</th></tr>
+    <tr><td>Pilot (Month 1–3)</td><td>5–10</td><td>25</td><td>~125–250</td><td>₹0 (free pilot)</td></tr>
+    <tr><td>Early paid (Month 4–6)</td><td>10</td><td>30</td><td>~300</td><td>~₹36,000/mo</td></tr>
+    <tr><td>Growth (Month 7–12)</td><td>35</td><td>35</td><td>~1,225</td><td>~₹1,47,000/mo</td></tr>
+    <tr><td>Scale (Year 2 target)</td><td>100</td><td>40</td><td>~4,000</td><td>~₹4,80,000/mo</td></tr>
+  </table>
+  <p>This is purely the institution-license line. It is additive to, not a substitute for, the existing direct-to-consumer subscription revenue — and a meaningful share of institution students will also be net-new individual subscribers who would not have found Edgecipline otherwise, since academy enrollment becomes a new acquisition channel for the core product.</p>
+  <div class="footer">Edgecipline B2B Plan | 15</div>
+</div>
+
+<!-- ===== SECTION 12 ===== -->
+<div class="page">
+  <h2><span class="section-num">12.</span> Risks &amp; Mitigations</h2>
+  <table>
+    <tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr>
+    <tr><td>Students perceive institution visibility as surveillance and disengage</td><td class="risk-high">High</td><td>Strict opt-in consent tiers (Section 6), discipline-only default, one-tap revoke, clear in-app messaging</td></tr>
+    <tr><td>B2B sales cycle stalls — academies are slow, informal decision-makers</td><td class="risk-med">Medium</td><td>Start with free pilots to remove the money conversation entirely; convert to paid only after proven engagement</td></tr>
+    <tr><td>Cross-tenant data leak (one institution sees another's students)</td><td class="risk-high">High</td><td>Enforce <code>institutionId</code> filtering at the repository layer, not just controllers; add integration tests specifically for tenant isolation before launch</td></tr>
+    <tr><td>Academy churns after pilot, no paid conversion</td><td class="risk-med">Medium</td><td>Gate Phase 1 pilots on the engagement thresholds in Section 9 before investing in Phase 2 billing work</td></tr>
+    <tr><td>Feature scope creep (white-label, LMS integration) delays MVP</td><td class="risk-med">Medium</td><td>Explicitly out-of-scope list in Section 5.4; Phase 3 items stay Phase 3 until Phase 1/2 are validated</td></tr>
+    <tr><td>Regulatory/compliance exposure around student financial data</td><td class="risk-low">Low–Medium</td><td>No SEBI/RBI registration implication for a journaling tool, but treat trade data with the same care as any sensitive personal financial data; consent model in Section 6 is the primary control</td></tr>
+  </table>
+  <div class="footer">Edgecipline B2B Plan | 16</div>
+</div>
+
+<!-- ===== SECTION 13/14 ===== -->
+<div class="page">
+  <h2><span class="section-num">13.</span> Success Metrics</h2>
+  <table>
+    <tr><th>Metric</th><th>Phase 1 target</th></tr>
+    <tr><td>Pilot academies onboarded</td><td>5–10</td></tr>
+    <tr><td>Weekly active students per active cohort</td><td>&gt;60%</td></tr>
+    <tr><td>Cohort discipline-score improvement over pilot period</td><td>Measurable upward trend in at least half of pilots</td></tr>
+    <tr><td>Pilot-to-paid conversion rate (Phase 2)</td><td>&gt;40% of pilots</td></tr>
+    <tr><td>Net-new individual subscribers sourced via institution channel</td><td>Tracked as a distinct acquisition channel from day one</td></tr>
+  </table>
+
+  <h2><span class="section-num">14.</span> Recommendation &amp; Next Steps</h2>
+  <ol>
+    <li>Approve Phase 1 scope as defined in Section 10 — resist adding white-label/LMS/billing automation until the pilot validates demand.</li>
+    <li>Identify 15–20 candidate academies/educators for outbound (Section 9, Channel 1) while Phase 1 is being built, so pilots can start the week engineering finishes.</li>
+    <li>Build the consent model (Section 6) alongside the core feature, not after — retrofitting privacy controls onto live student data is much harder than shipping them from day one.</li>
+    <li>Set the Section 9 engagement thresholds as an explicit go/no-go gate before starting Phase 2 billing work.</li>
+  </ol>
+  <div class="footer">Edgecipline B2B Plan | 17</div>
+</div>
+
+</body>
+</html>
