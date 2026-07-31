@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useMemo } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import PageHeader from "@/features/shared/components/PageHeader";
+import PageBackNav from "@/features/shared/components/PageBackNav";
 import { useQuery } from "@tanstack/react-query";
 import { getDisciplineAnalytics } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
@@ -160,6 +161,32 @@ function DisciplineContent() {
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
   });
 
+  // These three memos MUST stay above the early returns below. They used to sit
+  // after them, so the loading render bailed out first and the next render ran
+  // three extra hooks — React error #310 ("rendered more hooks than during the
+  // previous render"), which crashed the page on every cold navigation.
+  // They read through `data?.` so they are safe before the query resolves.
+  const timelineData = useMemo(
+    () => (data?.timeline?.buckets || []).map(b => ({
+      key: b.key,
+      "Follow rate": b.compliancePct ?? null,
+      "Win rate": b.winRate ?? null,
+    })),
+    [data?.timeline?.buckets]
+  );
+
+  const rulesForChart = useMemo(
+    () => [...(data?.ruleAnalytics || [])]
+      .sort((a, b) => (a.compliancePct ?? 0) - (b.compliancePct ?? 0))
+      .slice(0, 10),
+    [data?.ruleAnalytics]
+  );
+
+  const setupsForChart = useMemo(
+    () => (data?.setupPerformance || []).filter(s => s.trades >= 2).slice(0, 6),
+    [data?.setupPerformance]
+  );
+
   if (!mounted || isLoading) return <LoadingSkeleton />;
 
   if (error) return (
@@ -185,8 +212,6 @@ function DisciplineContent() {
   const overview     = data.overview || {};
   const rules        = data.ruleAnalytics || [];
   const topByCost    = data.ruleCostAnalytics?.topByCost || [];
-  const setups       = data.setupPerformance || [];
-  const timeline     = data.timeline?.buckets || [];
   const insights     = (data.coachInsights || []).slice(0, 4);
   const dna          = data.dnaIntegration || {};
   const stats        = data.stats || {};
@@ -197,27 +222,6 @@ function DisciplineContent() {
 
   const trendMap = { improving: { arrow: "↑", color: C.green, text: "Improving" }, declining: { arrow: "↓", color: C.red, text: "Declining" }, stable: { arrow: "→", color: C.muted, text: "Stable" } };
   const trend = trendMap[overview.trend] || trendMap.stable;
-
-  const timelineData = useMemo(
-    () => timeline.map(b => ({
-      key: b.key,
-      "Follow rate": b.compliancePct ?? null,
-      "Win rate": b.winRate ?? null,
-    })),
-    [timeline]
-  );
-
-  const rulesForChart = useMemo(
-    () => [...rules]
-      .sort((a, b) => (a.compliancePct ?? 0) - (b.compliancePct ?? 0))
-      .slice(0, 10),
-    [rules]
-  );
-
-  const setupsForChart = useMemo(
-    () => setups.filter(s => s.trades >= 2).slice(0, 6),
-    [setups]
-  );
 
   return (
     <div style={{ padding: "0 16px 60px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -579,7 +583,10 @@ export default function DisciplinePage() {
           button:active { opacity: 0.7; }
         `}</style>
         <CandlestickBackground />
-        <PageHeader title="Discipline" subtitle="Are you following your process?" />
+        <PageHeader />
+        <div style={{ padding: "18px 16px 0" }}>
+          <PageBackNav title="Discipline" subtitle="Are you following your process?" accent={C.blue} />
+        </div>
         <Suspense fallback={<LoadingSkeleton />}>
           <DisciplineContent />
         </Suspense>

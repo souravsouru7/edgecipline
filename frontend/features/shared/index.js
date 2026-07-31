@@ -2,6 +2,7 @@
 export { default as CandlestickBackground } from "./components/CandlestickBackground";
 export { default as TickerTape }            from "./components/TickerTape";
 export { default as PageHeader }            from "./components/PageHeader";
+export { default as PageBackNav }           from "./components/PageBackNav";
 export { useAuth }                          from "./hooks/useAuth";
 export { useClock }                         from "./hooks/useClock";
 

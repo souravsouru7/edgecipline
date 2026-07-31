@@ -17,6 +17,7 @@ import StreakHeroChip        from "@/features/dashboard/components/StreakHeroChi
 import ReflectionCard        from "@/features/reflections/components/ReflectionCard";
 import EmptyStateOverlay     from "@/features/dashboard/components/EmptyStateOverlay";
 import { useDashboard }      from "@/features/dashboard/hooks/useDashboard";
+import { buildTodaysIntelligence } from "@/features/dashboard/utils/todaysIntelligence";
 import { Skeleton }          from "@/features/shared";
 import { MARKETS }           from "@/context/MarketContext";
 
@@ -402,30 +403,22 @@ function DashboardContent() {
   // Show skeletons while auth is resolving OR while data is loading.
   // Never show a full-page spinner — render the shell immediately.
   const showSkeleton = !mounted || loading;
-  const money = (n) => {
-    const v = parseFloat(n || 0);
-    return `${v >= 0 ? "+" : "-"}${currencySymbol}${Math.abs(v).toFixed(2)}`;
-  };
-  const dnaStrength =
-    tradingDNA?.sessionDNA?.best?.name ||
-    tradingDNA?.instrumentDNA?.best?.name ||
-    tradingDNA?.emotionDNA?.mostProfitable?.name ||
-    "Log more trades to reveal your strongest repeatable condition.";
-  const topLeak = psychologyCost?.topLeaks?.[0] || psychologyCost?.costliestMistake || psychologyCost?.costliestEmotion;
-  const biggestLeak = topLeak
-    ? `${topLeak.name || topLeak.type} (${money(topLeak.cost ?? topLeak.netPnL ?? topLeak.profit)})`
-    : "No dominant behavioral leak detected yet.";
-  const selfAwarenessFocus = selfAwareness?.score != null
-    ? `${selfAwareness.score}% calibration. ${selfAwareness.score >= 70 ? "Protect review quality before increasing risk." : "Improve post-trade review accuracy next."}`
-    : "Add trade-quality reviews to unlock self-awareness focus.";
-  const aiRecommendation = topLeak
-    ? `Before the next trade, add one guardrail for ${topLeak.name || topLeak.type}.`
-    : tradingDNA?.dnaSummary?.tradingIdentity || "Run the checklist before your next trade and keep the sample clean.";
-  const coachInsight = topLeak
-    ? `${topLeak.name || topLeak.type} is the clearest coaching priority because it is showing direct P&L impact.`
-    : selfAwareness?.score != null
-      ? "Your next coaching priority is tightening the gap between trade quality and outcome review."
-      : "Edgecipline will show a stronger coaching snapshot once more psychology and setup data is logged.";
+  // Each tile is derived from a different signal in the snapshot so the card
+  // reports four distinct facts instead of restating one leak four times.
+  const {
+    strength: dnaStrength,
+    leak: biggestLeak,
+    focus: selfAwarenessFocus,
+    recommendation: aiRecommendation,
+    coachInsight,
+    sampleLabel,
+  } = buildTodaysIntelligence({
+    tradingDNA,
+    psychologyCost,
+    selfAwareness,
+    totalTrades,
+    currencySymbol,
+  });
 
   return (
     <div style={{
@@ -580,7 +573,7 @@ function DashboardContent() {
           <div className="dashboard-focus-grid" style={{ display: "grid", gridTemplateColumns: "1.35fr 0.65fr", gap: 16, marginBottom: 20 }}>
             <DashboardPanel
               title="Today's Intelligence"
-              subtitle="Biggest strength, leak, focus, and next action"
+              subtitle={`Biggest strength, leak, focus, and next action - ${sampleLabel}`}
               accent="#8B5CF6"
               action={<Link href={marketRoutes.intelligence} style={{ fontSize: 11, fontWeight: 800, color: "#8B5CF6", textDecoration: "none", whiteSpace: "nowrap" }}>Open Intelligence -&gt;</Link>}
             >

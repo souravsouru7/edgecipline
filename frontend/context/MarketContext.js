@@ -81,6 +81,10 @@ function MarketSync({ currentMarket, setCurrentMarket }) {
 export function MarketProvider({ children }) {
   const [currentMarket, setCurrentMarket] = useState(DEFAULT_MARKET);
   const [isLoading, setIsLoading] = useState(true);
+  // True once the market has been decided deliberately in this session (switcher,
+  // onboarding, or a restore from the server). Consumers use it to know the
+  // choice is settled and must not be overridden by a stale stored preference.
+  const [marketDecided, setMarketDecided] = useState(false);
 
   // Load saved market preference on mount
   useEffect(() => {
@@ -107,6 +111,7 @@ export function MarketProvider({ children }) {
     }
 
     setCurrentMarket(market);
+    setMarketDecided(true);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, market);
       window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market } }));
@@ -168,6 +173,7 @@ export function MarketProvider({ children }) {
       getMarketLabel,
       getThemeColors,
       isLoading,
+      marketDecided,
       isForex: currentMarket === MARKETS.FOREX,
       isIndianMarket: currentMarket === MARKETS.INDIAN_MARKET,
     }),
@@ -180,6 +186,7 @@ export function MarketProvider({ children }) {
       getMarketLabel,
       getThemeColors,
       isLoading,
+      marketDecided,
     ]
   );
 

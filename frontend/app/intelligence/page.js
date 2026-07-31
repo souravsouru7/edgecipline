@@ -84,7 +84,12 @@ function IntelligenceContent() {
   const totalTrades = summary?.totalTrades || 0;
   const bestPattern = patterns?.summary?.topPositivePattern;
   const riskPattern = patterns?.summary?.topNegativePattern;
-  const topLeak = psychologyCost?.topLeaks?.[0] || psychologyCost?.costliestMistake || psychologyCost?.costliestEmotion;
+  // psychologyCost has never returned `costliestMistake` / `costliestEmotion`;
+  // the real fields live under behavioralDNA.
+  const topLeak =
+    psychologyCost?.topLeaks?.[0] ||
+    psychologyCost?.behavioralDNA?.mostExpensiveMistake ||
+    psychologyCost?.behavioralDNA?.mostExpensiveEmotion;
   const identity = tradingDNA?.dnaSummary?.tradingIdentity;
   const latestCoach = coachFeed?.insights?.[0];
 

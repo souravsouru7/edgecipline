@@ -1,6 +1,7 @@
 "use client";
 
 import { useMarket, MARKETS } from '@/context/MarketContext';
+import { setPreferredMarket } from '@/services/api';
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function MarketSwitcher() {
@@ -41,6 +42,12 @@ export default function MarketSwitcher() {
     }
 
     toggleMarket(targetMarket);
+    // Persist the choice. Only onboarding used to write this, so the server kept
+    // returning the market the user picked at signup no matter how often they
+    // switched — leaving every later session (and the dashboard's startup
+    // restore) disagreeing with the switcher. Fire-and-forget: a failed PATCH
+    // must not block navigation, and the local choice already took effect.
+    setPreferredMarket(targetMarket).catch(() => {});
     router.push(newPath);
   };
 

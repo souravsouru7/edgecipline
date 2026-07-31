@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import AppLoadingShell from "@/components/AppLoadingShell";
+import BootSplashVideo from "@/components/BootSplashVideo";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { hideNativeSplash } from "@/utils/nativeSplash";
@@ -12,6 +13,10 @@ const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/forgot-password", "/reset
 
 export default function AuthSessionBootstrap({ children }) {
   const [ready, setReady] = useState(false);
+  // Android cold start plays the brand video over the boot. BootSplashVideo
+  // always reports back — immediately on web / reduced motion / decode failure —
+  // so this can never strand the app behind the loader.
+  const [introDone, setIntroDone] = useState(false);
   const readyRef = useRef(false);
   const pathname = usePathname();
   const pathnameRef = useRef(pathname || "");
@@ -119,13 +124,16 @@ export default function AuthSessionBootstrap({ children }) {
     };
   }, []);
 
-  if (!ready) {
+  if (!ready || !introDone) {
     return (
-      <AppLoadingShell
-        title="Restoring Edgecipline"
-        subtitle="Checking your secure session"
-        dense
-      />
+      <>
+        <BootSplashVideo onFinished={() => setIntroDone(true)} />
+        <AppLoadingShell
+          title="Restoring Edgecipline"
+          subtitle="Checking your secure session"
+          dense
+        />
+      </>
     );
   }
 

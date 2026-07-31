@@ -30,7 +30,7 @@ function setupRouteForMarket(market) {
 export function useDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { currentMarket, toggleMarket, isLoading: marketLoading } = useMarket();
+  const { currentMarket, toggleMarket, marketDecided, isLoading: marketLoading } = useMarket();
   const [mounted, setMounted] = useState(false);
   const [firstLoginDismissed, setFirstLoginDismissed] = useState(false);
 
@@ -95,13 +95,21 @@ export function useDashboard() {
 
   // Restore the user's saved market choice from the server (covers fresh
   // logins on a new device where localStorage doesn't yet have it).
+  //
+  // This is a one-time startup restore, NOT a continuous sync. Without the
+  // `marketDecided` guard it fights every deliberate switch: the user picks
+  // Forex, the next snapshot still carries the old server-side preference, and
+  // this flips `currentMarket` straight back to Indian_Market while the user
+  // sits on the Forex dashboard — which then renders the other market's data
+  // (0 trades, blank KPIs) on the wrong page.
   useEffect(() => {
+    if (marketDecided) return;
     const preferred = snapshot?.preferredMarket;
     if (!preferred) return;
     if (preferred === currentMarket) return;
     if (!Object.values(MARKETS).includes(preferred)) return;
     toggleMarket(preferred);
-  }, [snapshot?.preferredMarket, currentMarket, toggleMarket]);
+  }, [snapshot?.preferredMarket, currentMarket, toggleMarket, marketDecided]);
 
   useEffect(() => {
     const onboarding = snapshot?.onboarding;
