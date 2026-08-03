@@ -30,6 +30,76 @@ const CATEGORY = {
 
 const PRIORITY = { HIGH: "high", MEDIUM: "medium", LOW: "low" };
 
+/**
+ * Per-category framing for the "why it matters" / "expected outcome" panels.
+ *
+ * These used to come from the frontend, which had exactly two strings — one for
+ * positive cards and one for negative — so a self-awareness card, a session card
+ * and a rule card all read word-for-word identically below the fold. Cards may
+ * still pass their own text to makeInsight(); these are the defaults.
+ */
+const WHY_IT_MATTERS = {
+  [CATEGORY.PSYCHOLOGY]: {
+    positive: "Your emotional state is one of the few inputs you set before entry, so a state that reliably produces good execution is worth building a routine around.",
+    negative: "Emotional states compound — one unmanaged reaction tends to set up the next — so this repeats until something interrupts it deliberately.",
+  },
+  [CATEGORY.CONFIDENCE]: {
+    positive: "Confidence is recorded before the outcome is known, so a band that performs well is a genuine forward-looking filter rather than hindsight.",
+    negative: "Confidence is recorded before the outcome is known, which makes a weak band something you can screen for at entry instead of learning afterwards.",
+  },
+  [CATEGORY.DISCIPLINE]: {
+    positive: "Process metrics move before P&L does, so holding this level of compliance is what keeps results repeatable when conditions change.",
+    negative: "Rule compliance is the part of trading fully within your control, which makes a gap here the cheapest thing on this list to close.",
+  },
+  [CATEGORY.PATTERN]: {
+    positive: "A pattern that holds across several trades is more reliable than any single result, so it is something you can lean on deliberately.",
+    negative: "A pattern that holds across several trades will keep costing the same amount until something in the process changes.",
+  },
+  [CATEGORY.TRADING_DNA]: {
+    positive: "Session, instrument and setup quality are all chosen before entry, so this is a filter you can apply rather than a result you wait for.",
+    negative: "Session, instrument and setup quality are all chosen before entry, which makes this avoidable rather than unlucky.",
+  },
+  [CATEGORY.SELF_AWARENESS]: {
+    positive: "Accurate self-review means your post-trade notes can be trusted as an input, so everything else built on them rests on solid ground.",
+    negative: "When self-review is miscalibrated, every conclusion drawn from it inherits the error — including the other insights in this feed.",
+  },
+  [CATEGORY.IMPROVEMENT]: {
+    positive: "Habits that are already consistent are the cheapest place to build from, because the behaviour is proven rather than aspirational.",
+    negative: "This is the gap between the process you designed and the one you actually run.",
+  },
+};
+
+const EXPECTED_OUTCOME = {
+  [CATEGORY.PSYCHOLOGY]: {
+    positive: "More trades taken from the state that already works for you, and fewer taken from the one that does not.",
+    negative: "Fewer trades entered in a compromised state, which usually shows up first as smaller losing days rather than bigger wins.",
+  },
+  [CATEGORY.CONFIDENCE]: {
+    positive: "Position size lines up with the confidence band that has actually earned it, instead of being uniform across every entry.",
+    negative: "Fewer entries from the band that has not paid, which removes losses without needing a new strategy.",
+  },
+  [CATEGORY.DISCIPLINE]: {
+    positive: "Your results stay attributable to the process rather than to luck, so future reviews compare like with like.",
+    negative: "Higher compliance on the specific rule named above, which is measurable on your next ten trades.",
+  },
+  [CATEGORY.PATTERN]: {
+    positive: "The conditions behind this pattern show up more often because you are now selecting for them.",
+    negative: "The pattern appears less often, and its cost per occurrence drops as you catch it earlier.",
+  },
+  [CATEGORY.TRADING_DNA]: {
+    positive: "More of your volume concentrated in the conditions your own record supports.",
+    negative: "Less exposure to the conditions that have consistently worked against you.",
+  },
+  [CATEGORY.SELF_AWARENESS]: {
+    positive: "You can act on your own trade ratings with confidence, which makes every later review faster.",
+    negative: "Closer agreement between how you rate a trade and how it actually executed, so your reviews stop pointing at the wrong problem.",
+  },
+  [CATEGORY.IMPROVEMENT]: {
+    positive: "A proven habit extended to the parts of your process that are still inconsistent.",
+    negative: "One fewer recurring leak between the plan and the execution.",
+  },
+};
+
 // Minimum P&L magnitude to generate an insight (avoids noise from tiny amounts)
 const MIN_PNL_THRESHOLD = 50;
 // Minimum trade count for an insight to be meaningful
@@ -73,7 +143,23 @@ function priorityFromScore(score) {
   return PRIORITY.LOW;
 }
 
-function makeInsight({ id, category, type, impactScore, title, insight, evidence, recommendation }) {
+/**
+ * Signature for the set of trades a card describes, used to collapse cards that
+ * are really the same finding. Null when any part is missing so a partial
+ * signature can never collide with another card's.
+ */
+function cohortKey({ count, winRate, netPnL } = {}) {
+  if (count == null || winRate == null || netPnL == null) return null;
+  return `${count}|${Number(winRate).toFixed(1)}|${Number(netPnL).toFixed(2)}`;
+}
+
+function makeInsight({
+  id, category, type, impactScore, title, insight, evidence, recommendation,
+  whyItMatters, expectedOutcome, cohort,
+}) {
+  // "neutral" cards read as observations rather than warnings, so they take the
+  // positive framing.
+  const tone = type === "negative" ? "negative" : "positive";
   return {
     id,
     category,
@@ -84,6 +170,10 @@ function makeInsight({ id, category, type, impactScore, title, insight, evidence
     insight,
     evidence,
     recommendation,
+    whyItMatters: whyItMatters || WHY_IT_MATTERS[category]?.[tone] || null,
+    expectedOutcome: expectedOutcome || EXPECTED_OUTCOME[category]?.[tone] || null,
+    // Underscore-prefixed: internal to feed assembly, not part of the API shape.
+    _cohort: cohortKey(cohort),
   };
 }
 
@@ -130,6 +220,7 @@ function insightsFromPsychologyCost(psych, currency, totalVolume) {
         insight: `When you trade with a "${bestEmotionKey.name}" mindset, you generate ${formatAmount(bestEmotionKey.profit, currency)} in net profit.`,
         evidence: `${count} trades · Win rate: ${entry.winRate}% · Avg P&L: ${signedAmount(entry.avgPnL, currency)} per trade`,
         recommendation: `Only take trades when you feel ${bestEmotionKey.name.toLowerCase()}. Your data shows this state produces your best results.`,
+        cohort: { count, winRate: entry.winRate, netPnL: bestEmotionKey.profit },
       }));
     }
   }
@@ -207,7 +298,18 @@ function insightsFromTradingDNA(dna, currency, totalVolume) {
       title: `${bestSession.name} Session Is Your Peak Performance Window`,
       insight: `The ${bestSession.name} session generates ${formatAmount(bestSession.netPnL, currency)} with a ${bestSession.winRate}% win rate.`,
       evidence: `${bestSession.trades} trades · Win rate: ${bestSession.winRate}% · Avg P&L: ${signedAmount(bestSession.avgPnL, currency)}`,
-      recommendation: `Prioritize the ${bestSession.name} session for your highest-conviction setups. Reduce trading activity outside this window.`,
+      // "Reduce activity outside this window" is a claim about the OTHER
+      // sessions, so it may only be made when another session actually cleared
+      // the sample floor and lost money. sessionDNA drops any session with
+      // fewer than 5 trades, so without this guard the card told traders to cut
+      // back on sessions the engine had never even seen.
+      recommendation: (() => {
+        const w = dna.sessionDNA?.worst;
+        const comparable = w && w.name !== bestSession.name && w.netPnL < 0;
+        return comparable
+          ? `Prioritize the ${bestSession.name} session for your highest-conviction setups, and cut back on ${w.name} (${formatAmount(w.netPnL, currency)} across ${w.trades} trades).`
+          : `Prioritize the ${bestSession.name} session for your highest-conviction setups. No other session has enough tracked trades yet to compare against, so treat this as one window to protect rather than a reason to avoid the others.`;
+      })(),
     }));
   }
 
@@ -268,6 +370,7 @@ function insightsFromTradingDNA(dna, currency, totalVolume) {
       insight: `Trades at "${worstConf.name}" confidence have a ${worstConf.winRate}% win rate with ${formatAmount(Math.abs(worstConf.netPnL), currency)} in net losses.`,
       evidence: `${worstConf.trades} trades · Win rate: ${worstConf.winRate}% · Net P&L: ${signedAmount(worstConf.netPnL, currency)}`,
       recommendation: `At "${worstConf.name}" confidence, reduce position size or skip the trade. This state is a statistical edge-killer.`,
+      cohort: { count: worstConf.trades, winRate: worstConf.winRate, netPnL: worstConf.netPnL },
     }));
   }
 
@@ -361,6 +464,7 @@ function insightsFromTradingDNA(dna, currency, totalVolume) {
         insight: `Trading with "${winningPattern.conditionLabel}" gives you a ${winningPattern.winRate}% win rate — your strongest behavioral state.`,
         evidence: `${winningPattern.trades} trades · Win rate: ${winningPattern.winRate}% · Net P&L: ${signedAmount(pnlVal, currency)}`,
         recommendation: `Look for "${winningPattern.conditionLabel}" as your go signal. This is when you should be most active.`,
+        cohort: { count: winningPattern.trades, winRate: winningPattern.winRate, netPnL: pnlVal },
       }));
     }
   }
@@ -403,9 +507,11 @@ function insightsFromPatterns(patterns, currency, totalVolume) {
       insight: topNeg.description,
       evidence: `${topNeg.count} trades · Win rate: ${topNeg.winRate}% · Net P&L: ${signedAmount(topNeg.netPnl, currency)} · Confidence: ${topNeg.confidence}`,
       recommendation: patternRecommendation(topNeg.description, topNeg.module),
+      cohort: { count: topNeg.count, winRate: topNeg.winRate, netPnL: topNeg.netPnl },
     }));
   }
 
+  
   // 2. Top positive pattern
   const topPos = (rankings?.top5Positive || [])[0];
   if (topPos && topPos.netPnl > MIN_PNL_THRESHOLD) {
@@ -418,6 +524,7 @@ function insightsFromPatterns(patterns, currency, totalVolume) {
       insight: topPos.description,
       evidence: `${topPos.count} trades · Win rate: ${topPos.winRate}% · Net P&L: ${signedAmount(topPos.netPnl, currency)} · Confidence: ${topPos.confidence}`,
       recommendation: "This pattern is working. Replicate these conditions as often as possible.",
+      cohort: { count: topPos.count, winRate: topPos.winRate, netPnL: topPos.netPnl },
     }));
   }
 
@@ -463,6 +570,7 @@ function insightsFromPatterns(patterns, currency, totalVolume) {
       insight: `When "${profitCombo.label}" conditions align, your win rate is ${profitCombo.winRate}% with ${formatAmount(profitCombo.netPnl, currency)} net profit.`,
       evidence: `${profitCombo.count} occurrences · Win rate: ${profitCombo.winRate}% · Net P&L: ${signedAmount(profitCombo.netPnl, currency)}`,
       recommendation: `Actively hunt for "${profitCombo.label}" setups. These are your highest-probability trades.`,
+      cohort: { count: profitCombo.count, winRate: profitCombo.winRate, netPnL: profitCombo.netPnl },
     }));
   }
 
@@ -475,10 +583,13 @@ function insightsFromPatterns(patterns, currency, totalVolume) {
         category: CATEGORY.PATTERN,
         type: "negative",
         impactScore: impactFromPnl(pat.netPnl, totalVolume),
-        title: "Additional Behavioral Risk Pattern",
+        // Name the pattern in the title. Two of these can appear at once, and a
+        // shared generic title made them look like the same card twice.
+        title: `Behavioral Risk: ${pat.description}`,
         insight: pat.description,
         evidence: `${pat.count} trades · Win rate: ${pat.winRate}% · Net P&L: ${signedAmount(pat.netPnl, currency)}`,
         recommendation: patternRecommendation(pat.description, pat.module),
+        cohort: { count: pat.count, winRate: pat.winRate, netPnL: pat.netPnl },
       }));
     }
   }
@@ -505,6 +616,12 @@ function insightsFromSelfAwareness(sa) {
       category: isGood ? CATEGORY.IMPROVEMENT : CATEGORY.SELF_AWARENESS,
       type: isGood ? "positive" : "negative",
       impactScore: isGood ? 25 : 45,
+      whyItMatters: isGood
+        ? `Your own trade ratings agree with how the trades actually executed ${score}% of the time, so your post-trade notes can be trusted as an input — every other insight in this feed is built on them.`
+        : `At ${score}% agreement, your post-trade ratings and your actual execution quality are describing different trades — so conclusions drawn from your own review can point at the wrong problem.`,
+      expectedOutcome: isGood
+        ? "You can act on your own read of a trade without waiting for the P&L to confirm it."
+        : "Closer agreement between how you rate a trade and how it executed, which makes the rest of your review trustworthy.",
       title: isGood ? "Strong Self-Awareness Detected" : "Your Trade Evaluation Needs Calibration",
       insight: isGood
         ? `You correctly evaluate ${score}% of your own trades — a strong self-awareness score.`
@@ -619,6 +736,8 @@ function insightsFromDiscipline(disciplineDNA, currency, totalVolume) {
         insight: `You follow ${avgDisciplineScore}% of your setup rules on average — a strong indicator of process discipline.`,
         evidence: `Average discipline score: ${avgDisciplineScore}% across all tracked trades`,
         recommendation: "Maintain this discipline. When setups feel unclear, lean on your rules — they already reflect your highest-edge conditions.",
+        whyItMatters: `Rule-following is the part of trading fully in your control, and at ${avgDisciplineScore}% your results are attributable to a process rather than to luck — which is what makes them worth reviewing at all.`,
+        expectedOutcome: `Compliance holding near ${avgDisciplineScore}% as volume grows, so each review compares like with like instead of measuring a moving process.`,
       }));
     }
   }
@@ -662,7 +781,17 @@ function insightsFromDiscipline(disciplineDNA, currency, totalVolume) {
       title: `High-Quality Setups (${bestSetupRange.name}) Are Your Most Profitable`,
       insight: `Trades in the "${bestSetupRange.name}" setup score range generate ${formatAmount(bestSetupRange.netPnL, currency)} with a ${bestSetupRange.winRate}% win rate.`,
       evidence: `${bestSetupRange.trades} trades · Win rate: ${bestSetupRange.winRate}% · Avg P&L: ${signedAmount(bestSetupRange.avgPnL, currency)} · Confidence: ${bestSetupRange.confidence}`,
-      recommendation: `Only take trades in the ${bestSetupRange.name} range or above. Your data shows lower-score setups significantly underperform.`,
+      // Same rule as the session card: only assert that lower ranges
+      // underperform when a lower range actually cleared the sample floor and
+      // lost money. The discipline chart already greys out ranges with fewer
+      // than 3 trades as "not enough data" — this card must not contradict it.
+      recommendation: (() => {
+        const w = worstSetupRange;
+        const comparable = w && w.name !== bestSetupRange.name && w.netPnL < 0 && w.trades >= MIN_TRADES;
+        return comparable
+          ? `Favour the ${bestSetupRange.name} range. ${w.name} is running at ${formatAmount(w.netPnL, currency)} across ${w.trades} trades.`
+          : `Keep taking setups in the ${bestSetupRange.name} range. No lower score range has enough tracked trades yet to compare against.`;
+      })(),
     }));
   }
 
@@ -720,6 +849,30 @@ function deduplicateById(insights) {
     seen.add(i.id);
     return true;
   });
+}
+
+/**
+ * Drop cards that describe the same underlying set of trades.
+ *
+ * Several engines can land on one cohort from different angles. A trader whose
+ * "Disciplined" tag always coincides with Medium confidence produced four
+ * separate cards — emotion, behavioural pattern, combination, and ranking — all
+ * reporting the identical 6 trades / 66.7% / +$416. That is a quarter of the
+ * feed repeating one finding, and it inflates the positive count so a single
+ * edge looks four times better corroborated than it is.
+ *
+ * Only cards that opt in by passing `cohort` are considered; anything without
+ * one is always kept, so this can never silently swallow a distinct insight.
+ * Within a group the highest-impact card survives.
+ */
+function deduplicateByCohort(insights) {
+  const bestByCohort = new Map();
+  for (const i of insights) {
+    if (!i._cohort) continue;
+    const prev = bestByCohort.get(i._cohort);
+    if (!prev || i.impactScore > prev.impactScore) bestByCohort.set(i._cohort, i);
+  }
+  return insights.filter(i => !i._cohort || bestByCohort.get(i._cohort) === i);
 }
 
 // ── Balance positive/negative 70/30 ──────────────────────────────────────────
@@ -803,14 +956,18 @@ function generateCoachFeed({ psychologyCost, tradingDNA, patterns, selfAwareness
     ...insightsFromDiscipline(tradingDNA?.disciplineDNA, currency, vol),
   ];
 
-  // Deduplicate
+  // Deduplicate — by id first, then by the trade cohort being described
   insights = deduplicateById(insights);
+  insights = deduplicateByCohort(insights);
 
   // Filter out zero-impact
   insights = insights.filter(i => i.impactScore > 0);
 
   // Balance 70/30 negative/positive
   insights = balanceFeed(insights);
+
+  // Drop the internal cohort marker so it never reaches API consumers
+  insights = insights.map(({ _cohort, ...rest }) => rest);
 
   return {
     insufficient: false,

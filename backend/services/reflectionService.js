@@ -6,6 +6,7 @@ const IndianTrade = require("../models/IndianTrade");
 const streakService = require("./streak.service");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
+const { invalidateTradeCaches } = require("../utils/cacheUtils");
 
 const WEEKLY_WINDOW_DAYS = 7;
 const HISTORY_HARD_CAP_DAYS = 90;
@@ -331,6 +332,12 @@ async function upsertReflection({ userId, payload = {} }) {
     source,
   });
 
+  // The dashboard snapshot is cached server-side for 90s, keyed by this user's
+  // cache version. Without bumping it, the client refetches after submitting
+  // and gets the pre-reflection response back, so the card appears not to
+  // update for up to a minute and a half.
+  await invalidateTradeCaches({ userId, event: "reflection_submit", source: "reflection" });
+
   return { reflection, context, day, timezone: tz };
 }
 
@@ -350,6 +357,11 @@ async function skipReflection({ userId, payload = {} }) {
   );
 
   logger.info("REFLECTION_SKIPPED", { userId: String(userId), day, source });
+
+  // Skipping still changes the weekly score and streak, so the cached snapshot
+  // has to be dropped here too.
+  await invalidateTradeCaches({ userId, event: "reflection_skip", source: "reflection" });
+
   return { reflection, context, day, timezone: tz };
 }
 

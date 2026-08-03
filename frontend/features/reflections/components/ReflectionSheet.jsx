@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -29,8 +30,24 @@ const REPEAT_OPTIONS = [
   { value: "no",     label: "No",     color: "#D63B3B" },
 ];
 
-const MOOD_EMOJI = ["😩", "😕", "😐", "🙂", "😎"];
-const CONF_LABELS = ["Shaken", "Low", "Steady", "Confident", "On fire"];
+// Each level carries its own word. The emoji alone left users guessing what
+// the middle of the scale meant, and confidence used to render only the first
+// letter of each label — which showed "S L S C O", with Shaken and Steady both
+// collapsing to an indistinguishable "S".
+const MOOD_LEVELS = [
+  { emoji: "😩", label: "Rough" },
+  { emoji: "😕", label: "Off" },
+  { emoji: "😐", label: "Flat" },
+  { emoji: "🙂", label: "Good" },
+  { emoji: "😎", label: "Great" },
+];
+const CONF_LEVELS = [
+  { label: "Shaken" },
+  { label: "Low" },
+  { label: "Steady" },
+  { label: "Confident" },
+  { label: "On fire" },
+];
 
 function pillStyle(active, color) {
   return {
@@ -52,39 +69,62 @@ function pillStyle(active, color) {
   };
 }
 
-function Slider({ label, value, onChange, options, accent }) {
+/**
+ * Five-point scale where every option shows its own word, so the meaning does
+ * not depend on reading an emoji or on a caption that only appears after you
+ * have already chosen.
+ */
+function Slider({ label, value, onChange, levels, accent }) {
+  const selected = value ? levels[value - 1] : null;
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: "#0F1923" }}>{label}</span>
-        <span style={{ fontSize: 11, color: accent, fontWeight: 700 }}>
-          {value ? options[value - 1] : "Tap to choose"}
+        <span style={{ fontSize: 11, color: selected ? accent : "#94A3B8", fontWeight: 700 }}>
+          {selected ? selected.label : "Tap to choose"}
         </span>
       </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        {[1, 2, 3, 4, 5].map((n) => {
+      <div style={{ display: "flex", gap: 5 }}>
+        {levels.map((level, idx) => {
+          const n = idx + 1;
           const active = value === n;
           return (
             <button
-              key={n}
+              key={level.label}
               type="button"
               onClick={() => onChange(active ? null : n)}
               aria-pressed={active}
-              aria-label={`${label} ${n}`}
+              aria-label={`${label}: ${level.label}`}
               style={{
                 flex: 1,
-                height: 44,
+                minWidth: 0,
+                minHeight: 56,
+                padding: "6px 2px",
                 borderRadius: 10,
                 border: `1px solid ${active ? accent : "#E2E8F0"}`,
                 background: active ? `${accent}1A` : "#FFFFFF",
-                color: active ? accent : "#94A3B8",
-                fontSize: 20,
+                color: active ? accent : "#64748B",
                 cursor: "pointer",
+                touchAction: "manipulation",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
                 transition: "transform 0.1s ease, background 0.12s ease",
                 transform: active ? "translateY(-1px)" : "translateY(0)",
               }}
             >
-              {options[n - 1]}
+              {level.emoji && <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>{level.emoji}</span>}
+              <span style={{
+                fontSize: 9.5,
+                fontWeight: active ? 800 : 600,
+                lineHeight: 1.15,
+                textAlign: "center",
+                letterSpacing: "-0.01em",
+              }}>
+                {level.label}
+              </span>
             </button>
           );
         })}
@@ -261,7 +301,7 @@ export default function ReflectionSheet({ open, onClose }) {
                 label="How did today feel?"
                 value={mood}
                 onChange={setMood}
-                options={MOOD_EMOJI}
+                levels={MOOD_LEVELS}
                 accent="#8B5CF6"
               />
             </section>
@@ -271,12 +311,9 @@ export default function ReflectionSheet({ open, onClose }) {
                 label="Confidence level"
                 value={confidence}
                 onChange={setConfidence}
-                options={CONF_LABELS.map((label) => label[0])}
+                levels={CONF_LEVELS}
                 accent="#0D9E6E"
               />
-              <div style={{ marginTop: 4, fontSize: 10, color: "#94A3B8", textAlign: "right" }}>
-                {confidence ? CONF_LABELS[confidence - 1] : "Tap a level"}
-              </div>
             </section>
 
             {hadTrades && (

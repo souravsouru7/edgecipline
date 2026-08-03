@@ -5,6 +5,7 @@ const MissionAssignment = require("../models/MissionAssignment");
 const User = require("../models/Users");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
+const { toObjectId } = require("../utils/objectId");
 
 // Maximum number of simultaneous active missions per user
 const MAX_ACTIVE_MISSIONS = 3;
@@ -312,7 +313,9 @@ async function getMissionStats(userId) {
     .lean();
 
   const categoryBreakdown = await MissionAssignment.aggregate([
-    { $match: { user: userId, status: "completed" } },
+    // toObjectId: aggregation does not cast, so a cached (string) userId would
+    // match nothing here while the find/countDocuments above still worked.
+    { $match: { user: toObjectId(userId), status: "completed" } },
     { $group: { _id: "$missionSnapshot.category", count: { $sum: 1 } } },
   ]);
 

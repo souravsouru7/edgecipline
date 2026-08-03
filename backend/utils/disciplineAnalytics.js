@@ -24,14 +24,17 @@
  * Performance:  O(n × m) where m = avg rules per trade ≤ 20
  */
 
+const { withLabels } = require("./setupScoreBuckets");
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const SETUP_SCORE_RANGES = [
-  { label: "0–39",   min: 0,   max: 40  },
-  { label: "40–59",  min: 40,  max: 60  },
-  { label: "60–79",  min: 60,  max: 80  },
-  { label: "80–100", min: 80,  max: 101 },
-];
+// Shared boundaries (see utils/setupScoreBuckets.js)
+const SETUP_SCORE_RANGES = withLabels({
+  poor:    "0–39",
+  low:     "40–59",
+  average: "60–79",
+  strong:  "80–100",
+});
 
 const NEGATIVE_TAGS = new Set(["FOMO", "Revenge", "Fear", "Greed", "Frustrated", "Bored"]);
 const POSITIVE_TAGS = new Set(["Calm", "Focused", "Patient", "Disciplined"]);

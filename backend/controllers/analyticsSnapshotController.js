@@ -1,9 +1,11 @@
+
 "use strict";
 
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 const { generateCoachFeed } = require("../utils/aiCoachFeed");
+const { getPlannedRiskReward } = require("../utils/riskReward");
 
 const ALLOWED_FOREX_MARKETS = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks"]);
 const ALLOWED_INDIAN_INSTRUMENTS = new Set(["OPTION", "EQUITY"]);
@@ -100,36 +102,9 @@ function buildCoachFeed(snapshot, marketType) {
   return { ...feed, basicStats: snapshot.basicStats };
 }
 
-function numericOrNull(value) {
-  if (value == null || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function parseRiskRewardField(value) {
-  if (typeof value !== "string" || !value.includes(":")) return null;
-  const parts = value.split(":");
-  if (parts.length !== 2) return null;
-  const reward = Number(parts[1]);
-  return Number.isFinite(reward) && reward > 0 ? reward : null;
-}
-
-function getPlannedRiskReward(trade = {}) {
-  const entry = numericOrNull(trade.entryPrice);
-  const stop = numericOrNull(trade.stopLoss);
-  const target = numericOrNull(trade.takeProfit);
-  if (entry != null && stop != null && target != null) {
-    const risk = Math.abs(entry - stop);
-    if (risk > 0) {
-      return { rr: Math.abs(target - entry) / risk, risk };
-    }
-  }
-
-  const fieldRR = trade.riskRewardRatio === "custom"
-    ? parseRiskRewardField(trade.riskRewardCustom)
-    : parseRiskRewardField(trade.riskRewardRatio);
-  return fieldRR ? { rr: fieldRR, risk: null } : null;
-}
+// Planned R:R lives in utils/riskReward.js so this controller and
+// getRiskRewardAnalysis cannot drift apart — they previously disagreed on
+// whether the price levels or the trader's stated ratio takes precedence.
 
 function average(rows) {
   return rows.length ? rows.reduce((sum, row) => sum + row, 0) / rows.length : null;

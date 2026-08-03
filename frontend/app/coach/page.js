@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, MessageSquare } from "lucide-react";
+import { Sparkles, Plus, Trash2, MessageSquare, ChevronLeft } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageHeader from "@/features/shared/components/PageHeader";
 import CoachChat from "@/features/coach-chat/components/CoachChat";
@@ -20,6 +20,10 @@ function Page() {
   const createConversation = useCreateConversation();
   const deleteConversation = useDeleteConversation();
   const [selectedId, setSelectedId] = useState(null);
+  // Master-detail on one screen. Below 820px only one pane is shown at a time —
+  // stacking the full conversation list on top of a 100dvh chat pushed the
+  // message input a screen and a half down the page.
+  const [mobilePane, setMobilePane] = useState("list");
 
   const conversations = useMemo(
     () => conversationsQuery.data?.conversations || [],
@@ -31,18 +35,26 @@ function Page() {
     return conversations[0]?._id || null;
   }, [selectedId, conversations]);
 
+  const openConversation = (id) => {
+    setSelectedId(id);
+    setMobilePane("chat");
+  };
+
   const handleNew = async () => {
     const result = await createConversation.mutateAsync({
       anchor: { kind: "dashboard", label: "New coach session" },
       market: "any",
     });
-    setSelectedId(result.conversation._id);
+    openConversation(result.conversation._id);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this conversation?")) return;
+  const handleDelete = async (id, title) => {
+    if (!confirm(`Delete "${title || "this conversation"}"? This cannot be undone.`)) return;
     await deleteConversation.mutateAsync(id);
-    if (selectedId === id) setSelectedId(null);
+    if (selectedId === id) {
+      setSelectedId(null);
+      setMobilePane("list");
+    }
   };
 
   return (
@@ -65,8 +77,8 @@ function Page() {
         display: "grid",
         gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
         gap: 16,
-      }} className="coach-grid">
-        <aside style={{
+      }} className="coach-grid" data-pane={mobilePane}>
+        <aside className="coach-list" style={{
           background: "#FFFFFF",
           border: "1px solid #E2E8F0",
           borderRadius: 14,
@@ -111,70 +123,64 @@ function Page() {
             {conversations.map((c) => {
               const active = c._id === activeId;
               return (
-                <li key={c._id} style={{ minWidth: 0 }}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(c._id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedId(c._id);
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      border: active ? "1px solid rgba(139,92,246,0.5)" : "1px solid #E2E8F0",
-                      borderRadius: 10,
-                      background: active ? "rgba(139,92,246,0.06)" : "#FFFFFF",
-                      cursor: "pointer",
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "flex-start",
-                      minWidth: 0,
-                      overflow: "hidden",
-                    }}
+                /* Row and delete are siblings, not nested buttons — a <button>
+                   inside role="button" is invalid and confuses screen readers. */
+                <li
+                  key={c._id}
+                  style={{
+                    display: "flex",
+                    alignItems: "stretch",
+                    minWidth: 0,
+                    overflow: "hidden",
+                    border: active ? "1px solid rgba(139,92,246,0.5)" : "1px solid #E2E8F0",
+                    borderRadius: 10,
+                    background: active ? "rgba(139,92,246,0.06)" : "#FFFFFF",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openConversation(c._id)}
+                    aria-current={active ? "true" : undefined}
+                    className="coach-row"
                   >
-                    <MessageSquare size={14} color={active ? "#7C3AED" : "#94A3B8"} style={{ marginTop: 1, flexShrink: 0 }} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{
-                        fontSize: 12, fontWeight: 800, color: "#0F1923",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>{c.title || "Coach session"}</div>
-                      <div style={{
-                        fontSize: 11, color: "#64748B", marginTop: 2,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>{c.lastMessagePreview || "—"}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(event) => { event.stopPropagation(); handleDelete(c._id); }}
-                      aria-label="Delete"
-                      style={{ background: "none", border: "none", padding: 4, color: "#94A3B8", cursor: "pointer", flexShrink: 0 }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
+                    <MessageSquare size={15} color={active ? "#7C3AED" : "#94A3B8"} style={{ marginTop: 2, flexShrink: 0 }} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span className="coach-title">{c.title || "Coach session"}</span>
+                      <span className="coach-preview">{c.lastMessagePreview || "—"}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c._id, c.title)}
+                    aria-label={`Delete conversation: ${c.title || "Coach session"}`}
+                    className="coach-del"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </li>
               );
             })}
           </ul>
         </aside>
 
-        <section style={{ minHeight: 540, height: "calc(100vh - 160px)", minWidth: 0 }}>
+        {/* dvh, not vh: mobile browser chrome makes 100vh taller than the
+            visible viewport, which pushed the composer under the bottom nav. */}
+        <section className="coach-detail" style={{ minHeight: 540, height: "calc(100dvh - 160px)", minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <button type="button" className="coach-back" onClick={() => setMobilePane("list")}>
+            <ChevronLeft size={17} /> Conversations
+          </button>
           {activeId ? (
-            <CoachChat
-              mode="inline"
-              open
-              conversationId={activeId}
-              anchor={{ kind: "dashboard" }}
-            />
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <CoachChat
+                mode="inline"
+                open
+                conversationId={activeId}
+                anchor={{ kind: "dashboard" }}
+              />
+            </div>
           ) : (
             <div style={{
-              height: "100%",
+              flex: 1, minHeight: 0,
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
               border: "1px dashed #CBD5E1", borderRadius: 14,
@@ -214,9 +220,95 @@ function Page() {
       </main>
 
       <style jsx global>{`
+        /* Conversation row: fills the card, leaves the delete button its own
+           hit area beside it rather than nested inside. */
+        .coach-row {
+          flex: 1;
+          min-width: 0;
+          min-height: 56px;
+          display: flex;
+          gap: 9px;
+          align-items: flex-start;
+          text-align: left;
+          padding: 11px 6px 11px 12px;
+          background: none;
+          border: none;
+          font: inherit;
+          color: inherit;
+          cursor: pointer;
+          touch-action: manipulation;
+        }
+        .coach-row:active { background: rgba(15,25,35,0.04); }
+
+        .coach-title {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
+          font-size: 13px;
+          font-weight: 800;
+          color: #0F1923;
+          line-height: 1.35;
+        }
+        .coach-preview {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 1;
+          overflow: hidden;
+          font-size: 11.5px;
+          color: #64748B;
+          margin-top: 3px;
+          line-height: 1.45;
+        }
+
+        /* Was a 12px icon in 4px padding — a 20x20 target sitting directly on
+           top of the row, so a mis-tap deleted the conversation. */
+        .coach-del {
+          width: 46px;
+          align-self: stretch;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+          background: none;
+          border: none;
+          border-left: 1px solid rgba(15,25,35,0.06);
+          color: #94A3B8;
+          cursor: pointer;
+          touch-action: manipulation;
+        }
+        .coach-del:active { background: rgba(214,59,59,0.09); color: #D63B3B; }
+
+        .coach-back { display: none; }
+
         @media (max-width: 820px) {
-          .coach-grid {
-            grid-template-columns: 1fr !important;
+          .coach-grid { grid-template-columns: 1fr !important; }
+
+          /* One pane at a time. Both panes stacked meant scrolling past the
+             whole list to reach the composer. */
+          .coach-grid[data-pane="list"] .coach-detail { display: none; }
+          .coach-grid[data-pane="chat"] .coach-list   { display: none; }
+
+          .coach-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            align-self: flex-start;
+            min-height: 44px;
+            padding: 0 12px 0 4px;
+            margin-bottom: 6px;
+            background: none;
+            border: none;
+            color: #7C3AED;
+            font-family: inherit;
+            font-size: 13.5px;
+            font-weight: 800;
+            cursor: pointer;
+            touch-action: manipulation;
+          }
+
+          .coach-detail {
+            height: calc(100dvh - 210px) !important;
+            min-height: 380px !important;
           }
         }
       `}</style>

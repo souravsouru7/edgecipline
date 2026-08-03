@@ -457,10 +457,10 @@ describe("Module 8 — Day of Week Patterns", () => {
 // ── Module 9: Setup Score Range Patterns ─────────────────────────────────────
 
 describe("Module 9 — Setup Score Range Patterns", () => {
-  test("setup score 85 falls in 81-100 bucket", () => {
+  test("setup score 85 falls in 80-100 bucket", () => {
     const trades = nOf(10, () => win({ setupScore: 85, profit: 200 }));
     const r = computePatternDetection(trades);
-    const highRange = r.setupScore.byRange.find(x => x.range === "81-100");
+    const highRange = r.setupScore.byRange.find(x => x.range === "80-100");
     expect(highRange).toBeDefined();
     expect(highRange.count).toBe(10);
   });
@@ -471,21 +471,32 @@ describe("Module 9 — Setup Score Range Patterns", () => {
       ...nOf(10, () => loss({ setupScore: 20, profit: -200 })),
     ];
     const r = computePatternDetection(trades);
-    expect(r.setupScore.optimalThreshold).toBe("81-100");
-    expect(r.setupScore.worstRange).toBe("0-40");
+    expect(r.setupScore.optimalThreshold).toBe("80-100");
+    expect(r.setupScore.worstRange).toBe("0-39");
   });
 
   test("setup score boundary values", () => {
     const trades = [
-      ...nOf(5, () => win({ setupScore: 40 })), // Should be in 0-40 (min 0, max 41 means <41)
-      ...nOf(5, () => win({ setupScore: 41 })), // Should be in 41-60
-      ...nOf(5, () => win({ setupScore: 81 })), // Should be in 81-100
+      ...nOf(5, () => win({ setupScore: 39 })), // 0-39  (max 40 is exclusive)
+      ...nOf(5, () => win({ setupScore: 40 })), // 40-59 (lower edge is inclusive)
+      ...nOf(5, () => win({ setupScore: 80 })), // 80-100
     ];
     const r = computePatternDetection(trades);
     const labels = r.setupScore.byRange.map(x => x.range);
-    expect(labels).toContain("0-40");
-    expect(labels).toContain("41-60");
-    expect(labels).toContain("81-100");
+    expect(labels).toContain("0-39");
+    expect(labels).toContain("40-59");
+    expect(labels).toContain("80-100");
+  });
+
+  // Regression: this engine used to split at 0/41/61/81 while Trading DNA and
+  // Discipline split at 0/40/60/80, so a score of exactly 80 landed in a
+  // different bucket depending on which screen you opened.
+  test("score of exactly 80 buckets as 80-100, matching the other engines", () => {
+    const trades = nOf(6, () => win({ setupScore: 80, profit: 100 }));
+    const r = computePatternDetection(trades);
+    const labels = r.setupScore.byRange.map(x => x.range);
+    expect(labels).toEqual(["80-100"]);
+    expect(r.setupScore.byRange[0].count).toBe(6);
   });
 });
 
@@ -556,7 +567,7 @@ describe("Module 11 — Combination Patterns", () => {
       profit: 200,
     }));
     const r = computePatternDetection(trades);
-    const combo = r.combinations.allCombinations.find(c => c.key === "81-100|||London");
+    const combo = r.combinations.allCombinations.find(c => c.key === "80-100|||London");
     expect(combo).toBeDefined();
     expect(combo.label).toContain("London");
   });

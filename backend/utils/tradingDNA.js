@@ -43,6 +43,7 @@ function getConfidence(count) {
 // ── Math helpers ───────────────────────────────────────────────────────────────
 
 const { calculateBucketStats, percent, round } = require("./metricEngine");
+const { withLabels } = require("./setupScoreBuckets");
 
 const pct = percent;
 const fix2 = round;
@@ -284,12 +285,13 @@ function computeMistakeDNA(trades) {
 
 // ── Module 4: Discipline DNA ───────────────────────────────────────────────────
 
-const SETUP_SCORE_RANGES = [
-  { label: "0–39 (Poor)", min: 0, max: 40 },
-  { label: "40–59 (Below Avg)", min: 40, max: 60 },
-  { label: "60–79 (Average)", min: 60, max: 80 },
-  { label: "80–100 (Strong)", min: 80, max: 101 },
-];
+// Shared boundaries, DNA-specific wording (see utils/setupScoreBuckets.js)
+const SETUP_SCORE_RANGES = withLabels({
+  poor:    "0–39 (Poor)",
+  low:     "40–59 (Below Avg)",
+  average: "60–79 (Average)",
+  strong:  "80–100 (Strong)",
+});
 
 function computeSetupScoreDNA(trades) {
   const buckets = {};

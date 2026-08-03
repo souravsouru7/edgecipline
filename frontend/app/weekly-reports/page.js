@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, TrendingUp, TrendingDown, Target, AlertTriangle, CheckSquare, Lightbulb } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Target, AlertTriangle, CheckSquare, Lightbulb, Sparkles, Brain } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { generateWeeklyFeedbackNow, listWeeklyReports } from "@/services/reportsApi";
 import { useMarket } from "@/context/MarketContext";
@@ -420,6 +420,102 @@ function ReportDetailSkeleton() {
   );
 }
 
+// -- Empty state ---------------------------------------------------------------
+
+/**
+ * Shown when the user has no reports at all.
+ *
+ * Replaces two stacked blank cards ("No reports yet" + "Select a report from the
+ * left panel") that between them offered no action and referenced a left panel
+ * that does not exist on mobile. An empty state is the one screen guaranteed to
+ * be a user's first impression of the feature, so it carries the primary CTA and
+ * explains what the report will contain.
+ */
+function EmptyReportsState({ onGenerate, busy }) {
+  const preview = [
+    { Icon: TrendingUp, tint: C.bull, title: "Performance breakdown",
+      body: "Net P&L, win rate, profit factor, and your best and worst trade of the week." },
+    { Icon: Brain, tint: C.purple, title: "Psychology read",
+      body: "Plan adherence, calm-trading rate, and the emotional tags behind the results." },
+    { Icon: CheckSquare, tint: C.gold, title: "Next week checklist",
+      body: "Specific actions drawn from your own numbers — not generic trading advice." },
+  ];
+
+  return (
+    <section style={{
+      background: "#FFFFFF", borderRadius: 16, border: "1px solid #E8EDF2",
+      overflow: "hidden", boxShadow: "0 4px 20px rgba(15,25,35,0.05)",
+    }}>
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, ${C.blue} 60%, transparent)` }} />
+
+      <div style={{ padding: "34px 22px 26px", textAlign: "center" }}>
+        <div aria-hidden="true" style={{
+          width: 58, height: 58, borderRadius: 18, margin: "0 auto 18px",
+          background: "rgba(13,158,110,0.09)", border: "1px solid rgba(13,158,110,0.18)",
+          display: "grid", placeItems: "center",
+        }}>
+          <Sparkles size={25} color={C.bull} />
+        </div>
+
+        <h2 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 800, color: C.primary, letterSpacing: "-0.01em" }}>
+          Your first weekly report
+        </h2>
+        <p style={{ margin: "0 auto 22px", maxWidth: 360, fontSize: 14, lineHeight: 1.65, color: "#5A6B7B" }}>
+          Edgecipline reviews the last 7 days of your journal and writes back what your
+          own data says — the numbers, the psychology behind them, and what to change.
+        </p>
+
+        <button
+          onClick={onGenerate}
+          disabled={busy}
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            minHeight: 48, padding: "0 24px", width: "100%", maxWidth: 300,
+            background: busy ? "#E2E8F0" : C.bull,
+            color: busy ? C.muted : "#FFFFFF",
+            border: "none", borderRadius: 12,
+            fontSize: 14.5, fontWeight: 700, fontFamily: "inherit",
+            cursor: busy ? "not-allowed" : "pointer",
+            boxShadow: busy ? "none" : "0 2px 10px rgba(13,158,110,0.28)",
+            transition: "transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease",
+            touchAction: "manipulation",
+          }}
+        >
+          <RefreshCw size={16} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />
+          {busy ? "Generating your report…" : "Generate my first report"}
+        </button>
+
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 12, lineHeight: 1.5 }}>
+          Takes a few seconds · Refreshes once every 7 days
+        </div>
+      </div>
+
+      <div style={{ borderTop: "1px solid #EEF2F6", background: "#FBFCFD", padding: "18px 20px 20px" }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.09em", color: C.muted, marginBottom: 14 }}>
+          WHAT YOU GET
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          {preview.map(({ Icon, tint, title, body }) => (
+            <div key={title} style={{ display: "flex", gap: 12, alignItems: "flex-start", textAlign: "left" }}>
+              <div aria-hidden="true" style={{
+                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                background: `${tint}14`, border: `1px solid ${tint}2E`,
+                display: "grid", placeItems: "center",
+              }}>
+                <Icon size={15} color={tint} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{title}</div>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: "#64748B" }}>{body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // -- Main component ------------------------------------------------------------
 
 function WeeklyReportsContent() {
@@ -468,7 +564,14 @@ function WeeklyReportsContent() {
     }
   };
 
-  const isIndian = marketParam === "Indian_Market";
+  // Fall back to the context market when the URL carries no ?market= param.
+  // Profile, push notifications, and the admin deep link all link to a bare
+  // /weekly-reports, and MarketContext leaves the saved market intact for this
+  // route — so keying only off the param rendered the Forex header (and Forex
+  // nav links) over Indian data and ₹ amounts.
+  const isIndian = marketParam
+    ? marketParam === "Indian_Market"
+    : currentMarket === "Indian_Market";
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary }}>
@@ -481,20 +584,52 @@ function WeeklyReportsContent() {
         justifyContent: "space-between", gap: 12,
       }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: C.primary }}>Weekly AI Reports</span>
-        <button onClick={onGenerateNow} disabled={busy} className="wr-gen-btn" style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: busy ? "#E2E8F0" : C.bull,
-          border: "none", borderRadius: 8, padding: "8px 14px",
-          color: busy ? C.muted : "#FFFFFF",
-          fontSize: 12, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-          transition: "all 0.2s", whiteSpace: "nowrap",
-        }}>
-          <RefreshCw size={13} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />
-          <span className="wr-gen-label">{busy ? "Generating..." : "Generate Report"}</span>
+        {/* Always keeps a visible text label. This button used to collapse to a
+            bare icon under 600px while the empty state told users to "click
+            Generate Report above" — a label that was not on screen. */}
+        <button
+          onClick={onGenerateNow}
+          disabled={busy}
+          className="wr-gen-btn"
+          aria-label={busy ? "Generating weekly report" : "Generate weekly report"}
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+            background: busy ? "#E2E8F0" : C.bull,
+            border: "none", borderRadius: 10, padding: "0 16px",
+            minHeight: 44, flexShrink: 0,
+            color: busy ? C.muted : "#FFFFFF",
+            fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+            cursor: busy ? "not-allowed" : "pointer",
+            transition: "background 0.2s ease, opacity 0.2s ease",
+            whiteSpace: "nowrap", touchAction: "manipulation",
+          }}
+        >
+          <RefreshCw size={14} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />
+          <span>{busy ? "Generating" : <>Generate<span className="wr-gen-long"> Report</span></>}</span>
         </button>
       </div>
 
-      {/* -- Body -------------------------------------------------- */}
+      {/* Alerts sit above both layouts so they are visible in the empty state too */}
+      {(error || (info && !error)) && (
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "16px 20px 0" }}>
+          {error ? (
+            <div role="alert" style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(214,59,59,0.08)", border: "1px solid rgba(214,59,59,0.2)", color: C.bear, fontSize: 13, lineHeight: 1.55 }}>
+              {error}
+            </div>
+          ) : (
+            <div role="status" style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(13,158,110,0.07)", border: "1px solid rgba(13,158,110,0.2)", color: C.bull, fontSize: 13, lineHeight: 1.55 }}>
+              {info}
+            </div>
+          )}
+        </div>
+      )}
+
+      {reports && reports.length === 0 ? (
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 40px" }}>
+          <EmptyReportsState onGenerate={onGenerateNow} busy={busy} />
+        </div>
+      ) : (
+      /* -- Body -------------------------------------------------- */
       <div className="wr-body" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px", display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
 
         {/* Sidebar */}
@@ -505,10 +640,6 @@ function WeeklyReportsContent() {
 
           {!reports ? (
             <ReportHistorySkeleton />
-          ) : reports.length === 0 ? (
-            <div style={{ padding: 20, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-              No reports yet.<br />Click <strong style={{ color: C.bull }}>Generate Report</strong> above.
-            </div>
           ) : (
             <div className="wr-sidebar-list" style={{ display: "flex", flexDirection: "column" }}>
               {reports.map(r => {
@@ -543,23 +674,15 @@ function WeeklyReportsContent() {
 
         {/* Report detail */}
         <main>
-          {/* Alerts */}
-          {error && (
-            <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, background: "rgba(214,59,59,0.08)", border: "1px solid rgba(214,59,59,0.2)", color: C.bear, fontSize: 13 }}>
-              {error}
-            </div>
-          )}
-          {info && !error && (
-            <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, background: "rgba(13,158,110,0.07)", border: "1px solid rgba(13,158,110,0.2)", color: C.bull, fontSize: 13 }}>
-              {info}
-            </div>
-          )}
-
           {!reports ? (
             <ReportDetailSkeleton />
           ) : !selected ? (
-            <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "60px 24px", textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: C.muted }}>Select a report from the left panel.</div>
+            /* Copy stays layout-neutral: the history list sits to the left on
+               desktop but scrolls horizontally above this panel on mobile. */
+            <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "48px 24px", textAlign: "center" }}>
+              <Lightbulb size={20} color={C.muted} style={{ marginBottom: 10 }} />
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.primary, marginBottom: 4 }}>Choose a week</div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Pick a week from your report history to read its full breakdown.</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -704,6 +827,7 @@ function WeeklyReportsContent() {
           )}
         </main>
       </div>
+      )}
 
       <style jsx global>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -728,9 +852,10 @@ function WeeklyReportsContent() {
         @media (max-width: 600px) {
           .wr-body { padding: 12px !important; gap: 12px !important; }
 
-          /* Header */
-          .wr-gen-label { display: none; }
-          .wr-gen-btn   { padding: 8px 10px !important; }
+          /* Header: shorten the label rather than removing it, so the button is
+             never an unlabelled icon. Touch target stays at 44px. */
+          .wr-gen-long { display: none; }
+          .wr-gen-btn  { padding: 0 14px !important; }
 
           /* Sidebar: static + horizontal scrollable list on mobile */
           aside { position: static !important; }

@@ -17,6 +17,7 @@ const {
 const { invalidateAuthCache } = require("../services/authCacheService");
 const analytics = require("../services/analyticsEventService");
 const { logger } = require("../utils/logger");
+const { toObjectId } = require("../utils/objectId");
 
 // In-memory dedupe so we only emit `trial_expired` once per user per process
 // lifecycle, even if /status is polled every 60s. Re-emits after restart are
@@ -85,7 +86,9 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
     Trade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
     IndianTrade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
     Trade.aggregate([
-      { $match: { user: userId, deletedAt: null, strategy: { $nin: [null, ""] } } },
+      // toObjectId: aggregation does not cast, so a cached (string) userId
+      // would match nothing here while the countDocuments above still worked.
+      { $match: { user: toObjectId(userId), deletedAt: null, strategy: { $nin: [null, ""] } } },
       {
         $group: {
           _id: "$strategy",

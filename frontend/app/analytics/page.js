@@ -21,6 +21,10 @@ import { Skeleton }          from "@/features/shared";
 
 const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
 
+// Mirrors MIN_CALIBRATED_REVIEWS in backend/utils/tradeEvaluation.js — below
+// this a self-awareness score is one or two reviews and means nothing.
+const MIN_CALIBRATED_REVIEWS = 3;
+
 const ANALYTICS_SECTIONS = [
   { section: "psychology", href: "/analytics/psychology", title: "Psychology Analytics", subtitle: "Mood, confidence, emotions, and retake review", accent: C.purple },
   { section: "self-awareness", href: "/analytics/self-awareness", title: "Self Awareness Engine", subtitle: "Trade review calibration", accent: C.purple },
@@ -312,10 +316,30 @@ function buildTradingDNAInterpretation(dna) {
   const pnlOf = (c) => c?.netPnL ?? c?.profit ?? null;
   const nameOf = (c) => c?.name || c?.label || null;
 
-  const candidates = [dna.sessionDNA?.best, dna.instrumentDNA?.best, dna.disciplineDNA?.bestSetupRange].filter(Boolean);
-  // Only a net-positive condition counts as an edge. These fields are ranked
+  // Rank by size, not by a fixed source order. Taking the first profitable
+  // entry from a hardcoded list meant the session always won: the card could
+  // show BEST EMOTION at +$416.37 while calling a +$82.59 session "your
+  // strongest edge" two lines below it.
+  const candidates = [
+    dna.sessionDNA?.best,
+    dna.instrumentDNA?.best,
+    dna.disciplineDNA?.bestSetupRange,
+    dna.emotionDNA?.mostProfitable,
+    dna.confidenceDNA?.best,
+  ].filter(Boolean);
+
+  // Only a net-positive condition counts as an edge — these fields are ranked
   // by P&L, so the top entry is still a loser when everything loses.
-  const strength = candidates.find((c) => (pnlOf(c) ?? 0) > 0) || null;
+  const ranked = candidates
+    .filter((c) => (pnlOf(c) ?? 0) > 0)
+    .sort((a, b) => (pnlOf(b) ?? 0) - (pnlOf(a) ?? 0));
+  const strength = ranked[0] || null;
+
+  // The worst condition that actually cleared the engine's sample floor, so
+  // the action plan can only name something real.
+  const worstTracked = [dna.sessionDNA?.worst, dna.instrumentDNA?.worst, dna.disciplineDNA?.worstSetupRange]
+    .filter((c) => c && (pnlOf(c) ?? 0) < 0)
+    .sort((a, b) => (pnlOf(a) ?? 0) - (pnlOf(b) ?? 0))[0] || null;
 
   const identity = { label: "Your Trading Identity", text: dna.dnaSummary?.tradingIdentity || "Edgecipline is using your repeated conditions, behaviors, and review data to describe the trader you actually are." };
 
@@ -326,7 +350,18 @@ function buildTradingDNAInterpretation(dna) {
       identity,
       { label: "What This Means", text: `Your strongest edge is currently clustering around ${strengthName}. This is where your data shows the clearest repeatable advantage.` },
       { label: "Why It Matters", text: strengthPnl != null ? `That condition is contributing ${moneyText(strengthPnl)}, so it deserves more attention than random lower-quality trades.` : "A repeatable edge gives you a better review target than looking at every win and loss equally." },
-      { label: "Action Plan", text: `Prioritize trades that match ${strengthName} and reduce trades that do not match your strongest conditions.` },
+      // "Reduce everything else" is a claim about conditions this engine may
+      // never have seen: sessions/instruments under 5 trades are filtered out
+      // before they get here. Only say it when a comparable condition actually
+      // cleared the floor and lost money — otherwise the card can tell a trader
+      // to cut sessions that are quietly profitable while the real drain sits
+      // below the sample threshold, invisible.
+      {
+        label: "Action Plan",
+        text: worstTracked
+          ? `Prioritize trades that match ${strengthName}, and cut back on ${nameOf(worstTracked)} (${moneyText(pnlOf(worstTracked))}).`
+          : `Prioritize trades that match ${strengthName}. Nothing else has enough tracked trades yet to compare it against, so treat this as one condition to protect rather than a reason to avoid the rest.`,
+      },
       { label: "Expected Outcome", text: worstEmotion ? `More consistency and fewer leaks from ${worstEmotion.name || "your most expensive emotional state"}.` : "Higher consistency, cleaner trade selection, and fewer impulsive entries." },
     ];
   }
@@ -346,6 +381,7 @@ function buildTradingDNAInterpretation(dna) {
 
 function buildSelfAwarenessInterpretation(selfAwareness) {
   if (!selfAwareness || selfAwareness.insufficient) return null;
+  if ((selfAwareness.trackedCount ?? 0) < MIN_CALIBRATED_REVIEWS) return null;
   const score = parseFloat(selfAwareness.score ?? selfAwareness.selfAwarenessScore ?? 0);
   const tracked = selfAwareness.trackedCount || selfAwareness.totalTrackedTrades || 0;
   const match = selfAwareness.matchCount || selfAwareness.correctCount || 0;
@@ -357,31 +393,126 @@ function buildSelfAwarenessInterpretation(selfAwareness) {
   ];
 }
 
+// topLeaks mixes emotional states, broken rules, and mistake tags. They are
+// different kinds of problem with different fixes, so the copy must not treat
+// them all as emotions — "create one pre-trade rule for Cme demand or supply
+// zone" is nonsense when that rule already exists and was simply skipped.
+const LEAK_KIND_LABEL = {
+  emotion: "Emotional state",
+  ruleViolation: "Rule broken",
+  mistake: "Mistake tag",
+};
+
+const LEAK_GUIDANCE = {
+  emotion: {
+    why: (n) => `"${n}" is a state you can identify before entering, so this cost is avoidable rather than a run of bad luck — those trades were taken while you already felt it.`,
+    fix: (n) => `Make "${n}" a no-trade state: check for it before entry, and stand down or halve size when it is present.`,
+  },
+  ruleViolation: {
+    why: (n) => `This is not a missing rule — "${n}" is already in your checklist and was skipped. The cost is the gap between the process you wrote and the one you actually ran.`,
+    fix: (n) => `Move "${n}" to the top of your pre-trade checklist and treat it as a hard stop rather than a guideline.`,
+  },
+  mistake: {
+    why: (n) => `"${n}" is an execution error rather than a setup problem, so it recurs independently of market conditions until the process changes.`,
+    fix: (n) => `Add one explicit check for "${n}" immediately before entry, and log whether it fired on each of your next ten trades.`,
+  },
+};
+
 function buildPsychologyCostInterpretation(psychologyCost) {
   if (!psychologyCost || psychologyCost.insufficient) return null;
   const topLeak = psychologyCost.topLeaks?.[0] || psychologyCost.costliestMistake || psychologyCost.costliestEmotion;
   const leakName = topLeak?.name || topLeak?.type || "your largest psychology leak";
   const leakCost = topLeak?.cost ?? topLeak?.netPnL ?? topLeak?.profit;
+  const count = Number(topLeak?.count) || 0;
+  const share = topLeak?.impactPct != null ? ` — ${topLeak.impactPct}% of your total losses` : "";
+  const guidance = LEAK_GUIDANCE[topLeak?.type] || LEAK_GUIDANCE.emotion;
+  const trades = `${count} trade${count === 1 ? "" : "s"}`;
+
   return [
-    { label: "Biggest Behavioral Cost", text: `${leakName}${leakCost != null ? ` is associated with ${moneyText(leakCost)}.` : " is the first behavior to review."}` },
-    { label: "Why It Is Expensive", text: "Psychology leaks turn otherwise valid setups into poor executions through early exits, late entries, oversizing, or revenge trades." },
-    { label: "Recommended Fix", text: `Create one pre-trade rule for ${leakName}: define the exit and invalidation before entering, then review only after the trade closes.` },
-    { label: "Potential Recovery", text: leakCost != null ? `Reducing this leak could recover roughly ${moneyText(Math.abs(parseFloat(leakCost)))} over a similar sample.` : "Reducing the top leak should improve net P&L without needing a new strategy." },
+    {
+      label: "Biggest Behavioral Cost",
+      text: leakCost != null
+        ? `${LEAK_KIND_LABEL[topLeak?.type] || "Behavior"} "${leakName}" — ${moneyText(leakCost)} across ${trades}${share}.`
+        : `${leakName} is the first behavior to review.`,
+    },
+    { label: "Why It Is Expensive", text: guidance.why(leakName) },
+    { label: "Recommended Fix", text: guidance.fix(leakName) },
+    {
+      label: "Potential Recovery",
+      // The old copy promised the full amount back. Avoiding those trades
+      // entirely is the ceiling, not an expected return — and on a 1-2 trade
+      // sample that ceiling is worth stating as a bound, not a forecast.
+      text: leakCost != null
+        ? `Those ${trades} account for ${moneyText(leakCost)}. Avoiding them altogether is the ceiling on what this fix is worth${count < 3 ? " — and on this few trades, treat it as a flag to watch rather than a settled number" : ""}.`
+        : "Reducing the top leak should improve net P&L without needing a new strategy.",
+    },
   ];
 }
+
+// Why a pattern of this kind shows up, keyed by the module that produced it.
+// Previously one sentence covered every negative pattern, so a *mood* pattern
+// was explained as "execution quality changes after a specific trigger, such as
+// a loss streak or lower quality setup" — describing a mechanism that has
+// nothing to do with mood.
+const PATTERN_CAUSE = {
+  mood: "Mood is recorded at entry, so this measures the state you were in when you committed — not how the result afterwards made you feel.",
+  confidence: "Confidence is logged before the outcome is known, which makes this a filter you can apply at entry rather than a lesson learned afterwards.",
+  emotion: "Emotional tags tend to cluster with particular setups and times of day, so this usually reflects a recurring context rather than isolated bad luck.",
+  session: "The session is fixed before you enter, so this reflects that window's conditions — liquidity, spread, and your own routine at that hour.",
+  dayOfWeek: "A day-of-week effect usually traces back to routine rather than the market: sleep, workload, or what happens before the session opens.",
+  setupScore: "Setup score is your own pre-trade rating, so this shows how well that score actually predicts the outcome.",
+  lossStreak: "This covers trades taken after consecutive losses, which is where sizing and patience slip most often.",
+  combination: "Both conditions co-occur here, so treat it as a single signature rather than two rules that happen to overlap.",
+};
 
 function buildPatternInterpretation(patterns) {
   if (!patterns || patterns.insufficient) return null;
   const negative = patterns.summary?.topNegativePattern;
   const positive = patterns.summary?.topPositivePattern;
   const pattern = negative || positive;
+  if (!pattern) {
+    return [{ label: "Pattern Summary", text: "Your pattern engine is comparing streaks, sessions, setup score, rules, and behavioral combinations." }];
+  }
+
   const isRisk = Boolean(negative);
+  const { description, winRate, count, netPnl, confidence, module } = pattern;
+  const evidence = `${count} trades at ${winRate}% win rate, net ${moneyText(netPnl)}`;
+
+  // Severity from the actual size and how solid the sample is, rather than
+  // labelling every negative pattern "High".
+  const magnitude = Math.abs(Number(netPnl) || 0);
+  const level = isRisk
+    ? (magnitude >= 300 || confidence === "High") ? "High"
+      : (magnitude >= 100 || confidence === "Medium") ? "Elevated"
+      : "Worth watching"
+    : "Positive";
+
+  const cause = PATTERN_CAUSE[module]
+    || (isRisk
+      ? "This condition repeats across enough trades to be a process issue rather than variance."
+      : "Several profitable trades share this condition, which is what makes it repeatable.");
+
   return [
-    { label: "Pattern Summary", text: pattern?.description || "Your pattern engine is comparing streaks, sessions, setup score, rules, and behavioral combinations." },
-    { label: "Why The Pattern Exists", text: isRisk ? "This usually appears when execution quality changes after a specific trigger, such as a loss streak or lower quality setup." : "This pattern exists because several winning trades share the same repeatable condition." },
-    { label: "Risk Level", text: isRisk ? `High. This pattern shows ${negative?.winRate ?? "lower"}% win rate and needs a guardrail.` : "Positive. This is a condition to study and repeat carefully." },
-    { label: "Action To Take", text: isRisk ? "Pause or reduce size when this pattern appears, then require one extra confirmation before the next entry." : "Tag this pattern for the next 10 matching trades and compare it against your baseline win rate." },
-    { label: "Expected Improvement", text: isRisk ? "Fewer repeated loss clusters and cleaner emotional reset after the trigger appears." : "More confidence in repeating the condition that is already showing an edge." },
+    { label: "Pattern Summary", text: `${description} — ${evidence}.` },
+    { label: "Why The Pattern Exists", text: cause },
+    {
+      label: "Risk Level",
+      text: isRisk
+        ? `${level}. ${evidence}, on a ${String(confidence).toLowerCase()}-confidence sample.`
+        : `Positive. ${evidence}, on a ${String(confidence).toLowerCase()}-confidence sample — a condition to study and repeat carefully.`,
+    },
+    {
+      label: "Action To Take",
+      text: isRisk
+        ? `Set a guardrail specifically for "${description}": either skip those entries or halve size, and log whether the next ${Math.max(5, count)} matching trades improve on ${winRate}%.`
+        : `Tag the next ${Math.max(5, count)} trades that match "${description}" and check whether they hold ${winRate}%. Repeat it deliberately rather than by accident.`,
+    },
+    {
+      label: "Expected Improvement",
+      text: isRisk
+        ? `Recovering even half of ${moneyText(netPnl)} makes this the largest single change available to you right now.`
+        : `More of your volume in the condition already producing ${moneyText(netPnl)}.`,
+    },
   ];
 }
 
@@ -861,11 +992,16 @@ function AnalyticsContent({ section = "overview" }) {
               {section === "self-awareness" && (
               <div style={{ marginBottom: 24 }}>
                 <SectionCard title="Self Awareness Engine" subtitle="TRADE REVIEW CALIBRATION" delay={0.57} accentColor={C.purple}>
-                  {selfAwareness && !selfAwareness.insufficient ? (
+                  {/* trackedCount guard as well as the flag: older backends return
+                      no `insufficient` on an empty sample, which would render a
+                      meaningless 0% score instead of the unlock state. */}
+                  {selfAwareness && !selfAwareness.insufficient && (selfAwareness.trackedCount ?? 0) >= MIN_CALIBRATED_REVIEWS ? (
                     <>
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
                         <ListItem label="Self Awareness Score" value={`${selfAwareness.score ?? selfAwareness.selfAwarenessScore ?? 0}%`} color={C.purple} sub={`${selfAwareness.matchCount || 0}/${selfAwareness.trackedCount || selfAwareness.totalTrackedTrades || 0} reviews matched`} />
-                        <ListItem label="Overconfidence" value={String(selfAwareness.overconfident || 0)} color={(selfAwareness.overconfident || 0) > 0 ? C.bear : C.bull} sub="review mismatch count" />
+                        {/* Not the total mismatch count — this counts only trades
+                            self-rated Great that the system scored lower. */}
+                        <ListItem label="Overconfidence" value={String(selfAwareness.overconfident || 0)} color={(selfAwareness.overconfident || 0) > 0 ? C.bear : C.bull} sub="rated Great, scored lower" />
                       </div>
                       <InterpretationGrid items={selfAwarenessInterpretation} accent={C.purple} />
                     </>
@@ -926,9 +1062,22 @@ function AnalyticsContent({ section = "overview" }) {
                       {psychologyCost.topLeaks?.length > 0 && (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: 10 }}>
                           {psychologyCost.topLeaks.slice(0, 3).map((leak) => (
+                            /* Kind and sample size shown: an emotional state and
+                               a broken rule need different fixes, and the list
+                               previously rendered them identically. */
                             <div key={leak.name} style={{ borderRadius: 10, border: "1px solid #FED7D7", background: "#FFF8F8", padding: "10px 12px" }}>
+                              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#B45B5B", marginBottom: 3 }}>
+                                {LEAK_KIND_LABEL[leak.type] || "Behavior"}
+                              </div>
                               <div style={{ fontSize: 12, fontWeight: 800, color: C.primary }}>{leak.name}</div>
-                              <div style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>{moneyText(leak.cost)}</div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>{moneyText(leak.cost)}</span>
+                                {leak.count != null && (
+                                  <span style={{ fontSize: 10, color: C.muted }}>
+                                    {leak.count} trade{leak.count === 1 ? "" : "s"}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>

@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
+const { logger } = require("../utils/logger");
 
 const DEFAULT_MAX_SNAPSHOT_BYTES = 200_000;
 const configuredMaxSnapshotBytes = Number(process.env.GEMINI_MAX_SNAPSHOT_BYTES);
@@ -39,6 +40,122 @@ function parseFeedbackFromRaw(rawText) {
   }
 }
 
+const pctOrNull = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const money = (v) => Number(v || 0).toFixed(2);
+
+// Psychology dimensions the weekly snapshot always carries, ordered later by
+// which one is actually weakest for this trader.
+function psychologyDimensions(snapshot) {
+  const b = snapshot?.psychology?.scoreBreakdown || {};
+  return [
+    {
+      pct: pctOrNull(b.planAdherencePct),
+      title: "Raise plan adherence",
+      why: (p) => `Only ${p}% of this week's trades came from a pre-defined plan.`,
+      how: "Write the entry trigger, invalidation, and target before each entry, and skip anything you cannot write down first.",
+      focus: (p) => `only take planned setups (plan adherence was ${p}% this week)`,
+    },
+    {
+      pct: pctOrNull(b.calmTradingPct),
+      title: "Trade more often from a calm state",
+      why: (p) => `Only ${p}% of trades were tagged calm or focused.`,
+      how: "Run a short state check before each entry and stand down when the answer is not calm.",
+      focus: (p) => `enter only from a calm or focused state (just ${p}% of trades qualified)`,
+    },
+    {
+      pct: pctOrNull(b.noRevengePct),
+      title: "Cut revenge entries after a loss",
+      why: (p) => `Your no-revenge rate was ${p}%, so some entries followed a loss without a reset.`,
+      how: "Enforce a fixed cool-off period after every loss before the next entry is allowed.",
+      focus: (p) => `pause after each loss before re-entering (no-revenge rate was ${p}%)`,
+    },
+    {
+      pct: pctOrNull(b.wouldRetakePct),
+      title: "Take only trades you would take again",
+      why: (p) => `You said you would retake only ${p}% of this week's trades.`,
+      how: "At entry, ask whether you would take this trade again on the same information; if not, pass.",
+      focus: (p) => `take only trades you would repeat (you would retake ${p}% of this week's)`,
+    },
+  ]
+    .filter((d) => d.pct !== null && d.pct < 100)
+    .sort((a, b2) => a.pct - b2.pct);
+}
+
+// Worst losing entry in a breakdown list (sessions / strategies), or null when
+// nothing in that list actually lost money.
+function worstLosing(list, noun) {
+  const entry = (list || [])
+    .filter((x) => Number(x?.netPnL) < 0)
+    .sort((a, b) => Number(a.netPnL) - Number(b.netPnL))[0];
+  if (!entry?.name) return null;
+  // Users name their own setups, often ending in the same noun ("Ob setup"),
+  // which would otherwise read "your Ob setup setup".
+  const label = new RegExp(`\\b${noun}$`, "i").test(String(entry.name).trim())
+    ? entry.name
+    : `${entry.name} ${noun}`;
+  return {
+    title: `Review your ${label}`,
+    why: `${entry.name} was your weakest ${noun} this week: ${money(entry.netPnL)} net P&L across ${entry.trades ?? entry.count ?? 0} trades at ${entry.winRate ?? 0}% win rate.`,
+    how: `Size down in ${entry.name} or pause it until you can write down why the edge should return.`,
+    entry,
+  };
+}
+
+/**
+ * Focus areas derived from THIS trader's numbers rather than a fixed template:
+ * their weakest psychology dimension, plus any session or setup that actually
+ * lost money this week. Each reason quotes the number it came from.
+ */
+function deriveFallbackImprovements(snapshot) {
+  const out = [];
+  const weakest = psychologyDimensions(snapshot)[0];
+  if (weakest) out.push({ title: weakest.title, why: weakest.why(weakest.pct), how: weakest.how });
+
+  for (const noun of [["topSessions", "session"], ["topStrategies", "setup"]]) {
+    const found = worstLosing(snapshot?.breakdowns?.[noun[0]], noun[1]);
+    if (found) out.push({ title: found.title, why: found.why, how: found.how });
+  }
+
+  if (out.length === 0) {
+    out.push({
+      title: "Keep the current process steady",
+      why: `Nothing in this week's ${snapshot?.counts?.totalTrades ?? 0} tracked trades stands out as the single weakest link.`,
+      how: "Keep logging plan, mood, and confidence on every trade so the next report can compare like for like.",
+    });
+  }
+  return out.slice(0, 3);
+}
+
+/**
+ * Checklist built from the same week's data, so two traders never get the same
+ * list unless their numbers genuinely match.
+ */
+function deriveFallbackChecklist(snapshot) {
+  const b = snapshot?.psychology?.scoreBreakdown || {};
+  const items = [];
+
+  if (pctOrNull(b.planAdherencePct) !== null && b.planAdherencePct < 90) {
+    items.push(`Take only pre-planned setups — plan adherence was ${b.planAdherencePct}%`);
+  }
+  if (pctOrNull(b.noRevengePct) !== null && b.noRevengePct < 100) {
+    items.push(`Stop for the day after 2 consecutive losses — no-revenge rate was ${b.noRevengePct}%`);
+  }
+  if (pctOrNull(b.calmTradingPct) !== null && b.calmTradingPct < 60) {
+    items.push(`Log mood and confidence before every entry — only ${b.calmTradingPct}% of trades were calm`);
+  }
+
+  const worstTrade = snapshot?.tradeSamples?.worstTrades?.[0];
+  if (worstTrade?.pair) {
+    items.push(`Re-read your ${worstTrade.pair} loss (${money(worstTrade.profit)}) and write one rule that would have prevented it`);
+  }
+
+  const session = worstLosing(snapshot?.breakdowns?.topSessions, "session");
+  if (session) items.push(`Skip or half-size the ${session.entry.name} session until it is net positive again`);
+
+  if (items.length === 0) items.push("Keep logging plan, mood, and confidence on every trade");
+  return items.slice(0, 6);
+}
+
 function buildFallbackFeedback(snapshot, weekLabel) {
   const totalTrades = snapshot?.counts?.totalTrades ?? 0;
   const winRate = snapshot?.rates?.winRatePct ?? 0;
@@ -64,7 +181,14 @@ function buildFallbackFeedback(snapshot, weekLabel) {
       `Plan adherence is ${psychology.scoreBreakdown?.planAdherencePct ?? 0}%, calm/focused trading is ${psychology.scoreBreakdown?.calmTradingPct ?? 0}%, and no-revenge rate is ${psychology.scoreBreakdown?.noRevengePct ?? 0}%.`,
       topTag ? `Most frequent emotional tag is "${topTag.tag}" (${topTag.count} trades).` : "",
       topConf ? `Most frequent confidence state is "${topConf.label}" (${topConf.count} trades).` : "",
-      "Focus next week: only take planned setups, and pause trading after two emotional losses in a row.",
+      // Point at whichever dimension is actually weakest for this trader,
+      // rather than the same sentence for everyone.
+      (() => {
+        const weakest = psychologyDimensions(snapshot)[0];
+        return weakest
+          ? `Focus next week: ${weakest.focus(weakest.pct)}.`
+          : "Focus next week: keep logging plan, mood, and confidence on every trade.";
+      })(),
     ].filter(Boolean).join(" ");
   }
 
@@ -79,21 +203,8 @@ function buildFallbackFeedback(snapshot, weekLabel) {
     summary: summaryLines.join("\n\n"),
     psychologyFeedback,
     mistakes: [],
-    improvements: [
-      {
-        title: "Improve setup quality and selection",
-        why: "Recent performance indicates weak edge concentration and inconsistent process execution.",
-        how: "Trade only your top setup criteria, reduce low-conviction entries, and review every loss with one concrete rule correction.",
-      },
-    ],
-    nextWeekChecklist: [
-      "Trade only pre-defined setups",
-      "Stop for the day after 2 consecutive losses",
-      "Log mood and confidence before every entry",
-      "Tag the primary mistake for every losing trade",
-      "Review top 3 losses at end of day",
-      "Reduce size on low-confidence setups",
-    ],
+    improvements: deriveFallbackImprovements(snapshot),
+    nextWeekChecklist: deriveFallbackChecklist(snapshot),
     dataQualityScore,
     confidenceNote,
   };
@@ -198,7 +309,27 @@ ${snapshotJson}
     }
 
     const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const parsed = parseFeedbackFromRaw(cleaned) || buildFallbackFeedback(snapshot, weekLabel);
+    const modelParsed = parseFeedbackFromRaw(cleaned);
+
+    // The model answered but the payload was not usable JSON. Fall back — but
+    // never report the result as model-authored, because the UI shows aiModel
+    // as provenance and a silent swap makes a derived report look like AI
+    // coaching. Log the response so the parse failure is diagnosable.
+    if (!modelParsed) {
+      logger.warn("[Gemini] Weekly feedback did not parse; using derived fallback", {
+        model: modelName,
+        rawLength: cleaned.length,
+        rawPreview: cleaned.slice(0, 500),
+      });
+      return {
+        model: `${modelName}-fallback`,
+        fallback: true,
+        feedback: buildFallbackFeedback(snapshot, weekLabel),
+        raw: cleaned,
+      };
+    }
+
+    const parsed = modelParsed;
 
     // Normalize required fields
     parsed.week = parsed.week || weekLabel;

@@ -1,3 +1,4 @@
+
 /**
  * Today's Intelligence — derivation of the four dashboard insight tiles.
  *
@@ -86,7 +87,9 @@ function strengthCandidates(tradingDNA, money) {
     if (netPnL <= 0) return; // never sell a losing bucket as a strength
     const text = buildText(entry, netPnL);
     if (!text) return;
-    out.push({ source, text, netPnL, confidence: entry.confidence });
+    // `label` is kept alongside the composed text so the recommendation tile can
+    // name the strength instead of pointing at it positionally.
+    out.push({ source, text, netPnL, confidence: entry.confidence, label: labelOf(entry) });
   };
 
   const withRate = (entry, netPnL) => {
@@ -306,7 +309,17 @@ function recommendationCandidates(tradingDNA, psychologyCost, strength, money) {
   }
 
   if (strength) {
-    out.push({ source: "protectStrength", text: "Repeat the condition above and skip anything that does not match it.", netPnL: 120, confidence: "Medium" });
+    // Name the strength. "The condition above" resolved to whatever tile
+    // happened to render directly above this one — which is the Focus tile, so
+    // the card was telling the trader to repeat the very thing Focus had just
+    // told them to skip.
+    const named = strength.label ? `"${strength.label}"` : "your strongest condition";
+    out.push({
+      source: "protectStrength",
+      text: `Repeat ${named} and skip entries that do not match it.`,
+      netPnL: 120,
+      confidence: "Medium",
+    });
   }
 
   return out;

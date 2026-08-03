@@ -94,44 +94,11 @@ function MobileBottomNav() {
             (href === "/dashboard" && pathname === "/dashboard") ||
             (href === "/indian-market/dashboard" && pathname === "/indian-market/dashboard");
 
-          if (primary) {
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-label={label}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textDecoration: "none",
-                  minWidth: 0,
-                  height: NAV_HEIGHT,
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                <span
-                  className="mobile-bottom-nav-primary"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 50,
-                    height: 50,
-                    borderRadius: "50%",
-                    background: ACCENT,
-                    color: "var(--color-surface)",
-                    boxShadow: "0 10px 24px var(--color-primary-shadow)",
-                    transform: "translateY(-12px)",
-                  }}
-                >
-                  <Icon size={24} strokeWidth={2.4} />
-                </span>
-              </Link>
-            );
-          }
-
+          // Every tab uses the same column layout anchored to the bottom, so
+          // all five labels share one baseline. The primary action is the only
+          // one that used to skip the label and float up 12px, which left it
+          // reading as misaligned rather than emphasised — its accent disc now
+          // simply rises further from the shared baseline.
           return (
             <Link
               key={href}
@@ -143,12 +110,14 @@ function MobileBottomNav() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
+                justifyContent: "flex-end",
                 gap: 3,
+                paddingBottom: 8,
+                boxSizing: "border-box",
                 textDecoration: "none",
-                color: active ? ACCENT : MUTED,
+                color: primary ? ACCENT : active ? ACCENT : MUTED,
                 fontSize: 10.5,
-                fontWeight: active ? 700 : 500,
+                fontWeight: primary || active ? 700 : 500,
                 fontFamily: "var(--font-plus-jakarta-sans)",
                 letterSpacing: "0.01em",
                 minWidth: 0,
@@ -158,21 +127,45 @@ function MobileBottomNav() {
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: 7,
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  background: ACCENT,
-                  opacity: active ? 1 : 0,
-                  transform: active ? "scale(1)" : "scale(0.6)",
-                  transition: "opacity 0.16s ease, transform 0.16s ease",
-                }}
-              />
-              <Icon size={22} strokeWidth={active ? 2.4 : 2} />
+              {!primary && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    top: 7,
+                    width: 5,
+                    height: 5,
+                    borderRadius: "50%",
+                    background: ACCENT,
+                    opacity: active ? 1 : 0,
+                    transform: active ? "scale(1)" : "scale(0.6)",
+                    transition: "opacity 0.16s ease, transform 0.16s ease",
+                  }}
+                />
+              )}
+
+              {primary ? (
+                <span
+                  className="mobile-bottom-nav-primary"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 42,
+                    height: 42,
+                    borderRadius: "50%",
+                    background: ACCENT,
+                    color: "var(--color-surface)",
+                    boxShadow: "0 6px 16px var(--color-primary-shadow)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon size={22} strokeWidth={2.4} />
+                </span>
+              ) : (
+                <Icon size={22} strokeWidth={active ? 2.4 : 2} />
+              )}
+
               <span
                 style={{
                   maxWidth: "100%",
@@ -210,8 +203,10 @@ function MobileBottomNav() {
           .mobile-bottom-nav-primary {
             transition: transform 0.16s ease, box-shadow 0.16s ease;
           }
+          /* Press feedback is a scale only — the disc no longer sits on an
+             offset, so translating it here would reintroduce the drift. */
           .mobile-bottom-nav a:active .mobile-bottom-nav-primary {
-            transform: translateY(-10px) scale(0.96) !important;
+            transform: scale(0.94);
           }
           .mobile-bottom-nav-spacer {
             display: block;

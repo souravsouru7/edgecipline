@@ -10,6 +10,7 @@ const { computeSelfAwarenessAnalytics } = require("../utils/tradeEvaluation");
 const { computeTradingDNA, enrichTradingDNAWithPatterns } = require("../utils/tradingDNA");
 const { computeDisciplineAnalytics } = require("../utils/disciplineAnalytics");
 const { computePsychologyTimeline } = require("../utils/psychologyTimeline");
+const { toObjectId } = require("../utils/objectId");
 const {
   calculatePerformanceMetrics,
   finalizePerformance,
@@ -103,15 +104,18 @@ function buildDateQuery(dateRange) {
 function buildMatchQuery({ userId, market, instrumentType, dateRange }) {
   const marketLabel = resolveMarketLabel(market);
   const dateQuery = buildDateQuery(dateRange);
+  // toObjectId: aggregation pipelines do not cast, so a cached (string) userId
+  // silently matches zero documents in every $match below.
+  const user = toObjectId(userId);
 
   if (marketLabel === "Indian_Market") {
-    const query = { user: userId, deletedAt: null, ...dateQuery };
+    const query = { user, deletedAt: null, ...dateQuery };
     if (instrumentType) query.instrumentType = String(instrumentType).toUpperCase();
     return query;
   }
 
   return {
-    user: userId,
+    user,
     marketType: { $ne: "Indian_Market" },
     deletedAt: null,
     "parsedData.multiTradeGhost": { $ne: true },

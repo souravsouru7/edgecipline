@@ -94,6 +94,11 @@ function calculateActualTradeQuality(trade) {
   return { tier, score, breakdown, factorsUsed };
 }
 
+// The UI offers to unlock this module at 3 reviewed trades. Keep the engine on
+// the same floor, otherwise a single review renders as a 100% self-awareness
+// score and the caller has no flag telling it the number is meaningless.
+const MIN_CALIBRATED_REVIEWS = 3;
+
 /**
  * Compute self-awareness analytics for an array of trades.
  * Trades without userRating OR computable systemTier are excluded.
@@ -120,13 +125,22 @@ function computeSelfAwarenessAnalytics(trades) {
     });
   }
 
-  if (evaluated.length === 0) {
-    return { score: null, trackedCount: 0, totalTrades: trades.length, matchCount: 0, breakdown: [] };
-  }
-
   // ── Overall score ─────────────────────────────────────────────────────────
   const matchCount = evaluated.filter(e => e.isAccurate).length;
-  const score      = Math.round((matchCount / evaluated.length) * 100);
+
+  if (evaluated.length < MIN_CALIBRATED_REVIEWS) {
+    return {
+      insufficient: true,
+      message: `Review at least ${MIN_CALIBRATED_REVIEWS} completed trades with a quality judgement to unlock self-awareness calibration.`,
+      score: null,
+      trackedCount: evaluated.length,
+      totalTrades: trades.length,
+      matchCount,
+      breakdown: [],
+    };
+  }
+
+  const score = Math.round((matchCount / evaluated.length) * 100);
 
   // ── Per-category accuracy ─────────────────────────────────────────────────
   const perCategory = {};

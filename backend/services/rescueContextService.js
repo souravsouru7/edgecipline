@@ -4,6 +4,7 @@ const Trade = require("../models/Trade");
 const IndianTrade = require("../models/IndianTrade");
 const WeeklyReport = require("../models/WeeklyReport");
 const { logger } = require("../utils/logger");
+const { toObjectId } = require("../utils/objectId");
 
 // Build the personalization payload for a single rescue touchpoint. Same
 // query shape as the SmartPaywall context — but tuned for cron use:
@@ -26,7 +27,9 @@ async function buildRescueContext(user) {
     safe(Trade.countDocuments({ user: userId, deletedAt: null })),
     safe(IndianTrade.countDocuments({ user: userId, deletedAt: null })),
     safe(Trade.aggregate([
-      { $match: { user: userId, deletedAt: null, strategy: { $nin: [null, ""] } } },
+      // toObjectId: aggregation does not cast, so a cached (string) userId
+      // would match nothing here while the countDocuments above still worked.
+      { $match: { user: toObjectId(userId), deletedAt: null, strategy: { $nin: [null, ""] } } },
       { $group: { _id: "$strategy", trades: { $sum: 1 }, wins: { $sum: { $cond: [{ $gt: ["$pnl", 0] }, 1, 0] } } } },
       { $match: { trades: { $gte: 3 } } },
       { $addFields: { winRate: { $divide: ["$wins", "$trades"] } } },

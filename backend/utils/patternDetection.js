@@ -12,7 +12,7 @@
  * Module 6  — Trade Quality Patterns     (Great / Average / Poor self-rating vs system tier)
  * Module 7  — Session Patterns           (Forex: London/NY/Asia | Indian: Opening/Midday/Closing)
  * Module 8  — Day-of-Week Patterns
- * Module 9  — Setup Score Range Patterns (0-40 / 41-60 / 61-80 / 81-100)
+ * Module 9  — Setup Score Range Patterns (0-39 / 40-59 / 60-79 / 80-100)
  * Module 10 — Rule Violation Cost Patterns
  * Module 11 — Combination Patterns       (multi-factor discovery)
  * Module 12 — Pattern Confidence Engine  (<5=hidden, 5-9=Low, 10-29=Medium, 30+=High)
@@ -23,6 +23,8 @@
  */
 
 "use strict";
+
+const { withLabels } = require("./setupScoreBuckets");
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -39,12 +41,15 @@ const CONFIDENCE_RANGE_MAP = {
   Overconfident: "9-10",
 };
 
-const SETUP_SCORE_BUCKETS = [
-  { label: "0-40",   min: 0,  max: 41  },
-  { label: "41-60",  min: 41, max: 61  },
-  { label: "61-80",  min: 61, max: 81  },
-  { label: "81-100", min: 81, max: 101 },
-];
+// Boundaries come from the shared definition so this engine buckets a score
+// identically to Trading DNA and Discipline. This module used to split at
+// 0/41/61/81, one point above the other two.
+const SETUP_SCORE_BUCKETS = withLabels({
+  poor:    "0-39",
+  low:     "40-59",
+  average: "60-79",
+  strong:  "80-100",
+});
 
 // ── Module 12: Pattern Confidence Engine ──────────────────────────────────────
 
@@ -778,8 +783,36 @@ function rankAllPatterns(modules) {
 
   candidates.sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name));
 
-  const top5Positive = candidates.filter((c) => c.netPnl > 0).slice(0, 5);
-  const top5Negative = candidates.filter((c) => c.netPnl < 0).slice(0, 5);
+  /**
+   * Collapse candidates that describe the same set of trades.
+   *
+   * Different modules routinely land on one cohort. A trader whose "Disciplined"
+   * tag always coincides with Confidence 4-6 yields an identical
+   * 6 trades / 66.7% / +416.37 row from both the emotion module and the
+   * combination module, and the same happens for Confidence 4-6 vs
+   * "Plan Entry + Confidence 4-6". Left in, a Top 5 list shows five rows
+   * carrying only three distinct findings — and each repeat makes a single edge
+   * look independently corroborated.
+   *
+   * When the trade sets are identical the extra term in a combination is adding
+   * nothing, so the single-factor description wins; otherwise the
+   * higher-scoring candidate (already first, since the list is sorted) stays.
+   */
+  const cohortOf = (c) => `${c.count}|${c.winRate}|${c.netPnl}`;
+  const keep = new Map();
+  for (const candidate of candidates) {
+    const key = cohortOf(candidate);
+    const held = keep.get(key);
+    if (!held) {
+      keep.set(key, candidate);
+    } else if (held.module === "combination" && candidate.module !== "combination") {
+      keep.set(key, candidate);
+    }
+  }
+  const distinct = candidates.filter((c) => keep.get(cohortOf(c)) === c);
+
+  const top5Positive = distinct.filter((c) => c.netPnl > 0).slice(0, 5);
+  const top5Negative = distinct.filter((c) => c.netPnl < 0).slice(0, 5);
 
   return { top5Positive, top5Negative };
 }
