@@ -31,10 +31,6 @@ const PRODUCTION_REQUIRED_FIELDS = {
   firebaseStorageBucket: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
   firebaseMessagingSenderId: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
   firebaseAppId: "NEXT_PUBLIC_FIREBASE_APP_ID",
-  razorpayKeyId: "NEXT_PUBLIC_RAZORPAY_KEY_ID",
-  sentryDsn: "NEXT_PUBLIC_SENTRY_DSN",
-  sentryEnvironment: "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
-  sentryRelease: "NEXT_PUBLIC_SENTRY_RELEASE",
 };
 
 export class EnvironmentValidationError extends Error {
@@ -132,6 +128,21 @@ export function validateEnvironment(
       errors.push(
         "NEXT_PUBLIC_RAZORPAY_KEY_ID must be a live key in production."
       );
+    }
+
+    const sentryDsn = String(environment.sentryDsn || "").trim();
+    if (sentryDsn) {
+      for (const [field, envName] of Object.entries({
+        sentryEnvironment: "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+        sentryRelease: "NEXT_PUBLIC_SENTRY_RELEASE",
+      })) {
+        const value = String(environment[field] || "").trim();
+        if (!value) {
+          errors.push(`${envName} is required when NEXT_PUBLIC_SENTRY_DSN is set.`);
+        } else if (hasPlaceholder(value)) {
+          errors.push(`${envName} still contains a placeholder value.`);
+        }
+      }
     }
   }
 

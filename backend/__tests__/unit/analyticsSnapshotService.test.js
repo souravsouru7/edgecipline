@@ -312,7 +312,12 @@ describe("AnalyticsSnapshotService", () => {
     expect(snapshot.cache.key).toContain("analytics_aggregate:performance");
   });
 
-  test("timeline snapshot uses MongoDB bucket aggregation", async () => {
+  // The timeline deliberately loads trades rather than using a $group pipeline:
+  // psychology, self-awareness and discipline scores are derived per bucket by
+  // computePsychologyTimeline and cannot be produced by the aggregation, which
+  // only emitted raw pnl/trade counts under different field names. Every chart
+  // on the page bound to fields that pipeline never returned.
+  test("timeline snapshot returns scored buckets from computePsychologyTimeline", async () => {
     const { service, IndianTrade } = setup({ indianTrades: makeTrades(5, "Indian_Market") });
 
     const snapshot = await service.getTimelineSnapshot({
@@ -322,10 +327,25 @@ describe("AnalyticsSnapshotService", () => {
       period: "monthly",
     });
 
-    expect(IndianTrade.aggregate).toHaveBeenCalledTimes(1);
-    expect(snapshot.timeline.buckets).toHaveLength(2);
-    expect(snapshot.timeline.source).toBe("mongo_aggregation");
+    expect(IndianTrade.find).toHaveBeenCalled();
+    expect(snapshot.timeline.buckets.length).toBeGreaterThan(0);
     expect(snapshot.cache.key).toContain("analytics_aggregate:timeline");
+
+    // The fields the timeline charts actually read.
+    const bucket = snapshot.timeline.buckets[0];
+    expect(bucket).toEqual(expect.objectContaining({
+      key: expect.any(String),
+      tradeCount: expect.any(Number),
+      psychologyScore: expect.any(Number),
+      selfAwarenessScore: expect.any(Number),
+      disciplineScore: expect.any(Number),
+      net: expect.any(Number),
+    }));
+
+    // Score averages were previously hardcoded null, and the user-facing
+    // summary read "Timeline generated from MongoDB aggregation buckets."
+    expect(snapshot.timeline.stats.avgPsychologyScore).toEqual(expect.any(Number));
+    expect(snapshot.timeline.aiSummary).not.toMatch(/MongoDB/i);
   });
 
   test("discipline summary uses MongoDB facet aggregation", async () => {

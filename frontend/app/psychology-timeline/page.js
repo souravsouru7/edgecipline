@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
@@ -91,7 +92,7 @@ function buildTimelineInterpretation({ buckets, trends, stats }) {
     {
       label: "Growth Summary",
       text: delta == null
-        ? `Your timeline now contains ${buckets.length} periods. Edgecipline is building a longitudinal view of your trading psychology.`
+        ? `Your timeline now contains ${buckets.length} ${buckets.length === 1 ? "period" : "periods"}. Edgecipline is building a longitudinal view of your trading psychology.`
         : `Your psychology score is ${latestPsych}/100 in the latest period, ${improving ? "up" : declining ? "down" : "flat"} ${Math.abs(delta)} points from the first tracked period.`,
     },
     {
@@ -112,7 +113,10 @@ function buildTimelineInterpretation({ buckets, trends, stats }) {
     },
     {
       label: "Current Focus",
-      text: `For the next review cycle, focus on ${focus}. The expected outcome is a cleaner emotional baseline and fewer preventable mistakes across ${stats?.totalBuckets || buckets.length} tracked periods.`,
+      text: (() => {
+        const n = stats?.totalBuckets || buckets.length;
+        return `For the next review cycle, focus on ${focus}. The expected outcome is a cleaner emotional baseline and fewer preventable mistakes across ${n} tracked ${n === 1 ? "period" : "periods"}.`;
+      })(),
     },
   ];
 }

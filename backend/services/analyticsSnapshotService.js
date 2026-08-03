@@ -880,30 +880,32 @@ async function getTimelineSnapshot({ userId, market = "Forex", instrumentType, d
     scope: "timeline",
     resolver: async () => {
       const startedAt = Date.now();
-      const timeline = await aggregateTimeline({ userId, market: marketLabel, instrumentType, dateRange, period });
-      const generationMs = Date.now() - startedAt;
-      logSlowAggregate("timeline", { userId, marketType: marketLabel, period, generationMs, points: timeline.length });
-      const timelinePayload = {
-        insufficient: timeline.length === 0,
-        source: "mongo_aggregation",
+      // computePsychologyTimeline, not aggregateTimeline. The aggregation emits
+      // bucket/pnl/trades, but every consumer of this payload reads
+      // key/net/tradeCount plus psychologyScore, selfAwarenessScore and
+      // disciplineScore — which it never produced at all. Each chart therefore
+      // bound to an undefined field and rendered empty axes, trends were the
+      // hardcoded "stable", the score averages were hardcoded null, and the
+      // user-facing AI summary read "Timeline generated from MongoDB
+      // aggregation buckets."
+      const trades = await loadTrades({ userId, market: marketLabel, instrumentType, dateRange });
+      const timeline = computePsychologyTimeline(trades, {
+        marketType: marketLabel,
         period,
-        buckets: timeline,
-        trends: { psychology: "stable", selfAwareness: "stable", discipline: "stable" },
-        milestones: [],
-        stats: {
-          totalBuckets: timeline.length,
-          avgPsychologyScore: null,
-          avgSelfAwarenessScore: null,
-          avgDisciplineScore: null,
-        },
-        aiSummary: timeline.length
-          ? "Timeline generated from MongoDB aggregation buckets."
-          : "No timeline data yet. Keep logging trades to build your psychology timeline.",
-      };
+        offsetHours: appConfig.timezoneOffsetHours || 0,
+      });
+      const generationMs = Date.now() - startedAt;
+      logSlowAggregate("timeline", {
+        userId,
+        marketType: marketLabel,
+        period,
+        generationMs,
+        points: timeline?.buckets?.length || 0,
+      });
       return {
         marketType: marketLabel,
         period,
-        timeline: timelinePayload,
+        timeline,
         generatedAt: new Date().toISOString(),
         cache: { generationMs, queryCount: marketLabel === "combined" ? 2 : 1 },
       };
