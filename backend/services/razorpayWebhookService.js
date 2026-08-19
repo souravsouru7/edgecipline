@@ -3,6 +3,7 @@ const WebhookEvent = require("../models/WebhookEvent");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
+const analytics = require("./analyticsEventService");
 const {
   activateRazorpaySubscriptionPayment,
   applyVerifiedRazorpayRefund,
@@ -13,6 +14,7 @@ const {
 const SUPPORTED_EVENTS = new Set([
   "payment.captured",
   "order.paid",
+  "payment.failed",
   "refund.processed",
   "payment.refunded",
 ]);
@@ -120,12 +122,65 @@ async function resolveRefund(payload) {
   };
 }
 
+/**
+ * Record a failed payment attempt for analytics and support.
+ *
+ * Deliberately writes NO Payment document. Razorpay can emit payment.failed
+ * and later payment.captured for the SAME payment id (retries on the same
+ * attempt, late authorisation). `Payment.transactionId` and the partial unique
+ * index on `razorpayPaymentId` would both collide, and the activation path
+ * treats an existing Payment row as "already processed" — so persisting a
+ * failure row here would permanently swallow the subsequent success and the
+ * user would be charged without receiving a subscription.
+ *
+ * The full event payload is already retained on the WebhookEvent document, so
+ * nothing is lost by keeping this side-effect free.
+ */
+function recordFailedPayment(payload) {
+  const paymentEntity = getEntity(payload, "payment") || {};
+  const notes = paymentEntity.notes && typeof paymentEntity.notes === "object" ? paymentEntity.notes : {};
+  const userId = notes.userId || notes.user_id || null;
+
+  logger.warn("[RazorpayWebhook] payment failed", {
+    eventId: payload.id,
+    paymentId: paymentEntity.id || null,
+    orderId: paymentEntity.order_id || null,
+    userId: userId ? String(userId) : null,
+    // Razorpay's own failure taxonomy — never the payer's contact details.
+    errorCode: paymentEntity.error_code || null,
+    errorReason: paymentEntity.error_reason || null,
+    errorStep: paymentEntity.error_step || null,
+    errorSource: paymentEntity.error_source || null,
+  });
+
+  analytics.track("payment_failed", {
+    userId,
+    properties: {
+      paymentId: paymentEntity.id || null,
+      orderId: paymentEntity.order_id || null,
+      amount: amountFromSubunits(paymentEntity.amount) ?? null,
+      method: paymentEntity.method || null,
+      errorCode: paymentEntity.error_code || null,
+      errorReason: paymentEntity.error_reason || null,
+      errorStep: paymentEntity.error_step || null,
+    },
+  });
+
+  // activated:false is explicit — a failure must never look like an activation
+  // to anything reading processingResult.
+  return { success: true, recorded: true, activated: false, eventType: "payment.failed" };
+}
+
 async function processSupportedEvent(payload) {
   const eventType = payload.event;
 
   if (!SUPPORTED_EVENTS.has(eventType)) {
     logger.info("[RazorpayWebhook] unsupported event skipped", { eventType });
     return { skipped: true, reason: "unsupported_event", eventType };
+  }
+
+  if (eventType === "payment.failed") {
+    return recordFailedPayment(payload);
   }
 
   if (eventType === "refund.processed" || eventType === "payment.refunded") {
@@ -200,6 +255,93 @@ async function upsertAndLockWebhookEvent(payload) {
   }
 }
 
+// Reconciliation ceiling. Razorpay's own retry schedule is the first line of
+// recovery; this is the safety net for events whose processing kept throwing
+// (Mongo blip, Razorpay 5xx during re-fetch) until Razorpay gave up.
+const MAX_PROCESSING_ATTEMPTS = 6;
+
+/**
+ * Re-run a stored webhook event through the SAME processing path the live
+ * endpoint uses. Used only by the reconciliation cron.
+ *
+ * Signature verification is intentionally not repeated: an event document only
+ * exists because processRazorpayWebhook already verified its HMAC before the
+ * upsert. The stored payload is therefore already provenance-checked, and it
+ * is re-validated against Razorpay's API anyway by fetchAndValidateRazorpayPayment.
+ *
+ * Claims the document atomically before doing any work, so a reconciliation
+ * run can never race a live delivery of the same event, nor another cron
+ * instance. Returns null when the event could not be claimed.
+ */
+async function reprocessStoredWebhookEvent(eventId) {
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000);
+
+  const claimed = await WebhookEvent.findOneAndUpdate(
+    {
+      eventId,
+      processed: false,
+      permanentlyFailed: { $ne: true },
+      processingAttempts: { $lt: MAX_PROCESSING_ATTEMPTS },
+      $or: [
+        { processing: false },
+        { processing: { $exists: false } },
+        { processingStartedAt: { $lt: staleBefore } },
+      ],
+    },
+    {
+      $set: { processing: true, processingStartedAt: new Date() },
+      $inc: { processingAttempts: 1 },
+    },
+    { new: true }
+  );
+
+  if (!claimed) return null;
+
+  try {
+    const result = await processSupportedEvent(claimed.payload);
+    await WebhookEvent.updateOne(
+      { eventId },
+      {
+        processed: true,
+        processing: false,
+        processedAt: new Date(),
+        processingResult: result,
+        processingError: null,
+      }
+    );
+    logger.info("[RazorpayWebhook] reconciliation recovered event", {
+      eventId,
+      eventType: claimed.eventType,
+      attempt: claimed.processingAttempts,
+    });
+    return { recovered: true, eventId, eventType: claimed.eventType, result };
+  } catch (error) {
+    const exhausted = claimed.processingAttempts >= MAX_PROCESSING_ATTEMPTS;
+    await WebhookEvent.updateOne(
+      { eventId },
+      {
+        processing: false,
+        processingError: error?.message || "Unknown reconciliation error",
+        ...(exhausted ? { permanentlyFailed: true, permanentlyFailedAt: new Date() } : {}),
+      }
+    );
+    logger.error("[RazorpayWebhook] reconciliation attempt failed", {
+      eventId,
+      eventType: claimed.eventType,
+      attempt: claimed.processingAttempts,
+      exhausted,
+      error: error?.message,
+    });
+    return {
+      recovered: false,
+      eventId,
+      eventType: claimed.eventType,
+      exhausted,
+      error: error?.message,
+    };
+  }
+}
+
 async function processRazorpayWebhook({ rawBody, signature }) {
   if (!verifyWebhookSignature(rawBody, signature)) {
     logger.warn("[RazorpayWebhook] verification failed");
@@ -266,7 +408,10 @@ async function processRazorpayWebhook({ rawBody, signature }) {
 }
 
 module.exports = {
+  MAX_PROCESSING_ATTEMPTS,
   SUPPORTED_EVENTS,
   processRazorpayWebhook,
+  processSupportedEvent,
+  reprocessStoredWebhookEvent,
   verifyWebhookSignature,
 };

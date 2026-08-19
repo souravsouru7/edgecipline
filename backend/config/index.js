@@ -180,6 +180,22 @@ const appConfig = {
     schedule: process.env.SUBSCRIPTION_EXPIRY_CRON || "0 * * * *",
     batchSize: readNumber("SUBSCRIPTION_EXPIRY_BATCH_SIZE", 500),
   },
+  // Safety net for Razorpay webhooks whose processing kept throwing until the
+  // provider stopped retrying. Without it, a transient Mongo/Razorpay outage
+  // during delivery means money taken and no subscription granted.
+  webhookReconciliation: {
+    enabled: readBoolean("ENABLE_WEBHOOK_RECONCILIATION_CRON", true),
+    schedule: process.env.WEBHOOK_RECONCILIATION_CRON || "*/15 * * * *",
+    batchSize: readNumber("WEBHOOK_RECONCILIATION_BATCH_SIZE", 50),
+  },
+  // Drops stored webhook payloads after the retention window. Never deletes
+  // the event document itself — eventId is the replay-protection key.
+  webhookRetention: {
+    enabled: readBoolean("ENABLE_WEBHOOK_RETENTION_CRON", true),
+    schedule: process.env.WEBHOOK_RETENTION_CRON || "30 3 * * *",
+    days: readNumber("WEBHOOK_RETENTION_DAYS", 90),
+    batchSize: readNumber("WEBHOOK_RETENTION_BATCH_SIZE", 500),
+  },
   // Hourly rescue funnel — checks all 7 touchpoint windows on each run.
   // Idempotency is enforced by the RescueDispatch unique index, so multiple
   // instances are safe; the distributed lock is only an efficiency win.
@@ -252,6 +268,15 @@ const appConfig = {
     keyId: process.env.RAZORPAY_KEY_ID || "",
     keySecret: process.env.RAZORPAY_KEY_SECRET || "",
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // Sandbox payments activate a REAL subscription against the REAL database
+    // from a fabricated payment ID. Any authenticated user can self-grant
+    // premium. Keying that purely on NODE_ENV was too weak: a staging box that
+    // forgets to set NODE_ENV=production points at a real database and becomes
+    // a free-premium faucet. This now requires deliberate, explicit opt-in AND
+    // a non-production environment — both, never either.
+    allowSandboxPayments:
+      readBoolean("ALLOW_SANDBOX_PAYMENTS", false) &&
+      (process.env.NODE_ENV || "development") !== "production",
   },
   resend: {
     apiKey: process.env.RESEND_API_KEY || "",
