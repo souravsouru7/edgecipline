@@ -72,6 +72,10 @@ const SMART_TYPE_TO_PREF = {
 const INVALID_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
+  // Fails FCM's own format validation (corrupt/malformed value) — just as
+  // permanently unsendable as a revoked token, so it gets the same cleanup
+  // instead of retrying (and incrementing failureCount) forever.
+  "messaging/invalid-argument",
 ]);
 const TRANSIENT_FCM_CODES = new Set([
   "messaging/internal-error",
@@ -401,11 +405,11 @@ async function notifyUser(userId, payload) {
 
   if (!prefs.pushEnabled || quietHoursBlocked) {
     const reason = quietHoursBlocked ? "quiet_hours" : "push_disabled";
-    await NotificationHistory.findOneAndUpdate(
+    return NotificationHistory.findOneAndUpdate(
       { _id: notification._id, user: userId },
-      { status: "skipped", "delivery.error": reason }
+      { status: "skipped", "delivery.error": reason },
+      { returnDocument: "after" }
     );
-    return notification;
   }
 
   const now = new Date();

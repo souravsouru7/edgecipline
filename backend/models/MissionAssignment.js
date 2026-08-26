@@ -59,6 +59,11 @@ const missionAssignmentSchema = new mongoose.Schema(
       coachMessage:      { type: String, default: null },
       completionMessage: { type: String, default: null },
       reward:            { type: mongoose.Schema.Types.Mixed, default: {} },
+      // Was never declared here, so Mongoose's default schema strictness
+      // silently stripped it on every save -- acceptMission's premium gate
+      // (`missionSnapshot?.requiredPlan === "premium"`) compared against
+      // undefined and never fired for any user, premium or not.
+      requiredPlan:      { type: String, enum: [null, "free", "premium"], default: null },
     },
 
     // Progress counters

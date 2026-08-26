@@ -2,13 +2,55 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary");
 const ApiError = require("../utils/ApiError");
 const { cancelOcrJob, createOcrJob, getOcrJobStatus } = require("./ocrJob.service");
+const { OCRJob } = require("../models/OCRJob");
 const { ocrQueue } = require("../queues/ocrQueue");
 const userRepository = require("../repositories/user.repository");
 const { logger } = require("../utils/logger");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { isRedisReady } = require("../config/redis");
+const { isPremium } = require("../utils/premium");
 
 const BROKER_MAX_LENGTH = 50;
+const ACTIVE_DUPLICATE_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CONFIRMED"];
+
+async function findDuplicateUploadJob(userId, imageHash) {
+  if (!imageHash) return null;
+  return OCRJob.findOne({
+    user: userId,
+    imageHash,
+    status: { $in: ACTIVE_DUPLICATE_STATUSES },
+  })
+    .sort({ createdAt: -1 })
+    .select("status")
+    .lean();
+}
+
+// The job the caller is colliding with is the job they almost certainly want
+// to see: a refresh or a dropped response mid-upload leaves the extraction
+// running with nothing on screen, and re-uploading the same screenshot is the
+// obvious thing to try next. Handing back the id lets the client reconnect to
+// it instead of dead-ending on "check your trade log", where nothing was ever
+// saved.
+function buildDuplicateError(duplicateJob) {
+  const stillProcessing =
+    duplicateJob.status === "PENDING" || duplicateJob.status === "PROCESSING";
+
+  return new ApiError(
+    409,
+    stillProcessing
+      ? "This screenshot is already being processed. Reconnecting you to it now."
+      : duplicateJob.status === "CONFIRMED"
+      ? "You already saved this screenshot as a trade. Check your trade log before uploading it again."
+      : "You already uploaded this exact screenshot. Reopening the extraction we already have.",
+    "DUPLICATE_UPLOAD",
+    {
+      jobId: duplicateJob._id?.toString?.() || String(duplicateJob._id),
+      jobStatus: duplicateJob.status,
+      // CONFIRMED means a trade already exists; there is nothing to resume.
+      resumable: duplicateJob.status !== "CONFIRMED",
+    }
+  );
+}
 
 async function cleanupFailedUpload({ jobId, uploadedImage, userId, error }) {
   if (!jobId && uploadedImage?.publicId) {
@@ -39,13 +81,22 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       throw new ApiError(401, "Not authorized, user missing", "AUTH_FAILED");
     }
 
-    const now = new Date();
-    const isSubscribed =
-      user.subscriptionStatus === "active" &&
-      user.subscriptionExpiry &&
-      new Date(user.subscriptionExpiry) > now;
+    if (!uploadedImage?.imageUrl) {
+      throw new ApiError(400, "Image file is required.", "VALIDATION_ERROR");
+    }
 
-    if (!isSubscribed) {
+    // Checked before the free-upload claim below so a duplicate never burns
+    // a user's one-time free upload.
+    const duplicateJob = await findDuplicateUploadJob(user._id, uploadedImage.imageHash);
+    if (duplicateJob) {
+      throw buildDuplicateError(duplicateJob);
+    }
+
+    // Uses the same premium definition as the rest of the app (paid
+    // subscription OR active trial OR admin) -- a locally re-implemented
+    // subscription-only check previously ignored trial status and blocked
+    // trialing users from uploading past their one free upload.
+    if (!isPremium(user)) {
       // Atomic claim before any work: prevents two concurrent requests from
       // both passing a stale `user.freeUploadUsed === false` check.
       claimedFreeUpload = await userRepository.claimFreeUpload(user._id);
@@ -59,15 +110,13 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       }
     }
 
-    if (!uploadedImage?.imageUrl) {
-      throw new ApiError(400, "Image file is required.", "VALIDATION_ERROR");
-    }
-
     if (!isRedisReady()) {
       throw new ApiError(
         503,
         "OCR queue is temporarily unavailable. Please try again in a moment.",
-        "OCR_QUEUE_UNAVAILABLE"
+        "OCR_QUEUE_UNAVAILABLE",
+        null,
+        true // safe, actionable wording — don't let the 5xx mask hide it
       );
     }
 

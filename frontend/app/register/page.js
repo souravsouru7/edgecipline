@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { googleLogin, registerUser, acceptTerms as acceptTermsApi, testConnection as apiTestConnection } from "@/services/api";
+import { googleLogin, registerUser, testConnection as apiTestConnection } from "@/services/api";
 import {
   signInWithFirebaseGoogle,
   handleGoogleRedirectResult,
@@ -9,9 +9,19 @@ import {
   clearRedirectPending,
   signOutFirebase,
 } from "@/services/firebaseAuth";
-import { clearAuthToken, setAuthToken, getValidToken } from "@/utils/auth";
+import { clearAuthToken, setAuthToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+function resetFreshStartState() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("currentMarket");
+    sessionStorage.removeItem("auth_redirect");
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 /* ─────────────────────────────────────────
    LIGHT THEME DESIGN TOKENS
@@ -199,19 +209,17 @@ export default function RegisterPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Use getValidToken() to check both in-memory and legacy localStorage tokens
-    if (getValidToken()) { router.push("/dashboard"); return; }
 
     // Pick up idToken after mobile redirect Google sign-in on register page
     handleGoogleRedirectResult()
       .then(idToken => { if (idToken) return googleLogin(idToken); })
       .then(async data => {
         if (!data?.token) return;
+        resetFreshStartState();
         await setAuthToken(data.token);
-        router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+        router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/onboarding");
       })
       .catch(err => alert("Google login failed: " + getGoogleAuthErrorMessage(err)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const handleChange = (e) => {
@@ -242,11 +250,12 @@ export default function RegisterPage() {
         acceptedPrivacy: true,
       });
       if (data.token) {
+        resetFreshStartState();
         await setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {
-          router.push("/dashboard");
+          router.push("/onboarding");
         }
       } else {
         alert(data.message);
@@ -280,11 +289,12 @@ export default function RegisterPage() {
       if (!idToken) return;
       const data = await googleLogin(idToken);
       if (data.token) {
+        resetFreshStartState();
         await setAuthToken(data.token);
         if (data.requiresTermsAcceptance) {
           router.push("/accept-terms");
         } else {
-          router.push("/dashboard");
+          router.push("/onboarding");
         }
       } else {
         alert(data.message || "Google login failed.");
@@ -332,7 +342,6 @@ export default function RegisterPage() {
       fontFamily:"'Plus Jakarta Sans',sans-serif",
       color:"#0F1923", position:"relative", overflow:"hidden",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
       {/* Background */}
       <div style={{ position:"fixed", inset:0, zIndex:0 }}>
@@ -602,11 +611,15 @@ export default function RegisterPage() {
                   display: "flex", alignItems: "flex-start", gap: 10,
                   cursor: "pointer", userSelect: "none",
                 }}>
-                  <div
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={termsAccepted}
+                    aria-label="I agree to the Terms &amp; Conditions and Privacy Policy"
                     onClick={() => setTermsAccepted(v => !v)}
                     style={{
                       flexShrink: 0,
-                      width: 18, height: 18, marginTop: 1,
+                      width: 18, height: 18, marginTop: 1, padding: 0,
                       borderRadius: 4,
                       border: `2px solid ${termsAccepted ? "#0D9E6E" : termsError ? "#D63B3B" : "#CBD5E1"}`,
                       background: termsAccepted ? "#0D9E6E" : "transparent",
@@ -620,7 +633,7 @@ export default function RegisterPage() {
                         <polyline points="20 6 9 17 4 12"/>
                       </svg>
                     )}
-                  </div>
+                  </button>
                   <span style={{ fontSize: 12, color: "#4A5568", lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     I agree to the{" "}
                     <Link href="/terms" target="_blank" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none", borderBottom: "1px solid rgba(13,158,110,0.35)" }}>

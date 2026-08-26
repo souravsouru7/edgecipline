@@ -53,6 +53,11 @@ export default function CoachChat({
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [stream.messages.length, stream.streaming]);
 
+  // The server pins a thread's market on its first reply, so prefer what it
+  // resolved over the prop the surface opened us with.
+  const activeMarket = stream.conversation?.conversation?.market
+    || initial?.conversation?.market
+    || market;
   const quota = stream.quota || quotaQuery.data?.quota || null;
   const exhausted = quota && !quota.premium && quota.remaining <= 0;
 
@@ -105,7 +110,7 @@ export default function CoachChat({
             type="button"
             title="Refresh trader context"
             aria-label="Refresh context"
-            onClick={() => refreshContextMutation.mutate()}
+            onClick={() => refreshContextMutation.mutate(activeMarket)}
             disabled={refreshContextMutation.isPending}
             style={iconBtnStyle}
           >

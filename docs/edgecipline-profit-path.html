@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Edgecipline — The Profit Path: How Profitability Actually Happens</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #ffffff;
+    color: #0F1923;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 14mm;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: avoid; }
+
+  /* ── Cover page ── */
+  .cover {
+    background: linear-gradient(160deg, #0F1923 0%, #1a2535 50%, #0d1a10 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 18mm 16mm;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: rgba(13,158,110,0.2);
+    border: 1px solid rgba(13,158,110,0.5);
+    color: #22C78E;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 5px 12px;
+    border-radius: 99px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+  .cover h1 {
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+  .cover h1 span { color: #22C78E; }
+  .cover .subtitle {
+    font-size: 16px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.55;
+    max-width: 140mm;
+    margin-bottom: 34px;
+  }
+  .cover-divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #B8860B, #D4A917);
+    border-radius: 2px;
+    margin-bottom: 34px;
+  }
+  .cover-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 30px;
+  }
+  .cover-pill {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cover-pill .icon { font-size: 16px; }
+  .cover-note {
+    background: rgba(220,38,38,0.1);
+    border: 1px solid rgba(220,38,38,0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.6;
+    margin-bottom: 34px;
+  }
+  .cover-note strong { color: #FCA5A5; font-weight: 800; }
+  .cover-footer {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cover-footer .brand {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .cover-footer .brand span { color: #22C78E; }
+  .cover-footer .date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── TOC ── */
+  .toc-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .toc-item:last-child { border-bottom: none; }
+  .toc-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748B;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .toc-text .title { font-size: 13px; font-weight: 700; color: #0F1923; margin-bottom: 2px; }
+  .toc-text .desc  { font-size: 11px; color: #64748B; line-height: 1.5; }
+
+  /* ── Section header ── */
+  .section-header { margin-bottom: 18px; }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin-bottom: 6px;
+  }
+  .section-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: #0F1923;
+    margin-bottom: 10px;
+  }
+  .section-desc {
+    font-size: 12.5px;
+    color: #475569;
+    line-height: 1.65;
+    max-width: 160mm;
+    border-left: 3px solid #E2E8F0;
+    padding-left: 12px;
+  }
+
+  /* ── Feature card ── */
+  .feature-card {
+    border: 1.5px solid #E2E8F0;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(15,25,35,0.05);
+  }
+  .feature-card-header {
+    padding: 13px 16px 11px;
+    border-bottom: 1px solid #F1F5F9;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+  }
+  .feature-card-header .fh-title { font-size: 13px; font-weight: 800; color: #0F1923; margin-bottom: 2px; }
+  .feature-card-header .fh-sub   { font-size: 11px; color: #64748B; line-height: 1.5; }
+  .feature-card-body { padding: 13px 16px; }
+  .fc-line { font-size: 11.5px; color: #334155; line-height: 1.65; margin-bottom: 8px; }
+  .fc-line:last-child { margin-bottom: 0; }
+  .fc-line b { color: #0F1923; font-weight: 800; }
+
+  /* ── Tables ── */
+  .ex-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
+  .ex-table th {
+    background: #F8FAFC;
+    padding: 7px 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #94A3B8;
+    border-bottom: 1.5px solid #E2E8F0;
+    text-transform: uppercase;
+  }
+  .ex-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #F1F5F9;
+    color: #334155;
+    vertical-align: top;
+    line-height: 1.55;
+  }
+  .ex-table tr:last-child td { border-bottom: none; }
+  .ex-table tr:nth-child(even) td { background: #FAFAFA; }
+  .ex-table td b { color: #0F1923; font-weight: 800; }
+
+  .badge-green  { display:inline-block; background:#DCFCE7; color:#166534; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-red    { display:inline-block; background:#FEE2E2; color:#991B1B; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-gold   { display:inline-block; background:#FEF3C7; color:#78350F; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-blue   { display:inline-block; background:#DBEAFE; color:#1E3A8A; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+  .badge-gray   { display:inline-block; background:#F1F5F9; color:#475569; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; }
+
+  /* ── Insight box ── */
+  .insight-box {
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    border-left: 3px solid;
+  }
+  .insight-box.green { background:#F0FDF4; border-color:#0D9E6E; }
+  .insight-box.red   { background:#FEF2F2; border-color:#DC2626; }
+  .insight-box.gold  { background:#FFFBEB; border-color:#D97706; }
+  .insight-box.blue  { background:#EFF6FF; border-color:#2563EB; }
+  .insight-box.purple{ background:#F5F3FF; border-color:#7C3AED; }
+  .insight-box .ib-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .insight-box.green  .ib-label { color: #0D9E6E; }
+  .insight-box.red    .ib-label { color: #DC2626; }
+  .insight-box.gold   .ib-label { color: #D97706; }
+  .insight-box.blue   .ib-label { color: #2563EB; }
+  .insight-box.purple .ib-label { color: #7C3AED; }
+  .insight-box .ib-text { font-size: 11.5px; color: #334155; line-height: 1.6; }
+  .insight-box .ib-text b { color: #0F1923; font-weight: 800; }
+
+  /* Compact density — for pages carrying three full mechanism cards */
+  .page.compact .section-header { margin-bottom: 14px; }
+  .page.compact .feature-card { margin-bottom: 10px; }
+  .page.compact .feature-card-body { padding: 11px 16px; }
+  .page.compact .fc-line { margin-bottom: 7px; }
+  .page.compact .insight-box { margin-top: 8px; }
+
+  /* ── Layout helpers ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .mt-14 { margin-top: 14px; }
+  .mt-18 { margin-top: 18px; }
+
+  /* ── Stat tile ── */
+  .stat-tile {
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .stat-tile .st-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #94A3B8; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-tile .st-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #0F1923; }
+  .stat-tile .st-sub   { font-size: 10px; color: #64748B; margin-top: 2px; line-height: 1.45; }
+  .stat-tile.green { border-color: rgba(13,158,110,0.3); background: rgba(13,158,110,0.04); }
+  .stat-tile.green .st-value { color: #065F46; }
+  .stat-tile.red   { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.04); }
+  .stat-tile.red   .st-value { color: #991B1B; }
+  .stat-tile.gold  { border-color: rgba(184,134,11,0.3); background: rgba(184,134,11,0.04); }
+  .stat-tile.gold  .st-value { color: #92400E; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 5px 0;
+    font-size: 11.5px;
+    color: #334155;
+    line-height: 1.55;
+    border-bottom: 1px solid #F8FAFC;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .check-dot.green { background: rgba(13,158,110,0.15); color: #0D9E6E; }
+  .check-dot.red   { background: rgba(220,38,38,0.12);  color: #DC2626; }
+  .check-dot.gray  { background: #F1F5F9; color: #64748B; }
+
+  /* ── Timeline (the 14 days) ── */
+  .tl-item {
+    display: flex;
+    gap: 14px;
+    padding-bottom: 14px;
+    position: relative;
+  }
+  .tl-item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 25px;
+    top: 34px;
+    bottom: 0;
+    width: 2px;
+    background: #E2E8F0;
+  }
+  .tl-day {
+    width: 52px;
+    height: 30px;
+    border-radius: 8px;
+    background: #0F1923;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+  .tl-day.accent { background: linear-gradient(135deg,#0D9E6E,#22C78E); }
+  .tl-body { padding-top: 2px; }
+  .tl-body .tl-title { font-size: 12.5px; font-weight: 800; color: #0F1923; margin-bottom: 3px; }
+  .tl-body .tl-text  { font-size: 11.5px; color: #475569; line-height: 1.6; }
+  .tl-body .tl-text b { color: #0F1923; font-weight: 800; }
+
+  /* ── Big statement ── */
+  .big-statement {
+    background: linear-gradient(160deg,#0F1923,#1a2535);
+    border-radius: 14px;
+    padding: 22px 24px;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .big-statement .bs-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #22C78E;
+    margin-bottom: 10px;
+  }
+  .big-statement .bs-text {
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.45;
+    letter-spacing: -0.02em;
+    color: #F1F5F9;
+  }
+  .big-statement .bs-text span { color: #22C78E; }
+  .big-statement .bs-sub {
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.65;
+    margin-top: 12px;
+  }
+
+  /* ── Phase card ── */
+  .phase-card {
+    border: 1.5px solid #E2E8F0;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: #fff;
+  }
+  .phase-head {
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .phase-num {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 700;
+    color: #fff; flex-shrink: 0;
+  }
+  .phase-head .ph-title { font-size: 13.5px; font-weight: 900; color: #0F1923; letter-spacing: -0.01em; }
+  .phase-head .ph-when  { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: #94A3B8; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+  .phase-body { padding: 13px 16px; }
+  .phase-job {
+    font-size: 12px; color: #0F1923; font-weight: 700;
+    background: #F8FAFC; border-radius: 8px; padding: 9px 12px;
+    margin-bottom: 11px; border-left: 3px solid #CBD5E1;
+  }
+  .phase-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .phase-col .pc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #94A3B8; margin-bottom: 5px;
+  }
+  .exit-strip {
+    margin-top: 11px;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 11.5px;
+    line-height: 1.55;
+    background: #F0FDF4;
+    border: 1px solid rgba(13,158,110,0.25);
+    color: #065F46;
+  }
+  .exit-strip b { font-weight: 800; }
+
+  /* ── Limits ── */
+  .limit-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .limit-row:last-child { border-bottom: none; }
+  .limit-icon { font-size: 17px; margin-top: 1px; flex-shrink: 0; }
+  .limit-row .lr-title { font-size: 12.5px; font-weight: 800; color: #0F1923; margin-bottom: 2px; }
+  .limit-row .lr-text  { font-size: 11.5px; color: #475569; line-height: 1.6; }
+
+  /* ── Page header band ── */
+  .page-band { height: 3px; border-radius: 2px; margin-bottom: 20px; }
+  .band-green  { background: linear-gradient(90deg,#0D9E6E,#22C78E33); }
+  .band-red    { background: linear-gradient(90deg,#DC2626,#DC262633); }
+  .band-blue   { background: linear-gradient(90deg,#2563EB,#2563EB33); }
+  .band-purple { background: linear-gradient(90deg,#7C3AED,#7C3AED33); }
+  .band-gold   { background: linear-gradient(90deg,#B8860B,#B8860B33); }
+
+  /* ── Footer ── */
+  .page-footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 14mm;
+    right: 14mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #E2E8F0;
+    padding-top: 8px;
+  }
+  .page-footer .pf-brand { font-size: 10px; font-weight: 700; color: #94A3B8; letter-spacing: -0.01em; }
+  .page-footer .pf-page  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #CBD5E1; letter-spacing: 0.06em; }
+
+  @media print {
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     PAGE 1 — COVER
+══════════════════════════════════════════ -->
+<div class="page cover">
+  <div class="cover-badge">Edgecipline · The Profit Path · Trading Psychology</div>
+
+  <h1>How Profitability<br/><span>Actually Happens</span></h1>
+
+  <p class="subtitle">
+    What changes inside your brain when you journal every trade, every emotion and every broken rule —
+    and how to use Edgecipline, step by step, to turn that change into consistent execution.
+  </p>
+
+  <div class="cover-divider"></div>
+
+  <div class="cover-grid">
+    <div class="cover-pill"><span class="icon">🗓️</span> The first 14 days</div>
+    <div class="cover-pill"><span class="icon">🧠</span> Six brain mechanisms</div>
+    <div class="cover-pill"><span class="icon">🧭</span> The 4-phase path</div>
+    <div class="cover-pill"><span class="icon">📐</span> Why fewer trades win</div>
+    <div class="cover-pill"><span class="icon">📊</span> Where you are right now</div>
+    <div class="cover-pill"><span class="icon">⚖️</span> What this app cannot do</div>
+  </div>
+
+  <div class="cover-note">
+    <strong>No guaranteed profit.</strong> Edgecipline does not predict markets, does not give signals,
+    and cannot promise that you will make money. Trading involves substantial risk of loss.
+    This document explains how the app helps you control the one variable you actually own — your own behaviour.
+  </div>
+
+  <div class="cover-footer">
+    <div class="brand">Edge<span>cipline</span></div>
+    <div class="date">THE PROFIT PATH · TRADER PLAYBOOK · 2026</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 2 — READ THIS FIRST
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-red"></div>
+
+  <div class="section-header">
+    <div class="section-label">Before Anything Else</div>
+    <div class="section-title">Read This First</div>
+    <div class="section-desc">
+      Most trading apps open with a promise. This one opens with a limit, because the limit is the
+      most useful thing we can tell you — and because everything after this page only works if you accept it.
+    </div>
+  </div>
+
+  <div class="big-statement">
+    <div class="bs-label">The one sentence that matters</div>
+    <div class="bs-text">Discipline does not create an edge.<br/>It lets an edge <span>survive contact with you</span>.</div>
+    <div class="bs-sub">
+      If your strategy has a real statistical edge, your behaviour is what decides whether that edge ever
+      reaches your account. If your strategy has no edge, perfect discipline will simply make you lose more
+      slowly and more consistently. Journaling makes you accurate. It does not make you right.
+    </div>
+  </div>
+
+  <div class="mt-18">
+    <div class="insight-box red">
+      <div class="ib-label">What Edgecipline does not do</div>
+      <div class="ib-text">
+        It does not predict price. It does not send buy/sell signals. It does not guarantee profit,
+        recovery of losses, or any particular result. It has no opinion on whether EURUSD goes up tomorrow.
+        Nothing in this app is investment advice.
+      </div>
+    </div>
+
+    <div class="insight-box green">
+      <div class="ib-label">What Edgecipline does do</div>
+      <div class="ib-text">
+        It records what you actually did — not what you remember doing. It attaches your emotional state to
+        each decision, aggregates the result across every trade, and shows you the behaviours that repeatedly
+        cost you money. Then it puts a step between you and the next repeat of that behaviour.
+      </div>
+    </div>
+
+    <div class="insight-box gold">
+      <div class="ib-label">Why that is worth anything</div>
+      <div class="ib-text">
+        Two traders can run the identical strategy and end the year in opposite places. The difference is
+        rarely the setup. It is the trades taken outside the plan, the stop that got widened, the size that
+        doubled after a loss, and the four extra entries taken on a boring Wednesday. Those are behaviours,
+        and behaviours are measurable, trackable and changeable. That is the entire scope of this app.
+      </div>
+    </div>
+
+    <div class="insight-box blue">
+      <div class="ib-label">Honest expectation setting</div>
+      <div class="ib-text">
+        Following everything in this document will most likely make your results <b>more consistent and more
+        explainable</b>. Whether "more consistent" means "profitable" depends on your strategy, your market,
+        your risk per trade, and conditions nobody controls. Some traders discover through this process that
+        their strategy has no edge at all. That is a genuinely valuable discovery — it is cheaper to learn
+        it from a journal than from a blown account.
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 02</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 3 — TABLE OF CONTENTS
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-gold"></div>
+
+  <div class="section-header">
+    <div class="section-label">Table of Contents</div>
+    <div class="section-title">What's Inside</div>
+    <div class="section-desc">
+      This is not motivation. It is a sequence: what happens in your brain, which feature addresses it,
+      what you do in which week, and how to tell whether it is working.
+    </div>
+  </div>
+
+  <div class="toc-item">
+    <div class="toc-num">1</div>
+    <div class="toc-text">
+      <div class="title">🗓️ The First 14 Days — What Change Actually Feels Like</div>
+      <div class="desc">A real two-week arc: logging feels pointless, then the data speaks, then you break the rule anyway, then one day you stop yourself before the click.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">2</div>
+    <div class="toc-text">
+      <div class="title">🧠 What Happens Inside The Brain — Six Mechanisms</div>
+      <div class="desc">Prediction error, emotional memory tagging, the habit loop, hot-state vs cold-state decisions, loss aversion, and the biased sample your memory keeps.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">3</div>
+    <div class="toc-text">
+      <div class="title">🔗 The Map — Brain Problem → App Feature → Your Action</div>
+      <div class="desc">Every mechanism above matched to the exact screen in Edgecipline that addresses it, and the specific thing you do there.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">4</div>
+    <div class="toc-text">
+      <div class="title">🧭 The 4-Phase Path — Week By Week</div>
+      <div class="desc">Log everything → find one leak → install one guardrail → scale only what is proven. Each phase has one job and a hard exit criterion.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">5</div>
+    <div class="toc-text">
+      <div class="title">📐 Why Fewer Trades Wins — The Arithmetic</div>
+      <div class="desc">Worked example showing how nine low-quality trades can erase the entire edge produced by three good ones, at the same win rate.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">6</div>
+    <div class="toc-text">
+      <div class="title">📊 Where You Are Right Now</div>
+      <div class="desc">Your live numbers — trades logged, plan adherence, calm-trading rate, no-revenge rate, biggest leak — and which phase they place you in.</div>
+    </div>
+  </div>
+  <div class="toc-item">
+    <div class="toc-num">7</div>
+    <div class="toc-text">
+      <div class="title">⚖️ The Limits — What This App Cannot Do For You</div>
+      <div class="desc">Where the tool stops and you begin, stated plainly, with the risk disclosure repeated in full.</div>
+    </div>
+  </div>
+
+  <div class="insight-box purple mt-18">
+    <div class="ib-label">How to read this</div>
+    <div class="ib-text">
+      If you have been using Edgecipline for less than two weeks, read sections 1, 2 and 4 and ignore
+      everything else — your data is not ready yet. If you have 20+ logged trades with emotions filled in,
+      start at section 3 and go straight to section 6 to find your phase.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 03</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 4 — THE FIRST 14 DAYS
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-green"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 1</div>
+    <div class="section-title">The First 14 Days</div>
+    <div class="section-desc">
+      Nobody becomes disciplined by deciding to be disciplined. It happens through a specific, unglamorous
+      sequence. Here is what that sequence looks like from the inside.
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-day">DAY 1–7</div>
+    <div class="tl-body">
+      <div class="tl-title">You log, and nothing seems to happen</div>
+      <div class="tl-text">
+        Upload the screenshot, tag the emotion, note whether the entry came from your plan or from an impulse.
+        It feels like paperwork. There is no insight yet, because seven days is not a sample —
+        it is a handful of anecdotes. <b>This is the phase most traders quit in, and quitting here is why
+        most trading journals are empty by week three.</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-day">DAY 8</div>
+    <div class="tl-body">
+      <div class="tl-title">The data says something you did not know</div>
+      <div class="tl-text">
+        The Intelligence Hub surfaces a pattern you could not see from inside your own head: the losses are
+        not spread evenly. They cluster. Same session you never planned to trade, same emotional state,
+        same "I'll just take this one" entry. <b>You did not discover a market truth. You discovered a
+        behavioural one — and it was always there, hidden in a sample of one trade at a time.</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-day">DAY 10</div>
+    <div class="tl-body">
+      <div class="tl-title">You break the rule anyway</div>
+      <div class="tl-text">
+        Knowing the pattern does not stop the pattern. You take the random-session trade, you take the stop
+        loss, and you log it honestly with the emotion attached. <b>This is not failure. This is the
+        raw material.</b> A rule you have never broken while watching yourself break it teaches you nothing.
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-day accent">DAY 11</div>
+    <div class="tl-body">
+      <div class="tl-title">The pause arrives</div>
+      <div class="tl-text">
+        Same setup, same session, same itch. Your hand is on the mouse and something interrupts:
+        <i>I took this exact trade yesterday, in this exact mood, and it stopped me out.</i>
+        You think about it one more time. Maybe you still take it — but you thought first.
+        <b>That gap between the impulse and the click is the entire product. Everything else in this app
+        exists to make that gap appear more often.</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-day accent">DAY 14</div>
+    <div class="tl-body">
+      <div class="tl-title">The question changes</div>
+      <div class="tl-text">
+        You stop asking <i>"can I take this trade?"</i> — the answer to that is always yes, the button is
+        right there. You start asking <i>"is this trade worth taking?"</i> Two good setups in a week starts
+        to feel like enough, and skipping a mediocre one stops feeling like missing out.
+        <b>Nothing about the market changed in fourteen days. What changed is that the memory of the last
+        mistake now arrives before the click instead of after it.</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-box gold">
+    <div class="ib-label">The honest caveat</div>
+    <div class="ib-text">
+      Fourteen days is enough to change how you decide. It is <b>not</b> enough to prove anything about your
+      profitability — that needs a much larger sample, across different market conditions. Do not confuse
+      "my process improved" with "my strategy works". Section 4 separates the two.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 04</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 5 — BRAIN 1-3
+══════════════════════════════════════════ -->
+<div class="page compact">
+  <div class="page-band band-purple"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 2 · Part 1</div>
+    <div class="section-title">What Happens Inside The Brain</div>
+    <div class="section-desc">
+      Six well-documented mechanisms explain almost every repeated trading mistake. None of them are
+      character flaws — they are how a normal brain works under uncertainty and money pressure.
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">⚡</div>
+      <div>
+        <div class="fh-title">1 · Your brain learns from reviewed surprise, not from pain</div>
+        <div class="fh-sub">Prediction error — the basic learning signal</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        Learning is driven by the gap between what you expected and what happened. But the brain can only
+        use that gap if it is <b>consciously examined</b>. An unreviewed loss produces feeling, not learning:
+        you register "that hurt", the memory is stored as a bad mood rather than a bad decision, and the
+        decision itself goes uncorrected.
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> you take ten losses, feel terrible about all ten, and still repeat the same
+        entry mistake in trade eleven — because "feeling bad" was never attached to the specific choice
+        that caused it.
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">Reflection and the Weekly Report force the comparison — what you expected, what happened, what you would do differently — so the loss becomes a correction instead of a mood.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🏷️</div>
+      <div>
+        <div class="fh-title">2 · Emotion is the tag that makes a memory retrievable</div>
+        <div class="fh-sub">Emotional encoding — why the Day-11 pause happens</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        Memories carrying an emotional label are stored more strongly and — critically — are retrieved when
+        you re-enter the same emotional state. Writing down <b>what you felt at the moment of entry</b>
+        stamps a label on that trade. Later, the same feeling acts as the retrieval cue and pulls the
+        consequence back into consciousness, unrequested.
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> this is exactly the Day-11 pause. You did not remember a rule. You re-entered a
+        feeling, and the feeling dragged the outcome along with it.
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">Mood, emotional tags and <b>entry basis</b> (Plan / Emotion / Impulsive) are captured on every trade. This single field is what makes the retrieval work — skip it and the trade is just a number.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🔁</div>
+      <div>
+        <div class="fh-title">3 · Most bad trades are habits, not decisions</div>
+        <div class="fh-sub">The cue → routine → reward loop</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        A habit fires from a cue before deliberate thought engages. The cue might be opening the platform,
+        seeing a candle you missed, boredom in a dead session, or the flat feeling after closing a winner.
+        The routine — entering a trade — runs almost automatically, and the reward is relief from the cue,
+        not money. <b>This is why willpower fails: you cannot out-decide something that never reached the
+        deciding part of your brain.</b>
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> "I don't know why I took that one" is the honest description of a habit
+        completing itself.
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">The Pre-Trade Checklist inserts a required step between cue and routine. You are not trying to resist the urge — you are making the automatic path slightly longer, which is the only intervention that reliably works on habits.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 05</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 6 — BRAIN 4-6
+══════════════════════════════════════════ -->
+<div class="page compact">
+  <div class="page-band band-purple"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 2 · Part 2</div>
+    <div class="section-title">Three More You Will Recognise</div>
+    <div class="section-desc">
+      The first three explain why you repeat mistakes. These three explain why the mistakes get expensive.
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🌡️</div>
+      <div>
+        <div class="fh-title">4 · The calm you must write the rules for the hot you</div>
+        <div class="fh-sub">Hot-state / cold-state gap — and pre-commitment</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        When money is moving against you, the deliberate, planning part of the brain loses influence to the
+        faster threat-and-urgency systems. In that hot state you genuinely cannot access the reasoning you
+        had an hour earlier — and worse, in the calm state you systematically <b>underestimate</b> how
+        differently you will behave when hot. That is why "I'll just be more disciplined tomorrow" fails.
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> the stop you moved. The size you doubled. The setup you "adjusted" mid-trade.
+        None of these felt irrational in the moment — that is the entire problem.
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">Setups are written cold, in advance, as explicit rules. The checklist is run hot, at the moment of decision. You are not relying on hot-state judgement — you are letting your calm self govern your future hot self.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🩸</div>
+      <div>
+        <div class="fh-title">5 · A loss hurts roughly twice as much as an equal win feels good</div>
+        <div class="fh-sub">Loss aversion → the revenge trade</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        This asymmetry is one of the most replicated findings in decision research. Because losing $100
+        registers far heavier than winning $100, the brain generates urgency to <b>close the gap immediately</b>
+        — and immediacy is the enemy of setup quality. The revenge trade is not greed. It is pain relief.
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> the trade taken within minutes of a stop-out, in a setup you would have skipped
+        an hour earlier, usually with size that "makes it back".
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">Edgecipline flags entries taken inside a short window after a loss and tracks your <b>no-revenge rate</b> as a standing score, so the behaviour has a number attached instead of an excuse.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-card-header">
+      <div class="feature-icon">🔍</div>
+      <div>
+        <div class="fh-title">6 · Your memory keeps a biased sample; the database keeps the real one</div>
+        <div class="fh-sub">Recency, availability and small-sample bias</div>
+      </div>
+    </div>
+    <div class="feature-card-body">
+      <div class="fc-line">
+        You do not remember your trading — you remember the vivid parts. The big win, the painful loss, the
+        most recent session. Three wins in a row feels like proof a strategy works; it is statistically
+        almost meaningless. <b>Every conclusion you draw from memory is drawn from a sample your emotions
+        selected for you.</b>
+      </div>
+      <div class="fc-line">
+        <b>At your desk:</b> raising size after a hot streak, abandoning a valid strategy after two losses,
+        and being certain about which setup is "your best" without ever having counted.
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">What the app does</div>
+        <div class="ib-text">Analytics, Pattern Detection and the Psychology Cost Calculator compute over <b>every</b> trade, including the boring ones your memory discarded. That is the only way to see what is actually true of your trading.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 06</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 7 — THE MAP
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-blue"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 3</div>
+    <div class="section-title">The Map</div>
+    <div class="section-desc">
+      Every mechanism above, matched to the exact screen that addresses it and the specific action you take
+      there. If a feature in Edgecipline does not appear in this table, it is a reporting convenience —
+      not a behaviour-change tool.
+    </div>
+  </div>
+
+  <table class="ex-table">
+    <thead>
+      <tr>
+        <th style="width:23%">Brain mechanism</th>
+        <th style="width:29%">What it looks like</th>
+        <th style="width:22%">Where in Edgecipline</th>
+        <th style="width:26%">What you actually do</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Prediction error</b><br/><span class="badge-gray">learning</span></td>
+        <td>Ten losses, zero lessons. You feel the loss but never correct the decision behind it.</td>
+        <td>Reflection · Weekly Reports</td>
+        <td>Write what you expected vs what happened, once per trade and once per week.</td>
+      </tr>
+      <tr>
+        <td><b>Emotional encoding</b><br/><span class="badge-gray">memory</span></td>
+        <td>You repeat a mistake because the last one never comes back to mind in time.</td>
+        <td>Mood · Emotional tags · Entry Basis on every trade</td>
+        <td>Tag the emotion <b>at logging time</b>, honestly. Plan / Emotion / Impulsive is the field that matters most.</td>
+      </tr>
+      <tr>
+        <td><b>Habit loop</b><br/><span class="badge-gray">automaticity</span></td>
+        <td>"I don't know why I took that trade." Random-session entries, boredom trades.</td>
+        <td>Setups · Pre-Trade Checklist · Checklist reminder notification</td>
+        <td>Run the checklist <b>before</b> the entry, not after. The point is the delay, not the score.</td>
+      </tr>
+      <tr>
+        <td><b>Hot vs cold state</b><br/><span class="badge-gray">self-control</span></td>
+        <td>Stops moved, size doubled, rules "adjusted" mid-trade — and it all felt reasonable.</td>
+        <td>Setups (written cold) · Missions · Discipline</td>
+        <td>Write rules outside market hours. During the session you only execute, never redesign.</td>
+      </tr>
+      <tr>
+        <td><b>Loss aversion</b><br/><span class="badge-red">expensive</span></td>
+        <td>An entry within minutes of a stop-out, in a setup you'd have skipped an hour earlier.</td>
+        <td>Psychology Cost Calculator · no-revenge rate</td>
+        <td>Set a mandatory cool-off after a loss. Make it a mission so it is tracked, not just intended.</td>
+      </tr>
+      <tr>
+        <td><b>Recency / small sample</b><br/><span class="badge-gray">judgement</span></td>
+        <td>Sizing up after three wins; abandoning a working strategy after two losses.</td>
+        <td>Analytics · Pattern Detection · Trading DNA</td>
+        <td>Change nothing based on fewer than ~20 trades. Let the aggregate decide, not the last session.</td>
+      </tr>
+      <tr>
+        <td><b>Blind spots</b><br/><span class="badge-blue">visibility</span></td>
+        <td>You are confident about which setup is your best, but you have never counted.</td>
+        <td>Intelligence Hub · Psychology Timeline · Self-Awareness</td>
+        <td>Once a week, read the numbers before forming an opinion about your week.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="insight-box blue">
+    <div class="ib-label">The one field that carries the whole system</div>
+    <div class="ib-text">
+      If you only fill one thing on every trade, make it <b>Entry Basis: Plan / Emotion / Impulsive</b>.
+      It is the field that makes plan-adherence measurable, powers the psychology cost calculation, feeds
+      the coach, and is the single strongest predictor in your own data of whether a trade should have been
+      taken. A journal without it is a P&L report with extra typing.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 07</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 8 — PHASES 1-2
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-green"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 4 · Part 1</div>
+    <div class="section-title">The 4-Phase Path</div>
+    <div class="section-desc">
+      Four phases, one job each. The most common way to fail at this is to attempt all four at once —
+      logging, diagnosing, fixing and scaling in the same week — which produces noise instead of change.
+      Do them in order. Do not skip ahead because a phase feels slow.
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="phase-head">
+      <div class="phase-num" style="background:linear-gradient(135deg,#2563EB,#60A5FA)">01</div>
+      <div>
+        <div class="ph-title">Log everything, judge nothing</div>
+        <div class="ph-when">Days 1–14 · Collection phase</div>
+      </div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-job">One job: build an honest record. Do not change how you trade yet.</div>
+      <div class="phase-cols">
+        <div class="phase-col">
+          <div class="pc-label">Do this</div>
+          <ul class="checklist">
+            <li><span class="check-dot green">✓</span> Log every trade — winners, losers, and the embarrassing ones</li>
+            <li><span class="check-dot green">✓</span> Fill entry basis + mood on all of them</li>
+            <li><span class="check-dot green">✓</span> Log the impulsive trades <i>especially</i> — they are the dataset</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="pc-label">Ignore this</div>
+          <ul class="checklist">
+            <li><span class="check-dot red">✕</span> Analytics — the sample is too small to mean anything</li>
+            <li><span class="check-dot red">✕</span> Changing your strategy</li>
+            <li><span class="check-dot red">✕</span> Judging yourself for what the log shows</li>
+          </ul>
+        </div>
+      </div>
+      <div class="exit-strip">
+        <b>Exit criterion:</b> roughly 15–20 logged trades with entry basis and mood filled on every one.
+        Not 20 good trades — 20 honest ones.
+      </div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="phase-head">
+      <div class="phase-num" style="background:linear-gradient(135deg,#DC2626,#F87171)">02</div>
+      <div>
+        <div class="ph-title">Find exactly one leak</div>
+        <div class="ph-when">Weeks 3–4 · Diagnosis phase</div>
+      </div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-job">One job: name your single most expensive behaviour, with a number attached.</div>
+      <div class="phase-cols">
+        <div class="phase-col">
+          <div class="pc-label">Do this</div>
+          <ul class="checklist">
+            <li><span class="check-dot green">✓</span> Open the Psychology Cost Calculator and Pattern Detection</li>
+            <li><span class="check-dot green">✓</span> Find the behaviour with the largest negative total</li>
+            <li><span class="check-dot green">✓</span> Write it as one sentence you could say out loud</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="pc-label">Ignore this</div>
+          <ul class="checklist">
+            <li><span class="check-dot red">✕</span> Fixing three leaks at once — you will fix none</li>
+            <li><span class="check-dot red">✕</span> Leaks based on 2–3 trades; look for repetition</li>
+            <li><span class="check-dot red">✕</span> Blaming the market, the broker, or the spread</li>
+          </ul>
+        </div>
+      </div>
+      <div class="exit-strip">
+        <b>Exit criterion:</b> you can complete this sentence with real numbers — <i>"My biggest leak is
+        ____, it appears in ___ of my trades, and it has cost me ___ over ___ trades."</i>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-box gold">
+    <div class="ib-label">Why "one leak" and not a list</div>
+    <div class="ib-text">
+      Behaviour change has a hard capacity limit. Attempting several new rules at once means each gets a
+      fraction of your attention, all of them are followed inconsistently, and — worst of all — you cannot
+      tell which change caused which result. <b>One rule at a time is slower per rule and far faster overall.</b>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 08</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 9 — PHASES 3-4
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-green"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 4 · Part 2</div>
+    <div class="section-title">Install, Then Scale</div>
+    <div class="section-desc">
+      Phase 1 and 2 cost you nothing but honesty. Phase 3 is where it gets uncomfortable, because it is the
+      first time you are asked to not take a trade you want to take.
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="phase-head">
+      <div class="phase-num" style="background:linear-gradient(135deg,#B8860B,#D4A917)">03</div>
+      <div>
+        <div class="ph-title">Install one guardrail</div>
+        <div class="ph-when">Weeks 5–8 · Correction phase</div>
+      </div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-job">One job: turn your single leak into a rule that physically sits in your workflow.</div>
+      <div class="phase-cols">
+        <div class="phase-col">
+          <div class="pc-label">Do this</div>
+          <ul class="checklist">
+            <li><span class="check-dot green">✓</span> Add the leak as a checklist rule inside your Setup</li>
+            <li><span class="check-dot green">✓</span> Create a Mission for it so it is tracked daily</li>
+            <li><span class="check-dot green">✓</span> Watch plan adherence % — that is the scoreboard now, not P&L</li>
+            <li><span class="check-dot green">✓</span> Keep logging exactly as in Phase 1</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="pc-label">Ignore this</div>
+          <ul class="checklist">
+            <li><span class="check-dot red">✕</span> Weekly P&L — it is noise at this sample size</li>
+            <li><span class="check-dot red">✕</span> Adding a second rule before the first holds</li>
+            <li><span class="check-dot red">✕</span> Abandoning the rule because you broke it once</li>
+          </ul>
+        </div>
+      </div>
+      <div class="exit-strip">
+        <b>Exit criterion:</b> plan adherence at or above <b>80%</b> for two consecutive weeks, with the
+        leak's frequency visibly down in your own data. Broken once is normal. Broken every session means
+        the rule is wrong, not you — rewrite it smaller.
+      </div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="phase-head">
+      <div class="phase-num" style="background:linear-gradient(135deg,#0D9E6E,#22C78E)">04</div>
+      <div>
+        <div class="ph-title">Scale only what is proven</div>
+        <div class="ph-when">Week 9 onward · Compounding phase</div>
+      </div>
+    </div>
+    <div class="phase-body">
+      <div class="phase-job">One job: give more of your capital and attention to the patterns your data has earned it.</div>
+      <div class="phase-cols">
+        <div class="phase-col">
+          <div class="pc-label">Do this</div>
+          <ul class="checklist">
+            <li><span class="check-dot green">✓</span> Identify your best-performing conditions in Trading DNA</li>
+            <li><span class="check-dot green">✓</span> Concentrate on those; decline everything else</li>
+            <li><span class="check-dot green">✓</span> Return to Phase 2 and pick the next leak</li>
+            <li><span class="check-dot green">✓</span> Review the Psychology Timeline monthly, not daily</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="pc-label">Ignore this</div>
+          <ul class="checklist">
+            <li><span class="check-dot red">✕</span> Scaling size on a pattern with a small sample</li>
+            <li><span class="check-dot red">✕</span> Adding new strategies while adherence is unstable</li>
+            <li><span class="check-dot red">✕</span> Treating a good month as confirmation of skill</li>
+          </ul>
+        </div>
+      </div>
+      <div class="exit-strip">
+        <b>There is no exit.</b> Phase 4 loops back to Phase 2 permanently. The traders who last are not
+        the ones who finished — they are the ones still running the loop in year five.
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 09</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 10 — THE ARITHMETIC
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-gold"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 5</div>
+    <div class="section-title">Why Fewer Trades Wins</div>
+    <div class="section-desc">
+      "Take fewer, better trades" sounds like discipline advice. It is actually arithmetic. Here is the
+      arithmetic — with illustrative numbers, so you can run the same calculation on your own.
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="feature-card" style="margin-bottom:0">
+      <div class="feature-card-header">
+        <div class="feature-icon">✅</div>
+        <div>
+          <div class="fh-title">Your A+ setups</div>
+          <div class="fh-sub">Planned, checklist passed, right session</div>
+        </div>
+      </div>
+      <div class="feature-card-body">
+        <div class="fc-line">Win rate <b>55%</b> · Avg win <b>2.0R</b> · Avg loss <b>1.0R</b></div>
+        <div class="fc-line">Expectancy = (0.55 × 2.0) − (0.45 × 1.0)</div>
+        <div class="fc-line"><b>= +0.65R per trade</b></div>
+      </div>
+    </div>
+
+    <div class="feature-card" style="margin-bottom:0">
+      <div class="feature-card-header">
+        <div class="feature-icon">⚠️</div>
+        <div>
+          <div class="fh-title">Your low-quality trades</div>
+          <div class="fh-sub">Impulsive, off-session, rules skipped</div>
+        </div>
+      </div>
+      <div class="feature-card-body">
+        <div class="fc-line">Win rate <b>35%</b> · Avg win <b>1.4R</b> · Avg loss <b>1.1R</b></div>
+        <div class="fc-line">Expectancy = (0.35 × 1.4) − (0.65 × 1.1)</div>
+        <div class="fc-line"><b>= −0.22R per trade</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-box gold mt-14">
+    <div class="ib-label">Why the second column has worse numbers on both sides</div>
+    <div class="ib-text">
+      Low-quality trades don't just win less often. Because you were never fully convinced, you take profit
+      early (smaller wins) and you widen or hesitate on the stop (bigger losses). <b>The same lack of
+      conviction damages both halves of the equation at once.</b> This is visible in most traders' own data.
+    </div>
+  </div>
+
+  <table class="ex-table mt-14">
+    <thead>
+      <tr>
+        <th style="width:34%">A trading week</th>
+        <th style="width:22%">A+ trades</th>
+        <th style="width:22%">Low-quality trades</th>
+        <th style="width:22%">Week result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Selective week</b><br/><span class="badge-green">disciplined</span></td>
+        <td>3 × (+0.65R)<br/>= <b>+1.95R</b></td>
+        <td>0<br/>= 0.00R</td>
+        <td><b style="color:#065F46">+1.95R</b></td>
+      </tr>
+      <tr>
+        <td><b>Busy week</b> — same 3 good trades, plus 9 you talked yourself into<br/><span class="badge-red">over-trading</span></td>
+        <td>3 × (+0.65R)<br/>= <b>+1.95R</b></td>
+        <td>9 × (−0.22R)<br/>= <b>−2.03R</b></td>
+        <td><b style="color:#991B1B">−0.08R</b></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="big-statement mt-14">
+    <div class="bs-label">The result</div>
+    <div class="bs-text">The nine extra trades did not reduce the edge.<br/>They <span>erased it completely</span>.</div>
+    <div class="bs-sub">
+      Both weeks contained exactly the same three good trades, taken exactly as well. The only difference is
+      what was added around them. This is why "two quality trades a week, skip the rest" is not restraint —
+      it is the higher-expectancy choice. And note what it is <b>not</b>: taking fewer trades of the same
+      mediocre quality changes nothing. The selectivity has to be real.
+    </div>
+  </div>
+
+  <div class="insight-box blue mt-14">
+    <div class="ib-label">Run this on your own numbers</div>
+    <div class="ib-text">
+      The percentages above are illustrative, not a promise. Your real win rates and R-multiples — split by
+      entry basis, session and setup score — are in <b>Analytics</b> and <b>Pattern Detection</b>. Do the
+      same subtraction with your figures. If your low-quality bucket is positive, ignore this page entirely.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 10</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 11 — WHERE YOU ARE RIGHT NOW
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-purple"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 6 · Live in the app</div>
+    <div class="section-title">Where You Are Right Now</div>
+    <div class="section-desc">
+      In the app this section is not text — it reads your actual trades and tells you which phase you are
+      in, using numbers Edgecipline already computes. The layout below shows what it will look like.
+      <b>Example figures shown for illustration.</b>
+    </div>
+  </div>
+
+  <div class="four-col">
+    <div class="stat-tile">
+      <div class="st-label">Trades logged</div>
+      <div class="st-value">24</div>
+      <div class="st-sub">with psychology fields</div>
+    </div>
+    <div class="stat-tile gold">
+      <div class="st-label">Plan adherence</div>
+      <div class="st-value">62%</div>
+      <div class="st-sub">target: 80%</div>
+    </div>
+    <div class="stat-tile green">
+      <div class="st-label">Calm trading</div>
+      <div class="st-value">71%</div>
+      <div class="st-sub">entries in a settled state</div>
+    </div>
+    <div class="stat-tile red">
+      <div class="st-label">No-revenge rate</div>
+      <div class="st-value">80%</div>
+      <div class="st-sub">1 in 5 entries follows a loss too closely</div>
+    </div>
+  </div>
+
+  <div class="insight-box red mt-14">
+    <div class="ib-label">Your biggest leak right now</div>
+    <div class="ib-text">
+      <b>Entries taken outside your planned session.</b> Appears in 9 of your last 24 trades and accounts for
+      the largest negative contribution in your Psychology Cost breakdown. Everything else can wait —
+      this is the one to work on.
+    </div>
+  </div>
+
+  <div class="mt-18">
+    <div class="section-label">Your position on the path</div>
+    <div class="three-col mt-14" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="stat-tile" style="opacity:0.45">
+        <div class="st-label">Phase 01</div>
+        <div class="st-value" style="font-size:14px">Log</div>
+        <div class="st-sub">✓ complete — 24 trades</div>
+      </div>
+      <div class="stat-tile" style="opacity:0.45">
+        <div class="st-label">Phase 02</div>
+        <div class="st-value" style="font-size:14px">Diagnose</div>
+        <div class="st-sub">✓ complete — leak identified</div>
+      </div>
+      <div class="stat-tile gold" style="border-width:2.5px">
+        <div class="st-label">Phase 03 · you are here</div>
+        <div class="st-value" style="font-size:14px">Install</div>
+        <div class="st-sub">adherence 62% → needs 80% for 2 weeks</div>
+      </div>
+      <div class="stat-tile" style="opacity:0.45">
+        <div class="st-label">Phase 04</div>
+        <div class="st-value" style="font-size:14px">Scale</div>
+        <div class="st-sub">locked until Phase 3 clears</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-box green mt-14">
+    <div class="ib-label">Your next action — one thing only</div>
+    <div class="ib-text">
+      Open <b>Setups</b>, add the rule <i>"No entry outside my planned session"</i> to your checklist, and
+      create a matching <b>Mission</b> so it is tracked daily. Then change nothing else for two weeks and
+      watch plan adherence, not P&L.
+    </div>
+  </div>
+
+  <div class="insight-box gold mt-14">
+    <div class="ib-label">If you have fewer than 15 logged trades</div>
+    <div class="ib-text">
+      This section will simply say so, and send you back to Phase 1. Showing you a "leak" derived from six
+      trades would be inventing a pattern out of noise — which is the exact error the app exists to prevent.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 11</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 12 — THE LIMITS
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-band band-red"></div>
+
+  <div class="section-header">
+    <div class="section-label">Section 7</div>
+    <div class="section-title">What This App Cannot Do For You</div>
+    <div class="section-desc">
+      Stated plainly, because a tool that oversells itself makes you trust the wrong things — and trusting
+      the wrong things is expensive in this business.
+    </div>
+  </div>
+
+  <div class="limit-row">
+    <div class="limit-icon">🚫</div>
+    <div>
+      <div class="lr-title">It cannot give you an edge</div>
+      <div class="lr-text">Edgecipline has no view on price and never will. If your strategy loses money when executed perfectly, this app will help you discover that faster and more clearly — it will not fix it.</div>
+    </div>
+  </div>
+  <div class="limit-row">
+    <div class="limit-icon">🎲</div>
+    <div>
+      <div class="lr-title">It cannot remove risk or guarantee any result</div>
+      <div class="lr-text">Trading forex and derivatives carries substantial risk of loss. Perfect discipline and a losing streak can coexist — in fact they frequently do. No feature in this app changes that.</div>
+    </div>
+  </div>
+  <div class="limit-row">
+    <div class="limit-icon">📉</div>
+    <div>
+      <div class="lr-title">It cannot make a small sample meaningful</div>
+      <div class="lr-text">Every insight is a function of the trades you have logged. Twelve trades produce twelve trades' worth of confidence — no more. Treat early patterns as hypotheses, not conclusions.</div>
+    </div>
+  </div>
+  <div class="limit-row">
+    <div class="limit-icon">✍️</div>
+    <div>
+      <div class="lr-title">It cannot correct a dishonest journal</div>
+      <div class="lr-text">If impulsive trades get logged as "Plan", every downstream number is wrong and the coach will confidently advise you about a trader who does not exist. The screenshot import removes the typing; only you can supply the honesty.</div>
+    </div>
+  </div>
+  <div class="limit-row">
+    <div class="limit-icon">🧑‍⚕️</div>
+    <div>
+      <div class="lr-title">It is not therapy, and not financial advice</div>
+      <div class="lr-text">The psychology here is applied behavioural science for trade execution. If trading is affecting your mental health, finances or relationships beyond the screen, that needs a professional — not an app.</div>
+    </div>
+  </div>
+  <div class="limit-row">
+    <div class="limit-icon">⏳</div>
+    <div>
+      <div class="lr-title">It cannot make change fast</div>
+      <div class="lr-text">Two weeks changes how you decide. Meaningful evidence about your results takes months and many trades across different conditions. Anyone promising faster is selling something.</div>
+    </div>
+  </div>
+
+  <div class="big-statement mt-14">
+    <div class="bs-label">Where that leaves you</div>
+    <div class="bs-text">The market is not in your control.<br/>Your strategy is partly in your control.<br/><span>Your behaviour is entirely in your control.</span></div>
+    <div class="bs-sub">
+      Edgecipline works on the third one, because it is the only one where effort reliably converts into
+      improvement. Log honestly, find one leak, install one guardrail, repeat. That is the whole method —
+      and it is genuinely all we claim.
+    </div>
+  </div>
+
+  <div class="insight-box red mt-18">
+    <div class="ib-label">Risk disclosure</div>
+    <div class="ib-text">
+      Edgecipline is a trading journal and behavioural analytics tool. It does not provide investment,
+      financial or trading advice, recommendations, or signals. Trading foreign exchange and derivatives on
+      margin carries a high level of risk and may not be suitable for all investors — you can lose more than
+      your initial deposit. Past performance, including any statistic shown in this app, is not indicative of
+      future results. No feature, insight, score or coaching message in Edgecipline constitutes a promise or
+      guarantee of profit. You alone are responsible for your trading decisions.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <div class="pf-brand">Edgecipline · The Profit Path</div>
+    <div class="pf-page">PAGE 12</div>
+  </div>
+</div>
+
+</body>
+</html>

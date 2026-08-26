@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { Resend } = require("resend");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
@@ -8,40 +9,104 @@ function getResendClient() {
 
 const FROM_ADDRESS = appConfig.resend.from;
 
+// Correlatable in logs, not reversible to an inbox.
+function hashRecipient(email) {
+  return crypto.createHash("sha256").update(String(email || "").toLowerCase().trim()).digest("hex").slice(0, 12);
+}
+
+function getSenderDomain(fromAddress = FROM_ADDRESS) {
+  const match = String(fromAddress || "").match(/@([^>\s]+)/);
+  return match?.[1] || "";
+}
+
+function getResendErrorMessage(error) {
+  return error?.message || error?.name || "Resend rejected the email";
+}
+
+// Resend refuses a misconfigured sender the same way every single time: an
+// unverified `from` domain, a send-only key used for a read, a revoked key, or
+// a sandbox sender writing to someone other than the account owner all come
+// back as 4xx validation failures. Retrying one is guaranteed to fail again, so
+// callers must be able to tell it apart from a genuine blip before they invite
+// the user to "try again in a moment".
+const PERMANENT_SEND_ERROR_NAMES = new Set([
+  "validation_error",
+  "missing_api_key",
+  "invalid_api_key",
+  "restricted_api_key",
+  "not_found",
+]);
+
+function isPermanentSendFailure(error) {
+  const status = Number(error?.statusCode || 0);
+  if (status === 401 || status === 403 || status === 404 || status === 422) return true;
+  return PERMANENT_SEND_ERROR_NAMES.has(String(error?.name || ""));
+}
+
+// Wraps a Resend rejection in an Error the caller can classify. `permanent`
+// means "no amount of retrying fixes this — an operator has to change config".
+function buildSendError(error) {
+  const err = new Error(getResendErrorMessage(error));
+  err.provider = "resend";
+  err.providerStatus = Number(error?.statusCode || 0);
+  err.providerErrorName = String(error?.name || "");
+  err.permanent = isPermanentSendFailure(error);
+  return err;
+}
+
 exports.sendOTPEmail = async (email, otp) => {
   if (!appConfig.resend.apiKey) {
-    logger.warn("RESEND_API_KEY missing — OTP email was not sent", {
+    logger.error("RESEND_API_KEY missing - OTP email cannot be sent", {
       recipientConfigured: Boolean(email),
     });
-    return true;
+    const err = new Error("RESEND_API_KEY is not configured");
+    err.permanent = true;
+    throw err;
   }
 
   const { error } = await getResendClient().emails.send({
     from: FROM_ADDRESS,
     to: email,
-    subject: "Your Stratedge Password Reset OTP",
+    subject: "Your Edgecipline password reset code",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-        <h2 style="color: #0d9e6e; text-align: center;">STRATEDGE</h2>
+        <h2 style="color: #0d9e6e; text-align: center;">EDGECIPLINE</h2>
         <p>Hello,</p>
-        <p>You requested a password reset. Use the following 6-digit OTP to reset your password. It expires in <strong>10 minutes</strong>.</p>
+        <p>You requested a password reset. Use the following 6-digit code to reset your password. It expires in <strong>10 minutes</strong>.</p>
         <div style="background-color: #f0fdf9; border: 1px dashed #0d9e6e; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
           <h1 style="color: #0d9e6e; font-size: 40px; letter-spacing: 8px; margin: 0;">${otp}</h1>
         </div>
-        <p>If you didn't request this, you can safely ignore this email — your password will not change.</p>
+        <p>If you did not request this, you can safely ignore this email - your password will not change.</p>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #94a3b8; text-align: center;">&copy; 2026 Stratedge. All rights reserved.</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">&copy; 2026 Edgecipline. All rights reserved.</p>
       </div>
     `,
   });
 
   if (error) {
-    logger.error("Resend OTP email failed", { email, error: error.message });
-    throw new Error("Failed to send OTP email");
+    const sendError = buildSendError(error);
+    logger.error("Resend OTP email failed", {
+      recipientId: hashRecipient(email),
+      senderDomain: getSenderDomain(),
+      providerStatus: sendError.providerStatus,
+      providerErrorName: sendError.providerErrorName,
+      permanent: sendError.permanent,
+      // Spelled out because the provider message alone ("the X domain is not
+      // verified") has repeatedly been read as a transient outage.
+      // No scheme in the URL on purpose — the logger redacts anything that
+      // looks like one, which would strip the only actionable part of this.
+      operatorAction: sendError.permanent
+        ? `Password reset email is misconfigured and every send will fail until it is fixed. Verify the "${getSenderDomain()}" domain in the Resend dashboard (resend.com/domains) and keep RESEND_FROM on a verified domain.`
+        : undefined,
+      error: sendError.message,
+    });
+    throw sendError;
   }
 
   return true;
 };
+
+exports.getSenderDomain = getSenderDomain;
 
 // Subscription Rescue Funnel — one templated function for all 7 touchpoints.
 // `intro` is the touchpoint-specific opener written by subscriptionRescueService.

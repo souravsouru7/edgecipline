@@ -7,6 +7,7 @@ import {
   getAnalyticsSnapshot,
 } from "@/services/analyticsApi";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
+import { useMarket } from "@/context/MarketContext";
 
 /**
  * useAnalytics
@@ -20,6 +21,7 @@ import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
  */
 export function useAnalytics() {
   const { ready } = useRequireAuth();
+  const { currentMarket } = useMarket();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [psychologyCostDays, setPsychologyCostDays] = useState("");
   const didAutoSetCalendarMonth = useRef(false);
@@ -33,8 +35,8 @@ export function useAnalytics() {
   }, []);
 
   const snapshotQuery = useQuery({
-    queryKey: ["analytics", "snapshot", "Forex", psychologyCostDays || "all"],
-    queryFn: ({ signal }) => getAnalyticsSnapshot("Forex", "", {
+    queryKey: ["analytics", "snapshot", currentMarket, psychologyCostDays || "all"],
+    queryFn: ({ signal }) => getAnalyticsSnapshot(currentMarket, "", {
       days: psychologyCostDays,
       period: "weekly",
     }, signal),
@@ -43,7 +45,7 @@ export function useAnalytics() {
     gcTime: 5 * 60 * 1000,
   });
 
-  const snapshot = snapshotQuery.data || {};
+  const snapshot = useMemo(() => snapshotQuery.data || {}, [snapshotQuery.data]);
   const error = snapshotQuery.error || null;
   const loading = snapshotQuery.isLoading;
 

@@ -3,10 +3,8 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function PrivacyPolicyPage() {
-  const router = useRouter();
-
-  const Section = ({ title, children, id }) => (
+function Section({ title, children, id }) {
+  return (
     <section id={id} style={{ marginBottom: 48 }}>
       <h2 style={{
         fontSize: 20,
@@ -24,11 +22,13 @@ export default function PrivacyPolicyPage() {
       </div>
     </section>
   );
+}
 
-  const BulletList = ({ items }) => (
+function BulletList({ items }) {
+  return (
     <ul style={{ paddingLeft: 0, listStyle: "none", marginTop: 12 }}>
-      {items.map((item, i) => (
-        <li key={i} style={{
+      {items.map((item) => (
+        <li key={item} style={{
           display: "flex", alignItems: "flex-start", gap: 10,
           marginBottom: 10, color: "#CBD5E1", fontSize: 15, lineHeight: 1.7
         }}>
@@ -41,8 +41,10 @@ export default function PrivacyPolicyPage() {
       ))}
     </ul>
   );
+}
 
-  const Highlight = ({ children }) => (
+function Highlight({ children }) {
+  return (
     <div style={{
       background: "rgba(184,134,11,0.08)",
       border: "1px solid rgba(184,134,11,0.25)",
@@ -57,6 +59,10 @@ export default function PrivacyPolicyPage() {
       {children}
     </div>
   );
+}
+
+export default function PrivacyPolicyPage() {
+  const router = useRouter();
 
   const toc = [
     { id: "information-collected", label: "Information We Collect" },
@@ -78,10 +84,6 @@ export default function PrivacyPolicyPage() {
       fontFamily: "'Plus Jakarta Sans', Arial, sans-serif",
       color: "#E2E8F0",
     }}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
 
       {/* ── HEADER ── */}
       <header style={{
@@ -113,7 +115,7 @@ export default function PrivacyPolicyPage() {
               fontSize: 9, color: "#22C78E", letterSpacing: "0.15em",
               fontFamily: "'JetBrains Mono'", fontWeight: 700
             }}>
-              EDGE DISCIPLINE
+              EDGECIPLINE
             </div>
           </div>
         </div>
@@ -154,7 +156,7 @@ export default function PrivacyPolicyPage() {
           Privacy Policy
         </h1>
         <p style={{ fontSize: 15, color: "#94A3B8", maxWidth: 540, margin: "0 auto 20px", lineHeight: 1.7 }}>
-          We respect your privacy and are committed to protecting your personal data. This policy explains how Edge Discipline handles your information.
+          We respect your privacy and are committed to protecting your personal data. This policy explains how Edgecipline handles your information.
         </p>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 6,
@@ -162,7 +164,7 @@ export default function PrivacyPolicyPage() {
           padding: "8px 16px",
           fontSize: 12, color: "#64748B", fontFamily: "'JetBrains Mono'"
         }}>
-          Last Updated: April 17, 2026
+          Last Updated: August 6, 2026
         </div>
       </div>
 
@@ -184,7 +186,7 @@ export default function PrivacyPolicyPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px 24px" }}>
             {toc.map((item, i) => (
-              <a key={i} href={`#${item.id}`} style={{
+              <a key={item.id} href={`#${item.id}`} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 textDecoration: "none", color: "#94A3B8",
                 fontSize: 13, padding: "6px 0", transition: "color 0.2s",
@@ -207,7 +209,7 @@ export default function PrivacyPolicyPage() {
 
         {/* ── INTRO ── */}
         <p style={{ fontSize: 15, color: "#94A3B8", lineHeight: 1.8, marginBottom: 48 }}>
-          This Privacy Policy describes how <strong style={{ color: "#F1F5F9" }}>Edge Discipline</strong> ("we," "our," or "us") collects, uses, and protects your information when you use our mobile and web application. By using Edge Discipline, you agree to the collection and use of information as outlined in this policy.
+          This Privacy Policy describes how <strong style={{ color: "#F1F5F9" }}>Edgecipline</strong> {"(\"we,\" \"our,\" or \"us\") collects, uses, and protects your information when you use our mobile and web application. By using Edgecipline, you agree to the collection and use of information as outlined in this policy."}
         </p>
 
         {/* ── SECTION 1 ── */}
@@ -245,7 +247,7 @@ export default function PrivacyPolicyPage() {
 
         {/* ── SECTION 2 ── */}
         <Section title="2. How We Use Your Data" id="how-we-use">
-          <p style={{ marginBottom: 12 }}>Your data is used strictly to provide you with the features of Edge Discipline:</p>
+          <p style={{ marginBottom: 12 }}>Your data is used strictly to provide you with the features of Edgecipline:</p>
           <BulletList items={[
             "To authenticate your identity and maintain your account",
             "To store and display your trade journal entries and checklist responses",
@@ -256,7 +258,7 @@ export default function PrivacyPolicyPage() {
             "To improve the reliability and features of the application",
           ]} />
           <Highlight>
-            Edge Discipline does NOT use your data for advertising, does NOT sell your data to third parties, and does NOT use your data to train general-purpose AI models.
+            Edgecipline does NOT use your data for advertising, does NOT sell your data to third parties, and does NOT use your data to train general-purpose AI models.
           </Highlight>
         </Section>
 
@@ -268,8 +270,8 @@ export default function PrivacyPolicyPage() {
             {[
               { name: "Firebase (Google)", desc: "Used for user authentication and secure login management.", color: "#F97316" },
               { name: "MongoDB Atlas", desc: "Used for storing trade journal entries, insights, checklists, and app data.", color: "#22C78E" },
-            ].map((s, i) => (
-              <div key={i} style={{
+            ].map((s) => (
+              <div key={s.name} style={{
                 background: "rgba(255,255,255,0.03)",
                 border: `1px solid ${s.color}33`,
                 borderLeft: `3px solid ${s.color}`,
@@ -292,7 +294,7 @@ export default function PrivacyPolicyPage() {
 
         {/* ── SECTION 4 ── */}
         <Section title="4. Third-Party Services" id="third-party">
-          <p style={{ marginBottom: 12 }}>Edge Discipline integrates with the following third-party services:</p>
+          <p style={{ marginBottom: 12 }}>Edgecipline integrates with the following third-party services:</p>
           <BulletList items={[
             "Google Sign-In (Firebase Authentication) — for social login. Google's privacy policy governs how Google handles your Google account data.",
             "Firebase (Google Cloud) — for authentication infrastructure.",
@@ -313,7 +315,7 @@ export default function PrivacyPolicyPage() {
           <BulletList items={[
             "With service providers (Firebase, MongoDB) strictly to operate the platform",
             "If required by applicable law, regulation, or valid legal process",
-            "To protect the rights, property, or safety of Edge Discipline, our users, or the public",
+            "To protect the rights, property, or safety of Edgecipline, our users, or the public",
             "In the event of a business merger or acquisition — users will be notified",
           ]} />
         </Section>
@@ -341,6 +343,7 @@ export default function PrivacyPolicyPage() {
           <BulletList items={[
             "Your data is retained as long as your account remains active",
             "When you delete your account, all personal data — including trade entries, images, insights, and account details — is permanently deleted from our systems",
+            "Payment and invoice records are retained after account deletion where required by law. These contain no personal information beyond an internal account identifier, which no longer identifies anyone once your account is removed",
             "Some anonymized, non-identifiable data may be retained for product improvement and analytics",
             "Backups may retain data for a limited period (up to 30 days) before permanent deletion",
           ]} />
@@ -349,14 +352,14 @@ export default function PrivacyPolicyPage() {
         {/* ── SECTION 8 ── */}
         <Section title="8. Children's Privacy" id="children">
           <p>
-            Edge Discipline is not directed at individuals under the age of 18. We do not knowingly collect personal information from minors. If you believe a minor has provided us with personal data, please contact us immediately and we will delete the information.
+            Edgecipline is not directed at individuals under the age of 18. We do not knowingly collect personal information from minors. If you believe a minor has provided us with personal data, please contact us immediately and we will delete the information.
           </p>
         </Section>
 
         {/* ── SECTION 9 ── */}
         <Section title="9. Changes to This Policy" id="changes">
           <p>
-            We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements. When we make material changes, we will notify you by updating the "Last Updated" date at the top of this page and, where appropriate, through an in-app notification. Continued use of the app after changes constitute acceptance of the updated policy.
+            {"We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements. When we make material changes, we will notify you by updating the \"Last Updated\" date at the top of this page and, where appropriate, through an in-app notification. Continued use of the app after changes constitute acceptance of the updated policy."}
           </p>
         </Section>
 
@@ -372,7 +375,7 @@ export default function PrivacyPolicyPage() {
             padding: "24px 28px",
             display: "inline-block",
           }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edge Discipline</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edgecipline</div>
             <div style={{ fontSize: 14, color: "#94A3B8", marginBottom: 12 }}>Privacy & Data Requests</div>
             <a href="mailto:edgecipline@gmail.com" style={{
               display: "flex", alignItems: "center", gap: 8,
@@ -408,7 +411,7 @@ export default function PrivacyPolicyPage() {
           gap: 16,
         }}>
           <div style={{ fontSize: 12, color: "#475569", fontFamily: "'JetBrains Mono'" }}>
-            © 2026 Edge Discipline. All rights reserved.
+            © 2026 Edgecipline. All rights reserved.
           </div>
           <div style={{ display: "flex", gap: 20 }}>
             <Link href="/terms" style={{ fontSize: 12, color: "#64748B", textDecoration: "none" }}

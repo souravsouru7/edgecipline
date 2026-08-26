@@ -311,11 +311,12 @@ describe("Module 4 — Mood Patterns", () => {
     expect(invalid).toBeUndefined();
   });
 
+  // Labels match the words printed under the mood faces in the trade form.
   test("mood label is populated", () => {
     const trades = nOf(10, () => win({ mood: 4 }));
     const r = computePatternDetection(trades);
     const entry = r.mood.byMood.find(m => m.mood === 4);
-    expect(entry?.label).toBe("Good");
+    expect(entry?.label).toBe("Confident");
   });
 });
 
@@ -641,13 +642,99 @@ describe("Module 13 — Pattern Ranking System", () => {
       ...nOf(5, () => win({ mood: 4, profit: 100 })),     // Low confidence
     ];
     const r = computePatternDetection(trades);
-    const mood5 = r.rankings.top5Positive.find(p => p.name === "Mood 5 (Peak)");
-    const mood4 = r.rankings.top5Positive.find(p => p.name === "Mood 4 (Good)");
+    const mood5 = r.rankings.top5Positive.find(p => p.name === "Peak mood");
+    const mood4 = r.rankings.top5Positive.find(p => p.name === "Confident mood");
     if (mood5 && mood4) {
       const idx5 = r.rankings.top5Positive.indexOf(mood5);
       const idx4 = r.rankings.top5Positive.indexOf(mood4);
       expect(idx5).toBeLessThan(idx4); // 5 ranked higher
     }
+  });
+});
+
+// ── User-facing wording ──────────────────────────────────────────────────────
+
+/**
+ * A ranked row or a dashboard card is the only place a trader meets a pattern,
+ * so it has to name the thing they logged. The engine buckets confidence into
+ * "1-3" and mood into "3" internally, but neither number exists anywhere in the
+ * trade form — the form asks for Low/Medium/High/Overconfident and a mood face
+ * labelled Stressed…Peak. These lock the copy to those words.
+ */
+describe("Pattern wording is readable without knowing the bucket keys", () => {
+  const descriptions = (r) => [...r.rankings.top5Positive, ...r.rankings.top5Negative].map(p => p.description);
+
+  test("confidence rows name the level the trader picked, not a 1-10 range", () => {
+    const trades = [
+      ...nOf(12, () => win({ confidence: "Medium", profit: 100 })),
+      ...nOf(12, () => loss({ confidence: "Low", profit: -100 })),
+    ];
+    const r = computePatternDetection(trades);
+
+    expect(r.confidence.byRange.map(x => x.label)).toEqual(
+      expect.arrayContaining(["Low confidence", "Medium confidence"])
+    );
+    expect(descriptions(r)).toEqual(expect.arrayContaining(["Low confidence", "Medium confidence"]));
+    expect(descriptions(r).some(d => /Confidence range/i.test(d))).toBe(false);
+    expect(r.confidence.insight).not.toMatch(/Confidence (1-3|4-6|7-8|9-10)/);
+  });
+
+  test("mood rows name the mood, not a level number", () => {
+    const trades = [
+      ...nOf(12, () => win({ mood: 5, profit: 100 })),
+      ...nOf(12, () => loss({ mood: 3, profit: -100 })),
+    ];
+    const r = computePatternDetection(trades);
+
+    expect(descriptions(r)).toEqual(expect.arrayContaining(["Peak mood", "Neutral mood"]));
+    expect(descriptions(r).some(d => /Mood level/i.test(d))).toBe(false);
+    expect(r.mood.insight).not.toMatch(/mood level/i);
+  });
+
+  test("setup score rows name the band and keep the numbers as context", () => {
+    const trades = [
+      ...nOf(12, () => win({ setupScore: 90, profit: 100 })),
+      ...nOf(12, () => loss({ setupScore: 20, profit: -100 })),
+    ];
+    const r = computePatternDetection(trades);
+
+    expect(r.setupScore.byRange.map(x => x.label)).toEqual(
+      expect.arrayContaining(["Weak setups (score 0-39)", "Strong setups (score 80-100)"])
+    );
+    expect(descriptions(r)).toEqual(expect.arrayContaining(["Strong setups (score 80-100)"]));
+  });
+
+  test("combination labels spell out both conditions", () => {
+    const trades = nOf(12, () => win({
+      mood: 3, confidence: "Medium", entryBasis: "Plan", emotionalTags: ["Disciplined"], profit: 100,
+    }));
+    const r = computePatternDetection(trades);
+    const labels = r.combinations.allCombinations.map(c => c.label);
+
+    expect(labels).toEqual(expect.arrayContaining([
+      "Disciplined + medium confidence",
+      "Neutral mood + Disciplined",
+      "Plan entry + medium confidence",
+      "Disciplined with no losing streak",
+    ]));
+    expect(labels.some(l => /\(No Streak\)|Confidence \d/.test(l))).toBe(false);
+  });
+
+  test("streak, emotion, session and day rows read as sentences", () => {
+    // FOMO and Asia must not cover the identical trade set, or the ranking
+    // collapses the duplicate cohort and only one of the two rows survives.
+    const trades = [];
+    for (let i = 0; i < 12; i++) {
+      trades.push(loss({ emotionalTags: ["FOMO"], session: "Asia", profit: -100 }));
+      trades.push(loss({ emotionalTags: ["FOMO"], session: "London", profit: -150 }));
+      trades.push(win({ emotionalTags: ["Calm"], session: "London", profit: 200 }));
+    }
+    const r = computePatternDetection(trades);
+    const all = descriptions(r);
+
+    expect(all.some(d => /^Trading after \d\+? loss(es)?$/.test(d))).toBe(true);
+    expect(all).toEqual(expect.arrayContaining(["Felt FOMO", "Asia session"]));
+    expect(all.some(d => /^(Loss streak:|Emotional tag:|Session:|Day:)/.test(d))).toBe(false);
   });
 });
 

@@ -6,21 +6,10 @@ const User = require("../models/Users");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
 const { toObjectId } = require("../utils/objectId");
+const { isPremium: userIsPremium } = require("../utils/premium");
 
 // Maximum number of simultaneous active missions per user
 const MAX_ACTIVE_MISSIONS = 3;
-
-// ─── Plan check helper ────────────────────────────────────────────────────────
-
-// A user is considered premium if they have an active paid subscription OR
-// are within an active trial window — mirroring how the rest of the app gates
-// premium features (SmartPaywall, trial banner, etc.).
-function userIsPremium(user) {
-  if (!user) return false;
-  if (user.subscriptionStatus === "active") return true;
-  if (user.trial?.endsAt && new Date(user.trial.endsAt) > new Date()) return true;
-  return false;
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -180,7 +169,7 @@ async function acceptMission(userId, assignmentId) {
   // Plan gate: if the template requires premium, check the user's subscription
   if (assignment.missionSnapshot?.requiredPlan === "premium") {
     const user = await User.findById(userId)
-      .select("subscriptionStatus trial")
+      .select("role subscriptionStatus subscriptionPlan subscriptionExpiry trial")
       .lean();
     if (!userIsPremium(user)) {
       throw new ApiError(

@@ -26,9 +26,49 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- armv7 is 32-bit and unsupported since iOS 11; the Capacitor template
+	     shipped it by default. App Store validation flags it. -->
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
+	</array>
+
+	<!-- ── Permission usage strings ──────────────────────────────────────────
+	     iOS terminates the app the instant a permission is requested without
+	     its usage string, and the binary is rejected at upload (ITMS-90683).
+	     Trade screenshots are uploaded via <input type="file"> inside the
+	     WKWebView, which triggers both the camera and the photo picker. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Edgecipline uses your camera to capture broker screenshots so your trades can be logged automatically.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Edgecipline needs access to your photos so you can attach broker screenshots and chart images to your trade journal.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Edgecipline saves your exported trade cards and reports to your photo library.</string>
+
+	<!-- ── Export compliance ────────────────────────────────────────────────
+	     The app uses only standard HTTPS/TLS, which is exempt. Declaring it
+	     here stops App Store Connect asking the encryption question on every
+	     single submission. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- ── Google Sign-In callback ──────────────────────────────────────────
+	     Firebase/Google Sign-In returns to the app through the reversed client
+	     ID scheme. Without this entry the sign-in sheet opens and then has
+	     nowhere to return to, so authentication silently never completes.
+
+	     The value is REVERSED_CLIENT_ID from GoogleService-Info.plist, i.e.
+	     the OAuth client ID with its dot-separated parts reversed. Verify it
+	     against the downloaded plist after registering the iOS app in
+	     Firebase — it is derived from the iOS client, not the web client. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.466233608400-9j5m11998vtl33ctuhjkpsl4phlmamif</string>
+			</array>
+		</dict>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

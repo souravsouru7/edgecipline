@@ -12,6 +12,18 @@ async function findWeeklyReportByIdAndUser(reportId, userId) {
   return WeeklyReport.findOne({ _id: reportId, user: userId }).lean();
 }
 
+async function findExistingRollingReport(userId, marketType, weekStart, weekEnd) {
+  return WeeklyReport.findOne({
+    user: userId,
+    marketType,
+    periodType: "rolling7d",
+    weekStart,
+    weekEnd,
+  })
+    .select("snapshot aiFeedback")
+    .lean();
+}
+
 async function upsertRollingWeeklyReport(userId, marketType, weekStart, weekEnd, snapshot) {
   return WeeklyReport.findOneAndUpdate(
     { user: userId, marketType, periodType: "rolling7d", weekStart, weekEnd },
@@ -40,6 +52,7 @@ async function findRecentlyGeneratedWeeklyReport(userId, marketType, since) {
 }
 
 module.exports = {
+  findExistingRollingReport,
   findRecentlyGeneratedWeeklyReport,
   findWeeklyReportByIdAndUser,
   findWeeklyReportsByUser,

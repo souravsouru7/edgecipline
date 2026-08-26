@@ -1,5 +1,6 @@
 
 
+
 import apiClient from "./apiClient";
 
 let welcomeGuideSeenRequest = null;
@@ -35,6 +36,23 @@ export const resetPassword = async (email, resetToken, password) => {
 
 export const logoutUser = async () => {
   return await apiClient.post('/auth/logout');
+};
+
+// Permanently deletes the account and every piece of data attached to it.
+// Irreversible — there is no undo and no grace period. `confirmEmail` must
+// match the signed-in user's address exactly; the server rejects the request
+// otherwise, so this cannot be triggered by a stray call.
+// Needs far more than the 10s default: the server purges ~24 collections, drops
+// the Firebase identity and destroys every uploaded image before it answers. A
+// measured run took 9.7s while aborting partway, so the default was close enough
+// to the real cost that the client would give up on a deletion the server went
+// on to finish — showing an error for work that actually succeeded, with no way
+// for the user to tell. On this path a slow success beats a fast lie.
+export const deleteMyAccount = async (confirmEmail) => {
+  return await apiClient.delete('/auth/account', {
+    data: { confirmEmail },
+    timeout: 60000,
+  });
 };
 
 export const submitFeedback = async (data) => {

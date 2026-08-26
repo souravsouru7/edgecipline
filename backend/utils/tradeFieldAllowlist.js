@@ -89,12 +89,32 @@ function pickAllowedFields(payload, allowedFields) {
   );
 }
 
+// setupScore arrives from the client, where it is computed from the rule
+// checkboxes — so it is a claim, not a fact: a payload can report 100 while
+// every rule is marked unfollowed, and that number feeds the discipline score,
+// Trading DNA and mission recommendations. Whenever the rules themselves are
+// part of the write, derive the score from them instead of trusting it.
+function withDerivedSetupScore(fields) {
+  if (!Object.prototype.hasOwnProperty.call(fields, "setupRules")) return fields;
+
+  const rules = Array.isArray(fields.setupRules) ? fields.setupRules : [];
+  const valid = rules.filter(
+    (rule) => rule && typeof rule.label === "string" && rule.label.trim().length > 0
+  );
+  const followed = valid.filter((rule) => rule.followed === true).length;
+
+  return {
+    ...fields,
+    setupScore: valid.length > 0 ? Math.round((followed / valid.length) * 100) : null,
+  };
+}
+
 function pickForexTradeFields(payload) {
-  return pickAllowedFields(payload, FOREX_EDITABLE_FIELDS);
+  return withDerivedSetupScore(pickAllowedFields(payload, FOREX_EDITABLE_FIELDS));
 }
 
 function pickIndianTradeFields(payload) {
-  return pickAllowedFields(payload, INDIAN_EDITABLE_FIELDS);
+  return withDerivedSetupScore(pickAllowedFields(payload, INDIAN_EDITABLE_FIELDS));
 }
 
 module.exports = {

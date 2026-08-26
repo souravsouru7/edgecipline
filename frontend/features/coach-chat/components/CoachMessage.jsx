@@ -71,7 +71,7 @@ function CoachMessage({ message, streaming }) {
       }}>
         {isError && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#D63B3B", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-            <AlertTriangle size={12} /> Coach couldn't reply
+            <AlertTriangle size={12} /> {"Coach couldn't reply"}
           </div>
         )}
         {renderContent(message.content) || (

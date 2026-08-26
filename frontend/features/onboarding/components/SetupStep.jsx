@@ -3,14 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Pencil, PlayCircle } from "lucide-react";
+import { getOnboardingUploadPath } from "@/features/onboarding/utils/onboardingMarketRouting.mjs";
 
 // `selectedStyle` carries the starter setup returned by the server
 // (seedSetup{name, rules}). The style label is optional because onboarding now
 // sends users straight from market selection to setup creation.
 export default function SetupStep({ selectedStyle, customising, custom, onCustomToggle, onCustomChange, market }) {
   const seed = selectedStyle?.seedSetup;
-  const indianRoot = market === "Indian_Market" ? "/indian-market" : "";
   const samplePath = market === "Indian_Market" ? "/sample_indianmarket.jpeg" : "/sample.png";
+  const demoPath = getOnboardingUploadPath(market, { demo: true });
   if (!seed) {
     return <div style={{ color: "#94A3B8", fontSize: 12 }}>Loading your starter setup...</div>;
   }
@@ -111,7 +112,7 @@ export default function SetupStep({ selectedStyle, customising, custom, onCustom
             See how a broker screenshot is read. Demo mode does not save a trade.
           </div>
           <Link
-            href={`${indianRoot}/upload-trade?onboarding=1&demo=1`}
+            href={demoPath}
             style={{
               display: "inline-flex",
               alignItems: "center",

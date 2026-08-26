@@ -52,8 +52,8 @@ async function loadOnboardingProgress(userId) {
   try {
     const [setupCount, tradeCount, indianTradeCount] = await Promise.all([
       SetupStrategy.countDocuments({ user: userId }),
-      Trade.countDocuments({ user: userId }),
-      IndianTrade.countDocuments({ user: userId }).catch(() => 0),
+      Trade.countDocuments({ user: userId, deletedAt: null }),
+      IndianTrade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
     ]);
     return {
       setupCount,
@@ -134,6 +134,7 @@ async function loadDashboardAnalytics(userId, market = "Forex") {
       selfAwareness: snapshot.selfAwareness || null,
       psychologyCost: snapshot.psychologyCost || null,
       tradingDNA: snapshot.tradingDNA || null,
+      timeline: snapshot.timeline || null,
       cache: snapshot.cache || null,
       sourceTradeCount: snapshot.sourceTradeCount || 0,
       error: null,
@@ -148,6 +149,7 @@ async function loadDashboardAnalytics(userId, market = "Forex") {
       selfAwareness: null,
       psychologyCost: null,
       tradingDNA: null,
+      timeline: null,
       cache: null,
       sourceTradeCount: 0,
       error: "analytics_unavailable",
@@ -259,6 +261,7 @@ exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
     selfAwareness: analytics.selfAwareness,
     psychologyCost: analytics.psychologyCost,
     tradingDNA: analytics.tradingDNA,
+    timeline: analytics.timeline,
     streaks,
     reflection,
     notificationsSummary,

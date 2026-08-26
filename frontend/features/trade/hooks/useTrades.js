@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrades, deleteTrade } from "@/services/tradeApi";
+import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import {
@@ -20,6 +21,7 @@ import { calculatePerformanceMetrics } from "@/utils/metricEngine";
 export function useTrades() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingId, setDeletingId]     = useState(null);
   const [filter, setFilter]             = useState("ALL");
@@ -57,6 +59,7 @@ export function useTrades() {
       queryClient.setQueryData(["trades", period], context?.previous);
       setDeleteTarget(null);
       setDeletingId(null);
+      addToast(err.message || "Couldn't delete this trade. Please try again.", "error");
     },
     onSettled: () => {
       invalidateTradeDependentQueries(queryClient);

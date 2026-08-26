@@ -11,11 +11,12 @@ import TrialCountdownBanner from "@/components/TrialCountdownBanner";
 import RescueBanner from "@/components/RescueBanner";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { signOutFirebase } from "@/services/firebaseAuth";
-import apiClient from "@/services/apiClient";
+import apiClient, { publishAuthLogout } from "@/services/apiClient";
 import { clearAuthToken } from "@/utils/auth";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import MobileUserDrawer from "./MobileUserDrawer";
 import { onUserLoggedOut } from "@/services/pushNotifications";
+import { canShowPurchaseUI } from "@/config/payments";
 
 function getInitials(name) {
   if (!name) return "T";
@@ -37,12 +38,12 @@ const FOREX_NAV_LINKS = [
 ];
 
 const INDIAN_NAV_LINKS = [
-  { href: "/dashboard",                           label: "Dashboard" },
+  { href: "/indian-market/dashboard",            label: "Dashboard" },
   { href: "/indian-market/trades",                label: "Trades"    },
   { href: "/indian-market/upload-trade",          label: "Import"    },
   { href: "/checklist",                           label: "Checklist" },
   { href: "/indian-market/setups",                label: "Setups"    },
-  { href: "/intelligence",                        label: "Intelligence" },
+  { href: "/indian-market/intelligence",          label: "Intelligence" },
   { href: "/indian-market/analytics",             label: "Analytics" },
   { href: "/weekly-reports?market=Indian_Market", label: "Reports"   },
   { href: "/profile",                             label: "Settings"  },
@@ -61,18 +62,24 @@ export default function PageHeader({
   const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
   const { currentMarket } = useMarket();
-  const navLinks = currentMarket === MARKETS.INDIAN_MARKET ? INDIAN_NAV_LINKS : FOREX_NAV_LINKS;
+  const isIndianMarket = currentMarket === MARKETS.INDIAN_MARKET;
+  const navLinks = isIndianMarket ? INDIAN_NAV_LINKS : FOREX_NAV_LINKS;
+  const dashboardHref = isIndianMarket ? "/indian-market/dashboard" : "/dashboard";
 
   const handleLogout = async () => {
     await onUserLoggedOut();
     try { await apiClient.post("/auth/logout"); } catch {}
     queryClient.clear();
     await clearAuthToken();
+    publishAuthLogout("explicit_logout");
     await signOutFirebase();
     router.replace("/login");
   };
 
-  const isActive = (href) => pathname === href || pathname?.startsWith(href.split("?")[0]);
+  const isActive = (href) => {
+    const base = href.split("?")[0];
+    return pathname === base || (base !== "/" && pathname?.startsWith(`${base}/`));
+  };
 
   return (
     <>
@@ -90,7 +97,7 @@ export default function PageHeader({
       }}>
 
         {/* Logo */}
-        <Link href="/dashboard" style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Link href={dashboardHref} style={{ textDecoration: "none", flexShrink: 0 }}>
           <img src="/mainlogo1.png" alt="Edgecipline"
             style={{ width: 130, height: 36, objectFit: "contain", display: "block" }} />
         </Link>
@@ -178,7 +185,7 @@ export default function PageHeader({
         profile={profile}
         navItems={navLinks}
         extraSlot={showMarketSwitcher ? <MarketSwitcher /> : null}
-        paymentSlot={(
+        paymentSlot={canShowPurchaseUI() ? (
           <button
             onClick={() => { setDrawerOpen(false); setPricingOpen(true); }}
             style={{
@@ -192,14 +199,16 @@ export default function PageHeader({
             <CreditCard size={16} />
             Upgrade plan
           </button>
-        )}
+        ) : null}
       />
 
-      <PricingModal
-        isOpen={pricingOpen}
-        onClose={() => setPricingOpen(false)}
-        onSuccess={() => router.refresh()}
-      />
+      {canShowPurchaseUI() && (
+        <PricingModal
+          isOpen={pricingOpen}
+          onClose={() => setPricingOpen(false)}
+          onSuccess={() => router.refresh()}
+        />
+      )}
 
       <style jsx>{`
         .hdr-link:hover {
@@ -211,11 +220,11 @@ export default function PageHeader({
           border-color: var(--color-error-border) !important;
           background: var(--color-error-bg) !important;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 1439px) {
           .hdr-desktop { display: none !important; }
           .hdr-mobile  { display: flex !important; }
         }
-        @media (min-width: 769px) {
+        @media (min-width: 1440px) {
           .hdr-mobile  { display: none !important; }
         }
       `}</style>

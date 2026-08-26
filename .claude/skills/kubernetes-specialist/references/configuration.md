@@ -95,9 +95,7 @@ stringData:
     MIIDXTCCAkWgAwIBAgIJAKZ...
     -----END CERTIFICATE-----
   tls.key: |
-    -----BEGIN PRIVATE KEY-----
-    MIIEvQIBADANBgkqhkiG9w0B...
-    -----END PRIVATE KEY-----
+    <redacted-demo-private-key>
 ```
 
 ### Docker Registry Secret
@@ -148,9 +146,7 @@ metadata:
 type: kubernetes.io/ssh-auth
 stringData:
   ssh-privatekey: |
-    -----BEGIN OPENSSH PRIVATE KEY-----
-    b3BlbnNzaC1rZXktdjEAAAAABG5vbmUA...
-    -----END OPENSSH PRIVATE KEY-----
+    <redacted-demo-ssh-private-key>
 ```
 
 ## Using ConfigMaps and Secrets

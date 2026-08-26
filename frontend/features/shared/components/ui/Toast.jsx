@@ -152,3 +152,5 @@ const ToastItem = memo(({ id, message, type, onRemove }) => {
     </div>
   );
 });
+
+ToastItem.displayName = "ToastItem";

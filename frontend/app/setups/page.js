@@ -12,6 +12,8 @@ import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Trash2, X } from "lucide-react";
 import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
+import { refreshChecklistNotificationFromSetups } from "@/services/checklistNotificationSync";
+import OnboardingMarketGuard from "@/features/onboarding/components/OnboardingMarketGuard";
 
 const MAX_IMAGES = 20;
 
@@ -52,7 +54,7 @@ function genId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export default function SetupStrategiesPage() {
+function SetupStrategiesContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -89,9 +91,12 @@ export default function SetupStrategiesPage() {
         if (Array.isArray(serverStrategies) && serverStrategies.length) {
           setStrategies(serverStrategies.map((s, i) => ({
             id: i + 1,
+            // Server id, carried through the edit and sent back on save so the
+            // strategy keeps its identity (the checklist notification binds to it).
+            _id: s._id ? String(s._id) : undefined,
             name: s.name || "",
             rules: Array.isArray(s.rules)
-              ? s.rules.map((r, j) => ({ id: j + 1, label: r.label || "" }))
+              ? s.rules.map((r, j) => ({ id: j + 1, _id: r._id ? String(r._id) : undefined, label: r.label || "" }))
               : [],
             referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
           })));
@@ -244,6 +249,30 @@ export default function SetupStrategiesPage() {
   // ── Save (upload pending → save all) ──────────────────────────────────
 
   const handleSave = async () => {
+    // Check the things the server will reject *before* uploading anything.
+    // Uploading first and validating second left the rejected save's images
+    // stranded on Cloudinary, referenced by nothing, on every retry.
+    const named = strategies.filter(s => (s.name || "").trim());
+    const seen = new Map();
+    for (const s of named) {
+      const key = s.name.trim().toLowerCase();
+      if (seen.has(key)) {
+        setError(`Duplicate strategy name "${s.name.trim()}" (matches "${seen.get(key)}")`);
+        return;
+      }
+      seen.set(key, s.name.trim());
+    }
+    const unnamedWithContent = strategies.find(
+      s => !(s.name || "").trim() &&
+        ((s.rules || []).some(r => (r.label || "").trim()) ||
+          (s.referenceImages || []).length > 0 ||
+          (pendingByStrategy[s.id] || []).length > 0)
+    );
+    if (unnamedWithContent) {
+      setError("Give every strategy a name before saving.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setUploadStatus(null);
@@ -288,12 +317,28 @@ export default function SetupStrategiesPage() {
       setUploadStatus(null);
 
       const payload = newStrategies.map(s => ({
+        ...(s._id ? { _id: s._id } : {}),
         name: s.name,
         referenceImages: (s.referenceImages || []).slice(0, MAX_IMAGES),
         rules: (s.rules || []).map(r => ({ label: r.label })),
       }));
-      await saveSetups(payload, currentMarket);
+      const saved = await saveSetups(payload, currentMarket);
       await Promise.all(invalidateSetupDependentQueries(queryClient));
+
+      // Push the edited rules down to the pre-trade notification, which keeps
+      // its own copy and would otherwise keep showing the old ones.
+      if (Array.isArray(saved)) {
+        setStrategies(saved.map((s, i) => ({
+          id: i + 1,
+          _id: s._id ? String(s._id) : undefined,
+          name: s.name || "",
+          rules: Array.isArray(s.rules)
+            ? s.rules.map((r, j) => ({ id: j + 1, _id: r._id ? String(r._id) : undefined, label: r.label || "" }))
+            : [],
+          referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
+        })));
+        await refreshChecklistNotificationFromSetups({ strategies: saved, market: currentMarket });
+      }
       setSavedAt(new Date());
 
       // Mark onboarding step done if any non-empty strategy was saved.
@@ -320,7 +365,6 @@ export default function SetupStrategiesPage() {
   return (
     <div className="sp-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
         .sp-root { min-height: 100vh; background: #F4F6F9; font-family: 'Inter', sans-serif; color: #0F1923; }
         .sp-header { position: sticky; top: 0; z-index: 50; background: #FFFFFF; border-bottom: 1px solid #E8ECF0; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -741,5 +785,13 @@ export default function SetupStrategiesPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function SetupStrategiesPage() {
+  return (
+    <OnboardingMarketGuard>
+      <SetupStrategiesContent />
+    </OnboardingMarketGuard>
   );
 }

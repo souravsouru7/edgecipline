@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAdminStats, getAdminGrowth } from "@/services/adminApi";
 import AdminHeader from "@/components/AdminHeader";
@@ -28,12 +28,7 @@ export default function AdminDashboardPage() {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setMounted(true);
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     const [statsRes, growthRes] = await Promise.allSettled([
       getAdminStats(),
@@ -50,7 +45,15 @@ export default function AdminDashboardPage() {
       console.error("Admin growth error:", growthRes.reason);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+      fetchDashboardData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchDashboardData]);
 
   const statCards = [
     { label: "Total Users", value: stats.totalUsers, color: "#0D9E6E", icon: "👥" },
@@ -66,7 +69,6 @@ export default function AdminDashboardPage() {
       fontFamily: "'Plus Jakarta Sans',sans-serif",
       color: "#0F1923",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
       <AdminHeader subtitle="ADMIN DASHBOARD" />
 

@@ -55,6 +55,7 @@ const coachMessageSchema = new mongoose.Schema(
       tradeCount:     { type: Number, default: 0 },
       reflectionDays: { type: Number, default: 0 },
       hasWeeklyReport:{ type: Boolean, default: false },
+      market:         { type: String, default: "" },
       sourceHash:     { type: String, default: "" }, // sha1 of the snapshot JSON we sent
     },
   },

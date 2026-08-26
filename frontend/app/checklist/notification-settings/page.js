@@ -15,6 +15,7 @@ import {
   configureChecklistNotification,
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
+import { buildNotificationItems } from "@/services/checklistNotificationSync";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Bell, BellOff, Clock, RefreshCw, ChevronLeft, Save } from "lucide-react";
@@ -100,12 +101,7 @@ export default function ChecklistNotificationSettingsPage() {
     setSaved(false);
 
     const strategy = strategies[selectedStrategyIdx] || null;
-    const items = strategy
-      ? (strategy.rules || [])
-          .filter((r) => r.label && r.label.trim())
-          .slice(0, 8)
-          .map((r, i) => ({ id: String(i), label: r.label }))
-      : [];
+    const items = strategy ? buildNotificationItems(strategy.rules) : [];
 
     const payload = {
       enabled,

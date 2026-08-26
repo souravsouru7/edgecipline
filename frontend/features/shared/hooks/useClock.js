@@ -42,8 +42,11 @@ export function useClock() {
   useEffect(() => {
     subscribers.add(setTime);
     ensureInterval();
-    if (currentTime) setTime(currentTime);
+    const id = requestAnimationFrame(() => {
+      if (currentTime) setTime(currentTime);
+    });
     return () => {
+      cancelAnimationFrame(id);
       subscribers.delete(setTime);
       teardownIfEmpty();
     };

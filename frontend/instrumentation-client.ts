@@ -1,5 +1,6 @@
 import * as CapacitorSentry from "@sentry/capacitor";
 import * as NextSentry from "@sentry/nextjs";
+import type { ErrorEvent, EventHint } from "@sentry/core";
 import { Capacitor } from "@capacitor/core";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -19,7 +20,7 @@ const options = {
   // Untyped here on purpose: @sentry/nextjs's Event and @sentry/capacitor's
   // ErrorEvent don't structurally align (transaction events vs. error-only),
   // even though both SDKs accept this same object shape at runtime.
-  beforeSend(event: any) {
+  beforeSend(event: ErrorEvent, _hint: EventHint) {
     if (event.request) {
       event.request.cookies = undefined;
       event.request.data = undefined;

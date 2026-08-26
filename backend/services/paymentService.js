@@ -69,6 +69,20 @@ function getPlanConfig(planType, options = {}) {
   return null;
 }
 
+// subscriptionPlan is a display label ("free"/"monthly"/"yearly"/"custom"),
+// not a precise record of remaining entitlement. Unconditionally overwriting
+// it on every purchase mislabels a user who still has months of higher-tier
+// time left (e.g. a "yearly" purchase followed by a "monthly" one) as the
+// lesser plan, even though subscriptionExpiry itself stays correct. Only
+// adopt the new plan's label if it's the same tier or higher.
+const PLAN_LABEL_RANK = { free: 0, monthly: 1, custom: 1, yearly: 2 };
+
+function resolveSubscriptionPlanLabel(currentLabel, nextLabel) {
+  const currentRank = PLAN_LABEL_RANK[currentLabel] ?? 0;
+  const nextRank = PLAN_LABEL_RANK[nextLabel] ?? 1;
+  return nextRank >= currentRank ? nextLabel : currentLabel;
+}
+
 function getOrderablePlanConfig(planType) {
   const config = getPlanConfig(planType);
   if (!config?.orderable || !Number.isFinite(config.amount) || config.amount <= 0) {
@@ -273,7 +287,7 @@ async function ensureExistingPaymentApplied(existingPayment, session) {
         },
       },
     ],
-    { session }
+    { session, updatePipeline: true }
   );
 }
 
@@ -392,7 +406,7 @@ async function activateRazorpaySubscriptionPayment({
       userId,
       {
         subscriptionStatus: "active",
-        subscriptionPlan: plan.userPlan,
+        subscriptionPlan: resolveSubscriptionPlanLabel(userInTxn.subscriptionPlan, plan.userPlan),
         subscriptionExpiry: expiryDate,
         $inc: { totalPaid: paymentAmount },
       },
@@ -540,7 +554,7 @@ async function applyVerifiedRazorpayRefund({
       });
     }
 
-    await User.updateOne({ _id: payment.user }, updateStages, { session });
+    await User.updateOne({ _id: payment.user }, updateStages, { session, updatePipeline: true });
     await session.commitTransaction();
     invalidateAuthCache(payment.user).catch(() => {});
 
@@ -563,6 +577,7 @@ module.exports = {
   PLAN_CONFIG,
   activateRazorpaySubscriptionPayment,
   applyVerifiedRazorpayRefund,
+  resolveSubscriptionPlanLabel,
   createRazorpayOrder,
   fetchAndValidateRazorpayPayment,
   getPlanConfig,

@@ -16,6 +16,11 @@ const TERMS_ALLOWED_PATHS = new Set([
   "/api/auth/me",
   "/api/auth/accept-terms",
   "/api/auth/logout",
+  // Leaving must never be gated on agreeing to something first. Without this,
+  // a user who declined updated terms is told to accept them before they are
+  // allowed to delete their account — which is both absurd and the opposite of
+  // what Play's User Data policy requires.
+  "/api/auth/account",
 ]);
 
 function hasAcceptedCurrentTerms(user) {
@@ -28,6 +33,21 @@ function hasAcceptedCurrentTerms(user) {
 
 function isAccountActive(user) {
   return !user?.accountStatus || user.accountStatus === "active";
+}
+
+// Account deletion disables the account before it purges anything, so that a
+// half-erased account can never keep being used. If the purge then fails, the
+// user is left disabled — and would be bounced here with ACCOUNT_DISABLED on
+// every retry, permanently locked out of an account that still holds all their
+// data. Deletion is therefore the one action an account disabled *by its own
+// deletion request* may still take. `pendingDeletion` is what keeps this narrow:
+// an admin-disabled account has the flag unset and stays fully locked out.
+function isRetryingOwnDeletion(req, user) {
+  return (
+    user?.pendingDeletion === true &&
+    req.method === "DELETE" &&
+    String(req.originalUrl || "").split("?")[0] === "/api/auth/account"
+  );
 }
 
 // Fetch the user via Redis cache first, fall back to MongoDB on miss or
@@ -92,7 +112,7 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "Not authorized", "AUTH_FAILED");
   }
 
-  if (!isAccountActive(user)) {
+  if (!isAccountActive(user) && !isRetryingOwnDeletion(req, user)) {
     console.warn(`[Security] Disabled account token | path=${req.originalUrl} | ip=${req.ip}`);
     throw new ApiError(401, "Account disabled", "ACCOUNT_DISABLED");
   }

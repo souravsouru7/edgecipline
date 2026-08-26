@@ -13,6 +13,7 @@ const { computePsychologyTimeline } = require("../utils/psychologyTimeline");
 const { toObjectId } = require("../utils/objectId");
 const {
   calculatePerformanceMetrics,
+  calculateStreaks,
   finalizePerformance,
   mergePerformanceMetrics,
 } = require("../utils/metricEngine");
@@ -133,6 +134,18 @@ function getFeeExpression(marketLabel) {
     : { $add: [{ $ifNull: ["$commission", 0] }, { $ifNull: ["$swap", 0] }] };
 }
 
+// The pipeline equivalent of metricEngine.withNetPnL. Forex banks profit
+// already net of commission/swap, Indian banks it gross of brokerage/sttTaxes,
+// so a raw "$profit" reports gross on Indian and disagrees with every JS
+// engine. Project this in its place and the downstream $sum / win / loss
+// stages all operate on net without further change.
+function getNetProfitExpression(marketLabel) {
+  const profit = { $ifNull: ["$profit", 0] };
+  return marketLabel === "Indian_Market"
+    ? { $subtract: [profit, getFeeExpression(marketLabel)] }
+    : profit;
+}
+
 function getPeriodUnit(period) {
   if (period === "daily") return "day";
   if (period === "monthly") return "month";
@@ -225,6 +238,12 @@ async function aggregatePerformance({ userId, market = "Forex", instrumentType, 
 
   const Model = getTradeModel(marketLabel);
   const feeExpression = getFeeExpression(marketLabel);
+  // Mirrors metricEngine.storedProfitIsNet: Forex banks profit already net of
+  // commission/swap, Indian banks it gross of brokerage/sttTaxes. Keeping the
+  // two in step is what stops /summary and /snapshot disagreeing.
+  const storedIsNet = marketLabel !== "Indian_Market";
+  const grossExpression = storedIsNet ? { $add: ["$profit", "$fee"] } : "$profit";
+  const netExpression = storedIsNet ? "$profit" : { $subtract: ["$profit", "$fee"] };
   const [result = {}] = await Model.aggregate([
     { $match: buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange }) },
     {
@@ -248,9 +267,9 @@ async function aggregatePerformance({ userId, market = "Forex", instrumentType, 
         wins: { $sum: { $cond: [{ $and: ["$hasProfit", { $gt: ["$profit", 0] }] }, 1, 0] } },
         losses: { $sum: { $cond: [{ $and: ["$hasProfit", { $lt: ["$profit", 0] }] }, 1, 0] } },
         breakEven: { $sum: { $cond: [{ $and: ["$hasProfit", { $eq: ["$profit", 0] }] }, 1, 0] } },
-        grossPnL: { $sum: { $cond: ["$hasProfit", "$profit", 0] } },
+        grossPnL: { $sum: { $cond: ["$hasProfit", grossExpression, 0] } },
         fees: { $sum: { $cond: ["$hasProfit", "$fee", 0] } },
-        netPnL: { $sum: { $cond: ["$hasProfit", { $subtract: ["$profit", "$fee"] }, 0] } },
+        netPnL: { $sum: { $cond: ["$hasProfit", netExpression, 0] } },
         totalVolume: { $sum: { $cond: ["$hasProfit", { $abs: "$profit" }, 0] } },
         totalWinPnL: { $sum: { $cond: [{ $and: ["$hasProfit", { $gt: ["$profit", 0] }] }, "$profit", 0] } },
         totalLossPnL: { $sum: { $cond: [{ $and: ["$hasProfit", { $lt: ["$profit", 0] }] }, "$profit", 0] } },
@@ -293,7 +312,7 @@ async function aggregateTimeline({ userId, market = "Forex", instrumentType, dat
     {
       $project: {
         dateValue: { $ifNull: ["$tradeDate", "$createdAt"] },
-        profit: { $ifNull: ["$profit", 0] },
+        profit: getNetProfitExpression(marketLabel),
         mood: 1,
         setupScore: 1,
         entryBasis: 1,
@@ -435,7 +454,7 @@ async function aggregatePnlBreakdown({ userId, market = "Forex", instrumentType,
     {
       $project: {
         dateValue: { $ifNull: ["$tradeDate", "$createdAt"] },
-        profit: { $ifNull: ["$profit", 0] },
+        profit: getNetProfitExpression(marketLabel),
       },
     },
     {
@@ -497,19 +516,43 @@ function summarizeGroupRows(rows = {}, defaults = []) {
     result[key] = { total: 0, wins: 0, losses: 0, profit: 0, winRate: "0.0" };
   }
 
+  // Multiple raw Mongo $group rows can collapse onto the same display key
+  // (e.g. strategy:"" and strategy:null/missing both fall back to
+  // "Unspecified") -- accumulate into that key instead of letting the
+  // later-processed row silently overwrite and discard the earlier one's
+  // trades entirely.
   for (const row of rows || []) {
     const key = row.key || "Unspecified";
-    const total = row.total || 0;
+    const existing = result[key] || { total: 0, wins: 0, losses: 0, profit: 0 };
+    const total = existing.total + (row.total || 0);
+    const wins = existing.wins + (row.wins || 0);
+    const losses = existing.losses + (row.losses || 0);
+    const profit = existing.profit + (row.profit || 0);
     result[key] = {
       total,
-      wins: row.wins || 0,
-      losses: row.losses || 0,
-      profit: Number((row.profit || 0).toFixed(2)),
-      winRate: total ? (((row.wins || 0) / total) * 100).toFixed(1) : "0.0",
+      wins,
+      losses,
+      profit: Number(profit.toFixed(2)),
+      winRate: total ? ((wins / total) * 100).toFixed(1) : "0.0",
     };
   }
 
   return result;
+}
+
+// $ifNull only substitutes for null/missing, not "" -- a trade saved with
+// strategy:"" (vs. strategy left unset) would otherwise land in a separate
+// $group bucket from the "Unspecified" default, fragmenting what should be
+// one group (summarizeGroupRows now merges these back together, but this
+// keeps the raw grouping itself from splitting in the first place).
+function ifNullOrEmpty(fieldPath, fallback) {
+  return {
+    $cond: [
+      { $or: [{ $eq: [fieldPath, null] }, { $eq: [fieldPath, ""] }] },
+      fallback,
+      fieldPath,
+    ],
+  };
 }
 
 function groupFacet(fieldExpression) {
@@ -529,41 +572,31 @@ function groupFacet(fieldExpression) {
 }
 
 function getForexSessionExpression() {
-  return {
-    $ifNull: [
-      "$session",
-      {
-        $switch: {
-          branches: [
-            { case: { $and: [{ $gte: ["$hourUtc", 0] }, { $lt: ["$hourUtc", 8] }] }, then: "Asia Session" },
-            { case: { $and: [{ $gte: ["$hourUtc", 13] }, { $lt: ["$hourUtc", 16] }] }, then: "Overlap Session" },
-            { case: { $and: [{ $gte: ["$hourUtc", 8] }, { $lt: ["$hourUtc", 16] }] }, then: "London Session" },
-            { case: { $and: [{ $gte: ["$hourUtc", 16] }, { $lt: ["$hourUtc", 21] }] }, then: "NY Session" },
-          ],
-          default: "Other",
-        },
-      },
-    ],
-  };
+  return ifNullOrEmpty("$session", {
+    $switch: {
+      branches: [
+        { case: { $and: [{ $gte: ["$hourUtc", 0] }, { $lt: ["$hourUtc", 8] }] }, then: "Asia Session" },
+        { case: { $and: [{ $gte: ["$hourUtc", 13] }, { $lt: ["$hourUtc", 16] }] }, then: "Overlap Session" },
+        { case: { $and: [{ $gte: ["$hourUtc", 8] }, { $lt: ["$hourUtc", 16] }] }, then: "London Session" },
+        { case: { $and: [{ $gte: ["$hourUtc", 16] }, { $lt: ["$hourUtc", 21] }] }, then: "NY Session" },
+      ],
+      default: "Other",
+    },
+  });
 }
 
 function getIndianSessionExpression() {
-  return {
-    $ifNull: [
-      "$session",
-      {
-        $switch: {
-          branches: [
-            { case: { $and: [{ $gte: ["$istMinuteOfDay", 555] }, { $lt: ["$istMinuteOfDay", 660] }] }, then: "Opening Bell" },
-            { case: { $and: [{ $gte: ["$istMinuteOfDay", 660] }, { $lt: ["$istMinuteOfDay", 810] }] }, then: "Mid-Session" },
-            { case: { $and: [{ $gte: ["$istMinuteOfDay", 810] }, { $lt: ["$istMinuteOfDay", 900] }] }, then: "Post-Lunch" },
-            { case: { $and: [{ $gte: ["$istMinuteOfDay", 900] }, { $lt: ["$istMinuteOfDay", 930] }] }, then: "Closing" },
-          ],
-          default: "Outside Market",
-        },
-      },
-    ],
-  };
+  return ifNullOrEmpty("$session", {
+    $switch: {
+      branches: [
+        { case: { $and: [{ $gte: ["$istMinuteOfDay", 555] }, { $lt: ["$istMinuteOfDay", 660] }] }, then: "Opening Bell" },
+        { case: { $and: [{ $gte: ["$istMinuteOfDay", 660] }, { $lt: ["$istMinuteOfDay", 810] }] }, then: "Mid-Session" },
+        { case: { $and: [{ $gte: ["$istMinuteOfDay", 810] }, { $lt: ["$istMinuteOfDay", 900] }] }, then: "Post-Lunch" },
+        { case: { $and: [{ $gte: ["$istMinuteOfDay", 900] }, { $lt: ["$istMinuteOfDay", 930] }] }, then: "Closing" },
+      ],
+      default: "Outside Market",
+    },
+  });
 }
 
 async function aggregateTradeDistribution({ userId, market = "Forex", instrumentType, dateRange } = {}) {
@@ -586,7 +619,7 @@ async function aggregateTradeDistribution({ userId, market = "Forex", instrument
     { $match: buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange }) },
     {
       $project: {
-        profit: { $ifNull: ["$profit", 0] },
+        profit: getNetProfitExpression(marketLabel),
         pair: { $ifNull: ["$pair", "Unspecified"] },
         underlying: {
           $ifNull: [
@@ -595,7 +628,7 @@ async function aggregateTradeDistribution({ userId, market = "Forex", instrument
           ],
         },
         type: { $ifNull: ["$type", "Unspecified"] },
-        strategy: { $ifNull: ["$strategy", "Unspecified"] },
+        strategy: ifNullOrEmpty("$strategy", "Unspecified"),
         session: 1,
         tradeType: { $ifNull: ["$tradeType", "Unspecified"] },
         entryBasis: { $ifNull: ["$entryBasis", "Plan"] },
@@ -687,7 +720,7 @@ async function aggregateTradeQuality({ userId, market = "Forex", instrumentType,
   const Model = getTradeModel(marketLabel);
   const [result = {}] = await Model.aggregate([
     { $match: buildMatchQuery({ userId, market: marketLabel, instrumentType, dateRange }) },
-    { $project: { profit: { $ifNull: ["$profit", 0] }, tradeQuality: 1 } },
+    { $project: { profit: getNetProfitExpression(marketLabel), tradeQuality: 1 } },
     {
       $facet: {
         total: [{ $count: "count" }],
@@ -730,11 +763,16 @@ function generateSnapshotFromTrades({ trades, marketLabel, period }) {
   const discipline = computeDisciplineAnalytics(trades, { marketType: resolvedMarketLabel, period, offsetHours });
   const timeline = computePsychologyTimeline(trades, { marketType: resolvedMarketLabel, period, offsetHours });
   const pnlReadyTrades = trades.filter(hasRecordedProfit);
-  const performance = withPnlReadiness(
-    computePerformanceMetrics(pnlReadyTrades, resolvedMarketLabel),
-    trades.length,
-    pnlReadyTrades.length
-  );
+  const performance = {
+    ...withPnlReadiness(
+      computePerformanceMetrics(pnlReadyTrades, resolvedMarketLabel),
+      trades.length,
+      pnlReadyTrades.length
+    ),
+    // Streaks need the dated, ordered trade list, so they are computed here
+    // rather than inside calculatePerformanceMetrics (see the note there).
+    ...calculateStreaks(pnlReadyTrades),
+  };
 
   return {
     sourceTradeCount: trades.length,

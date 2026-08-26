@@ -13,6 +13,8 @@ const safeDivide = (a, b) => {
 };
 const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
 
+const { withNetPnL } = require("../utils/metricEngine");
+
 const INDIAN_ANALYTICS_PROJECTION = [
   "pair",
   "underlying",
@@ -79,6 +81,17 @@ const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
 const toIst = (d) => new Date(new Date(d).getTime() + IST_OFFSET_MS);
 
 // ========== BASIC ANALYTICS ==========
+
+// Indian trades store `profit` GROSS, with brokerage/sttTaxes alongside, while
+// Forex stores it already net (utils/tradeProfit.js). Every handler below reads
+// `t.profit` directly, so the deduction happens once here rather than at ~117
+// call sites. The projection already selects brokerage and sttTaxes.
+async function loadAnalyticsTrades(req, sort = null) {
+  let query = IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean();
+  if (sort) query = query.sort(sort);
+  const rows = await query.limit(ANALYTICS_TRADE_CAP);
+  return withNetPnL(rows, "Indian_Market");
+}
 
 exports.getSummary = asyncHandler(async (req, res) => {
   try {
@@ -148,7 +161,7 @@ exports.getPnLBreakdown = asyncHandler(async (req, res) => {
 
 exports.getRiskRewardAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req);
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
     const avgWin = winningTrades.length ? winningTrades.reduce((acc, t) => acc + t.profit, 0) / winningTrades.length : 0;
@@ -256,7 +269,7 @@ exports.getTradeDistribution = asyncHandler(async (req, res) => {
 
 exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req, { tradeDate: 1, createdAt: 1 });
 
     const winningTrades = trades.filter(t => t.profit > 0);
     const losingTrades = trades.filter(t => t.profit < 0);
@@ -315,7 +328,7 @@ exports.getPerformanceMetrics = asyncHandler(async (req, res) => {
 
 exports.getTimeAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req);
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const byMonth = {};
@@ -476,7 +489,7 @@ exports.getTimeAnalysis = asyncHandler(async (req, res) => {
 
 exports.getTradeQuality = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req);
 
     const rrRanges = [
       { label: "0-0.5R", min: 0, max: 0.5, trades: [] },
@@ -541,7 +554,7 @@ exports.getTradeQuality = asyncHandler(async (req, res) => {
 
 exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req, { tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({
@@ -600,7 +613,7 @@ exports.getDrawdownAnalysis = asyncHandler(async (req, res) => {
 
 exports.getAIInsights = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req);
 
     if (trades.length < 5) {
       return res.json({
@@ -695,6 +708,10 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
     const behaviorBuckets = { Plan: { count: 0, pnl: 0 }, Emotion: { count: 0, pnl: 0 }, Impulsive: { count: 0, pnl: 0 }, Other: { count: 0, pnl: 0 } };
     const mistakeTagStats = {};
+    // Maps a case/whitespace-normalized mistake tag to the display key
+    // already used in mistakeTagStats, so "FOMO" and "fomo" accumulate into
+    // one bucket instead of undercounting the same mistake as two.
+    const mistakeTagDisplayKeyByNormalized = {};
     trades.forEach(t => {
       // Treat missing/empty entryBasis as "Plan" (model default) so legacy trades don't distort the metric
       const basis = t.entryBasis && t.entryBasis.trim() ? t.entryBasis : "Plan";
@@ -705,11 +722,14 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       // Mistake tag
       if (t.mistakeTag && t.mistakeTag.trim()) {
         const mk = t.mistakeTag.trim();
-        if (!mistakeTagStats[mk]) mistakeTagStats[mk] = { count: 0, pnl: 0, lessons: [] };
-        mistakeTagStats[mk].count++;
-        mistakeTagStats[mk].pnl += t.profit || 0;
-        if (t.lesson && t.lesson.trim() && mistakeTagStats[mk].lessons.length < 3) {
-          mistakeTagStats[mk].lessons.push(t.lesson.trim());
+        const normalizedKey = mk.toLowerCase();
+        const displayKey = mistakeTagDisplayKeyByNormalized[normalizedKey] || mk;
+        mistakeTagDisplayKeyByNormalized[normalizedKey] = displayKey;
+        if (!mistakeTagStats[displayKey]) mistakeTagStats[displayKey] = { count: 0, pnl: 0, lessons: [] };
+        mistakeTagStats[displayKey].count++;
+        mistakeTagStats[displayKey].pnl += t.profit || 0;
+        if (t.lesson && t.lesson.trim() && mistakeTagStats[displayKey].lessons.length < 3) {
+          mistakeTagStats[displayKey].lessons.push(t.lesson.trim());
         }
       }
     });
@@ -899,7 +919,7 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
 
 exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req, { tradeDate: 1, createdAt: 1 });
 
     const totalTrades = trades.length;
     const totalProfit = trades.reduce((acc, t) => acc + (t.profit || 0), 0);
@@ -982,7 +1002,7 @@ exports.getAdvancedAnalytics = asyncHandler(async (req, res) => {
 
 exports.getPsychologyAnalytics = asyncHandler(async (req, res) => {
   try {
-    const trades = await IndianTrade.find(userQuery(req)).select(INDIAN_ANALYTICS_PROJECTION).lean().sort({ tradeDate: 1, createdAt: 1 }).limit(ANALYTICS_TRADE_CAP);
+    const trades = await loadAnalyticsTrades(req, { tradeDate: 1, createdAt: 1 });
 
     if (trades.length === 0) {
       return res.json({

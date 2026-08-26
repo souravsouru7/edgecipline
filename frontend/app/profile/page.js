@@ -7,6 +7,13 @@ import Link from "next/link";
 import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, Upload } from "lucide-react";
+import { canShowPurchaseUI } from "@/config/payments";
+import DeleteAccountSection from "@/components/DeleteAccountSection";
+
+// NOTE: the "Upgrade Plan" link below points at /pricing, which does not exist
+// yet. It is gated behind canShowPurchaseUI() so it cannot 404 in the shipped
+// app. Before flipping NEXT_PUBLIC_PAYMENTS_ENABLED=true, build the /pricing
+// route — otherwise this becomes a dead link again.
 
 const C = {
   bg: "#F0EEE9",
@@ -344,7 +351,7 @@ export default function ProfilePage() {
                       Expires <span style={{ color: C.navy, fontWeight: 600 }}>{expiryDate}</span>
                     </div>
                   )}
-                  {profile?.subscriptionStatus !== "active" && (
+                  {profile?.subscriptionStatus !== "active" && canShowPurchaseUI() && (
                     <Link
                       href="/pricing"
                       style={{
@@ -445,6 +452,10 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Play User Data policy / Apple 5.1.1(v): account deletion must be
+            reachable from inside the app. */}
+        <DeleteAccountSection email={profile?.email} />
 
       </main>
     </div>

@@ -51,7 +51,7 @@ if (/localStorage\.setItem\(\s*LEGACY_TOKEN_KEY/.test(authSource)) {
 }
 
 const mainActivity = fs.readFileSync(
-  path.join(root, "frontend/android/app/src/main/java/com/edgecpline/MainActivity.java"),
+  path.join(root, "frontend/android/app/src/main/java/com/edgecipline/MainActivity.java"),
   "utf8"
 );
 if (!mainActivity.includes("registerPlugin(EdgeAuthStoragePlugin.class)")) {
@@ -59,7 +59,7 @@ if (!mainActivity.includes("registerPlugin(EdgeAuthStoragePlugin.class)")) {
 }
 
 const nativePlugin = fs.readFileSync(
-  path.join(root, "frontend/android/app/src/main/java/com/edgecpline/EdgeAuthStoragePlugin.java"),
+  path.join(root, "frontend/android/app/src/main/java/com/edgecipline/EdgeAuthStoragePlugin.java"),
   "utf8"
 );
 for (const required of [

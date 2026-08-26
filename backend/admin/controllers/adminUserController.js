@@ -116,30 +116,35 @@ exports.extendUserPlan = asyncHandler(async (req, res) => {
     throw new ApiError(400, "days must be a positive integer", "VALIDATION_ERROR");
   }
   const extensionDays = Math.min(parsed, 365); // cap at 1 year per single extension
+  const extensionMs = extensionDays * 24 * 60 * 60 * 1000;
 
-  const user = await User.findById(req.params.id);
+  // A plain read -> mutate -> save() here raced with any concurrent write to
+  // the same user (a payment webhook, another admin action): whichever
+  // commits last would silently overwrite the other's expiry, discarding
+  // paid time with no error or audit trail. This pipeline update computes
+  // the extension from whatever value is committed AT WRITE TIME, atomically,
+  // the same pattern already used for payment activation.
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    [
+      {
+        $set: {
+          subscriptionExpiry: {
+            $add: [{ $max: [{ $ifNull: ["$subscriptionExpiry", "$$NOW"] }, "$$NOW"] }, extensionMs],
+          },
+          subscriptionStatus: "active", // Reactivate if it was expired/inactive
+        },
+      },
+    ],
+    { new: true, select: "subscriptionExpiry subscriptionStatus", updatePipeline: true }
+  );
   if (!user) {
     throw new ApiError(404, "User not found", "NOT_FOUND");
   }
 
-    let newExpiry;
-    const now = new Date();
+  await invalidateAuthCache(req.params.id).catch(() => {});
 
-    // If already active and has expiry, extend from current expiry
-    // Otherwise extend from today
-    if (user.subscriptionExpiry && user.subscriptionExpiry > now) {
-      newExpiry = new Date(user.subscriptionExpiry);
-    } else {
-      newExpiry = now;
-    }
-
-    newExpiry.setDate(newExpiry.getDate() + extensionDays);
-    
-    user.subscriptionExpiry = newExpiry;
-    user.subscriptionStatus = "active"; // Reactivate if it was expired/inactive
-    
-    await user.save();
-  res.json({ 
+  res.json({
     message: `Plan extended by ${extensionDays} days`,
     expiry: user.subscriptionExpiry,
     status: user.subscriptionStatus

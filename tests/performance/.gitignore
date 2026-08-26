@@ -1,0 +1,6 @@
+# Seeded accounts and minted access tokens — never commit.
+.testdata/
+
+# Raw k6 output
+results/*.json
+results/*.csv

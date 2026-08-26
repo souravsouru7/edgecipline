@@ -85,10 +85,14 @@ describe("metric consistency across modules", () => {
       profitFactor: engine.profitFactor,
     });
 
+    // The timeline bucket's `net` must be net, matching weekly.pnl.net above.
+    // It previously returned grossPnL, so on Forex it added commission/swap
+    // back and on Indian it reported pre-brokerage P&L — the one field in this
+    // consistency check that was not consistent.
     expect(timelinePnl).toMatchObject({
       tradeCount: engine.totalTrades,
       winRate: engine.winRate,
-      net: engine.grossPnL,
+      net: engine.netPnL,
     });
 
     expect(dna.totalTrades).toBe(engine.totalTrades);

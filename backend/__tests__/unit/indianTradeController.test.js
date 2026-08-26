@@ -37,6 +37,9 @@ jest.mock("../../services/streakNotification.service", () => ({
 
 jest.mock("../../services/ocrJob.service", () => ({
   getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
+  claimOcrJobForConfirmation: jest.fn().mockResolvedValue({ extractedData: {} }),
+  releaseOcrJobClaim: jest.fn().mockResolvedValue(undefined),
+  extractConfirmationTrades: jest.fn(() => []),
   markOcrJobConfirmed: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -88,6 +91,8 @@ describe("indian trade controller", () => {
       pair: "NIFTY 24100 PE",
       type: "BUY",
       optionType: "PE",
+      strikePrice: 24100,
+      expiryDate: "2026-07-31",
       tradeDate: "2026-07-13",
       quantity: 0,
       lotSize: 25,
@@ -114,6 +119,8 @@ describe("indian trade controller", () => {
       pair: "NIFTY 24100 PE",
       type: "BUY",
       optionType: "PE",
+      strikePrice: 24100,
+      expiryDate: "2026-07-31",
       tradeDate: "2026-07-13",
       quantity: 1,
       lotSize: 25,

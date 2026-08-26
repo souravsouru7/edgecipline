@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { appConfig } = require("../config");
 const { client: redisClient, isRedisReady } = require("../config/redis");
@@ -103,6 +104,8 @@ function sendRateLimitResponse(req, res, { scope, limit, ttlMs, message, keyType
   return res.status(429).json({
     status: "error",
     message,
+    errorCode: "RATE_LIMITED",
+    retryAfterSeconds,
   });
 }
 
@@ -153,9 +156,9 @@ function pruneMemoryBuckets(now) {
   }
 }
 
-function consumeMemoryFallback(req, scope, { windowMs, maxRequests }) {
+function consumeMemoryFallback(req, scope, { windowMs, maxRequests, resolveKey = resolveRateLimitKey }) {
   const now = Date.now();
-  const { key: rateLimitKey, keyType } = resolveRateLimitKey(req, scope);
+  const { key: rateLimitKey, keyType } = resolveKey(req, scope);
   const fallbackWindowMs = Number(windowMs) || DEFAULT_FALLBACK_WINDOW_MS;
   const fallbackMaxRequests = Number(maxRequests) || DEFAULT_FALLBACK_MAX_REQUESTS;
   const key = `fallback:${rateLimitKey}`;
@@ -241,7 +244,12 @@ function createRedisRateLimiter({
   message = "Too many requests. Please try again later.",
   failureMode = "memory",
   skip,
+  // Optional override for what the counter is keyed on. Defaults to
+  // user-then-IP; password reset keys on the submitted email instead.
+  keyResolver,
 }) {
+  const resolveKey = typeof keyResolver === "function" ? keyResolver : resolveRateLimitKey;
+
   return async (req, res, next) => {
     if (typeof skip === "function" && skip(req)) {
       return next();
@@ -251,7 +259,7 @@ function createRedisRateLimiter({
       if (!isRedisReady()) {
         throw new Error("Redis is not ready for distributed rate limiting");
       }
-      const { key: rateLimitKey, keyType } = resolveRateLimitKey(req, scope);
+      const { key: rateLimitKey, keyType } = resolveKey(req, scope);
       const [currentCountRaw, ttlMsRaw] = await withRedisTimeout(
         redisClient.eval(
           RATE_LIMIT_SCRIPT,
@@ -290,7 +298,7 @@ function createRedisRateLimiter({
         return sendAuthUnavailableResponse(res);
       }
 
-      const fallback = consumeMemoryFallback(req, scope, { windowMs, maxRequests });
+      const fallback = consumeMemoryFallback(req, scope, { windowMs, maxRequests, resolveKey });
       res.setHeader("RateLimit-Policy", "fallback-memory");
       res.setHeader("RateLimit-Limit", String(fallback.limit));
       res.setHeader("RateLimit-Remaining", String(fallback.remaining));
@@ -335,6 +343,48 @@ const authRateLimiter = createRedisRateLimiter({
   maxRequests: appConfig.rateLimit.authMaxRequests,
   message: "Too many authentication attempts. Please try again later.",
   failureMode: "deny",
+});
+
+const passwordResetRequestRateLimiter = createRedisRateLimiter({
+  scope: "password-reset-request",
+  windowMs: Number(process.env.PASSWORD_RESET_REQUEST_WINDOW_MS) || (
+    appConfig.env === "production" ? 15 * 60 * 1000 : 60 * 1000
+  ),
+  maxRequests: Number(process.env.PASSWORD_RESET_REQUEST_MAX_REQUESTS) || (
+    appConfig.env === "production" ? 10 : 20
+  ),
+  message: "Too many password reset requests. Please try again in a few minutes.",
+  failureMode: "deny",
+});
+
+// Password reset requests, keyed by the submitted email instead of the caller.
+// The IP limiter above does nothing against a botnet mail-bombing one inbox, or
+// against one client cycling addresses to farm Resend sends. Keying on the
+// email is not an enumeration oracle: the counter moves identically for
+// registered and unregistered addresses, so a 429 says nothing about who has
+// an account. Production stays strict; local/dev is softer so email-provider
+// setup can be tested without getting stuck after a few failed sends.
+const passwordResetEmailRateLimiter = createRedisRateLimiter({
+  scope: "password-reset-email",
+  windowMs: Number(process.env.PASSWORD_RESET_EMAIL_WINDOW_MS) || (
+    appConfig.env === "production" ? 15 * 60 * 1000 : 60 * 1000
+  ),
+  maxRequests: Number(process.env.PASSWORD_RESET_EMAIL_MAX_REQUESTS) || (
+    appConfig.env === "production" ? 3 : 10
+  ),
+  message: "Too many password reset requests for this email. Please try again in a few minutes.",
+  // Hashed so inboxes are not sitting in Redis keys in plaintext.
+  keyResolver: (req, scope) => ({
+    key: `rate-limit:${scope}:email:${crypto
+      .createHash("sha256")
+      .update(String(req.body?.email || "").toLowerCase().trim())
+      .digest("hex")
+      .slice(0, 32)}`,
+    keyType: "email",
+  }),
+  // No email to key on — let the controller return its validation error rather
+  // than bucketing every malformed request into one shared counter.
+  skip: (req) => typeof req.body?.email !== "string" || !req.body.email.trim(),
 });
 
 // Loose limiter: profile/preferences endpoints called frequently by the app on every load.
@@ -443,6 +493,8 @@ module.exports = {
   resetRateLimiterStateForTests,
   globalRateLimiter,
   authRateLimiter,
+  passwordResetRequestRateLimiter,
+  passwordResetEmailRateLimiter,
   profileRateLimiter,
   refreshRateLimiter,
   deviceTokenRateLimiter,

@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,8 +8,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Firebase must be configured before any Capacitor plugin touches it.
+        // @capacitor-firebase/authentication is the only sign-in path with a
+        // configured provider (google.com); without this call it fails on the
+        // first tap. Requires GoogleService-Info.plist in the App target —
+        // configure() traps at launch if the file is missing, which is the
+        // loud failure we want rather than a silent auth outage.
+        FirebaseApp.configure()
         return true
+    }
+
+    // ── Push notification registration ───────────────────────────────────────
+    // @capacitor/push-notifications listens for these two notifications; the
+    // plugin cannot swizzle them in, so without these forwards the JS
+    // `registration` / `registrationError` events never fire and the app never
+    // obtains an APNs token. Requires the aps-environment entitlement
+    // (App.entitlements) and an APNs auth key uploaded to Firebase.
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(
+            name: .capacitorDidRegisterForRemoteNotifications,
+            object: deviceToken
+        )
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(
+            name: .capacitorDidFailToRegisterForRemoteNotifications,
+            object: error
+        )
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

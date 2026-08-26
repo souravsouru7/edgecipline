@@ -32,7 +32,11 @@ export function useTrialStatus({ initial = null } = {}) {
     gcTime: 30 * 60 * 1000,
     retry: false,
     refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    // A tab backgrounded at payment time otherwise wouldn't see the upgrade
+    // until its next 60s poll tick after regaining focus -- refetch on focus
+    // so returning to the tab is enough to pick up a state change made
+    // elsewhere (another tab, or this tab's own paywall after checkout).
+    refetchOnWindowFocus: true,
     refetchInterval: () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") {
         return false;

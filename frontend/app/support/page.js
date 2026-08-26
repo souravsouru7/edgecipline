@@ -73,7 +73,6 @@ export default function SupportPage() {
       fontFamily: "'Plus Jakarta Sans',sans-serif",
       color: "#0F1923", position: "relative"
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
       {/* ── HEADER ── */}
       <header style={{
@@ -109,7 +108,7 @@ export default function SupportPage() {
               How can we <span style={{ color: "#0D9E6E" }}>help you</span> today?
             </h1>
             <p style={{ fontSize: 14, color: "#4A5568", lineHeight: 1.6, marginBottom: 32 }}>
-              Have a feature request, found a bug, or just want to say hi? We're all ears. Your feedback helps us make Edgecipline the best trading companion.
+              {"Have a feature request, found a bug, or just want to say hi? We're all ears. Your feedback helps us make Edgecipline the best trading companion."}
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

@@ -12,6 +12,10 @@ function errorHandler(err, req, res, next) {
 
   let normalizedError = err;
 
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    normalizedError = new ApiError(400, "Invalid JSON request body.", "INVALID_JSON");
+  }
+
   if (err instanceof multer.MulterError) {
     let message = "File upload error.";
     if (err.code === "LIMIT_FILE_SIZE") {
@@ -48,7 +52,7 @@ function errorHandler(err, req, res, next) {
     : 500;
   const errorCode = normalizedError?.errorCode || "INTERNAL_ERROR";
   const isServerError = statusCode >= 500;
-  const responseMessage = isServerError
+  const responseMessage = isServerError && !normalizedError?.expose
     ? "Something went wrong"
     : normalizedError?.message || "Request failed";
 
@@ -114,7 +118,7 @@ function errorHandler(err, req, res, next) {
     payload.details = normalizedError.details;
   }
 
-  if (appConfig.env !== "production" && normalizedError?.stack) {
+  if (appConfig.env !== "production" && isServerError && normalizedError?.stack) {
     payload.stack = normalizedError.stack;
   }
 

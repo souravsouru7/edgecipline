@@ -1,3 +1,4 @@
+
 const dns = require("dns");
 dns.setDefaultResultOrder("ipv4first");
 
@@ -71,6 +72,7 @@ if (false) process.on("unhandledRejection", (reason) => {
 
 const { connectRedis, isRedisReady } = require("./config/redis");
 const { startDataCleanupCron } = require("./jobs/dataCleanupCron");
+const { startOcrScreenshotRetentionCron } = require("./jobs/ocrScreenshotRetentionCron");
 const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
 const { startSessionReminderCron } = require("./jobs/sessionReminderCron");
 const { startMorningMentorCron } = require("./jobs/morningMentorCron");
@@ -130,6 +132,7 @@ startStreakProtectorCron();
 startReflectionReminderCron();
 startMissionProgressCron();
 startDataCleanupCron();
+startOcrScreenshotRetentionCron();
 
 const app = express();
 
@@ -386,32 +389,52 @@ app.use("/api/profile", require("./routes/profileRoutes"));
 // Indian Market-specific routes (completely separate workspace)
 app.use("/api/indian/trades", require("./routes/indianMarketRoutes"));
 app.use("/api/indian/analytics", require("./routes/indianAnalyticsRoutes"));
+app.use("/api/indian/intelligence", require("./routes/indianIntelligenceRoutes"));
+
+function getHealthSnapshot() {
+  const mongoose = require("mongoose");
+  const dbState = mongoose.connection.readyState; // 1 = connected
+  const redisReady = isRedisReady();
+  const rateLimiter = getRateLimiterHealth();
+
+  if (dbState !== 1) {
+    return {
+      httpStatus: 503,
+      body: {
+        service: "stratedge-api",
+        env: appConfig.env,
+        status: "unhealthy",
+        db: "disconnected",
+        redis: redisReady ? "connected" : "disconnected",
+        rateLimiter,
+        uptime: process.uptime(),
+      },
+    };
+  }
+
+  const degraded = !redisReady || rateLimiter.degraded;
+  return {
+    httpStatus: degraded ? 503 : 200,
+    body: {
+      service: "stratedge-api",
+      env: appConfig.env,
+      status: degraded ? "degraded" : "ok",
+      db: "connected",
+      redis: redisReady ? "connected" : "disconnected",
+      rateLimiter,
+      uptime: process.uptime(),
+    },
+  };
+}
 
 app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "stratedge-api", env: appConfig.env });
+  const snapshot = getHealthSnapshot();
+  res.status(snapshot.httpStatus).json(snapshot.body);
 });
 
 app.get("/health", (_req, res) => {
-  const mongoose = require("mongoose");
-  const dbState = mongoose.connection.readyState; // 1 = connected
-  if (dbState !== 1) {
-    return res.status(503).json({
-      status: "unhealthy",
-      db: "disconnected",
-      redis: isRedisReady() ? "connected" : "disconnected",
-      rateLimiter: getRateLimiterHealth(),
-    });
-  }
-  const redisReady = isRedisReady();
-  const rateLimiter = getRateLimiterHealth();
-  const degraded = !redisReady || rateLimiter.degraded;
-  return res.status(degraded ? 503 : 200).json({
-    status: degraded ? "degraded" : "ok",
-    db: "connected",
-    redis: redisReady ? "connected" : "disconnected",
-    rateLimiter,
-    uptime: process.uptime(),
-  });
+  const snapshot = getHealthSnapshot();
+  res.status(snapshot.httpStatus).json(snapshot.body);
 });
 
 

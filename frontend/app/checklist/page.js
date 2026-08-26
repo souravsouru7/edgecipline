@@ -1,4 +1,5 @@
-﻿"use client";
+﻿
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -15,6 +16,7 @@ import {
   syncChecklistItems,
   addChecklistToggleListener,
 } from "@/plugins/ChecklistNotificationPlugin";
+import { ruleItemId, MAX_NOTIFICATION_ITEMS } from "@/services/checklistNotificationSync";
 
 function ReferenceImageThumb({ image, alt, onOpen }) {
   const [loaded, setLoaded] = useState(false);
@@ -102,27 +104,29 @@ export default function PreTradeChecklistPage() {
   // ── Sync checked state to live notification whenever it changes ──────────
   useEffect(() => {
     if (!selected) return;
-    const items = rules.map((r, i) => ({
-      id: String(i),
+    const items = rules.slice(0, MAX_NOTIFICATION_ITEMS).map((r, i) => ({
+      id: ruleItemId(r, i),
       label: r.label,
-      checked: !!checked[i],
+      checked: !!checked[ruleItemId(r, i)],
     }));
     syncChecklistItems(items, currentMarket).catch(() => {});
-  }, [checked, rules, selected]);
+  }, [checked, rules, selected, currentMarket]);
 
   // ── Listen for toggles made inside the notification ───────────────────
   useEffect(() => {
     const listener = addChecklistToggleListener(({ itemId, checked: isChecked }) => {
-      const idx = parseInt(itemId, 10);
-      if (!isNaN(idx)) {
-        setChecked((prev) => ({ ...prev, [idx]: isChecked }));
+      // itemId is the rule's own id (what we sent down), not a position — a
+      // rule deleted since the notification was posted simply no longer
+      // matches, instead of toggling whatever slid into its slot.
+      if (itemId != null) {
+        setChecked((prev) => ({ ...prev, [String(itemId)]: isChecked }));
       }
     });
     return () => listener.remove();
   }, []);
 
   const totalRules = rules.length;
-  const checkedCount = rules.filter((_, i) => checked[i]).length;
+  const checkedCount = rules.filter((r, i) => checked[ruleItemId(r, i)]).length;
   const score = totalRules > 0 ? Math.round((checkedCount / totalRules) * 100) : 0;
 
   const level = score >= 80 ? "high" : score >= 50 ? "moderate" : "low";
@@ -152,8 +156,8 @@ export default function PreTradeChecklistPage() {
     ),
   }[lc.icon];
 
-  const toggleRule = (idx) => {
-    setChecked(prev => ({ ...prev, [idx]: !prev[idx] }));
+  const toggleRule = (ruleKey) => {
+    setChecked(prev => ({ ...prev, [ruleKey]: !prev[ruleKey] }));
   };
 
   const clearAll = () => setChecked({});
@@ -499,9 +503,10 @@ export default function PreTradeChecklistPage() {
                         ) : (
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                             {rules.map((rule, ruleIdx) => {
-                              const isChecked = !!checked[ruleIdx];
+                              const ruleKey = ruleItemId(rule, ruleIdx);
+                              const isChecked = !!checked[ruleKey];
                               return (
-                                <button key={ruleIdx} onClick={() => toggleRule(ruleIdx)} style={{
+                                <button key={ruleKey} onClick={() => toggleRule(ruleKey)} style={{
                                   display: "flex", alignItems: "center", gap: 12,
                                   padding: "12px 14px", borderRadius: 12,
                                   border: isChecked ? "1.5px solid rgba(13,158,110,0.4)" : "1px solid #E2E8F0",

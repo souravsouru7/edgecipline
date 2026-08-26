@@ -190,6 +190,21 @@ async function seedDefaultSetup({ userId, market, styleId, custom }) {
     : resolvedStyle.seedSetup;
 
   const safeName = seed.name || "My first setup";
+  const resolvedMarket = market || "Forex";
+
+  // Matching on name alone was not enough: a user who renamed the seeded
+  // setup got a second, unwanted copy of it the next time anything re-seeded.
+  // If they already have any strategy for this market, there is nothing to
+  // seed — they are past the empty state this exists for.
+  if (!custom?.name) {
+    const alreadyHasSetup = await SetupStrategy.exists({ user: userId, marketType: resolvedMarket });
+    if (alreadyHasSetup) {
+      await User.updateOne({ _id: userId }, { $set: { "onboarding.setupAdded": true } });
+      await invalidateAuthCache(userId);
+      logger.info("ONBOARDING_SETUP_SEED_SKIPPED", { userId: String(userId), market: resolvedMarket });
+      return { name: safeName, rules: seed.rules, skipped: true };
+    }
+  }
 
   const update = {
     $setOnInsert: {

@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Capacitor copies the built export into the native projects. Linting
+    // those minified chunks produced ~44,000 phantom problems that buried the
+    // real ones — every finding came from generated code we do not author.
+    "android/app/src/main/assets/public/**",
+    "ios/App/App/public/**",
+    // Native build output.
+    "android/app/build/**",
+    "ios/App/Pods/**",
   ]),
 ]);
 

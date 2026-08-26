@@ -13,9 +13,18 @@ import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import { markOnboardingStep } from "@/services/api";
+import { getDemoExtraction, INDIAN_DEMO_BROKER } from "@/features/trade/data/demoExtractionFixtures.mjs";
 
 const DEFAULT_SETUP_RULES = [];
 const OCR_STORAGE_KEY_PATTERN = /(ocr|upload.*trade|trade.*upload|extracted|draft)/i;
+// Demo mode replays the pipeline's stages locally so onboarding still shows the
+// flow it promises, without an upload behind it. Offsets are cumulative ms.
+const DEMO_STAGE_TIMELINE = [
+  { stage: "uploading",  atMs: 0 },
+  { stage: "pending",    atMs: 700 },
+  { stage: "processing", atMs: 1500 },
+  { stage: "completed",  atMs: 2400 },
+];
 const INDIAN_LOT_SIZES = {
   NIFTY: 25,
   BANKNIFTY: 15,
@@ -42,6 +51,49 @@ function clearOcrBrowserStorage() {
     }
   });
 }
+
+// Lets a hard refresh mid-upload reconnect to the still-processing server-side
+// job instead of orphaning it. Deliberately kept out of OCR_STORAGE_KEY_PATTERN
+// so the sweep in clearOcrBrowserStorage() never touches it — its lifecycle is
+// managed explicitly at the call sites below.
+const ACTIVE_UPLOAD_JOB_STORAGE_KEY = "et_active_upload_job";
+const ACTIVE_UPLOAD_JOB_MAX_AGE_MS = 12 * 60 * 60 * 1000; // well under the 24h server-side OCRJob TTL
+
+function persistActiveUploadJob(jobId, marketType) {
+  if (typeof window === "undefined" || !jobId) return;
+  try {
+    window.sessionStorage.setItem(
+      ACTIVE_UPLOAD_JOB_STORAGE_KEY,
+      JSON.stringify({ jobId, marketType, savedAt: Date.now() })
+    );
+  } catch {
+    // Storage can be unavailable in restricted webviews.
+  }
+}
+
+function readActiveUploadJob(marketType) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ACTIVE_UPLOAD_JOB_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.jobId || parsed.marketType !== marketType) return null;
+    if (Date.now() - Number(parsed.savedAt || 0) > ACTIVE_UPLOAD_JOB_MAX_AGE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearActiveUploadJob() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(ACTIVE_UPLOAD_JOB_STORAGE_KEY);
+  } catch {
+    // Storage can be unavailable in restricted webviews.
+  }
+}
+
 const getTodayInputValue = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
@@ -478,6 +530,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [visibleOcrStage, setVisibleOcrStage] = useState("");
   const [preExtractDate, setPreExtractDate]   = useState(getTodayInputValue());
   const [isCancellingUpload, setIsCancellingUpload] = useState(false);
+  const [demoRunning, setDemoRunning]         = useState(false);
+  // Bumped on every start/cancel so a timer from an abandoned demo run can't
+  // land its result into a session that has moved on.
+  const demoRunIdRef                          = useRef(0);
+  const demoTimersRef                         = useRef([]);
   const processedTradeIdRef                   = useRef(null);
   const saveAllLockRef                        = useRef(false);
   const uploadedJobIdRef                      = useRef(null);
@@ -549,6 +606,76 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // 4. Setups Query
   const { strategies, setupsLoading } = useSetups(marketType);
 
+  // Point the UI at a server-side OCR job and start polling it. Used both for
+  // a fresh upload and for reconnecting to one the server tells us we already
+  // have (see the duplicate branch in onError).
+  const attachToUploadJob = (nextJobId, toastMessage) => {
+    ocrStartedAtRef.current = performance.now();
+    processedTradeIdRef.current = null;
+    userEditedFormRef.current = false;
+    setVisibleOcrStage((current) => keepProgressMovingForward(current, "pending"));
+    setJobId(nextJobId);
+    setUploadedJobId(nextJobId);
+    persistActiveUploadJob(nextJobId, marketType);
+    setError(null);
+    const tid = addToast(toastMessage, "loading", Infinity);
+    setActiveToastId(tid);
+  };
+
+  // Abandon any in-flight demo replay. Invalidating the run id matters more
+  // than clearing the timers: a timer that already fired is past cancelling,
+  // and its callback has to know the session moved on.
+  const stopDemoExtraction = () => {
+    demoRunIdRef.current += 1;
+    demoTimersRef.current.forEach(clearTimeout);
+    demoTimersRef.current = [];
+    setDemoRunning(false);
+  };
+
+  // Demo mode's stand-in for the upload + OCR round trip. Walks the same stages
+  // the real pipeline reports, then hands the bundled fixture to the same
+  // applyProcessedTradeData the polling effect uses -- so every downstream
+  // behaviour (templates, multi-trade UI, setup defaults, save blocking) is the
+  // real one. Deliberately never sets jobId/uploadedJobId or persists an active
+  // job: those are what would start polling for a server job that doesn't exist.
+  const runDemoExtraction = () => {
+    stopDemoExtraction();
+    const runId = demoRunIdRef.current;
+
+    uploadSessionRef.current += 1;
+    processedTradeIdRef.current = null;
+    userEditedFormRef.current = false;
+    ocrStartedAtRef.current = performance.now();
+    setError(null);
+    setDemoRunning(true);
+
+    const tid = addToast(
+      `Sample ${isInd ? "Indian" : "Forex"} screenshot loaded. Running demo extraction...`,
+      "loading",
+      Infinity
+    );
+    setActiveToastId(tid);
+
+    demoTimersRef.current = DEMO_STAGE_TIMELINE.map(({ stage, atMs }) =>
+      setTimeout(() => {
+        if (demoRunIdRef.current !== runId) return;
+        setVisibleOcrStage((current) => keepProgressMovingForward(current, stage));
+        if (stage !== "completed") return;
+
+        applyProcessedTradeData(getDemoExtraction(marketType));
+        removeToast(tid);
+        setActiveToastId(null);
+        addToast("Demo trade details extracted — nothing was uploaded or saved.", "success");
+        setDemoRunning(false);
+        demoTimersRef.current = [];
+      }, atMs)
+    );
+  };
+
+  // A demo replay outlives the component if the user navigates mid-progress.
+  // The first-render closure is fine here: it only touches refs and a setter.
+  useEffect(() => stopDemoExtraction, []);
+
   // 5. Initial Image Upload Mutation
   const uploadJobMutation = useMutation({
     mutationFn: ({ fileObj }) => uploadTradeImage({
@@ -594,20 +721,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           durationMs: Math.round(performance.now() - variables.uploadStartedAt),
         });
       }
-      ocrStartedAtRef.current = performance.now();
 
-      processedTradeIdRef.current = null;
-      userEditedFormRef.current = false;
-      setVisibleOcrStage((current) => keepProgressMovingForward(current, "pending"));
-      setJobId(nextJobId);
-      setUploadedJobId(nextJobId);
-      setError(null);
-      const tid = addToast(
-        `Correct ${isInd ? "Indian" : "Forex"} image uploaded. AI processing started...`,
-        "loading",
-        Infinity
+      attachToUploadJob(
+        nextJobId,
+        `Correct ${isInd ? "Indian" : "Forex"} image uploaded. AI processing started...`
       );
-      setActiveToastId(tid);
     },
     onError: (err, variables) => {
       if (variables?.sessionId !== uploadSessionRef.current && pendingUploadCancelRef.current) {
@@ -618,6 +736,17 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         return;
       }
       if (variables?.sessionId !== uploadSessionRef.current) return;
+
+      // The server recognised this screenshot as one it is already working on
+      // (or has already extracted) — typically because a refresh or a dropped
+      // response lost our handle on it. Reconnect instead of reporting an
+      // error the user can do nothing about.
+      const duplicate = err?.status === 409 ? err?.data?.details : null;
+      if (duplicate?.resumable && duplicate.jobId) {
+        attachToUploadJob(String(duplicate.jobId), "Reconnecting to your previous upload...");
+        return;
+      }
+
       const friendlyMessage = getFriendlyUploadError(err);
       setError(friendlyMessage);
       addToast(friendlyMessage, "error");
@@ -631,6 +760,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     cancelJob = true,
     resetDate = false,
   } = {}) => {
+    stopDemoExtraction();
     const activeJobId = uploadedJobIdRef.current || jobId;
     if (cancelJob && !activeJobId && uploadJobMutation.isPending) {
       pendingUploadCancelRef.current = { nextFile, keepFile, clearError, resetDate };
@@ -659,6 +789,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     }
 
     clearOcrBrowserStorage();
+    clearActiveUploadJob();
     queryClient.removeQueries({ queryKey: ["uploadStatus"], exact: false });
     uploadJobMutation.reset();
     saveTradeMutation.reset();
@@ -702,9 +833,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         if (!res.ok) throw new Error(`Sample fetch failed (${res.status})`);
         const blob = await res.blob();
         const sampleFile = new File([blob], sampleName, { type: blob.type || "image/jpeg" });
-        // Indian extraction requires a broker; pick a sensible default so the
-        // demo can run without forcing a selection.
-        if (isInd) setBroker("Zerodha");
+        // Indian extraction requires a broker; pre-select the one the sample
+        // was actually captured from so the dropdown matches the screenshot.
+        if (isInd) setBroker(INDIAN_DEMO_BROKER);
         uploadSessionRef.current += 1;
         await clearOcrSession({ nextFile: sampleFile, cancelJob: false });
       } catch (err) {
@@ -715,22 +846,71 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo, mounted, isInd]);
 
+  // Reconnect to a still-processing job after a hard refresh. The upload
+  // itself is fire-and-forget server-side (OCRJob keeps running independent
+  // of this tab), but without this the page would otherwise show an empty
+  // upload form with no way back to the job that's already in flight.
+  const resumeAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!mounted || isDemo || resumeAttemptedRef.current) return;
+    resumeAttemptedRef.current = true;
+    const persisted = readActiveUploadJob(marketType);
+    if (!persisted) return;
+    ocrStartedAtRef.current = performance.now();
+    processedTradeIdRef.current = null;
+    setJobId(persisted.jobId);
+    setUploadedJobId(persisted.jobId);
+    setVisibleOcrStage((current) => keepProgressMovingForward(current, "pending"));
+    const tid = addToast("Resuming your previous upload...", "loading", Infinity);
+    setActiveToastId(tid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, isDemo, marketType]);
+
+  // A reload tears this component down the same way navigating away does, but
+  // the two need opposite handling: leaving the page should cancel the job,
+  // while refreshing should keep it so the resume effect above can reconnect.
+  // Without this flag the cleanup below wiped the stored jobId on every
+  // refresh (and fired a cancel request that died with the page), so the
+  // extraction finished server-side with no way back to it.
+  const isUnloadingRef = useRef(false);
+  useEffect(() => {
+    const markUnloading = () => { isUnloadingRef.current = true; };
+    window.addEventListener("pagehide", markUnloading);
+    window.addEventListener("beforeunload", markUnloading);
+    return () => {
+      window.removeEventListener("pagehide", markUnloading);
+      window.removeEventListener("beforeunload", markUnloading);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
+      if (isUnloadingRef.current) {
+        // Page is going away, not the user abandoning the upload — leave the
+        // job (and its stored id) alone so the reloaded page can pick it up.
+        queryClient.removeQueries({ queryKey: ["uploadStatus"], exact: false });
+        return;
+      }
       const activeJobId = uploadedJobIdRef.current;
       if (activeJobId && !savedRef.current) {
         cancelUploadJob(activeJobId).catch(() => {});
       }
+      // Only drop the stored handle if this instance actually owns a job.
+      // React StrictMode runs mount/unmount/mount in development, so an
+      // unconditional clear here wipes the handle a *previous* page load left
+      // behind before the resume effect ever gets to read it.
+      if (activeJobId) {
+        clearActiveUploadJob();
+      }
       clearOcrBrowserStorage();
+  
       queryClient.removeQueries({ queryKey: ["uploadStatus"], exact: false });
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Detects if extracted data belongs to the wrong market type.
-  // forexPair is restricted to real ISO currency-code pairs (e.g. EURUSD) so
-  // it never false-positives on a 6-letter stock ticker or a name with
-  // spaces stripped (e.g. "Data Patterns (I)" -> "DATAPATTERNS").
+
+  
   const detectMarketMismatch = (payload) => {
     const pair = String(payload?.pair || payload?.stockSymbol || "").trim().toUpperCase();
     if (isInd) {
@@ -906,6 +1086,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       processedTradeIdRef.current = sourceId;
       applyProcessedTradeData(completedPayload);
       setJobId("");
+      clearActiveUploadJob();
       if (activeToastId) {
         removeToast(activeToastId);
         setActiveToastId(null);
@@ -989,7 +1170,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobStatusQuery.error]);
 
-  const loading = uploadJobMutation.isPending || !!jobId || isCancellingUpload;
+  const loading = uploadJobMutation.isPending || !!jobId || isCancellingUpload || demoRunning;
   const serverOcrStage = normalizeOcrStage(jobStatusQuery.data?.status, {
     isUploading: uploadJobMutation.isPending,
     hasJob: Boolean(jobId),
@@ -997,8 +1178,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   });
 
   useEffect(() => {
+    // A demo replay drives the stage itself and has no server job, so
+    // serverOcrStage is "" here -- and keepProgressMovingForward resets to ""
+    // on a falsy next stage, which would wipe the demo's progress every render.
+    if (demoRunning) return;
     setVisibleOcrStage((current) => keepProgressMovingForward(current, serverOcrStage));
-  }, [serverOcrStage]);
+  }, [serverOcrStage, demoRunning]);
 
   const processingStatus = visibleOcrStage || serverOcrStage;
 
@@ -1056,9 +1241,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   // 8. Actions
   const handleUpload = async () => {
-    if (uploadJobMutation.isPending || jobId || isCancellingUpload) return;
+    if (uploadJobMutation.isPending || jobId || isCancellingUpload || demoRunning) return;
     if (!file) return setError("Select file");
     if (isInd && broker === "AUTO") return setError("Select broker");
+
+    // Demo runs entirely in the browser. Nothing is uploaded, so it can't spend
+    // the user's free upload, hit the paywall, collide with the duplicate-image
+    // check, or leave a screenshot in cloud storage.
+    if (isDemo) return runDemoExtraction();
 
     // Compress BEFORE upload. PDFs and small images pass through unchanged.
     // Failures degrade gracefully — the original file is uploaded.

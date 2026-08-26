@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { protect } = require("../middleware/authMiddleware");
 const { createRedisRateLimiter } = require("../middleware/rateLimiter");
+const { validateObjectId } = require("../middleware/validateObjectId");
 const {
   listWeeklyReports,
   getWeeklyReport,
@@ -20,7 +21,7 @@ const generateLimiter = createRedisRateLimiter({
 });
 
 router.get("/weekly", protect, listWeeklyReports);
-router.get("/weekly/:id", protect, getWeeklyReport);
+router.get("/weekly/:id", protect, validateObjectId("id"), getWeeklyReport);
 // `protect` runs before the limiter so unauthenticated/forged requests are
 // rejected at auth and do not consume the limit budget.
 router.post("/weekly/generate-now", protect, generateLimiter, generateNowOnce);

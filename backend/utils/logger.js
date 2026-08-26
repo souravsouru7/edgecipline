@@ -24,7 +24,7 @@ const SENSITIVE_KEY_PATTERN =
   /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers)/i;
 
 const SENSITIVE_VALUE_PATTERN_SOURCE =
-  String.raw`(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`;
+  String.raw`(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|[A-Za-z]:[\\/][^\s"']+|\/(?:Users|home|var|etc|srv|app)\/[^\s"']+|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----)`;
 
 function redactValue(value, key = "") {
   if (SENSITIVE_KEY_PATTERN.test(key)) {
@@ -111,4 +111,5 @@ module.exports = {
   logger,
   stream,
   redactMeta,
+  redactValue,
 };

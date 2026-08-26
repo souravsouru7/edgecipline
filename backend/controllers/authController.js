@@ -1,5 +1,7 @@
+
 const crypto = require("crypto");
 const User = require("../models/Users");
+const DeviceToken = require("../models/DeviceToken");
 const bcrypt = require("bcryptjs");
 const { sendOTPEmail } = require("../services/mailService");
 const { appConfig } = require("../config");
@@ -22,6 +24,7 @@ const { invalidateAuthCache } = require("../services/authCacheService");
 const { buildTrialStart, TRIAL_DAYS } = require("../utils/premium");
 const analytics = require("../services/analyticsEventService");
 const { invalidateTradeCaches } = require("../utils/cacheUtils");
+const { deleteAccount } = require("../services/accountDeletionService");
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -33,8 +36,11 @@ const DUMMY_BCRYPT_HASH =
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+// Non-string input (array, number, null) is coerced to "" rather than throwing.
+// `sanitizeInput` already rejects Mongo operator keys, but a JSON array body
+// like {"email":["a@b.c"]} would otherwise reach .toLowerCase() and 500.
 function normalizeEmail(email) {
-  return (email || "").toLowerCase().trim();
+  return typeof email === "string" ? email.toLowerCase().trim() : "";
 }
 
 // ---------------------------------------------------------------------------
@@ -495,13 +501,30 @@ exports.refreshToken = asyncHandler(async (req, res) => {
  * Does NOT require authentication — it's idempotent and safe to call even
  * if the session is already invalid.
  */
+// Disables the push token for the device that just logged out (identified by
+// the same X-Device-ID header used elsewhere for diagnostics), so a
+// shared/borrowed device stops receiving this account's notifications the
+// moment it signs out — without touching any other device the user is still
+// logged into elsewhere. Best-effort: logout must never fail because of this.
+async function disableDeviceTokenForRequest(userId, req) {
+  if (!userId) return;
+  const deviceId = String(req.headers["x-device-id"] || "").slice(0, 100);
+  if (!deviceId) return;
+  await DeviceToken.updateMany(
+    { user: userId, deviceId, enabled: true },
+    { enabled: false, revokedAt: new Date() }
+  );
+}
+
 exports.logoutUser = asyncHandler(async (req, res) => {
   const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
   logger.info("AUTH_LOGOUT_TRIGGERED", getAuthRequestDiagnostics(req));
 
   if (rawToken) {
     // Best-effort — don't fail logout if DB is momentarily unavailable
-    revokeRefreshToken(rawToken).catch(() => {});
+    revokeRefreshToken(rawToken)
+      .then((userId) => disableDeviceTokenForRequest(userId, req))
+      .catch(() => {});
   }
 
   res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitorRequest(req)));
@@ -520,6 +543,12 @@ exports.logoutAll = asyncHandler(async (req, res) => {
   await Promise.all([
     revokeAllUserTokens(req.user._id),
     User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } }),
+    // "Everywhere" logout — unlike single-device logout, disable every
+    // device this user has ever registered, not just the one that asked.
+    DeviceToken.updateMany(
+      { user: req.user._id, enabled: true },
+      { enabled: false, revokedAt: new Date() }
+    ),
   ]);
 
   // Drop the auth cache so the next request loads the new tokenVersion from
@@ -746,35 +775,15 @@ exports.acceptTerms = asyncHandler(async (req, res) => {
 // Password reset (OTP flow)
 // ---------------------------------------------------------------------------
 
-exports.forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  if (!email) throw new ApiError(400, "Email is required", "VALIDATION_ERROR");
-
-  const user = await User.findOne({ email: normalizeEmail(email) });
-
-  // Always return the same response to prevent user enumeration
-  if (!user || user.authProvider === "google") {
-    return res.json({ message: "If that email is registered, an OTP has been sent." });
-  }
-
-  const otp = String(crypto.randomInt(100000, 1000000));
-  user.resetPasswordOTP = hashOtp(otp); // store hash, never the raw OTP
-  user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000;
-  user.otpAttempts = 0;
-  user.otpLockUntil = undefined;
-  await user.save();
-
-  await sendOTPEmail(email, otp); // raw OTP sent in email only
-  res.json({ message: "If that email is registered, an OTP has been sent." });
-});
-
 const OTP_MAX_ATTEMPTS = 3;
 const OTP_LOCK_DURATION_MS = 30 * 60 * 1000;
+const RESET_OTP_TTL_MS = 10 * 60 * 1000;
+const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 
-// Hash OTP with SHA-256 before storing — same pattern as refresh tokens.
-// If DB is breached, raw OTPs are not exposed.
-function hashOtp(otp) {
-  return crypto.createHash("sha256").update(String(otp || "")).digest("hex");
+// SHA-256 hex. Used for OTPs and reset tokens before they touch the database —
+// same pattern as refresh tokens, so a DB breach yields no usable secret.
+function sha256Hex(value) {
+  return crypto.createHash("sha256").update(String(value ?? "")).digest("hex");
 }
 
 // Timing-safe comparison of two SHA-256 hex digests (both 64 chars).
@@ -788,12 +797,157 @@ function timingSafeHashEquals(storedHash, candidateHash) {
   }
 }
 
+// Short, stable identifier for correlating reset activity in logs without
+// writing the address itself. Never log the OTP or the reset token.
+function emailLogId(normalizedEmail) {
+  return sha256Hex(normalizedEmail).slice(0, 12);
+}
+
+/**
+ * POST /api/auth/forgot-password
+ *
+ * Answers explicitly: an address with no account gets 404 "No account was
+ * found with this email address", a registered one gets "OTP sent
+ * successfully". That is a product decision, not an oversight — it trades
+ * account-enumeration resistance for a clearer dead end when someone mistypes
+ * their address. The auth and per-email rate limiters below are what keep the
+ * trade bounded; do not remove them.
+ *
+ * Database work is two indexed operations and never loads a full user:
+ *   1. projected existence read  — findOne({email}).select("_id authProvider").lean()
+ *   2. targeted write            — updateOne({_id}, {$set/$unset: ...})
+ * The read hits the unique `email_1` index; `.lean()` skips hydrating a
+ * Mongoose document, and the write touches only the reset fields instead of
+ * re-serialising the whole record the way user.save() did.
+ */
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Normalize before anything else: the stored value is lowercased and trimmed
+  // by the schema on write, but that never applies to a query filter, so
+  // "  User@Example.COM " only matches once it is folded here.
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    throw new ApiError(400, "Email is required", "VALIDATION_ERROR");
+  }
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
+    throw new ApiError(400, "Please enter a valid email address", "VALIDATION_ERROR");
+  }
+
+  // Existence check. `authProvider` rides along because the answer depends on
+  // it — fetching it here avoids a second round trip, and both fields together
+  // are still a fraction of the document.
+  const account = await User.findOne({ email: normalizedEmail })
+    .select("_id authProvider")
+    .lean();
+
+  if (!account) {
+    // Nothing is generated, stored, or sent for an address with no account.
+    logger.info("Password reset requested for unknown email", {
+      emailId: emailLogId(normalizedEmail),
+      requestId: req.requestId,
+    });
+    throw new ApiError(404, "No account was found with this email address.", "ACCOUNT_NOT_FOUND");
+  }
+
+  // Google accounts have no password to reset — issuing an OTP would let
+  // someone with inbox access bolt a local password onto an SSO account.
+  if (account.authProvider === "google") {
+    throw new ApiError(
+      409,
+      "This account signs in with Google, so there is no password to reset. Use \"Continue with Google\" instead.",
+      "GOOGLE_ACCOUNT"
+    );
+  }
+
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const now = new Date();
+
+  // Mail first, then persist. The send is by far the likelier of the two to
+  // fail (an unverified sender domain fails 100% of the time), and writing the
+  // new hash first meant a failed send also destroyed whatever code the user
+  // had already been mailed — turning a delivery hiccup into a dead reset for
+  // someone who was holding a perfectly good OTP. Nothing changes on the
+  // account unless the provider actually accepted the message.
+  try {
+    await sendOTPEmail(normalizedEmail, otp); // raw OTP leaves the process only in the email
+  } catch (error) {
+    // A rejected sender domain, a revoked key, or a sandbox key writing to a
+    // stranger are configuration faults: they will fail identically on every
+    // retry, so telling the user to try again just loops them.
+    const permanent = Boolean(error?.permanent);
+    logger.error("Password reset OTP delivery failed", {
+      emailId: emailLogId(normalizedEmail),
+      requestId: req.requestId,
+      permanent,
+      providerStatus: error?.providerStatus,
+      error: error?.message,
+    });
+    throw new ApiError(
+      502,
+      permanent
+        ? "Password reset email is not available right now. Please contact support so we can reset your password."
+        : "We couldn't send the email right now. Please try again in a moment.",
+      permanent ? "EMAIL_DELIVERY_UNAVAILABLE" : "EMAIL_DELIVERY_FAILED",
+      permanent && appConfig.env !== "production"
+        ? {
+            operatorHint:
+              "Resend is rejecting password reset emails. If RESEND_FROM uses onboarding@resend.dev, Resend only allows sends to the account owner's test email. Verify your real domain in Resend and set RESEND_FROM to an address on that verified domain.",
+          }
+        : null,
+      true
+    );
+  }
+
+  const newCode = {
+    resetPasswordOTP: sha256Hex(otp), // store the hash, never the raw OTP
+    resetPasswordOTPExpires: new Date(now.getTime() + RESET_OTP_TTL_MS),
+  };
+  // A fresh request supersedes any token an earlier verification handed out.
+  const dropStaleToken = { resetPasswordToken: "", resetPasswordTokenExpires: "" };
+
+  // An active lockout survives a new request — otherwise three wrong guesses
+  // could be cleared just by asking for another code. The "not locked" test is
+  // part of the filter, so the common path stays one atomic write with no
+  // read-modify-write race.
+  const notLocked = {
+    _id: account._id,
+    $or: [{ otpLockUntil: { $exists: false } }, { otpLockUntil: null }, { otpLockUntil: { $lte: now } }],
+  };
+  const unlockedWrite = await User.updateOne(notLocked, {
+    $set: { ...newCode, otpAttempts: 0 },
+    $unset: { ...dropStaleToken, otpLockUntil: "" },
+  });
+
+  if (unlockedWrite.matchedCount === 0) {
+    // Locked out: still refresh the code, but leave the lockout window intact.
+    await User.updateOne({ _id: account._id }, { $set: newCode, $unset: dropStaleToken });
+  }
+
+  logger.info("Password reset OTP sent", {
+    emailId: emailLogId(normalizedEmail),
+    requestId: req.requestId,
+  });
+
+  res.json({ message: "OTP sent successfully. Please check your email." });
+});
+
 exports.verifyOTP = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
-  if (!email || !otp) throw new ApiError(400, "Email and OTP are required", "VALIDATION_ERROR");
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !otp) {
+    throw new ApiError(400, "Email and OTP are required", "VALIDATION_ERROR");
+  }
+  // A malformed code can never match a stored hash. Rejecting it here keeps it
+  // from burning one of the three attempts on an obvious typo.
+  if (!/^\d{6}$/.test(String(otp).trim())) {
+    throw new ApiError(400, "Enter the 6-digit code from your email", "VALIDATION_ERROR");
+  }
 
-  const user = await User.findOne({ email: normalizeEmail(email) });
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user || user.authProvider === "google") {
+    // Same body and status as a wrong code — an unregistered address must not
+    // be distinguishable from a registered one that got the digits wrong.
     throw new ApiError(400, "Invalid or expired OTP", "VALIDATION_ERROR");
   }
 
@@ -803,7 +957,7 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
   }
 
   const isValid =
-    timingSafeHashEquals(user.resetPasswordOTP, hashOtp(otp)) &&
+    timingSafeHashEquals(user.resetPasswordOTP, sha256Hex(String(otp).trim())) &&
     user.resetPasswordOTPExpires &&
     user.resetPasswordOTPExpires > new Date();
 
@@ -825,8 +979,8 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
   user.otpLockUntil = undefined;
   user.resetPasswordOTP = undefined;
   user.resetPasswordOTPExpires = undefined;
-  user.resetPasswordToken = resetToken;
-  user.resetPasswordTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+  user.resetPasswordToken = sha256Hex(resetToken); // hash at rest, like the OTP
+  user.resetPasswordTokenExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
   await user.save();
 
   res.json({ message: "OTP verified. You can now reset your password.", resetToken });
@@ -840,35 +994,44 @@ exports.resetPassword = asyncHandler(async (req, res) => {
 
   validatePasswordStrength(password);
 
-  const user = await User.findOne({ email: normalizeEmail(email) });
+  const user = await User.findOne({ email: normalizeEmail(email) })
+    .select("+password +loginAttempts +loginLockedUntil");
   if (!user || user.authProvider === "google") {
     throw new ApiError(400, "Invalid or expired reset token", "VALIDATION_ERROR");
   }
 
-  // Validate the short-lived reset token issued by verifyOTP. Length check
-  // first — timingSafeEqual throws RangeError on mismatched buffer lengths.
-  const storedToken = user.resetPasswordToken;
-  const providedToken = typeof resetToken === "string" ? resetToken : "";
+  // Validate the short-lived reset token issued by verifyOTP. Only its hash is
+  // stored, so the candidate is hashed before the timing-safe comparison.
   const isValid =
-    storedToken &&
+    timingSafeHashEquals(
+      user.resetPasswordToken,
+      sha256Hex(typeof resetToken === "string" ? resetToken : "")
+    ) &&
     user.resetPasswordTokenExpires &&
-    user.resetPasswordTokenExpires > new Date() &&
-    storedToken.length === providedToken.length &&
-    crypto.timingSafeEqual(
-      Buffer.from(storedToken),
-      Buffer.from(providedToken)
-    );
+    user.resetPasswordTokenExpires > new Date();
 
   if (!isValid) {
     throw new ApiError(400, "Invalid or expired reset token. Please request a new OTP.", "VALIDATION_ERROR");
+  }
+
+  // Re-setting the same password would leave the user locked out with a
+  // password they have already proven they cannot remember.
+  if (user.password && (await bcrypt.compare(password, user.password))) {
+    throw new ApiError(400, "New password must be different from your current password", "WEAK_PASSWORD");
   }
 
   const salt = await bcrypt.genSalt(10);
   user.password = await bcrypt.hash(password, salt);
   user.resetPasswordToken = undefined;
   user.resetPasswordTokenExpires = undefined;
+  user.resetPasswordOTP = undefined;
+  user.resetPasswordOTPExpires = undefined;
   user.otpAttempts = 0;
   user.otpLockUntil = undefined;
+  // Failed logins are what sent most users here. Leaving the lockout in place
+  // means a successful reset still ends at "account temporarily locked".
+  user.loginAttempts = 0;
+  user.loginLockedUntil = undefined;
   // Bump tokenVersion — invalidates all existing JWT access tokens immediately.
   // Also revoke all refresh tokens so every device must re-authenticate.
   user.tokenVersion = (user.tokenVersion || 0) + 1;
@@ -878,4 +1041,72 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   await invalidateAuthCache(user._id);
 
   res.json({ message: "Password reset successful. Please login with your new password." });
+});
+
+/**
+ * DELETE /api/auth/account
+ *
+ * Permanently deletes the authenticated user and all of their personal data.
+ *
+ * Required by Google Play's User Data policy and Apple App Store Review
+ * Guideline 5.1.1(v): an app that lets users create an account must let them
+ * delete it from within the app. This is not recoverable and is deliberately
+ * not a soft-delete — "deactivate" does not satisfy either policy.
+ *
+ * Requires the user to retype their exact email as `confirmEmail`. That guard
+ * is here rather than only in the UI so the destructive path cannot be hit by
+ * a stray client call or a mistyped curl.
+ */
+exports.deleteMyAccount = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Not authorized", "AUTH_FAILED");
+
+  // Purging ~24 collections, dropping the Firebase identity and destroying every
+  // uploaded image routinely outruns the global 15s API timeout. That timeout
+  // does not just answer early — it destroys the socket, cutting the purge off
+  // partway and stranding the account disabled-but-not-deleted. This deletion
+  // must be allowed to run to completion.
+  req.timeoutConfig?.extendTimeout?.(120_000);
+
+  const confirmEmail = String(req.body?.confirmEmail || "").trim().toLowerCase();
+  const actualEmail = String(req.user.email || "").trim().toLowerCase();
+
+  if (!confirmEmail) {
+    throw new ApiError(
+      400,
+      "Type your email address to confirm deletion",
+      "CONFIRMATION_REQUIRED"
+    );
+  }
+  if (confirmEmail !== actualEmail) {
+    throw new ApiError(
+      400,
+      "The email you typed does not match this account",
+      "CONFIRMATION_MISMATCH"
+    );
+  }
+
+  const userId = req.user._id;
+
+  logger.warn("ACCOUNT_DELETION_REQUESTED", getAuthRequestDiagnostics(req));
+
+  await invalidateAuthCache(userId).catch(() => {});
+  const summary = await deleteAccount(userId);
+  // Takes an options object, not a bare id — passing the id positionally
+  // destructures to `userId: undefined` and silently invalidates nothing.
+  await invalidateTradeCaches({
+    userId,
+    event: "trade_mutation",
+    source: "account_deletion",
+  }).catch(() => {});
+
+  res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions(isCapacitorRequest(req)));
+
+  res.json({
+    success: true,
+    message: "Your account and all associated data have been permanently deleted.",
+    data: {
+      collectionsCleared: Object.keys(summary.documentsDeleted).length,
+      imagesDeleted: summary.images.destroyed,
+    },
+  });
 });

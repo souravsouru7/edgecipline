@@ -99,10 +99,6 @@ export default function AcceptTermsPage() {
       position: "relative",
       overflow: "hidden",
     }}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
 
       {/* Subtle background glows */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
@@ -206,7 +202,7 @@ export default function AcceptTermsPage() {
             color: "#92400E",
             lineHeight: 1.7,
           }}>
-            <strong>Key points:</strong> Edge Discipline does not provide financial advice or profit guarantees.
+            <strong>Key points:</strong> Edgecipline does not provide financial advice or profit guarantees.
             You are fully responsible for your own trading decisions. All AI features are for informational
             and journaling purposes only.
           </div>
@@ -356,7 +352,7 @@ export default function AcceptTermsPage() {
           textAlign: "center",
         }}>
           <span style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
-            EDGE DISCIPLINE · TERMS VERSION v1.0 · 2026
+            EDGECIPLINE · TERMS VERSION v1.0 · 2026
           </span>
         </div>
       </div>

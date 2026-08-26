@@ -101,10 +101,10 @@ describe("server-derived trade P&L", () => {
       lotSize: 25,
       brokerage: 20,
       sttTaxes: 5,
-    })).toBe(975);
+    })).toBe(1000);
   });
 
-  test("derives Indian equity P&L from shares and fees", () => {
+  test("derives gross Indian equity P&L, leaving brokerage/STT for the metric engine", () => {
     expect(deriveIndianProfit({
       instrumentType: "EQUITY",
       type: "BUY",
@@ -113,7 +113,7 @@ describe("server-derived trade P&L", () => {
       sharesQty: 10,
       brokerage: 5,
       sttTaxes: 2,
-    })).toBe(93);
+    })).toBe(100);
   });
 
   test("does not derive P&L without the required price and size inputs", () => {

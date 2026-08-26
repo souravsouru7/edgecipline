@@ -143,22 +143,20 @@ export default function DailyThought({
 
       {/* Card */}
       <FocusTrap>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Daily thought"
-        style={{
-          width: "min(560px, 100%)",
-          background,
-          border: `1px solid ${border}`,
-          borderRadius: 18,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-          overflow: "hidden",
-          position: "relative",
-          animation: "dtPopIn 320ms cubic-bezier(0.22,1,0.36,1) both",
-        }}
-      >
-        <div style={{ height: 4, background: `linear-gradient(90deg, ${accent}, ${gold})` }} />
+        <div
+          role="document"
+          style={{
+            width: "min(560px, 100%)",
+            background,
+            border: `1px solid ${border}`,
+            borderRadius: 18,
+            boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+            overflow: "hidden",
+            position: "relative",
+            animation: "dtPopIn 320ms cubic-bezier(0.22,1,0.36,1) both",
+          }}
+        >
+          <div style={{ height: 4, background: `linear-gradient(90deg, ${accent}, ${gold})` }} />
 
         <div
           style={{
@@ -276,7 +274,8 @@ export default function DailyThought({
             GOT IT
           </button>
         </div>
-      </div>
+        </div>
+      </FocusTrap>
 
       <style>{`
         @keyframes dtFadeIn {
@@ -291,8 +290,6 @@ export default function DailyThought({
           * { animation: none !important; transition: none !important; }
         }
       `}</style>
-    </div>
-      </FocusTrap>
     </div>
   );
 }

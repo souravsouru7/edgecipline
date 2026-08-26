@@ -1,5 +1,16 @@
 const mongoose = require("mongoose");
 
+// Plain Number fields accept Infinity/-Infinity with no error -- a bad OCR
+// read or client bug could silently save it and corrupt every downstream
+// aggregate (totals, averages, equity curves) built from these fields.
+const FINITE_NUMBER = {
+  type: Number,
+  validate: {
+    validator: (v) => v == null || Number.isFinite(v),
+    message: "{PATH} must be a finite number",
+  },
+};
+
 const tradeSchema = new mongoose.Schema(
   {
     user: {
@@ -17,25 +28,25 @@ const tradeSchema = new mongoose.Schema(
       enum: ["BUY", "SELL"],
     },
 
-    quantity: Number,
+    quantity: FINITE_NUMBER,
 
-    lotSize: Number,
+    lotSize: FINITE_NUMBER,
 
-    entryPrice: Number,
+    entryPrice: FINITE_NUMBER,
 
-    exitPrice: Number,
+    exitPrice: FINITE_NUMBER,
 
-    stopLoss: Number,
+    stopLoss: FINITE_NUMBER,
 
-    takeProfit: Number,
+    takeProfit: FINITE_NUMBER,
 
-    profit: Number,
+    profit: FINITE_NUMBER,
 
-    commission: Number,
+    commission: FINITE_NUMBER,
 
-    swap: Number,
+    swap: FINITE_NUMBER,
 
-    balance: Number,
+    balance: FINITE_NUMBER,
 
     strategy: { type: String, maxlength: 100 },
 

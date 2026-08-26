@@ -14,6 +14,7 @@ jest.mock('../../models/Users', () => ({
   findOne: jest.fn(),
   findById: jest.fn(),
   create: jest.fn(),
+  updateOne: jest.fn(),
   findByIdAndUpdate: jest.fn(),
 }));
 
@@ -58,12 +59,16 @@ jest.mock('../../utils/logger', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User   = require('../../models/Users');
+
+/** Mirrors how the controller stores OTPs and reset tokens. */
+const sha256Hex = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 const tokenService = require('../../services/tokenService');
 const { invalidateAuthCache } = require('../../services/authCacheService');
 const { invalidateTradeCaches } = require('../../utils/cacheUtils');
-const { registerUser, loginUser, forgotPassword, verifyOTP, resetPassword, updateOnboardingStep } = require('../../controllers/authController');
+const { registerUser, loginUser, forgotPassword, verifyOTP, resetPassword, updateOnboardingStep, updateMyPreferences } = require('../../controllers/authController');
 
 /** Creates a mock response that records what the controller calls */
 const mockRes = () => {
@@ -85,7 +90,9 @@ const mockReq = (body = {}, extras = {}) => ({
 
 /**
  * Returns a chainable Mongoose-like query that resolves to `value`.
- * Handles both `await Model.findOne()` and `await Model.findOne().select()`.
+ * Every builder method returns the query itself and the query is thenable, so
+ * `await findOne()`, `await findOne().select(...)` and
+ * `await findOne().select(...).lean()` all work.
  */
 const chainQuery = (value) => {
   const q = {
@@ -95,9 +102,8 @@ const chainQuery = (value) => {
     limit:  jest.fn(),
     skip:   jest.fn(),
   };
-  // Each method returns a promise resolving to value (for simplicity)
-  q.select.mockResolvedValue(value);
-  q.lean.mockResolvedValue(value);
+  q.select.mockReturnValue(q);
+  q.lean.mockReturnValue(q);
   q.sort.mockReturnValue(q);
   q.limit.mockReturnValue(q);
   q.skip.mockReturnValue(q);
@@ -331,10 +337,12 @@ describe('resetPassword session revocation', () => {
 
     const user = userDoc({
       tokenVersion: 2,
-      resetPasswordToken: 'reset-token-123',
+      // Reset tokens are stored as a SHA-256 hash, like the OTP.
+      resetPasswordToken: sha256Hex('reset-token-123'),
       resetPasswordTokenExpires: new Date(Date.now() + 10 * 60 * 1000),
     });
-    User.findOne.mockResolvedValueOnce(user);
+    User.findOne.mockReturnValueOnce(chainQuery(user));
+    bcrypt.compare.mockResolvedValueOnce(false); // new password differs from the old one
 
     const req = mockReq({
       email: 'test@example.com',
@@ -486,6 +494,46 @@ describe('updateOnboardingStep', () => {
   });
 });
 
+describe('updateMyPreferences ownership and privilege boundaries', () => {
+  test('ignores role and subscription escalation fields in preference updates', async () => {
+    invalidateAuthCache.mockClear();
+    User.findByIdAndUpdate.mockReset();
+    User.findByIdAndUpdate.mockResolvedValueOnce(userDoc({
+      preferredMarket: 'Forex',
+      hasSeenWelcomeGuide: true,
+      isOnboardingCompleted: false,
+      role: 'user',
+      subscriptionStatus: 'inactive',
+    }));
+
+    const req = mockReq(
+      {
+        preferredMarket: 'Forex',
+        role: 'admin',
+        subscriptionStatus: 'active',
+        subscriptionExpiry: '2099-01-01T00:00:00.000Z',
+        user: 'user-b',
+      },
+      { user: { _id: 'user-a' } }
+    );
+    const res = mockRes();
+    const next = jest.fn();
+
+    await updateMyPreferences(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
+      'user-a',
+      { $set: { preferredMarket: 'Forex' } },
+      { new: true, runValidators: true }
+    );
+    expect(JSON.stringify(User.findByIdAndUpdate.mock.calls[0][1])).not.toMatch(
+      /role|subscriptionStatus|subscriptionExpiry|user-b/
+    );
+    expect(invalidateAuthCache).toHaveBeenCalledWith('user-a');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // T5: OTP max attempts = 3 (reduced from 5 per M4 fix)
 // ---------------------------------------------------------------------------
@@ -516,19 +564,44 @@ describe('verifyOTP — OTP_MAX_ATTEMPTS = 3', () => {
 // T1: forgotPassword — never leaks whether email exists
 // ---------------------------------------------------------------------------
 
-describe('forgotPassword — user enumeration prevention', () => {
-  test('unknown email → same 200 response as known email', async () => {
-    User.findOne.mockResolvedValueOnce(null);
-
-    const req  = mockReq({ email: 'nobody@example.com' });
-    const res  = mockRes();
+describe('forgotPassword — explicit account lookup', () => {
+  test('known email → OTP mailed and success reported', async () => {
+    User.findOne.mockReturnValueOnce(chainQuery(userDoc()));
+    User.updateOne.mockResolvedValue({ matchedCount: 1 });
+    const res = mockRes();
     const next = jest.fn();
 
-    await forgotPassword(req, res, next);
+    await forgotPassword(mockReq({ email: 'test@example.com' }), res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('OTP') })
-    );
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'OTP sent successfully. Please check your email.',
+    });
+  });
+
+  test('unknown email → 404 ACCOUNT_NOT_FOUND, nothing generated or written', async () => {
+    User.findOne.mockReturnValueOnce(chainQuery(null));
+    const res = mockRes();
+    const next = jest.fn();
+
+    await forgotPassword(mockReq({ email: 'nobody@example.com' }), res, next);
+
+    expect(res.json).not.toHaveBeenCalled();
+    expect(next.mock.calls[0][0].statusCode).toBe(404);
+    expect(next.mock.calls[0][0].errorCode).toBe('ACCOUNT_NOT_FOUND');
+    expect(next.mock.calls[0][0].message).toBe('No account was found with this email address.');
+    expect(User.updateOne).not.toHaveBeenCalled();
+  });
+
+  test('the lookup is normalized and projected, not a full document read', async () => {
+    const q = chainQuery(userDoc());
+    User.findOne.mockReturnValueOnce(q);
+    User.updateOne.mockResolvedValue({ matchedCount: 1 });
+
+    await forgotPassword(mockReq({ email: '  TEST@Example.COM ' }), mockRes(), jest.fn());
+
+    expect(User.findOne).toHaveBeenCalledWith({ email: 'test@example.com' });
+    expect(q.select).toHaveBeenCalledWith('_id authProvider');
+    expect(q.lean).toHaveBeenCalled();
   });
 });

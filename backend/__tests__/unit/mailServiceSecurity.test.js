@@ -2,6 +2,7 @@
 
 const mockWarn = jest.fn();
 const mockInfo = jest.fn();
+const mockError = jest.fn();
 
 jest.mock("../../config", () => ({
   appConfig: {
@@ -16,7 +17,7 @@ jest.mock("../../utils/logger", () => ({
   logger: {
     warn: mockWarn,
     info: mockInfo,
-    error: jest.fn(),
+    error: mockError,
   },
 }));
 
@@ -28,11 +29,14 @@ const { sendOTPEmail } = require("../../services/mailService");
 
 describe("mailService OTP logging", () => {
   test("never writes the plaintext OTP when email delivery is unconfigured", async () => {
-    await expect(sendOTPEmail("person@example.com", "123456")).resolves.toBe(true);
+    await expect(sendOTPEmail("person@example.com", "123456")).rejects.toThrow(
+      "RESEND_API_KEY is not configured"
+    );
 
     const logged = JSON.stringify([
       ...mockWarn.mock.calls,
       ...mockInfo.mock.calls,
+      ...mockError.mock.calls,
     ]);
     expect(logged).not.toContain("123456");
     expect(logged).not.toContain("person@example.com");

@@ -29,7 +29,7 @@ export default function OnboardingError({ error, onRetry, retrying }) {
       <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 800, color: "#F87171" }}>
-          Couldn't save that step
+          {"Couldn't save that step"}
         </div>
         <div style={{ fontSize: 11, color: "#FCA5A5", marginTop: 2, lineHeight: 1.5 }}>
           {message}

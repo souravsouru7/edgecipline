@@ -1,10 +1,12 @@
 jest.mock("../../repositories/trade.repository", () => ({
+  createTrade: jest.fn(),
   createTrades: jest.fn(),
   updateForexTradeByUser: jest.fn(),
 }));
 
 jest.mock("../../utils/cacheUtils", () => ({
   TRADE_CACHE_EVENTS: {
+    CREATE: "create",
     BULK_IMPORT: "bulk_import",
     OCR_SAVE: "ocr_save",
     EDIT: "edit",
@@ -19,6 +21,9 @@ jest.mock("../../services/smartNotificationEvaluator", () => ({
 
 jest.mock("../../services/ocrJob.service", () => ({
   getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
+  claimOcrJobForConfirmation: jest.fn(),
+  releaseOcrJobClaim: jest.fn().mockResolvedValue(undefined),
+  extractConfirmationTrades: jest.fn((job) => job?.extractedData?.parsedTrades || []),
   markOcrJobConfirmed: jest.fn(),
 }));
 
@@ -28,20 +33,135 @@ jest.mock("../../utils/cache", () => ({
   rememberCache: jest.fn(),
 }));
 
-jest.mock("../../models/Trade", () => ({}));
+jest.mock("../../models/Trade", () => ({
+  findOne: jest.fn(),
+}));
 
 const tradeRepository = require("../../repositories/trade.repository");
+const Trade = require("../../models/Trade");
 const { invalidateTradeCaches } = require("../../utils/cacheUtils");
 const { evaluateSmartNotifications } = require("../../services/smartNotificationEvaluator");
 const {
   getOcrConfirmationTrades,
+  claimOcrJobForConfirmation,
+  releaseOcrJobClaim,
   markOcrJobConfirmed,
 } = require("../../services/ocrJob.service");
 const tradeService = require("../../services/trade.service");
 
+function noDuplicateTrade() {
+  Trade.findOne.mockReturnValue({
+    sort: jest.fn().mockResolvedValue(null),
+  });
+}
+
+describe("tradeService.createTrade", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    noDuplicateTrade();
+    tradeRepository.createTrade.mockImplementation(async (doc) => ({ _id: "trade-1", ...doc }));
+  });
+
+  it("saves a manual Forex trade only when P&L can be derived from positive price and size fields", async () => {
+    const trade = await tradeService.createTrade("user-1", {
+      pair: "EURUSD",
+      type: "BUY",
+      tradeDate: "2026-06-01",
+      entryPrice: 1.1,
+      exitPrice: 1.101,
+      lotSize: 0.1,
+    }, { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") });
+
+    expect(tradeRepository.createTrade).toHaveBeenCalledWith(expect.objectContaining({
+      user: "user-1",
+      pair: "EURUSD",
+      type: "BUY",
+      entryPrice: 1.1,
+      exitPrice: 1.101,
+      lotSize: 0.1,
+      profit: 10,
+      status: "completed",
+      error: null,
+    }));
+    expect(trade.profit).toBe(10);
+  });
+
+  it("rejects a manual Forex trade with a missing exit price instead of saving a misleading completed trade", async () => {
+    await expect(tradeService.createTrade("user-1", {
+      pair: "EURUSD",
+      type: "BUY",
+      tradeDate: "2026-06-01",
+      entryPrice: 1.1,
+      lotSize: 0.1,
+    }, { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }))
+      .rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+        message: "Exit price is required",
+      });
+
+    expect(tradeRepository.createTrade).not.toHaveBeenCalled();
+  });
+
+  it("rejects manual Forex instruments whose P&L cannot be derived safely", async () => {
+    await expect(tradeService.createTrade("user-1", {
+      pair: "EURJPY",
+      type: "BUY",
+      tradeDate: "2026-06-01",
+      entryPrice: 160,
+      exitPrice: 161,
+      lotSize: 0.1,
+    }, { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }))
+      .rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+        message: "P&L cannot be derived for this Forex instrument",
+      });
+
+    expect(tradeRepository.createTrade).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates a retry of the same manual Forex trade", async () => {
+    let existing = null;
+    Trade.findOne.mockReturnValue({
+      sort: jest.fn().mockImplementation(async () => existing),
+    });
+    tradeRepository.createTrade.mockImplementation(async (doc) => {
+      existing = { _id: "trade-1", createdAt: new Date(), ...doc };
+      return existing;
+    });
+    const payload = {
+      pair: "EURUSD",
+      type: "BUY",
+      tradeDate: "2026-06-01",
+      entryPrice: 1.1,
+      exitPrice: 1.101,
+      lotSize: 0.1,
+    };
+
+    const first = await tradeService.createTrade("user-1", payload, {
+      accountCreatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const second = await tradeService.createTrade("user-1", payload, {
+      accountCreatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(tradeRepository.createTrade).toHaveBeenCalledTimes(1);
+    expect(second).toBe(first);
+  });
+});
+
 describe("tradeService.createTradesBatch", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getOcrConfirmationTrades.mockResolvedValue([]);
+    // claimOcrJobForConfirmation is the new atomic gate that replaced a plain
+    // getOcrConfirmationTrades() read in the service -- delegate to whatever
+    // each test configures getOcrConfirmationTrades to resolve, so existing
+    // test bodies below don't need to change.
+    claimOcrJobForConfirmation.mockImplementation(async () => ({
+      extractedData: { parsedTrades: await getOcrConfirmationTrades() },
+    }));
   });
 
   it("creates all OCR trades in one repository call and invalidates caches once", async () => {
@@ -89,6 +209,24 @@ describe("tradeService.createTradesBatch", () => {
     });
   });
 
+  it("releases the OCR job claim if batch trade creation fails after a successful claim", async () => {
+    const createError = new Error("createTrades failed");
+    tradeRepository.createTrades.mockRejectedValue(createError);
+
+    await expect(tradeService.createTradesBatch(
+      "user-1",
+      {
+        ocrJobId: "ocr-fail-1",
+        trades: [{ pair: "EURUSD", type: "BUY", tradeDate: "2026-06-01", entryPrice: 1, exitPrice: 2, profit: 10 }],
+      },
+      { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }
+    )).rejects.toThrow("createTrades failed");
+
+    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-fail-1", "Forex");
+    expect(releaseOcrJobClaim).toHaveBeenCalledWith("user-1", "ocr-fail-1");
+    expect(markOcrJobConfirmed).not.toHaveBeenCalled();
+  });
+
   it("rejects empty batches before touching the database", async () => {
     await expect(
       tradeService.createTradesBatch("user-1", { trades: [] })
@@ -96,6 +234,51 @@ describe("tradeService.createTradesBatch", () => {
 
     expect(tradeRepository.createTrades).not.toHaveBeenCalled();
     expect(invalidateTradeCaches).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-OCR Forex batch trade with a missing exit price", async () => {
+    await expect(tradeService.createTradesBatch(
+      "user-1",
+      {
+        trades: [{
+          pair: "EURUSD",
+          type: "BUY",
+          tradeDate: "2026-06-01",
+          entryPrice: 1.1,
+          lotSize: 0.1,
+        }],
+      },
+      { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }
+    )).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "VALIDATION_ERROR",
+      message: "Exit price is required",
+    });
+
+    expect(tradeRepository.createTrades).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-OCR Forex batch trade whose P&L cannot be derived safely", async () => {
+    await expect(tradeService.createTradesBatch(
+      "user-1",
+      {
+        trades: [{
+          pair: "EURJPY",
+          type: "BUY",
+          tradeDate: "2026-06-01",
+          entryPrice: 160,
+          exitPrice: 161,
+          lotSize: 0.1,
+        }],
+      },
+      { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }
+    )).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "VALIDATION_ERROR",
+      message: "P&L cannot be derived for this Forex instrument",
+    });
+
+    expect(tradeRepository.createTrades).not.toHaveBeenCalled();
   });
 
   it("strips protected fields from OCR-confirmed batch trades", async () => {

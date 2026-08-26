@@ -1,4 +1,5 @@
 jest.mock("../../models/NotificationHistory", () => ({
+  countDocuments: jest.fn(),
   find: jest.fn(),
   findOneAndUpdate: jest.fn(),
   updateMany: jest.fn(),
@@ -72,6 +73,26 @@ describe("notification ownership", () => {
     ]);
   });
 
+  it("lists only the authenticated user's notification records", async () => {
+    const items = [{ _id: "notification-a", user: "user-a", isRead: false }];
+    const lean = jest.fn().mockResolvedValue(items);
+    const limit = jest.fn().mockReturnValue({ lean });
+    const skip = jest.fn().mockReturnValue({ limit });
+    const sort = jest.fn().mockReturnValue({ skip });
+    NotificationHistory.find.mockReturnValue({ sort });
+    NotificationHistory.countDocuments.mockResolvedValue(1);
+
+    const result = await notificationService.listUserNotifications("user-a", {
+      page: 1,
+      limit: 10,
+      unreadOnly: true,
+    });
+
+    expect(NotificationHistory.find).toHaveBeenCalledWith({ user: "user-a", isRead: false });
+    expect(NotificationHistory.countDocuments).toHaveBeenCalledWith({ user: "user-a", isRead: false });
+    expect(result.items).toBe(items);
+  });
+
   it("fails closed instead of issuing a bulk update without an owner", async () => {
     await expect(notificationService.markAllAsRead(undefined)).rejects.toThrow(
       "A user ID is required"
@@ -91,6 +112,24 @@ describe("notification ownership", () => {
     expect(NotificationHistory.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: "user-b-notification", user: "user-a" },
       { isRead: true, readAt: expect.any(Date) },
+      { returnDocument: "after" }
+    );
+  });
+
+  it.each([
+    ["delivered", () => notificationService.trackDelivered("user-a", "user-b-notification")],
+    ["opened", () => notificationService.trackOpen("user-a", "user-b-notification")],
+    ["action", () => notificationService.trackAction("user-a", "user-b-notification", "cta")],
+  ])("cannot track another user's notification as %s", async (_name, run) => {
+    NotificationHistory.findOneAndUpdate.mockReturnValue({
+      lean: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(run()).resolves.toBeNull();
+
+    expect(NotificationHistory.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "user-b-notification", user: "user-a" }),
+      expect.anything(),
       { returnDocument: "after" }
     );
   });

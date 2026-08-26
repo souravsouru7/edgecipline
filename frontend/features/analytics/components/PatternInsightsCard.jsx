@@ -348,11 +348,11 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
         {/* Confidence Ranges */}
         {confidence?.byRange?.length > 0 && (
           <Card accentColor={C.gold} delay={delay + 0.22}>
-            <SectionHeading icon="🎯" title="Confidence Patterns" subtitle="OPTIMAL CONFIDENCE RANGE" />
+            <SectionHeading icon="🎯" title="Confidence Patterns" subtitle="HOW YOUR CONFIDENCE LEVEL SCORES" />
             {confidence.byRange.map((r, i) => (
               <PatternRow
                 key={i}
-                label={`Confidence ${r.range}`}
+                label={r.label || `Confidence ${r.range}`}
                 winRate={r.winRate}
                 netPnl={r.netPnl}
                 count={r.count}
@@ -371,7 +371,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
             {mood.byMood.map((m, i) => (
               <PatternRow
                 key={i}
-                label={`Mood ${m.mood} — ${m.label}`}
+                label={`${m.label} mood (${m.mood}/5)`}
                 winRate={m.winRate}
                 netPnl={m.netPnl}
                 count={m.count}
@@ -432,11 +432,11 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
         {/* Setup Score */}
         {setupScore?.byRange?.length > 0 && (
           <Card accentColor={C.gold} delay={delay + 0.34}>
-            <SectionHeading icon="📊" title="Setup Score Patterns" subtitle="OPTIMAL SETUP THRESHOLD" />
+            <SectionHeading icon="📊" title="Setup Score Patterns" subtitle="WHICH SETUP QUALITY PAYS YOU" />
             {setupScore.byRange.map((r, i) => (
               <PatternRow
                 key={i}
-                label={`Setup Score ${r.range}`}
+                label={r.label || `Setup Score ${r.range}`}
                 winRate={r.winRate}
                 netPnl={r.netPnl}
                 count={r.count}

@@ -8,7 +8,34 @@ import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient
 import { hideNativeSplash } from "@/utils/nativeSplash";
 
 const STARTUP_REVEAL_TIMEOUT_MS = 1400;
-const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-otp"];
+
+// Routes an unauthenticated visitor may reach. Anything not listed here gets
+// redirected to /login when session restore comes back empty.
+//
+// The legal/support group is not optional polish — these URLs are submitted to
+// the stores and are opened cold, in a browser, with no session:
+//
+//   /privacy-policy  Play Console + App Store Connect both require a reachable
+//                    privacy policy URL, and Play flags the listing if it stops
+//                    resolving.
+//   /delete-account  Play's User Data policy requires a public account-deletion
+//                    URL alongside the in-app path.
+//   /terms           Linked from the store listing and from /accept-terms.
+//   /support         Apple requires a working support URL.
+//
+// Bouncing a reviewer from any of these to a login screen reads as "the URL
+// does not work" and fails review.
+const PUBLIC_PATH_PREFIXES = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-otp",
+  "/privacy-policy",
+  "/terms",
+  "/delete-account",
+  "/support",
+];
 
 export default function AuthSessionBootstrap({ children }) {
   const [ready, setReady] = useState(false);
@@ -42,6 +69,11 @@ export default function AuthSessionBootstrap({ children }) {
           platform: window.Capacitor?.isNativePlatform?.() ? "capacitor" : "web",
         });
       }
+    };
+    const hideProtectedApp = () => {
+      if (!active || !isProtectedRoute()) return;
+      readyRef.current = false;
+      setReady(false);
     };
 
     const restore = async (trigger) => {
@@ -92,8 +124,10 @@ export default function AuthSessionBootstrap({ children }) {
     };
     const onPageShow = (event) => {
       if (!event?.persisted) return;
+      hideProtectedApp();
       void restore("pageshow").then(({ token, transient }) => {
         if (!token && !transient) redirectToLogin();
+        if (token || transient) revealApp("pageshow-auth-ready");
       });
     };
     document.addEventListener("visibilitychange", onVisible);

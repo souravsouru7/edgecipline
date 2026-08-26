@@ -12,6 +12,17 @@ import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 
 const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", blue: "#3B82F6", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
 
+// aiModel is set to one of these placeholder values whenever the shown
+// feedback isn't genuine model output (Gemini failed, the response didn't
+// parse, or a safety filter discarded it) -- callers use this to render a
+// visibly different state instead of showing it identically to real AI text.
+function isGenuineAiModel(aiModel) {
+  if (!aiModel) return false;
+  if (aiModel === "unavailable" || aiModel === "validation-error") return false;
+  if (aiModel.endsWith("-fallback") || aiModel.endsWith("-blocked")) return false;
+  return true;
+}
+
 // -- JSON extraction helpers ---------------------------------------------------
 
 function tryParseJson(value) {
@@ -694,8 +705,15 @@ function WeeklyReportsContent() {
                     <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.primary, lineHeight: 1.4, wordBreak: "break-word" }}>
                       {snap?.week?.label?.replace(" (Last 7 days)", "") || "Weekly Report"}
                     </h2>
-                    <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace", marginTop: 4, letterSpacing: "0.04em" }}>
-                      {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} * {snap?.counts?.totalTrades ?? 0} trades
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                      {selected.aiModel && !isGenuineAiModel(selected.aiModel) && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
+                          <AlertTriangle size={10} /> AI unavailable
+                        </span>
+                      )}
+                      <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
+                        {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} * {snap?.counts?.totalTrades ?? 0} trades
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: net >= 0 ? "rgba(13,158,110,0.08)" : "rgba(214,59,59,0.08)", border: `1px solid ${net >= 0 ? "rgba(13,158,110,0.2)" : "rgba(214,59,59,0.2)"}`, flexShrink: 0 }}>
@@ -720,10 +738,17 @@ function WeeklyReportsContent() {
 
               {/* -- AI Overview ------------------------------------- */}
               {ai && (
-                <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
-                  <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, transparent)` }} />
+                <div style={{ background: "#FFFFFF", borderRadius: 14, border: `1px solid ${isGenuineAiModel(selected.aiModel) ? "#E8EDF2" : "rgba(184,134,11,0.35)"}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                  <div style={{ height: 3, background: isGenuineAiModel(selected.aiModel) ? `linear-gradient(90deg, ${C.bull}, transparent)` : `linear-gradient(90deg, ${C.gold}, transparent)` }} />
                   <div style={{ padding: "18px 22px" }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 14 }}>AI COACHING SUMMARY</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>AI COACHING SUMMARY</div>
+                      {!isGenuineAiModel(selected.aiModel) && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
+                          <AlertTriangle size={10} /> Unavailable, showing fallback
+                        </span>
+                      )}
+                    </div>
                     {ai.summaryParagraphs.length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         {ai.summaryParagraphs.map((para, i) => (

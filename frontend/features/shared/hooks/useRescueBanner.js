@@ -44,7 +44,9 @@ export function useRescueBanner() {
 
   useEffect(() => {
     mounted.current = true;
-    refresh();
+    const initialTimer = setTimeout(() => {
+      refresh();
+    }, 0);
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
     }, POLL_MS);
@@ -54,6 +56,7 @@ export function useRescueBanner() {
     document.addEventListener("visibilitychange", onVis);
     return () => {
       mounted.current = false;
+      clearTimeout(initialTimer);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVis);
     };

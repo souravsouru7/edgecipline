@@ -1,6 +1,6 @@
 "use client";
 
-import { registerPlugin } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 const WebFallback = {
   configure: async () => {},
@@ -18,7 +18,6 @@ function getPlugin() {
   if (typeof window === "undefined") return WebFallback;
 
   try {
-    const { Capacitor } = require("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return WebFallback;
 
     _plugin = registerPlugin("ChecklistNotification", {

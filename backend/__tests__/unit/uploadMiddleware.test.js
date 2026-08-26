@@ -2,10 +2,14 @@ const express = require("express");
 const request = require("supertest");
 const { Writable } = require("stream");
 
-const PNG_BUFFER = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-]);
+// A real 4x4 PNG, not just a header: the storage engine now decodes every
+// upload before it reaches Cloudinary, so a truncated stub would be rejected
+// as corrupt and never exercise the Cloudinary failure path under test.
+const PNG_BUFFER = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAACXBIWXMAAAPoAAAD6AG1e1Jr" +
+    "AAAAEElEQVR42mMwTlsFRwzEcQAFwhQxXYGmsgAAAABJRU5ErkJggg==",
+  "base64"
+);
 
 function loadUploadMiddlewareWithCloudinaryError(error) {
   jest.resetModules();
@@ -14,7 +18,10 @@ function loadUploadMiddlewareWithCloudinaryError(error) {
     appConfig: {
       env: "development",
       port: 5000,
-      upload: { maxFileSizeBytes: 2 * 1024 * 1024 },
+      upload: {
+        maxFileSizeBytes: 2 * 1024 * 1024,
+        maxImagePixels: 50 * 1000 * 1000,
+      },
     },
   }));
 

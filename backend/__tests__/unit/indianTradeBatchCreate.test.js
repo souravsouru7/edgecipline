@@ -18,6 +18,9 @@ jest.mock("../../services/smartNotificationEvaluator", () => ({
 
 jest.mock("../../services/ocrJob.service", () => ({
   getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
+  claimOcrJobForConfirmation: jest.fn(),
+  releaseOcrJobClaim: jest.fn().mockResolvedValue(undefined),
+  extractConfirmationTrades: jest.fn((job) => job?.extractedData?.parsedTrades || []),
   markOcrJobConfirmed: jest.fn(),
 }));
 
@@ -25,7 +28,12 @@ const IndianTrade = require("../../models/IndianTrade");
 const mongoose = require("mongoose");
 const { invalidateTradeCaches } = require("../../utils/cacheUtils");
 const { evaluateSmartNotifications } = require("../../services/smartNotificationEvaluator");
-const { getOcrConfirmationTrades, markOcrJobConfirmed } = require("../../services/ocrJob.service");
+const {
+  getOcrConfirmationTrades,
+  claimOcrJobForConfirmation,
+  releaseOcrJobClaim,
+  markOcrJobConfirmed,
+} = require("../../services/ocrJob.service");
 const { createTradesBatch } = require("../../controllers/indianTradeController");
 
 function createReq(body) {
@@ -50,6 +58,13 @@ describe("indianTradeController.createTradesBatch", () => {
     jest.restoreAllMocks();
     jest.clearAllMocks();
     getOcrConfirmationTrades.mockResolvedValue([]);
+    // claimOcrJobForConfirmation is the new atomic gate that replaced a plain
+    // getOcrConfirmationTrades() read in the controller -- delegate to
+    // whatever each test configures getOcrConfirmationTrades to resolve, so
+    // existing test bodies below don't need to change.
+    claimOcrJobForConfirmation.mockImplementation(async () => ({
+      extractedData: { parsedTrades: await getOcrConfirmationTrades() },
+    }));
     jest.spyOn(mongoose, "startSession").mockResolvedValue({
       withTransaction: async (work) => work(),
       endSession: jest.fn(),
@@ -71,8 +86,8 @@ describe("indianTradeController.createTradesBatch", () => {
     const req = createReq({
       ocrJobId: "ocr-ind-1",
       trades: [
-        { pair: "NIFTY 25000 CE", type: "BUY", optionType: "CE", tradeDate: "2026-06-01", profit: 100 },
-        { pair: "BANKNIFTY 52000 PE", type: "SELL", optionType: "PE", tradeDate: "2026-06-01", profit: -50 },
+        { pair: "NIFTY 25000 CE", type: "BUY", optionType: "CE", strikePrice: 25000, expiryDate: "2026-06-25", tradeDate: "2026-06-01", profit: 100 },
+        { pair: "BANKNIFTY 52000 PE", type: "SELL", optionType: "PE", strikePrice: 52000, expiryDate: "2026-06-25", tradeDate: "2026-06-01", profit: -50 },
       ],
     });
     const res = createRes();
@@ -121,6 +136,8 @@ describe("indianTradeController.createTradesBatch", () => {
           pair: "NIFTY 24200 CE",
           type: "BUY",
           optionType: "CE",
+          strikePrice: 24200,
+          expiryDate: "2026-07-31",
           tradeDate: "2026-07-19",
           quantity: 0,
           lotSize: 25,
@@ -132,6 +149,8 @@ describe("indianTradeController.createTradesBatch", () => {
           pair: "NIFTY 24300 PE",
           type: "BUY",
           optionType: "PE",
+          strikePrice: 24300,
+          expiryDate: "2026-07-31",
           tradeDate: "2026-07-19",
           quantity: 0,
           lotSize: 25,
@@ -175,6 +194,8 @@ describe("indianTradeController.createTradesBatch", () => {
         pair: "NIFTY 25000 CE",
         type: "BUY",
         optionType: "CE",
+        strikePrice: 25000,
+        expiryDate: "2026-06-25",
         tradeDate: "2026-06-01",
         quantity: 0,
         lotSize: 25,
@@ -210,6 +231,27 @@ describe("indianTradeController.createTradesBatch", () => {
     ]) {
       expect(doc).not.toHaveProperty(field);
     }
+  });
+
+  it("releases the OCR job claim if batch trade insertion fails after a successful claim", async () => {
+    getOcrConfirmationTrades.mockResolvedValue([
+      { pair: "NIFTY 25000 CE", type: "BUY", pnl: 100 },
+    ]);
+    const insertError = new Error("insertMany failed");
+    IndianTrade.insertMany.mockRejectedValue(insertError);
+
+    const req = createReq({
+      ocrJobId: "ocr-ind-fail",
+      trades: [{ pair: "NIFTY 25000 CE", type: "BUY", optionType: "CE", strikePrice: 25000, expiryDate: "2026-06-25", tradeDate: "2026-06-01", profit: 100 }],
+    });
+    const next = jest.fn();
+
+    await createTradesBatch(req, createRes(), next);
+
+    expect(next).toHaveBeenCalledWith(insertError);
+    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-ind-fail", "Indian_Market");
+    expect(releaseOcrJobClaim).toHaveBeenCalledWith("user-1", "ocr-ind-fail");
+    expect(markOcrJobConfirmed).not.toHaveBeenCalled();
   });
 
   it("allows an Indian edit while dropping protected fields", async () => {

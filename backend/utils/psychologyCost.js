@@ -74,17 +74,26 @@ function computeEmotionalCosts(trades) {
 // ── Module 2: Mistake Cost ────────────────────────────────────────────────────
 
 function computeMistakeCosts(trades) {
-  const map = {};
+  const map = {};      // normalizedKey -> pnls[]
+  const labels = {};   // normalizedKey -> display label (first-seen casing)
 
   for (const t of trades) {
     if (!t.mistakeTag) continue;
+    const trimmed = String(t.mistakeTag).trim();
+    if (!trimmed) continue;
+    // Case-fold so "FOMO" and "fomo" are counted as the same mistake instead
+    // of undercounting each variant separately.
+    const key = trimmed.toLowerCase();
     const pnl = t.profit || 0;
-    if (!map[t.mistakeTag]) map[t.mistakeTag] = [];
-    map[t.mistakeTag].push(pnl);
+    if (!map[key]) {
+      map[key] = [];
+      labels[key] = trimmed;
+    }
+    map[key].push(pnl);
   }
 
   return Object.entries(map)
-    .map(([tag, pnls]) => ({ tag, ...bucketStats(pnls) }))
+    .map(([key, pnls]) => ({ tag: labels[key], ...bucketStats(pnls) }))
     .sort((a, b) => a.netPnL - b.netPnL);
 }
 

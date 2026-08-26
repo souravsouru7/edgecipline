@@ -11,6 +11,7 @@ import { getPsychologyTimeline } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { useRouter }         from "next/navigation";
+import { useMarket } from "@/context/MarketContext";
 import {
   ComposedChart,
   LineChart,
@@ -53,11 +54,6 @@ function scoreColor(n) {
   return "#DC2626";
 }
 
-function fmtNet(n) {
-  const v = parseFloat(n || 0);
-  return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(0)}`;
-}
-
 function InterpretationGrid({ items, accent = C.psych }) {
   const visible = (items || []).filter(Boolean);
   if (!visible.length) return null;
@@ -93,7 +89,10 @@ function buildTimelineInterpretation({ buckets, trends, stats }) {
       label: "Growth Summary",
       text: delta == null
         ? `Your timeline now contains ${buckets.length} ${buckets.length === 1 ? "period" : "periods"}. Edgecipline is building a longitudinal view of your trading psychology.`
-        : `Your psychology score is ${latestPsych}/100 in the latest period, ${improving ? "up" : declining ? "down" : "flat"} ${Math.abs(delta)} points from the first tracked period.`,
+        // Name both periods. The coach summary above quotes an average of the
+        // last three, so an unlabelled "latest period" number next to it reads
+        // as a contradiction rather than a different measurement.
+        : `In ${latest?.key ?? "the latest period"} your psychology score is ${latestPsych}/100, ${improving ? "up" : declining ? "down" : "flat"} ${Math.abs(delta)} points from ${first?.key ?? "the first tracked period"}.`,
     },
     {
       label: "Positive Changes",
@@ -218,6 +217,7 @@ function MilestoneItem({ milestone }) {
 
 function PsychologyTimelineContent() {
   const router  = useRouter();
+  const { currentMarket } = useMarket();
   const mounted = true;
   const [period, setPeriod]   = useState("weekly");
   const [days,   setDays]     = useState("");
@@ -227,8 +227,8 @@ function PsychologyTimelineContent() {
   }, [router]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["psychologyTimeline", period, days],
-    queryFn:  ({ signal }) => getPsychologyTimeline("Forex", period, days, signal),
+    queryKey: ["psychologyTimeline", currentMarket, period, days],
+    queryFn:  ({ signal }) => getPsychologyTimeline(currentMarket, period, days, signal),
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
     enabled: mounted,
   });
@@ -281,7 +281,6 @@ function PsychologyTimelineContent() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary, position: "relative" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <CandlestickBackground canvasId="timeline-bg-canvas" />
 
       <div style={{ position: "relative", zIndex: 10 }}>
@@ -460,14 +459,28 @@ function PsychologyTimelineContent() {
                     <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                       <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: C.muted }} width={28} />
+                      {/* The score line and the P&L bars are different units, so they
+                          need separate axes. Sharing one axis let the bars (thousands
+                          of rupees) widen the 0-100 domain — Recharts extends a
+                          specified domain unless allowDataOverflow is set — which
+                          printed P&L values up the score axis and flattened the
+                          score line to a straight bar. */}
+                      <YAxis
+                        yAxisId="score"
+                        domain={[0, 100]}
+                        allowDataOverflow
+                        tick={{ fontSize: 9, fill: C.muted }}
+                        width={28}
+                      />
+                      <YAxis yAxisId="pnl" hide domain={["dataMin", "dataMax"]} />
                       <Tooltip content={<ChartTooltip />} />
-                      <ReferenceLine y={70} stroke="#059669" strokeDasharray="4 4" strokeOpacity={0.5} />
-                      <ReferenceLine y={45} stroke="#D97706" strokeDasharray="4 4" strokeOpacity={0.4} />
-                      <Bar dataKey="net" name="Net P&L" fill="#E2E8F0" opacity={0.5} radius={[2, 2, 0, 0]}
+                      <ReferenceLine yAxisId="score" y={70} stroke="#059669" strokeDasharray="4 4" strokeOpacity={0.5} />
+                      <ReferenceLine yAxisId="score" y={45} stroke="#D97706" strokeDasharray="4 4" strokeOpacity={0.4} />
+                      <Bar yAxisId="pnl" dataKey="net" name="Net P&L" fill="#E2E8F0" opacity={0.5} radius={[2, 2, 0, 0]}
                         stroke="none"
                       />
                       <Line
+                        yAxisId="score"
                         type="monotone"
                         dataKey="psych"
                         name="Psychology"

@@ -24,6 +24,28 @@ Frontend local list summaries use `frontend/utils/metricEngine.js` only for disp
 | Discipline Score | Average of setup score and rule compliance when both exist | `calculateDisciplineScore` |
 | Psychology Score | 50 + healthy P&L lift - unhealthy P&L drag | `calculatePsychologyScore` |
 | Bucket Stats | Count/wins/losses/win rate/net/avg for grouped P&L arrays | `calculateBucketStats` |
+| Max Win / Loss Streak | Longest consecutive run of `profit > 0` / `profit < 0`, trades ordered chronologically | `calculateStreaks` |
+| Average Setup Score | Mean `trade.setupScore` over trades that carry one; `null` when none do | `calculatePerformanceMetrics`, `aggregatePerformance` |
+
+### P&L Cost Convention
+
+What `trade.profit` holds depends on the market, because the two write paths differ.
+`metricEngine.storedProfitIsNet()` is the single switch; `aggregatePerformance` mirrors it.
+
+| Market | `trade.profit` is | Gross P&L | Net P&L |
+| --- | --- | --- | --- |
+| Forex | already NET of `commission`/`swap` (applied by `deriveForexProfit` at save time) | `profit + costs` (estimate) | `profit` |
+| Indian | GROSS of `brokerage`/`sttTaxes` | `profit` | `profit - costs` |
+
+The asymmetry is not cosmetic. The Indian add-trade form makes "Profit / Loss" a
+required field and posts it straight through, so `deriveIndianProfit` never runs on
+create and costs are never applied at save time -- they must come off in the metric
+engine. The Forex path derives profit server-side with costs already applied, so
+deducting them again there would double-count.
+
+Every other metric -- win/loss classification, average win, average loss, profit
+factor, best/worst trade, volume -- is defined on the **stored** `profit` in both
+markets. Only gross P&L, net P&L, average P&L and expectancy are cost-sensitive.
 
 ## Metric Inventory
 

@@ -4,9 +4,12 @@ let initialized = false;
 let fatalHandlersBound = false;
 
 const SENSITIVE_KEY = /password|secret|token|cookie|authorization|api[-_]?key|private[-_]?key|body|raw|image|email/i;
+const SENSITIVE_VALUE_PATTERN =
+  /(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|[A-Za-z]:[\\/][^\s"']+|\/(?:Users|home|var|etc|srv|app)\/[^\s"']+|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----)/g;
 
 function sanitize(value, key = "") {
   if (SENSITIVE_KEY.test(key)) return "[Filtered]";
+  if (typeof value === "string") return value.replace(SENSITIVE_VALUE_PATTERN, "[Filtered]");
   if (Array.isArray(value)) return value.map((item) => sanitize(item));
   if (value && typeof value === "object") {
     return Object.fromEntries(
@@ -27,6 +30,25 @@ function sanitizeEvent(event) {
   if (event.user) event.user = event.user.id ? { id: String(event.user.id) } : undefined;
   event.extra = sanitize(event.extra || {});
   event.contexts = sanitize(event.contexts || {});
+  if (Array.isArray(event.exception?.values)) {
+    event.exception.values = event.exception.values.map((entry) => ({
+      ...entry,
+      value: sanitize(entry.value),
+      stacktrace: entry.stacktrace
+        ? {
+            ...entry.stacktrace,
+            frames: entry.stacktrace.frames?.map((frame) => ({
+              ...frame,
+              filename: sanitize(frame.filename),
+              abs_path: sanitize(frame.abs_path),
+              context_line: sanitize(frame.context_line),
+              pre_context: sanitize(frame.pre_context),
+              post_context: sanitize(frame.post_context),
+            })),
+          }
+        : entry.stacktrace,
+    }));
+  }
   return event;
 }
 

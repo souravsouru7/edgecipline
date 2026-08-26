@@ -48,20 +48,23 @@ describe("metric engine", () => {
       trade({ _id: "d", profit: 25, commission: 0.5 }),
     ], "Forex");
 
+    // Forex profit is already net of commission/swap at save time (see
+    // deriveForexProfit) -- netPnL sums the stored profit as-is (75) and
+    // grossPnL adds the fees back as a pre-cost estimate (79.5).
     expect(metrics).toMatchObject({
       totalTrades: 4,
       wins: 2,
       losses: 1,
       breakEven: 1,
       winRate: 50,
-      grossPnL: 75,
+      grossPnL: 79.5,
       fees: 4.5,
-      netPnL: 70.5,
-      avgPnL: 17.63,
+      netPnL: 75,
+      avgPnL: 18.75,
       avgWin: 62.5,
       avgLoss: 50,
       profitFactor: 2.5,
-      expectancy: 17.63,
+      expectancy: 18.75,
     });
   });
 
@@ -71,6 +74,8 @@ describe("metric engine", () => {
       trade({ profit: -500, brokerage: 15, sttTaxes: 5 }),
     ], "Indian_Market");
 
+    // Indian is the mirror image of Forex: stored profit is GROSS, so grossPnL
+    // sums it as-is (500), brokerage+sttTaxes total 45, and netPnL is 455.
     expect(indianMetrics).toMatchObject({
       totalTrades: 2,
       wins: 1,

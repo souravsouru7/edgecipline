@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import {
   getAnalyticsSnapshot
@@ -20,7 +21,6 @@ import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { MARKETS } from "@/context/MarketContext";
 import CalendarPnL from "@/features/analytics/components/CalendarPnL";
 import PatternInsightsCard from "@/features/analytics/components/PatternInsightsCard";
-import AICoachFeedWidget from "@/features/ai-coach/components/AICoachFeedWidget";
 
 const theme = {
   bull: "#0D9E6E",
@@ -55,13 +55,13 @@ function StatCard({ label, value, sub, color, delay = 0, tooltip }) {
       onMouseLeave={() => setShowTip(false)}
       style={{
         background: theme.card,
-        borderRadius: 16,
+        borderRadius: 12,
         border: `1px solid ${theme.border}`,
-        padding: "24px 20px",
-        flex: "1 1 200px",
-        animation: `fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s both`,
-        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        padding: 20,
+        minWidth: 0,
+        animation: `fadeUp 0.5s ease ${delay}s both`,
+        boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
+        transition: "transform 0.2s, box-shadow 0.2s",
         position: "relative",
         overflow: "visible"
       }}
@@ -72,8 +72,8 @@ function StatCard({ label, value, sub, color, delay = 0, tooltip }) {
           <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
         )}
       </div>
-      <div style={{ fontSize: 28, fontWeight: 900, color, letterSpacing: "-0.02em" }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: theme.muted, marginTop: 6, fontWeight: 500 }}>{sub}</div>}
+      <div style={{ fontSize: 28, fontWeight: 700, color, letterSpacing: "-0.02em", fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.2 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: theme.muted, marginTop: 6, fontWeight: 500, letterSpacing: "0.04em" }}>{sub}</div>}
       {tooltip && showTip && (
         <div style={{
           position: "absolute",
@@ -97,9 +97,8 @@ function StatCard({ label, value, sub, color, delay = 0, tooltip }) {
       )}
       <style jsx>{`
         .premium-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08);
-          border-color: ${theme.secondary}44;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 16px rgba(15,25,35,0.08);
         }
       `}</style>
     </div>
@@ -335,41 +334,6 @@ function PathToAdvanced({ summary, ai, perf, quality, psychology, currency }) {
   );
 }
 
-function InsightTag({ text, type = "info" }) {
-  const map = {
-    info: { bg: "#EFF6FF", border: "#93C5FD", text: "#1D4ED8" },
-    success: { bg: "#ECFDF5", border: "#6EE7B7", text: "#059669" },
-    warning: { bg: "#FEF3C7", border: "#FCD34D", text: "#D97706" },
-    danger: { bg: "#FEE2E2", border: "#FCA5A5", text: "#DC2626" }
-  };
-  const c = map[type] || map.info;
-  return (
-    <div
-      style={{
-        background: c.bg,
-        border: `1px solid ${c.border}`,
-        borderRadius: 8,
-        padding: "10px 14px",
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10
-      }}
-    >
-      <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: c.text,
-          marginTop: 5,
-          flexShrink: 0
-        }}
-      />
-      <span style={{ fontSize: 12, color: c.text, lineHeight: 1.5 }}>{text}</span>
-    </div>
-  );
-}
-
 function ProgressBar({ value, max = 100, color = theme.bull, label }) {
   const safeMax = max || 1;
   const pct = Math.min(100, Math.max(0, (Number(value) / safeMax) * 100));
@@ -426,8 +390,7 @@ export default function IndianAnalyticsPage() {
     distribution: null,
     quality: null,
     psychology: null,
-    patterns: null,
-    coachFeed: null
+    patterns: null
   });
   const [timeFilter, setTimeFilter] = useState("daily"); // daily, weekly, monthly
 
@@ -457,7 +420,6 @@ export default function IndianAnalyticsPage() {
         quality: snapshot?.quality || snapshot?.tradeQualityAnalysis || null,
         psychology: snapshot?.psychology || null,
         patterns: snapshot?.patterns || null,
-        coachFeed: snapshot?.coachFeed || null,
         snapshot,
       });
     } catch (error) {
@@ -479,34 +441,51 @@ export default function IndianAnalyticsPage() {
   const hasEnoughTrades = totalTrades >= 5;
   const tradesWithRR = parseFloat(data.quality?.tradesWithRR || 0);
   const hasRRFields = hasEnoughTrades && tradesWithRR > 0;
+  // Two very different reasons the quality panel can be blank, and the copy used
+  // to blame the wrong one: with 3 fully-planned trades it still said "add RR
+  // fields". Say which gate is actually open.
+  const rrGateReason = !hasEnoughTrades
+    ? `Need 5+ trades (${totalTrades}/5 logged)`
+    : tradesWithRR === 0
+      ? "Add entry price, stop loss and take profit"
+      : null;
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: theme.bg,
+        background: "#F4F2EE",
         fontFamily: "'Plus Jakarta Sans',sans-serif",
         color: theme.primary
       }}
     >
       <IndianMarketHeader />
 
-      <main style={{ padding: "28px 20px", maxWidth: 1100, margin: "0 auto" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>
-          Advanced <span style={{ color: theme.secondary }}>{instrumentType === "EQUITY" ? "Intraday Stocks" : "Options"} Analytics</span>
-        </h1>
+      <main style={{ padding: "28px 24px", maxWidth: 1200, width: "100%", boxSizing: "border-box", margin: "0 auto" }}>
+        <div className="indian-analytics-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: theme.secondary, letterSpacing: "-0.02em", margin: 0 }}>Analytics</h1>
+            <p style={{ fontSize: 12, color: theme.muted, fontFamily: "'JetBrains Mono',monospace", margin: "4px 0 0", letterSpacing: "0.04em" }}>
+              {instrumentType === "EQUITY" ? "Intraday stocks performance" : "Options performance"}
+            </p>
+          </div>
+          <Link href="/indian-market/trades" style={{ fontSize: 12, color: theme.secondary, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "8px 14px", textDecoration: "none", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, background: "#FFFFFF" }}>
+            Trade Log
+          </Link>
+        </div>
 
         {/* Instrument type tab bar */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1.5px solid #E2E8F0", width: "fit-content" }}>
+        <div className="indian-analytics-tabs" style={{ display: "flex", gap: 4, marginBottom: 24, borderRadius: 10, border: `1px solid ${theme.border}`, width: "fit-content", padding: 4, background: "#FFFFFF" }}>
           {[{ v: "OPTION", label: "Options Analytics" }, { v: "EQUITY", label: "Intraday Stocks" }].map(({ v, label }) => (
             <button
               key={v}
               type="button"
               onClick={() => switchInstrumentType(v)}
               style={{
-                padding: "10px 20px",
+                padding: "8px 16px",
                 border: "none",
-                background: instrumentType === v ? theme.primary : "#FFFFFF",
+                borderRadius: 7,
+                background: instrumentType === v ? theme.secondary : "transparent",
                 color: instrumentType === v ? "#FFFFFF" : theme.muted,
                 fontSize: 13,
                 fontWeight: 700,
@@ -523,7 +502,7 @@ export default function IndianAnalyticsPage() {
         {loading ? (
           <IndianMarketLoadingState
             title={`Loading ${instrumentType === "EQUITY" ? "stock" : "options"} analytics`}
-            subtitle="Preparing Indian Market performance, patterns, and coach feed"
+            subtitle="Preparing your Indian Market performance data"
           />
         ) : (
           <>
@@ -543,7 +522,7 @@ export default function IndianAnalyticsPage() {
               </div>
             )}
             {/* TOP SUMMARY ROW */}
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+            <div className="indian-analytics-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 14 }}>
               <StatCard
                 label="TOTAL P&L"
                 value={hasPnlData ? `${currency}${parseFloat(data.summary?.totalProfit || 0).toLocaleString("en-IN")}` : "—"}
@@ -570,15 +549,11 @@ export default function IndianAnalyticsPage() {
                 tooltip="Percentage of trades that closed in profit. A win rate above 50% is green. Remember: high win rate alone doesn't mean profitability — R:R matters too."
               />
               <StatCard
-                label="AI SCORE"
-                value={
-                  hasEnoughTrades
-                    ? (data.ai?.score != null ? data.ai.score : "—")
-                    : "—"
-                }
-                color={hasEnoughTrades ? theme.gold : theme.muted}
-                sub={hasEnoughTrades ? "Model-based discipline score" : "Unlock after logging 5 trades"}
-                tooltip="AI-computed discipline score (0–100) based on how consistently you follow your plan, manage risk, and avoid emotional trading. Score ≥ 60 is good."
+                label="TOTAL TRADES"
+                value={String(totalTrades)}
+                color={theme.secondary}
+                sub="trades logged"
+                tooltip="Total number of trades logged for the selected Indian Market instrument."
               />
             </div>
 
@@ -589,7 +564,7 @@ export default function IndianAnalyticsPage() {
                 <SmallStat label="AVG LOSS" value={`${currency}${Math.abs(parseFloat(data.perf?.avgLoss || 0)).toLocaleString("en-IN")}`} color={theme.bear} tooltip="Average loss per losing trade. Ideally Avg Win should be at least 1.5× your Avg Loss." />
                 <SmallStat label="AVG TRADE" value={`${currency}${parseFloat(data.summary?.avgTrade || 0).toFixed(2)}`} color={parseFloat(data.summary?.avgTrade || 0) >= 0 ? theme.bull : theme.bear} tooltip="Average P&L across every trade (wins + losses combined). Must be positive to be consistently profitable." />
                 <SmallStat label="EXPECTANCY" value={`${data.rr?.expectancy || "0.00"} R`} color={parseFloat(data.rr?.expectancy || 0) >= 0 ? theme.bull : theme.bear} tooltip="Expected profit per trade in R units. Formula: (WinRate × AvgWin) − (LossRate × AvgLoss). Positive = you have an edge." />
-                <SmallStat label="SETUP SCORE" value={`${data.summary?.avgSetupScore || "0.0"}/100`} color={theme.gold} tooltip="Average quality score across all your setups (0–100). Higher score = better pre-trade preparation and rule following." />
+                <SmallStat label="SETUP SCORE" value={data.summary?.avgSetupScore == null ? "—" : `${data.summary.avgSetupScore}/100`} color={theme.gold} tooltip="Average quality score across all your setups (0–100). Higher score = better pre-trade preparation and rule following." />
                 <SmallStat label="COST-HIT TRADES" value={`${data.quality?.costImpactedTrades || 0}`} color={theme.bear} sub="Costs > gross profit" tooltip="Number of winning trades where brokerage + STT/taxes actually exceeded your gross profit. These trades hurt despite showing a 'win'." />
               </div>
             )}
@@ -820,7 +795,7 @@ export default function IndianAnalyticsPage() {
                   How deep your options P&L dipped from peak.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
-                  <TipCell label="Max Drawdown" value={`${currency}${parseFloat(data.drawdown?.maxDrawdown || 0).toFixed(2)} (${data.drawdown?.maxDrawdownPercent || "0.0"}%)`} color={theme.bear} tip="The largest peak-to-trough drop in your P&L. E.g., peak ₹10k → drop to ₹7k = 30% drawdown. Keep this manageable to stay in the game." />
+                  <TipCell label="Max Drawdown" value={`${currency}${parseFloat(data.drawdown?.maxDrawdown || 0).toFixed(2)}${data.drawdown?.maxDrawdownPercent == null ? "" : ` (${data.drawdown.maxDrawdownPercent}%)`}`} color={theme.bear} tip="The largest peak-to-trough drop in your P&L. E.g., peak ₹10k → drop to ₹7k = 30% drawdown. Keep this manageable to stay in the game." />
                   <TipCell label="Current Drawdown" value={`${currency}${parseFloat(data.drawdown?.currentDrawdown || 0).toFixed(2)} (${data.drawdown?.currentDrawdownPercent || "0.0"}%)`} color={theme.bear} tip="How far you are below your all-time equity peak right now. If zero, you're at a new high. Any positive value means you're in an active drawdown." />
                   <TipCell label="Recovery Factor" value={data.drawdown?.recoveryFactor || "0.00"} tip="Net profit divided by max drawdown. E.g., ₹5k profit with ₹2k max drawdown = 2.5. Higher = you earn more relative to the risk you absorbed." />
                   <TipCell label="Peak vs Current" value={`${currency}${parseFloat(data.drawdown?.peakBalance || 0).toFixed(0)} → ${currency}${parseFloat(data.drawdown?.currentBalance || 0).toFixed(0)}`} tip="Your highest ever cumulative P&L vs. where you are now. If current < peak, you're in a drawdown and working to recover that high." />
@@ -861,21 +836,21 @@ export default function IndianAnalyticsPage() {
                           : theme.bear
                       : theme.muted
                   }
-                  sub={hasRRFields ? "Overall trade quality rating" : "Add RR fields (entry + SL + TP)"}
+                  sub={hasRRFields ? "Overall trade quality rating" : rrGateReason}
                   tooltip="Composite score (0–100) measuring how well you plan and execute trades. Factors in R:R ratios, SL/TP discipline, and entry quality. Score ≥ 70 = good trader."
                 />
                 <StatCard
                   label="BREAKEVEN RATE"
                   value={hasRRFields ? `${data.quality?.breakevenRate || 0}%` : "—"}
                   color={hasRRFields ? (parseFloat(data.quality?.breakevenRate || 0) <= 30 ? theme.bull : theme.bear) : theme.muted}
-                  sub={hasRRFields ? "Trades near flat (|P&L| < 5)" : "Need RR trades to calibrate breakeven"}
+                  sub={hasRRFields ? "Trades near flat (|P&L| < 5)" : rrGateReason}
                   tooltip="Percentage of trades where P&L is near zero (within ₹5). A lower breakeven rate is better — it means you're letting winners run and cutting losers clean."
                 />
                 <StatCard
                   label="TRADES WITH RR"
-                  value={hasRRFields ? data.quality?.tradesWithRR || 0 : "—"}
-                  color={hasRRFields ? theme.primary : theme.muted}
-                  sub={hasRRFields ? "Has SL/TP + entryPrice" : "No RR-ready trades yet"}
+                  value={tradesWithRR > 0 ? tradesWithRR : "—"}
+                  color={tradesWithRR > 0 ? theme.primary : theme.muted}
+                  sub={tradesWithRR > 0 ? "Has SL/TP + entryPrice" : "Add entry price, stop loss and take profit"}
                   tooltip="Number of trades where you logged entry price, stop loss, and take profit. These trades unlock full R:R quality analytics. Log more for better insights."
                 />
               </div>
@@ -906,15 +881,15 @@ export default function IndianAnalyticsPage() {
               )}
             </div>
 
-            {/* TIME EDGE & AI INSIGHTS */}
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {/* Timing analysis */}
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", marginBottom: 24 }}>
               <div
                 style={{
-                  flex: "1 1 320px",
                   background: theme.card,
-                  borderRadius: 14,
+                  borderRadius: 12,
                   border: `1px solid ${theme.border}`,
-                  padding: 20
+                  padding: 20,
+                  boxShadow: "0 2px 12px rgba(15,25,35,0.06)"
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
@@ -991,115 +966,6 @@ export default function IndianAnalyticsPage() {
                 )}
               </div>
 
-              <div
-                style={{
-                  flex: "1 1 320px",
-                  background: theme.card,
-                  borderRadius: 14,
-                  border: `1px solid ${theme.border}`,
-                  padding: 24,
-                  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>Model Intelligence</div>
-                    <div style={{ fontSize: 11, color: theme.muted }}>AI-derived notes from your Nifty/BankNifty trade log.</div>
-                  </div>
-                  <div style={{ 
-                    background: `${theme.gold}22`, 
-                    color: theme.gold, 
-                    fontSize: 10, 
-                    fontWeight: 800, 
-                    padding: "4px 8px", 
-                    borderRadius: 6,
-                    border: `1px solid ${theme.gold}44`
-                  }}>
-                    BETA MODEL V2
-                  </div>
-                </div>
-                {data.ai?.weeklyNarrative && (
-                  <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.6, marginBottom: 12 }}>
-                    {data.ai.weeklyNarrative}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {data.ai?.insights?.length ? (
-                    data.ai.insights.slice(0, 5).map((txt, idx) => (
-                      <InsightTag
-                        key={idx}
-                        text={txt}
-                        type={
-                          txt.includes("!") || txt.toLowerCase().includes("drawdown")
-                            ? "warning"
-                            : txt.includes("Excellent") || txt.includes("Great")
-                            ? "success"
-                            : "info"
-                        }
-                      />
-                    ))
-                  ) : (
-                    <div style={{ fontSize: 12, color: theme.muted }}>Not enough data yet.</div>
-                  )}
-                </div>
-
-                {data.ai?.behaviorDiscipline?.ruleEmotion && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-                    <HoverBox tip="% of your trades entered based on a pre-planned setup vs. emotional impulse. Higher plan% = better discipline. Target: ≥ 70% plan-based entries." style={{ background: `${theme.bull}08`, border: `1px solid ${theme.bull}44`, borderRadius: 12, padding: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, letterSpacing: "0.08em" }}>PLAN VS EMOTION</div>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: theme.primary, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
-                        {parseFloat(data.ai.behaviorDiscipline.ruleEmotion.planPct || 0).toFixed(1)}%
-                      </div>
-                      <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
-                        Emotion: {parseFloat(data.ai.behaviorDiscipline.ruleEmotion.emotionPct || 0).toFixed(1)}%
-                      </div>
-                    </HoverBox>
-
-                    <HoverBox tip="Trades where you increased position size right after a loss — classic revenge trading. Even 1–2 revenge trades can erase days of disciplined gains." style={{ background: `${theme.bear}08`, border: `1px solid ${theme.bear}44`, borderRadius: 12, padding: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: theme.primary, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
-                        {data.ai.behaviorDiscipline.revengeTradesCount || 0}
-                      </div>
-                      <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
-                        Count of size-up right after a loss
-                      </div>
-                    </HoverBox>
-                  </div>
-                )}
-
-                {Array.isArray(data.ai?.recommendations) && data.ai.recommendations.length > 0 && (
-                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.border}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: theme.secondary, marginBottom: 10 }}>
-                      Next Actions
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {data.ai.recommendations.slice(0, 4).map((rec, i) => (
-                        <InsightTag
-                          key={i}
-                          text={rec}
-                          type={rec.includes("!") || rec.toLowerCase().includes("avoid") ? "warning" : "success"}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {Array.isArray(data.ai?.nextWeekChecklist) && data.ai.nextWeekChecklist.length > 0 && (
-                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.border}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: theme.secondary, marginBottom: 10 }}>
-                      Next Week Checklist
-                    </div>
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 12, lineHeight: 1.7 }}>
-                      {data.ai.nextWeekChecklist.slice(0, 3).map((item, idx) => (
-                        <li key={idx} style={{ color: theme.muted }}>
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* STRATEGY LEAGUE + SESSION EDGE + PLAN ADHERENCE */}
@@ -1178,22 +1044,11 @@ export default function IndianAnalyticsPage() {
               </div>
             )}
 
-            {/* AI COACH FEED */}
-            {data.coachFeed || loading ? (
-              <div style={{ marginBottom: 0 }}>
-                {!data.coachFeed && loading ? (
-                  <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 24, marginBottom: 24, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ fontSize: 12, color: theme.muted }}>Loading AI Coach Feed...</div>
-                  </div>
-                ) : (
-                  <AICoachFeedWidget feed={data.coachFeed} loading={loading} currency="₹" />
-                )}
-              </div>
-            ) : null}
-
             {/* PATTERN DETECTION */}
             {data.patterns ? (
-              <PatternInsightsCard patterns={data.patterns} delay={0.66} />
+              <div>
+                <PatternInsightsCard patterns={data.patterns} delay={0.66} />
+              </div>
             ) : loading ? (
               <div style={{ background: theme.card, borderRadius: 14, border: `1px solid ${theme.border}`, padding: 24, marginBottom: 24, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ fontSize: 12, color: theme.muted }}>Loading pattern analysis...</div>
@@ -1885,6 +1740,23 @@ export default function IndianAnalyticsPage() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        @media (max-width: 900px) {
+          .indian-analytics-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+        @media (max-width: 560px) {
+          .indian-analytics-kpi-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          .indian-analytics-tabs {
+            width: 100% !important;
+          }
+          .indian-analytics-tabs button {
+            flex: 1;
+            padding-inline: 10px !important;
           }
         }
       `}</style>

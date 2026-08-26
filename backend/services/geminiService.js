@@ -1,3 +1,4 @@
+
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
@@ -14,6 +15,41 @@ function getGeminiClient() {
     throw new Error("GEMINI_API_KEY is not set");
   }
   return new GoogleGenerativeAI(apiKey);
+}
+
+// Rule 5 of the prompt below tells the model not to give buy/sell signals,
+// price predictions, or financial advice, but that's a request, not an
+// enforcement -- nothing stops the model from ignoring it. This is a
+// post-hoc safety net that scans the model's own output for the clearest,
+// lowest-false-positive-risk patterns (imperative trade instructions,
+// explicit price targets, guaranteed-return language) before it's shown to
+// a user.
+const PROHIBITED_ADVICE_PATTERNS = [
+  /\b(buy|sell|long|short)\s+[A-Z]{2,6}(?:\/[A-Z]{2,6})?\b/, // e.g. "BUY EURUSD"
+  /\btarget\s*(price)?\s*[:\-]?\s*\$?\d/i,                    // e.g. "target 1.2500"
+  /\bguaranteed\s+(profit|return|win)/i,
+  /\b(will|going to)\s+(rise|fall|rally|crash|go\s+(up|down))\b/i,
+  /\bstop\s*loss\s+at\s+\d/i,
+];
+
+function containsProhibitedFinancialAdvice(text) {
+  if (!text || typeof text !== "string") return false;
+  return PROHIBITED_ADVICE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function feedbackContainsProhibitedAdvice(feedback) {
+  const texts = [
+    feedback.summary,
+    feedback.psychologyFeedback,
+    ...(Array.isArray(feedback.mistakes)
+      ? feedback.mistakes.flatMap((m) => [m?.title, m?.evidence, m?.fix])
+      : []),
+    ...(Array.isArray(feedback.improvements)
+      ? feedback.improvements.flatMap((i) => [i?.title, i?.why, i?.how])
+      : []),
+    ...(Array.isArray(feedback.nextWeekChecklist) ? feedback.nextWeekChecklist : []),
+  ];
+  return texts.some((text) => containsProhibitedFinancialAdvice(text));
 }
 
 function extractJsonObject(text) {
@@ -340,6 +376,18 @@ ${snapshotJson}
     parsed.nextWeekChecklist = Array.isArray(parsed.nextWeekChecklist) ? parsed.nextWeekChecklist : [];
     parsed.dataQualityScore = typeof parsed.dataQualityScore === "number" ? parsed.dataQualityScore : null;
     parsed.confidenceNote = typeof parsed.confidenceNote === "string" ? parsed.confidenceNote : "";
+
+    if (feedbackContainsProhibitedAdvice(parsed)) {
+      logger.warn("[Gemini] Weekly feedback contained prohibited financial-advice language; discarding", {
+        model: modelName,
+      });
+      return {
+        model: `${modelName}-blocked`,
+        fallback: true,
+        feedback: buildFallbackFeedback(snapshot, weekLabel),
+        raw: cleaned,
+      };
+    }
 
     return {
       model: modelName,

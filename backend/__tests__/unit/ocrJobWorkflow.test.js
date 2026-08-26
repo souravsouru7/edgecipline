@@ -55,6 +55,7 @@ describe("OCR job workflow", () => {
         _id: validUserId,
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         subscriptionStatus: "active",
+        subscriptionPlan: "monthly",
         subscriptionExpiry: new Date("2027-01-01T00:00:00.000Z"),
         freeUploadUsed: false,
       },
@@ -110,6 +111,7 @@ describe("OCR job workflow", () => {
         _id: validUserId,
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         subscriptionStatus: "active",
+        subscriptionPlan: "monthly",
         subscriptionExpiry: new Date("2027-01-01T00:00:00.000Z"),
         freeUploadUsed: false,
       },
@@ -591,14 +593,22 @@ describe("OCR job workflow", () => {
       expiresAt: new Date("2026-01-02T00:00:00.000Z"),
     };
     const select = jest.fn().mockResolvedValue({ status: "CANCELLED" });
+    // findOneAndUpdate simulates a real atomic update by applying $set onto
+    // the same jobDoc reference and returning it -- lets this test's
+    // assertions against jobDoc's mutated state keep working after the
+    // status-guarded findOneAndUpdate() writes replaced plain job.save().
+    const findOneAndUpdate = jest.fn((_filter, update) => {
+      if (update?.$set) Object.assign(jobDoc, update.$set);
+      return Promise.resolve(jobDoc);
+    });
 
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
         findById: jest
           .fn()
           .mockResolvedValueOnce(jobDoc)
-          .mockReturnValueOnce({ select })
-          .mockResolvedValueOnce(jobDoc),
+          .mockReturnValueOnce({ select }),
+        findOneAndUpdate,
       },
     }));
     jest.doMock("../../queues/ocrQueue", () => ({
@@ -657,12 +667,22 @@ describe("OCR job workflow", () => {
       },
     });
 
+    // findOneAndUpdate simulates a real atomic update by applying $set onto
+    // the same jobDoc reference and returning it -- the status-guarded
+    // findOneAndUpdate() writes replaced plain job.save() for both the
+    // initial PROCESSING stamp and the COMPLETED write.
+    const findOneAndUpdate = jest.fn((_filter, update) => {
+      if (update?.$set) Object.assign(jobDoc, update.$set);
+      return Promise.resolve(jobDoc);
+    });
+
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
         findById: jest
           .fn()
           .mockResolvedValueOnce(jobDoc)
           .mockResolvedValueOnce(jobDoc),
+        findOneAndUpdate,
       },
     }));
     jest.doMock("../../queues/ocrQueue", () => ({
@@ -735,6 +755,9 @@ describe("OCR job workflow", () => {
   test("saving a real Forex trade confirms the completed OCRJob", async () => {
     const createdTrade = { _id: "507f1f77bcf86cd799439013", user: validUserId, marketType: "Forex" };
     const markOcrJobConfirmed = jest.fn().mockResolvedValue(undefined);
+    const claimedJob = { _id: { toString: () => validJobId }, status: "CONFIRMED", marketType: "Forex", extractedData: {} };
+    const claimOcrJobForConfirmation = jest.fn().mockResolvedValue(claimedJob);
+    const releaseOcrJobClaim = jest.fn().mockResolvedValue(undefined);
 
     jest.doMock("../../repositories/trade.repository", () => ({
       createTrade: jest.fn().mockResolvedValue(createdTrade),
@@ -761,7 +784,9 @@ describe("OCR job workflow", () => {
       evaluateSmartNotifications: jest.fn().mockResolvedValue(undefined),
     }));
     jest.doMock("../../services/ocrJob.service", () => ({
-      getOcrConfirmationTrades: jest.fn().mockResolvedValue([]),
+      claimOcrJobForConfirmation,
+      releaseOcrJobClaim,
+      extractConfirmationTrades: jest.fn(() => []),
       markOcrJobConfirmed,
     }));
 
@@ -774,9 +799,41 @@ describe("OCR job workflow", () => {
       tradeDate: "2026-01-01",
     });
 
+    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith(validUserId, validJobId, "Forex");
     expect(markOcrJobConfirmed).toHaveBeenCalledWith(validUserId, validJobId, {
       tradeId: createdTrade._id,
       collection: "forex",
     });
+    expect(releaseOcrJobClaim).not.toHaveBeenCalled();
+  });
+
+  test("Trade creation failure after a successful OCR claim releases the claim back to COMPLETED", async () => {
+    const claimedJob = { _id: { toString: () => validJobId }, status: "CONFIRMED", marketType: "Forex", extractedData: {} };
+    const claimOcrJobForConfirmation = jest.fn().mockResolvedValue(claimedJob);
+    const releaseOcrJobClaim = jest.fn().mockResolvedValue(undefined);
+    const markOcrJobConfirmed = jest.fn();
+    const createTradeError = new Error("Mongoose validation failed");
+
+    jest.doMock("../../repositories/trade.repository", () => ({
+      createTrade: jest.fn().mockRejectedValue(createTradeError),
+    }));
+    jest.doMock("../../services/ocrJob.service", () => ({
+      claimOcrJobForConfirmation,
+      releaseOcrJobClaim,
+      extractConfirmationTrades: jest.fn(() => []),
+      markOcrJobConfirmed,
+    }));
+
+    const tradeService = require("../../services/trade.service");
+
+    await expect(tradeService.createTrade(validUserId, {
+      ocrJobId: validJobId,
+      pair: "EURUSD",
+      type: "BUY",
+      tradeDate: "2026-01-01",
+    })).rejects.toThrow("Mongoose validation failed");
+
+    expect(releaseOcrJobClaim).toHaveBeenCalledWith(validUserId, validJobId);
+    expect(markOcrJobConfirmed).not.toHaveBeenCalled();
   });
 });

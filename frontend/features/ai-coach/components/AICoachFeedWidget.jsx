@@ -110,7 +110,7 @@ function PriorityDot({ priority }) {
   );
 }
 
-function InsightCard({ insight, currency, onDismiss }) {
+function InsightCard({ insight, currency, market, onDismiss }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = CATEGORY_CONFIG[insight.category] || { color: "#64748B", bg: "#F8FAFC" };
   const isNegative = insight.type === "negative";
@@ -183,6 +183,7 @@ function InsightCard({ insight, currency, onDismiss }) {
       <div style={{ marginBottom: 8 }}>
         <AskCoachButton
           variant="ghost"
+          market={market}
           anchor={{ kind: "insight", refId: insight.id, label: insight.title }}
           defaultPrompt={`Tell me more about this insight: "${insight.title}". Why does it apply to me right now?`}
         />
@@ -338,6 +339,9 @@ export default function AICoachFeedWidget({
   feed,
   loading = false,
   currency = "$",
+  // Which book these insights were computed from. Passed to the coach so the
+  // chat reads the same trades the card was built from.
+  market = "Forex",
   delay = 0,
   style = {},
 }) {
@@ -423,6 +427,7 @@ export default function AICoachFeedWidget({
                 key={insight.id}
                 insight={insight}
                 currency={currency}
+                market={market}
                 onDismiss={handleDismiss}
               />
             ))}

@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { ArrowRight, Camera, FilePenLine, PlayCircle } from "lucide-react";
+import { getOnboardingUploadPath } from "@/features/onboarding/utils/onboardingMarketRouting.mjs";
 
 export default function TradeStep({ market }) {
   const marketRoot = market === "Indian_Market" ? "/indian-market" : "";
+  const uploadPath = getOnboardingUploadPath(market);
+  const demoPath = getOnboardingUploadPath(market, { demo: true });
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <Link href={`${marketRoot}/upload-trade?onboarding=1`} style={ctaCard("#22C78E")}>
+      <Link href={uploadPath} style={ctaCard("#22C78E")}>
         <span aria-hidden style={iconBubble("#22C78E")}>
           <Camera size={18} />
         </span>
@@ -19,7 +22,7 @@ export default function TradeStep({ market }) {
         <ArrowRight size={16} color="#22C78E" />
       </Link>
 
-      <Link href={`${marketRoot}/upload-trade?onboarding=1&demo=1`} style={ctaCard("#0EA5E9")}>
+      <Link href={demoPath} style={ctaCard("#0EA5E9")}>
         <span aria-hidden style={iconBubble("#0EA5E9")}>
           <PlayCircle size={18} />
         </span>

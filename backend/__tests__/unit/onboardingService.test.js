@@ -19,6 +19,9 @@ jest.mock("../../models/SetupStrategy", () => ({
     _id: "setup-1",
     name: "Daily structure pullback",
   }),
+  // Seeding is skipped when the user already has a strategy for the market;
+  // default to "empty" so the seeding tests below exercise the seed path.
+  exists: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock("../../models/Trade", () => ({
@@ -207,6 +210,38 @@ describe("onboardingService.seedDefaultSetup", () => {
     SetupStrategy.findOneAndUpdate.mock.calls.forEach(([, , opts]) => {
       expect(opts.upsert).toBe(true);
     });
+  });
+
+  it("does not seed a second copy when the user already has a strategy", async () => {
+    // Matching on name alone handed a user who had renamed the seeded setup a
+    // duplicate of it the next time anything re-seeded.
+    SetupStrategy.exists.mockResolvedValueOnce({ _id: "existing-1" });
+
+    const result = await onboardingService.seedDefaultSetup({
+      userId: "u1",
+      market: "Forex",
+      styleId: "swing",
+    });
+
+    expect(result.skipped).toBe(true);
+    expect(SetupStrategy.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(User.updateOne).toHaveBeenCalledWith(
+      { _id: "u1" },
+      { $set: { "onboarding.setupAdded": true } }
+    );
+  });
+
+  it("still applies a custom setup even when strategies already exist", async () => {
+    SetupStrategy.exists.mockResolvedValueOnce({ _id: "existing-1" });
+
+    await onboardingService.seedDefaultSetup({
+      userId: "u1",
+      market: "Forex",
+      styleId: "swing",
+      custom: { name: "My breakouts", rules: ["wait", "confirm"] },
+    });
+
+    expect(SetupStrategy.findOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 });
 

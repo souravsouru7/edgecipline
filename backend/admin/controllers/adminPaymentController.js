@@ -4,7 +4,7 @@ const ApiError = require("../../utils/ApiError");
 const asyncHandler = require("../../utils/asyncHandler");
 const mongoose = require("mongoose");
 const { invalidateAuthCache } = require("../../services/authCacheService");
-const { getPlanConfig } = require("../../services/paymentService");
+const { getPlanConfig, resolveSubscriptionPlanLabel } = require("../../services/paymentService");
 const { logger } = require("../../utils/logger");
 
 const MANUAL_STATUS_TRANSITIONS = {
@@ -89,7 +89,7 @@ exports.updatePaymentStatus = asyncHandler(async (req, res) => {
               },
             },
           ],
-          { new: true, select: "subscriptionExpiry", session }
+          { new: true, select: "subscriptionExpiry", session, updatePipeline: true }
         );
         if (updatedUser) {
           payment.expiryDate = updatedUser.subscriptionExpiry;
@@ -115,7 +115,7 @@ exports.updatePaymentStatus = asyncHandler(async (req, res) => {
             },
           },
         },
-      ], { session });
+      ], { session, updatePipeline: true });
     }
 
     await payment.save({ session });
@@ -191,7 +191,7 @@ exports.addManualPayment = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(userId, {
       subscriptionExpiry: expiryDate,
       subscriptionStatus: "active",
-      subscriptionPlan: plan.userPlan,
+      subscriptionPlan: resolveSubscriptionPlanLabel(user.subscriptionPlan, plan.userPlan),
       $inc: { totalPaid: numericAmount },
     }, { session });
     await session.commitTransaction();

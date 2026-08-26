@@ -10,6 +10,7 @@ import { hasValidAuthToken } from "@/utils/auth";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { ruleSample, LOW_RULE_SAMPLE, pickWeakestRule, pickStrongestRule } from "@/utils/disciplineRules";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, LineChart, Line,
@@ -396,6 +397,12 @@ export default function IndianDisciplinePage() {
         <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}*{box-sizing:border-box}button{transition:opacity 0.15s}button:active{opacity:0.7}`}</style>
         <IndianMarketHeader />
         <div style={{ padding: "16px 16px 0" }}>
+          <Link
+            href="/indian-market/intelligence"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#64748B", textDecoration: "none", fontSize: 12, fontWeight: 700, marginBottom: 10 }}
+          >
+            <span aria-hidden="true">&#8592;</span> Intelligence Hub
+          </Link>
           <div style={{ fontSize: 20, fontWeight: 900, color: "#0F172A", marginBottom: 2 }}>Discipline</div>
           <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 16 }}>Are you following your process?</div>
         </div>

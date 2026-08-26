@@ -6,8 +6,13 @@ import PageHeader from "@/features/shared/components/PageHeader";
 import { useStreaks, useMarkNoTradeToday } from "@/features/streaks/hooks/useStreaks";
 import StreakCalendar from "@/features/streaks/components/StreakCalendar";
 import StreakMilestones from "@/features/streaks/components/StreakMilestones";
+import { MARKETS, useMarket } from "@/context/MarketContext";
 
 export default function StreaksPage() {
+  const { currentMarket } = useMarket();
+  const tradeEntryHref = currentMarket === MARKETS.INDIAN_MARKET
+    ? "/indian-market/add-trade"
+    : "/add-trade";
   const { data, isLoading, error } = useStreaks(90);
   const markNoTrade = useMarkNoTradeToday();
   const [noteOpen, setNoteOpen] = useState(false);
@@ -55,7 +60,7 @@ export default function StreaksPage() {
         {/* Action row — never punitive. Two clear options. */}
         {!alreadyLoggedToday && (
           <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-            <Link href="/add-trade" style={primaryButton}>
+            <Link href={tradeEntryHref} style={primaryButton}>
               Log a trade — 30 sec
             </Link>
             <button onClick={() => setNoteOpen(!noteOpen)} style={secondaryButton} type="button">
@@ -67,7 +72,7 @@ export default function StreaksPage() {
         {noteOpen && !alreadyLoggedToday && (
           <div style={{ marginTop: 14, padding: 14, background: "#FEF3C7", borderRadius: 10, border: "1px solid #FBBF24" }}>
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "#7A3E0B", fontWeight: 700 }}>
-              Mark today as "Sat Out" — keeps your streak alive without trading.
+              {"Mark today as \"Sat Out\" — keeps your streak alive without trading."}
             </p>
             <input
               value={note}
@@ -77,7 +82,7 @@ export default function StreaksPage() {
             />
             <div style={{ display: "flex", gap: 8 }}>
               <button
-                onClick={() => markNoTrade.mutate({ note }, { onSuccess: () => { setNoteOpen(false); setNote(""); } })}
+                onClick={() => markNoTrade.mutate({ note, market: currentMarket }, { onSuccess: () => { setNoteOpen(false); setNote(""); } })}
                 disabled={markNoTrade.isPending}
                 style={primaryButton}
                 type="button"
@@ -98,13 +103,13 @@ export default function StreaksPage() {
 
       {/* ── Milestones strip ──────────────────────────────────────── */}
       <section style={card}>
-        <SectionTitle title="Milestones" subtitle="Lit cells are streaks you've already protected" />
+        <SectionTitle title="Milestones" subtitle="Lit cells are streaks you have already protected" />
         <StreakMilestones milestones={milestones} current={journal.current} longest={journal.longest} />
       </section>
 
       {/* ── Calendar ──────────────────────────────────────────────── */}
       <section style={card}>
-        <SectionTitle title="Last 12 weeks" subtitle="Every cell is a day you showed up — or didn't" />
+        <SectionTitle title="Last 12 weeks" subtitle="Every cell is a day you showed up — or did not" />
         <StreakCalendar calendar={calendar} />
       </section>
 
@@ -193,7 +198,7 @@ function LoadingState() {
   return <div style={{ ...card, padding: 30, textAlign: "center", color: "#94A3B8" }}>Loading streaks…</div>;
 }
 function ErrorState() {
-  return <div style={{ ...card, padding: 30, textAlign: "center", color: "#D63B3B" }}>Couldn't load streaks. Pull to refresh.</div>;
+  return <div style={{ ...card, padding: 30, textAlign: "center", color: "#D63B3B" }}>{"Couldn't load streaks. Pull to refresh."}</div>;
 }
 function EmptyState() {
   return (

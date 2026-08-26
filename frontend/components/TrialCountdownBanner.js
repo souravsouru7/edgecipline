@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useTrialStatus } from "@/features/shared/hooks/useTrialStatus";
 import { recordTrialEvent } from "@/services/api";
+import { canShowPurchaseUI } from "@/config/payments";
 
 // Sticky top banner that surfaces trial state. Renders only for users who
 // are actively in a trial — paid users, admins, and users whose trial has
@@ -30,6 +31,9 @@ export default function TrialCountdownBanner({ initial = null, onUpgrade }) {
   );
 
   // Hide for: loading, no trial, paid users, admins, expired trial.
+  // No purchase surface -> no upgrade prompt. A countdown whose only CTA is
+  // dead is worse than no countdown at all.
+  if (!canShowPurchaseUI()) return null;
   if (loading) return null;
   if (planSource !== "trial") return null;
   if (!trial?.active) return null;

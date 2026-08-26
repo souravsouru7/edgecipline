@@ -1,8 +1,25 @@
-// staging-api.stratedge.live is allowlisted so local debug APK builds can
-// target staging. It still must pass every other production check (HTTPS,
-// port 443, no path beyond /api) — this only exempts it from the generic
-// staging/dev/test hostname heuristic below. Never point a release build here.
-const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live", "staging-api.stratedge.live"]);
+
+
+// The ONLY host a production build may talk to. Do not add staging here: the
+// static export bakes this URL into the JS chunks, so a release AAB/IPA built
+// against staging cannot be repaired after the fact — it ships pointing at
+// staging data.
+const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live"]);
+
+// Escape hatch for internal QA builds that need a production-mode bundle
+// pointed at staging. It is opt-in per build and must never be set in a
+// release pipeline; leaving it unset is what makes the guard above load-
+// bearing. Previously staging sat in PRODUCTION_API_HOSTS permanently, which
+// meant nothing actually enforced "never point a release build here".
+const STAGING_API_HOSTS = new Set(["staging-api.stratedge.live"]);
+const STAGING_API_OPT_IN =
+  String(process.env.NEXT_PUBLIC_ALLOW_STAGING_API || "").trim() === "true";
+
+function allowedProductionHosts() {
+  return STAGING_API_OPT_IN
+    ? new Set([...PRODUCTION_API_HOSTS, ...STAGING_API_HOSTS])
+    : PRODUCTION_API_HOSTS;
+}
 const NON_PRODUCTION_HOST_PART =
   /(^|[.-])(localhost|staging|stage|dev|development|test|testing|qa|sandbox)([.-]|$)/i;
 const LOCAL_OR_PRIVATE_HOST =
@@ -41,8 +58,15 @@ export class EnvironmentValidationError extends Error {
   }
 }
 
+// Matches anywhere in the value, not just the start. The previous
+// start-anchored version let `rzp_live_placeholder` pass the "must be a live
+// Razorpay key" check, which defeated the guard entirely — the token that
+// marks a value as fake usually sits at the end, not the front.
+const PLACEHOLDER_TOKEN =
+  /(your[_-]|replace[_-]|example|changeme|placeholder|dummy|sample|todo|xxx+|<[^>]*>)/i;
+
 function hasPlaceholder(value) {
-  return /^(your_|replace_|example|changeme|<)/i.test(String(value || "").trim());
+  return PLACEHOLDER_TOKEN.test(String(value || "").trim());
 }
 
 function validateApiUrl(rawValue, isProduction, errors) {
@@ -75,6 +99,8 @@ function validateApiUrl(rawValue, isProduction, errors) {
   }
 
   if (isProduction) {
+    const allowedHosts = allowedProductionHosts();
+
     if (parsed.protocol !== "https:") {
       errors.push("Production NEXT_PUBLIC_API_URL must use HTTPS.");
     }
@@ -84,13 +110,16 @@ function validateApiUrl(rawValue, isProduction, errors) {
     if (LOCAL_OR_PRIVATE_HOST.test(hostname)) {
       errors.push("Production NEXT_PUBLIC_API_URL cannot use a local/private host.");
     }
-    if (!PRODUCTION_API_HOSTS.has(hostname) && NON_PRODUCTION_HOST_PART.test(hostname)) {
-      errors.push("Production NEXT_PUBLIC_API_URL cannot use a staging/dev/test host.");
+    if (!allowedHosts.has(hostname) && NON_PRODUCTION_HOST_PART.test(hostname)) {
+      errors.push(
+        "Production NEXT_PUBLIC_API_URL cannot use a staging/dev/test host. " +
+        "Set NEXT_PUBLIC_ALLOW_STAGING_API=true only for internal QA builds."
+      );
     }
-    if (!PRODUCTION_API_HOSTS.has(hostname)) {
+    if (!allowedHosts.has(hostname)) {
       errors.push(
         `Production NEXT_PUBLIC_API_URL host must be one of: ${[
-          ...PRODUCTION_API_HOSTS,
+          ...allowedHosts,
         ].join(", ")}.`
       );
     }
@@ -124,6 +153,13 @@ export function validateEnvironment(
     }
 
     const razorpayKeyId = String(environment.razorpayKeyId || "").trim();
+    // The prefix check alone is not enough — `rzp_live_placeholder` satisfies
+    // it while being obviously fake, which is exactly what shipped before.
+    if (razorpayKeyId && hasPlaceholder(razorpayKeyId)) {
+      errors.push(
+        "NEXT_PUBLIC_RAZORPAY_KEY_ID still contains a placeholder value."
+      );
+    }
     if (razorpayKeyId && !razorpayKeyId.startsWith("rzp_live_")) {
       errors.push(
         "NEXT_PUBLIC_RAZORPAY_KEY_ID must be a live key in production."

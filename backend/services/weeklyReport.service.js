@@ -18,10 +18,18 @@ function getLocalShiftMs() {
 function getRolling7dUtcRange() {
   const shiftMs = getLocalShiftMs();
   const nowUtc = new Date();
-  // End at 23:59:59.999 today so trades logged any time today are included
-  const weekEndUtc = new Date(nowUtc);
-  weekEndUtc.setUTCHours(23, 59, 59, 999);
+  const nowLocal = new Date(nowUtc.getTime() + shiftMs);
+
+  // "End of today" must be end-of-day in the configured local timezone, not
+  // UTC -- otherwise the query window and the human-readable week label (built
+  // from the same shift) disagree by shiftMs near day boundaries. Shift to
+  // local, truncate to end-of-day using the shifted instant's UTC-rendered
+  // fields as local wall-clock fields, then shift back to a real UTC instant.
+  const weekEndLocalWall = new Date(nowLocal);
+  weekEndLocalWall.setUTCHours(23, 59, 59, 999);
+  const weekEndUtc = new Date(weekEndLocalWall.getTime() - shiftMs);
   const weekStartUtc = new Date(weekEndUtc.getTime() - 7 * 24 * 60 * 60 * 1000);
+
   const weekStartLocal = new Date(weekStartUtc.getTime() + shiftMs);
   const weekEndLocal = new Date(weekEndUtc.getTime() + shiftMs);
   return { weekStartUtc, weekEndUtc, weekStartLocal, weekEndLocal };
@@ -295,6 +303,24 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
 
   const snapshot = psychology ? { ...snapshotBase, psychology } : snapshotBase;
 
+  // Read the prior state before the upsert below overwrites `snapshot`, so we
+  // can tell whether trades changed since any AI feedback already on record
+  // was generated. Without this, upsert always overwrites snapshot in place,
+  // making that comparison impossible after the fact -- which previously let
+  // a same-day regenerate refresh the numeric snapshot while silently leaving
+  // stale AI narrative text describing the old trade set.
+  const previousReport = await weeklyReportRepository.findExistingRollingReport(
+    userId,
+    marketType,
+    weekStartDay,
+    weekEndDay
+  );
+  const previousVersion = previousReport?.snapshot?.source?.analyticsSnapshotCache?.version;
+  const newVersion = snapshot?.source?.analyticsSnapshotCache?.version;
+  const tradesChangedSincePriorFeedback = previousReport
+    ? String(previousVersion) !== String(newVersion)
+    : false;
+
   let report = await weeklyReportRepository.upsertRollingWeeklyReport(
     userId,
     marketType,
@@ -326,7 +352,7 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
     return report;
   }
 
-  if (report.aiFeedback && report.aiFeedback.psychologyFeedback) {
+  if (report.aiFeedback && report.aiFeedback.psychologyFeedback && !tradesChangedSincePriorFeedback) {
     return report;
   }
 

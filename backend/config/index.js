@@ -147,6 +147,11 @@ const appConfig = {
   },
   upload: {
     maxFileSizeBytes: readNumber("UPLOAD_MAX_FILE_SIZE_BYTES", 2 * 1024 * 1024),
+    // Decoded-pixel ceiling, checked from the image header before anything
+    // decodes the file. A compressed "image bomb" is small on the wire but
+    // expands to gigabytes in memory; broker screenshots never come close to
+    // this, so anything above it is rejected rather than stored and processed.
+    maxImagePixels: readNumber("UPLOAD_MAX_IMAGE_PIXELS", 50 * 1000 * 1000),
   },
   mongodb: {
     maxPoolSize: readNumber("MONGO_MAX_POOL_SIZE", 50),
@@ -318,6 +323,11 @@ function getMaskedConfigSnapshot() {
     openaiConfigured: Boolean(appConfig.ai.openaiApiKey),
     geminiConfigured: Boolean(appConfig.ai.geminiApiKey),
     smtpUser: appConfig.smtp.user ? maskSecret(appConfig.smtp.user, 3, 8) : "[missing]",
+    // Password reset lives or dies on these two. The sender is printed in full
+    // because its domain has to be verified at resend.com/domains — a boot log
+    // that only says "configured: true" hides the one setting that breaks it.
+    resendConfigured: Boolean(appConfig.resend.apiKey),
+    resendFrom: appConfig.resend.from || "[missing]",
   };
 }
 

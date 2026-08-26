@@ -9,6 +9,10 @@ validateEnvironment(undefined, { mode: process.env.NODE_ENV });
 
 const frontendRoot = dirname(fileURLToPath(import.meta.url));
 
+// Mobile builds must stay false until Play Billing / StoreKit are implemented.
+const paymentsEnabled =
+  String(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED || "").trim() === "true";
+
 // M30: Security headers — applied by the dev server and any SSR deployment.
 // For the static export (output: "export") these must also be set at the CDN/Nginx layer.
 const securityHeaders = [
@@ -19,18 +23,60 @@ const securityHeaders = [
   { key: "Permissions-Policy",        value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+const noStoreHeaders = [
+  { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+  { key: "Pragma",        value: "no-cache" },
+  { key: "Expires",       value: "0" },
+];
+
+const protectedRoutePatterns = [
+  "/accept-terms/:path*",
+  "/add-trade/:path*",
+  "/admin/:path*",
+  "/analytics/:path*",
+  "/checklist/:path*",
+  "/dashboard/:path*",
+  "/indian-market/:path*",
+  "/intelligence/:path*",
+  "/profile/:path*",
+  "/psychology-timeline/:path*",
+  "/setups/:path*",
+  "/trades/:path*",
+  "/trading-dna/:path*",
+  "/upload/:path*",
+  "/upload-trade/:path*",
+  "/weekly-reports/:path*",
+];
+
 const nextConfig: NextConfig = {
   output: "export",
   images: {
     unoptimized: true,
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      ...protectedRoutePatterns.map((source) => ({
+        source,
+        headers: noStoreHeaders,
+      })),
+    ];
   },
   // Turbopack is the default bundler in Next.js 16. Empty config signals we
   // are intentionally using Turbopack and silences the webpack-config warning.
   turbopack: {
     root: frontendRoot,
+    // Payments off -> resolve the paywall to an inert stub so the real
+    // component (and the Razorpay checkout URL inside it) never enters the
+    // module graph. A runtime guard is not sufficient: the bundler still
+    // emits the chunk, leaving third-party payment code in a store artifact.
+    ...(paymentsEnabled
+      ? {}
+      : {
+          resolveAlias: {
+            "@/components/SmartPaywall": "./components/SmartPaywall.disabled.js",
+          },
+        }),
   },
 };
 

@@ -16,11 +16,14 @@ const {
   refreshToken,
   logoutUser,
   logoutAll,
+  deleteMyAccount,
 } = require("../controllers/authController");
 
 const { protect } = require("../middleware/authMiddleware");
 const {
   authRateLimiter,
+  passwordResetRequestRateLimiter,
+  passwordResetEmailRateLimiter,
   profileRateLimiter,
   refreshRateLimiter,
 } = require("../middleware/rateLimiter");
@@ -32,7 +35,9 @@ const {
 router.post("/register",         authRateLimiter, registerUser);
 router.post("/login",            authRateLimiter, loginUser);
 router.post("/google",           authRateLimiter, googleLogin);
-router.post("/forgot-password",  authRateLimiter, forgotPassword);
+// Two reset-specific limiters: one caps a caller cycling emails, the other caps
+// how often any one inbox can be mailed no matter how many IPs ask.
+router.post("/forgot-password",  passwordResetRequestRateLimiter, passwordResetEmailRateLimiter, forgotPassword);
 router.post("/verify-otp",       authRateLimiter, verifyOTP);
 router.post("/reset-password",   authRateLimiter, resetPassword);
 
@@ -63,5 +68,12 @@ router.get("/me",                    protect, profileRateLimiter, getMe);
 router.get("/me/preferences",        protect, profileRateLimiter, getMyPreferences);
 router.patch("/me/preferences",      protect, profileRateLimiter, updateMyPreferences);
 router.patch("/me/onboarding",       protect, profileRateLimiter, updateOnboardingStep);
+
+// ---------------------------------------------------------------------------
+// Account deletion — Play User Data policy / Apple 5.1.1(v).
+// Irreversible. Guarded by re-typed email confirmation in the controller and
+// the strict auth limiter, since it is the most destructive endpoint we have.
+// ---------------------------------------------------------------------------
+router.delete("/account",            protect, authRateLimiter, deleteMyAccount);
 
 module.exports = router;

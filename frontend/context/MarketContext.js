@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, Suspense } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 // Market types
 export const MARKETS = {
@@ -19,7 +19,8 @@ const MarketContext = createContext(null);
 
 // Helper component to handle market syncing with search params
 // This is separated to be wrapped in Suspense for static generation
-function MarketSync({ currentMarket, setCurrentMarket }) {
+function MarketSync({ currentMarket, setCurrentMarket, markMarketDecided }) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -28,40 +29,34 @@ function MarketSync({ currentMarket, setCurrentMarket }) {
 
     let targetMarket = null;
 
-    // 1. Check for explicit Indian Market path
+    // Route is the source of truth. `/dashboard` is Forex; Indian Market lives
+    // under `/indian-market/*`. A stale localStorage value must never redirect a
+    // fresh account away from onboarding or trap the user when switching back.
     if (pathname.startsWith('/indian-market')) {
       targetMarket = MARKETS.INDIAN_MARKET;
+    } else if (
+      pathname === '/' ||
+      pathname === '/dashboard' ||
+      pathname === '/trades' ||
+      pathname.startsWith('/trades/') ||
+      pathname === '/analytics' ||
+      pathname.startsWith('/analytics/') ||
+      pathname === '/add-trade' ||
+      pathname === '/upload-trade' ||
+      pathname === '/setups' ||
+      pathname === '/discipline'
+    ) {
+      targetMarket = MARKETS.FOREX;
     }
-    // 2. Check for market query parameter
     else {
       const marketParam = searchParams.get('market');
       if (marketParam && Object.values(MARKETS).includes(marketParam)) {
         targetMarket = marketParam;
       }
-      // 3. Fallback: honor any market the user has explicitly saved (via the
-      // onboarding picker or the market switcher); only default to Forex if
-      // nothing has ever been chosen.
-      else {
-        const isStandardRoute =
-          pathname === '/dashboard' ||
-          pathname === '/trades' ||
-          pathname === '/analytics' ||
-          pathname === '/add-trade' ||
-          pathname === '/upload-trade' ||
-          pathname === '/';
+    }
 
-        if (isStandardRoute) {
-          let saved = null;
-          try {
-            saved = typeof window !== 'undefined'
-              ? localStorage.getItem(STORAGE_KEY)
-              : null;
-          } catch { /* ignore SSR/storage errors */ }
-          targetMarket = saved && Object.values(MARKETS).includes(saved)
-            ? saved
-            : MARKETS.FOREX;
-        }
-      }
+    if (targetMarket) {
+      markMarketDecided();
     }
 
     // Only update if we have a target market and it's different from the current one
@@ -69,11 +64,15 @@ function MarketSync({ currentMarket, setCurrentMarket }) {
       setCurrentMarket(targetMarket);
       try {
         localStorage.setItem(STORAGE_KEY, targetMarket);
-      } catch (e) {
+      } catch {
         // Ignore localStorage errors during SSR
       }
     }
-  }, [pathname, searchParams, currentMarket, setCurrentMarket]);
+
+    if (pathname === '/' && targetMarket === MARKETS.FOREX) {
+      router.replace('/dashboard');
+    }
+  }, [pathname, router, searchParams, currentMarket, setCurrentMarket, markMarketDecided]);
 
   return null;
 }
@@ -117,6 +116,10 @@ export function MarketProvider({ children }) {
       window.dispatchEvent(new CustomEvent('marketChanged', { detail: { market } }));
     }
     return true;
+  }, []);
+
+  const markMarketDecided = useCallback(() => {
+    setMarketDecided(true);
   }, []);
 
   // Toggle between Forex and Indian Market
@@ -193,7 +196,11 @@ export function MarketProvider({ children }) {
   return (
     <MarketContext.Provider value={value}>
       <Suspense fallback={null}>
-        <MarketSync currentMarket={currentMarket} setCurrentMarket={setCurrentMarket} />
+        <MarketSync
+          currentMarket={currentMarket}
+          setCurrentMarket={setCurrentMarket}
+          markMarketDecided={markMarketDecided}
+        />
       </Suspense>
       {children}
     </MarketContext.Provider>

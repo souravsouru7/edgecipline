@@ -278,7 +278,14 @@ async function rotateRefreshToken(rawToken, deviceInfo) {
 
 async function revokeRefreshToken(rawToken) {
   const tokenHash = hashToken(rawToken);
-  await RefreshToken.updateOne({ tokenHash }, { revokedAt: new Date() });
+  // No returnDocument option -> Mongoose's default findOneAndUpdate behavior
+  // returns the document as it was BEFORE this update, which is all we need
+  // (userId is untouched by the $set, so pre/post doesn't matter here).
+  const revoked = await RefreshToken.findOneAndUpdate(
+    { tokenHash },
+    { revokedAt: new Date() }
+  ).select("userId").lean();
+  return revoked?.userId || null;
 }
 
 /** Revokes all active refresh tokens for a user (logout-all-devices). */

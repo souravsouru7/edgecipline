@@ -225,6 +225,35 @@ function LoadingState() {
 }
 
 /* ─────────────────────────────────────────
+   NOT FOUND STATE
+───────────────────────────────────────── */
+function NotFoundState({ status }) {
+  const message = status === 404
+    ? "This trade no longer exists. It may have been deleted."
+    : "This trade couldn't be loaded.";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center", padding: 24 }}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" style={{ marginBottom: 16 }}>
+        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923", marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        Trade not found
+      </div>
+      <div style={{ fontSize: 12, color: "#4A5568", marginBottom: 24, maxWidth: 320, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        {message}
+      </div>
+      <Link href="/trades" style={{
+        fontSize: 11, letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace",
+        color: "#FFFFFF", background: "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
+        borderRadius: 10, padding: "12px 20px", textDecoration: "none", fontWeight: 600,
+      }}>
+        BACK TO TRADE LOG
+      </Link>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    ICONS
 ───────────────────────────────────────── */
 const icons = {
@@ -247,18 +276,26 @@ function TradeDetailContent() {
   const searchParams = useSearchParams();
   const resolvedParams = useMemo(() => ({ id: searchParams.get('id') }), [searchParams]);
   const [trade, setTrade] = useState(null);
+  const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
 
   const fetchTrade = useCallback(async () => {
     if (resolvedParams?.id) {
-      const data = await getTrade(resolvedParams.id);
-      setTrade(data);
+      try {
+        const data = await getTrade(resolvedParams.id);
+        setTrade(data);
+      } catch (err) {
+        setError(err);
+      }
     }
   }, [resolvedParams]);
 
   useEffect(() => {
-    fetchTrade();
-    setMounted(true);
+    const timer = setTimeout(() => {
+      fetchTrade();
+      setMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchTrade]);
 
   const bull = trade ? parseFloat(trade.profit) >= 0 : true;
@@ -278,7 +315,6 @@ function TradeDetailContent() {
       overflow: "hidden",
     }}>
       {/* Fonts */}
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
       {/* Background */}
       <CandlestickBackground/>
@@ -300,7 +336,7 @@ function TradeDetailContent() {
         transition: "all 0.5s cubic-bezier(0.22,1,0.36,1)",
       }}>
 
-        {!trade ? <LoadingState/> : (
+        {error ? <NotFoundState status={error.status}/> : !trade ? <LoadingState/> : (
           <>
             {/* Page title */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10 }}>

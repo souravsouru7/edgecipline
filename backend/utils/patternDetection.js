@@ -33,13 +33,50 @@ const POSITIVE_EMOTION_TAGS = new Set(["Calm", "Focused", "Patient", "Discipline
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-// Confidence string → display range label (schema: "Low"|"Medium"|"High"|"Overconfident")
+// Confidence string → bucket key (schema: "Low"|"Medium"|"High"|"Overconfident")
 const CONFIDENCE_RANGE_MAP = {
   Low: "1-3",
   Medium: "4-6",
   High: "7-8",
   Overconfident: "9-10",
 };
+
+/**
+ * Bucket keys are internal; every user-facing string reads back the words the
+ * trader actually picked in the trade form.
+ *
+ * The form asks for confidence as Low / Medium / High / Overconfident and for
+ * mood as a 1-5 face with a word under it. This engine used to re-encode both
+ * into numbers nobody ever sees anywhere else in the app, so the Pattern screen
+ * reported "Confidence range 1-3" and "Mood level 3" — a trader who tapped
+ * "Low" and the 😐 Neutral face had no way to connect those rows to anything
+ * they did. The buckets stay as-is (they key the best/worst highlighting and
+ * live in stored snapshots); only the wording changes.
+ */
+const CONFIDENCE_RANGE_LABELS = {
+  "1-3": "Low confidence",
+  "4-6": "Medium confidence",
+  "7-8": "High confidence",
+  "9-10": "Overconfident",
+};
+const confidenceLabel = (range) => CONFIDENCE_RANGE_LABELS[range] || `Confidence ${range}`;
+
+// Setup-score wording: the band name first, the numbers kept as a parenthetical
+// so the row still says which scores it covers.
+const SETUP_SCORE_LABELS = {
+  "0-39":   "Weak setups (score 0-39)",
+  "40-59":  "Below-average setups (score 40-59)",
+  "60-79":  "Average setups (score 60-79)",
+  "80-100": "Strong setups (score 80-100)",
+};
+const SETUP_SCORE_SHORT = {
+  "0-39":   "Weak setup",
+  "40-59":  "Below-average setup",
+  "60-79":  "Average setup",
+  "80-100": "Strong setup",
+};
+const setupScoreLabel = (range) => SETUP_SCORE_LABELS[range] || `Setup score ${range}`;
+const setupScoreShort = (range) => SETUP_SCORE_SHORT[range] || `Setup ${range}`;
 
 // Boundaries come from the shared definition so this engine buckets a score
 // identically to Trading DNA and Discipline. This module used to split at
@@ -218,7 +255,7 @@ function detectConfidencePatterns(trades) {
   for (const [range, bucket] of Object.entries(buckets)) {
     const stats = buildStats(bucket);
     if (!stats) continue;
-    byRange.push({ range, ...stats });
+    byRange.push({ range, label: confidenceLabel(range), ...stats });
   }
 
   if (byRange.length === 0) return { byRange: [], bestRange: null, worstRange: null, insight: null };
@@ -234,14 +271,14 @@ function detectConfidencePatterns(trades) {
   if (verdict) {
     const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
     if (verdict.solo) {
-      insight = `Confidence ${best.range} is the only range with enough trades to analyze (${best.count} trades): ${stat}.`;
+      insight = `${confidenceLabel(best.range)} is the only confidence level with enough trades to analyze (${best.count} trades): ${stat}.`;
     } else if (verdict.bestIsProfitable) {
-      insight = `Confidence range ${best.range} is your sweet spot: ${stat}.`;
+      insight = `${confidenceLabel(best.range)} is your sweet spot: ${stat}.`;
     } else {
-      insight = `No confidence range is profitable yet — ${best.range} loses the least: ${stat}.`;
+      insight = `No confidence level is profitable yet — ${confidenceLabel(best.range).toLowerCase()} loses the least: ${stat}.`;
     }
     if (verdict.showWorst) {
-      insight += ` Confidence ${worst.range} is your worst zone: ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
+      insight += ` ${confidenceLabel(worst.range)} is your worst zone: ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -250,7 +287,10 @@ function detectConfidencePatterns(trades) {
 
 // ── Module 4: Mood Patterns ───────────────────────────────────────────────────
 
-const MOOD_LABELS = { 1: "Very Stressed", 2: "Anxious", 3: "Neutral", 4: "Good", 5: "Peak" };
+// Same five words the trade form prints under the mood faces, so a row on this
+// screen matches what the trader tapped when they logged the trade.
+const MOOD_LABELS = { 1: "Stressed", 2: "Anxious", 3: "Neutral", 4: "Confident", 5: "Peak" };
+const moodLabel = (mood) => (MOOD_LABELS[mood] ? `${MOOD_LABELS[mood]} mood` : `Mood ${mood}`);
 
 function detectMoodPatterns(trades) {
   const buckets = {};
@@ -285,14 +325,15 @@ function detectMoodPatterns(trades) {
   if (verdict) {
     const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
     if (verdict.solo) {
-      insight = `Mood ${best.mood} (${best.label}) is the only mood level with enough trades to analyze (${best.count} trades): ${stat}.`;
+      insight = `${moodLabel(best.mood)} is the only mood with enough trades to analyze (${best.count} trades): ${stat}.`;
     } else if (verdict.bestIsProfitable) {
-      insight = `You perform best at mood level ${best.mood} (${best.label}): ${stat}.`;
+      insight = `${moodLabel(best.mood)} is your strongest state: ${stat}.`;
     } else {
-      insight = `No mood level is profitable yet — mood ${best.mood} (${best.label}) loses the least: ${stat}.`;
+      insight = `No mood is profitable yet — ${moodLabel(best.mood).toLowerCase()} loses the least: ${stat}.`;
     }
     if (verdict.showWorst) {
-      insight += ` Avoid trading at mood ${worst.mood} (${worst.label}): only ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
+      // No leading article — "a anxious mood" is the trap the label list sets.
+      insight += ` ${moodLabel(worst.mood)} is the one to avoid: only ${worst.winRate}% win rate, net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -504,7 +545,7 @@ function detectSetupScorePatterns(trades) {
   for (const b of SETUP_SCORE_BUCKETS) {
     const stats = buildStats(buckets[b.label]);
     if (!stats) continue;
-    byRange.push({ range: b.label, ...stats });
+    byRange.push({ range: b.label, label: setupScoreLabel(b.label), ...stats });
   }
 
   if (byRange.length === 0) return { byRange: [], optimalThreshold: null, worstRange: null, insight: null };
@@ -520,14 +561,14 @@ function detectSetupScorePatterns(trades) {
   if (verdict) {
     const stat = `${best.winRate}% win rate, net P&L ${money(best.netPnl)}`;
     if (verdict.solo) {
-      insight = `Setup score ${best.range} is the only range with enough trades to analyze (${best.count} trades): ${stat}.`;
+      insight = `Only ${setupScoreLabel(best.range).toLowerCase()} have enough trades to analyze (${best.count} trades): ${stat}.`;
     } else if (verdict.bestIsProfitable) {
-      insight = `Setup score ${best.range} is your optimal range: ${stat}.`;
+      insight = `You do best on ${setupScoreLabel(best.range).toLowerCase()}: ${stat}.`;
     } else {
-      insight = `No setup score range is profitable yet — ${best.range} loses the least: ${stat}.`;
+      insight = `No setup score range is profitable yet — ${setupScoreLabel(best.range).toLowerCase()} lose the least: ${stat}.`;
     }
     if (verdict.showWorst) {
-      insight += ` Setup score ${worst.range} consistently hurts performance: net P&L ${money(worst.netPnl)}.`;
+      insight += ` ${setupScoreLabel(worst.range)} consistently hurt performance: net P&L ${money(worst.netPnl)}.`;
     }
   }
 
@@ -585,7 +626,10 @@ function detectRuleViolationPatterns(trades) {
 const COMBO_DEFINITIONS = [
   {
     type: "emotion_confidence",
-    label: (k) => k.replace("|||", " + Confidence "),
+    label: (k) => {
+      const [tag, conf] = k.split("|||");
+      return `${tag} + ${confidenceLabel(conf).toLowerCase()}`;
+    },
     extract: (t) => {
       const conf = CONFIDENCE_RANGE_MAP[t.confidence];
       if (!conf || !Array.isArray(t.emotionalTags) || t.emotionalTags.length === 0) return [];
@@ -596,7 +640,7 @@ const COMBO_DEFINITIONS = [
     type: "setupScore_session",
     label: (k) => {
       const [range, session] = k.split("|||");
-      return `Setup ${range} + ${session}`;
+      return `${setupScoreShort(range)} + ${session} session`;
     },
     extract: (t) => {
       const session = t.session;
@@ -613,7 +657,7 @@ const COMBO_DEFINITIONS = [
     type: "mood_emotion",
     label: (k) => {
       const [mood, tag] = k.split("|||");
-      return `Mood ${mood} + ${tag}`;
+      return `${moodLabel(mood)} + ${tag}`;
     },
     extract: (t) => {
       if (typeof t.mood !== "number" || t.mood < 1 || t.mood > 5) return [];
@@ -625,7 +669,7 @@ const COMBO_DEFINITIONS = [
     type: "entryBasis_confidence",
     label: (k) => {
       const [basis, conf] = k.split("|||");
-      return `${basis} Entry + Confidence ${conf}`;
+      return `${basis} entry + ${confidenceLabel(conf).toLowerCase()}`;
     },
     extract: (t) => {
       const conf = CONFIDENCE_RANGE_MAP[t.confidence];
@@ -637,9 +681,14 @@ const COMBO_DEFINITIONS = [
     type: "emotion_streak",
     label: (k) => {
       const [tag, streak] = k.split("|||");
-      return streak === "LossStreak" ? `${tag} + Loss Streak` : `${tag} (No Streak)`;
+      // "Disciplined (No Streak)" read as a label for a streak that did not
+      // happen; spell out the condition the trades were actually taken under.
+      return streak === "LossStreak"
+        ? `${tag} during a losing streak`
+        : `${tag} with no losing streak`;
     },
     extractWithStreakInfo: true,
+    
     extract: (t, prevLossStreak) => {
       if (!Array.isArray(t.emotionalTags) || t.emotionalTags.length === 0) return [];
       const streakState = prevLossStreak >= 2 ? "LossStreak" : "NoStreak";
@@ -731,45 +780,57 @@ function rankAllPatterns(modules) {
     candidates.push({ name, description, netPnl, winRate, count, confidence, module });
   };
 
+  // A ranked row is the only place a trader meets a pattern, so `description`
+  // has to stand on its own — "Trading after 2 losses", not "Loss streak: 2".
+
   // Streak patterns
   const streakLabels = { "1": "After 1 loss", "2": "After 2 losses", "3": "After 3 losses", "4+": "After 4+ losses" };
+  const streakDescriptions = {
+    "1": "Trading after 1 loss",
+    "2": "Trading after 2 losses",
+    "3": "Trading after 3 losses",
+    "4+": "Trading after 4+ losses",
+  };
   for (const [key, stats] of Object.entries({
     "1": modules.lossStreaks?.after1Loss,
     "2": modules.lossStreaks?.after2Losses,
     "3": modules.lossStreaks?.after3Losses,
     "4+": modules.lossStreaks?.after4PlusLosses,
   })) {
-    if (stats) addCandidate(streakLabels[key], `Loss streak: ${streakLabels[key]}`, stats.netPnl, stats.winRate, stats.count, stats.confidence, "lossStreak");
+    if (stats) addCandidate(streakLabels[key], streakDescriptions[key], stats.netPnl, stats.winRate, stats.count, stats.confidence, "lossStreak");
   }
 
   // Confidence
   for (const r of (modules.confidence?.byRange || [])) {
-    addCandidate(`Confidence ${r.range}`, `Confidence range ${r.range}`, r.netPnl, r.winRate, r.count, r.confidence, "confidence");
+    const label = confidenceLabel(r.range);
+    addCandidate(label, label, r.netPnl, r.winRate, r.count, r.confidence, "confidence");
   }
 
   // Mood
   for (const m of (modules.mood?.byMood || [])) {
-    addCandidate(`Mood ${m.mood} (${m.label})`, `Mood level ${m.mood}`, m.netPnl, m.winRate, m.count, m.confidence, "mood");
+    const label = moodLabel(m.mood);
+    addCandidate(label, label, m.netPnl, m.winRate, m.count, m.confidence, "mood");
   }
 
   // Emotions
   for (const e of (modules.emotions?.byTag || [])) {
-    addCandidate(e.tag, `Emotional tag: ${e.tag}`, e.netPnl, e.winRate, e.count, e.confidence, "emotion");
+    addCandidate(e.tag, `Felt ${e.tag}`, e.netPnl, e.winRate, e.count, e.confidence, "emotion");
   }
 
   // Sessions
   for (const s of (modules.sessions?.bySessions || [])) {
-    addCandidate(s.session, `Session: ${s.session}`, s.netPnl, s.winRate, s.count, s.confidence, "session");
+    addCandidate(s.session, `${s.session} session`, s.netPnl, s.winRate, s.count, s.confidence, "session");
   }
 
   // Day of week
   for (const d of (modules.dayOfWeek?.byDay || [])) {
-    addCandidate(d.day, `Day: ${d.day}`, d.netPnl, d.winRate, d.count, d.confidence, "dayOfWeek");
+    addCandidate(d.day, `Trading on ${d.day}s`, d.netPnl, d.winRate, d.count, d.confidence, "dayOfWeek");
   }
 
   // Setup score
   for (const r of (modules.setupScore?.byRange || [])) {
-    addCandidate(`Setup ${r.range}`, `Setup score range ${r.range}`, r.netPnl, r.winRate, r.count, r.confidence, "setupScore");
+    const label = setupScoreLabel(r.range);
+    addCandidate(setupScoreShort(r.range), label, r.netPnl, r.winRate, r.count, r.confidence, "setupScore");
   }
 
   // Combinations

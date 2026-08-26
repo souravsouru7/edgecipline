@@ -7,11 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "android": "npm run build && npx cap sync android && npx cap open android",
-    "android:sync": "npm run build && npx cap sync android",
-    "android:build": "npm run build && npx cap sync android && node scripts/run-gradle-release.mjs",
-    "ios": "npm run build && npx cap sync ios && npx cap open ios",
-    "ios:sync": "npm run build && npx cap sync ios"
+    "android": "npm run build:mobile && npx cap sync android && npx cap open android",
+    "android:sync": "npm run build:mobile && npx cap sync android",
+    "android:build": "npm run build:mobile && npx cap sync android && node scripts/run-gradle-release.mjs",
+    "ios": "npm run build:mobile && npx cap sync ios && npx cap open ios",
+    "ios:sync": "npm run build:mobile && npx cap sync ios",
+    "build:mobile": "next build && node scripts/prune-mobile-bundle.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^6.3.1",
@@ -43,6 +44,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

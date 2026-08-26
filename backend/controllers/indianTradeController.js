@@ -9,6 +9,58 @@ const onboardingService = require("../services/onboardingService");
 const { handleStreakEvents } = require("../services/streakNotification.service");
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
 
+// insertMany({ordered:true}) on a mid-batch failure (only reachable via the
+// standalone-Mongo fallback below -- the transactional path is all-or-
+// nothing) leaves earlier documents committed but throws a plain bulk-write
+// error, which the global error handler flattens into a generic 500. Surface
+// which trades actually saved instead of hiding it.
+function isBulkWriteError(err) {
+  return Boolean(err) && (
+    err.name === "MongoBulkWriteError" ||
+    err.name === "BulkWriteError" ||
+    Array.isArray(err.writeErrors) ||
+    Array.isArray(err.insertedDocs)
+  );
+}
+
+function wrapBatchInsertError(err, totalCount) {
+  if (!isBulkWriteError(err)) return err;
+  const insertedDocs = Array.isArray(err.insertedDocs) ? err.insertedDocs : [];
+  const insertedCount = insertedDocs.length || Number(err?.result?.nInserted ?? err?.result?.result?.nInserted ?? 0);
+  const failedCount = Math.max(0, totalCount - insertedCount);
+  const insertedTradeIds = insertedDocs.map((d) => d?._id).filter(Boolean);
+  return new ApiError(
+    409,
+    insertedCount > 0
+      ? `${insertedCount} of ${totalCount} trades were saved before an error occurred (${failedCount} failed). Check your trade log before retrying to avoid duplicates.`
+      : `Failed to save trades: ${err.message}`,
+    "BATCH_PARTIAL_FAILURE",
+    { insertedCount, failedCount, insertedTradeIds }
+  );
+}
+
+// Official NSE lot sizes for the major indices, most-specific name first so
+// "BANKNIFTY"/"FINNIFTY"/"MIDCPNIFTY" don't get matched by the plain "NIFTY"
+// substring check. Individual stock F&O lot sizes vary and change
+// periodically, so only these well-known indices are checked -- an unknown
+// underlying is left unvalidated rather than guessed at.
+const INDIAN_INDEX_LOT_SIZES = [
+  ["BANKNIFTY", 15],
+  ["FINNIFTY", 25],
+  ["MIDCPNIFTY", 50],
+  ["NIFTY", 25],
+  ["SENSEX", 10],
+  ["BANKEX", 15],
+];
+
+function expectedLotSizeFor(underlyingOrPair) {
+  const normalized = String(underlyingOrPair || "").toUpperCase().replace(/[^A-Z]/g, "");
+  for (const [name, size] of INDIAN_INDEX_LOT_SIZES) {
+    if (normalized.includes(name)) return size;
+  }
+  return null;
+}
+
 async function updateStreaksForIndianTrade(userId, trade) {
   try {
     const result = await streakService.recordTradeAndRecompute(userId, trade);
@@ -20,7 +72,9 @@ async function updateStreaksForIndianTrade(userId, trade) {
   }
 }
 const {
-  getOcrConfirmationTrades,
+  claimOcrJobForConfirmation,
+  releaseOcrJobClaim,
+  extractConfirmationTrades,
   markOcrJobConfirmed,
 } = require("../services/ocrJob.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
@@ -32,6 +86,23 @@ const {
   trustedOcrProfitForTrade,
 } = require("../utils/tradeProfit");
 
+// setMonth()/setFullYear() don't clamp -- subtracting a month from e.g. Mar
+// 31 overflows into Feb 31, which JS silently rolls into Mar 3 instead of
+// erroring, shrinking the "last month" filter to skip nearly all of
+// February. Set the day to 1 before changing month/year (so the change
+// itself can't overflow), then clamp back to the last real day of the
+// resulting month. Same rollover class as the bug already fixed in
+// normalizeTradeDate (utils/dateUtils.js).
+function subtractMonthsClamped(date, months) {
+  const originalDay = date.getDate();
+  const result = new Date(date);
+  result.setDate(1);
+  result.setMonth(result.getMonth() - months);
+  const daysInResultMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(originalDay, daysInResultMonth));
+  return result;
+}
+
 function getPeriodStart(period) {
   const now = new Date();
   const start = new Date(now);
@@ -41,14 +112,11 @@ function getPeriodStart(period) {
       start.setDate(start.getDate() - 7);
       return start;
     case "1m":
-      start.setMonth(start.getMonth() - 1);
-      return start;
+      return subtractMonthsClamped(now, 1);
     case "3m":
-      start.setMonth(start.getMonth() - 3);
-      return start;
+      return subtractMonthsClamped(now, 3);
     case "1y":
-      start.setFullYear(start.getFullYear() - 1);
-      return start;
+      return subtractMonthsClamped(now, 12);
     default:
       return null;
   }
@@ -110,6 +178,12 @@ function requirePositiveNumber(value, label) {
   return parsed;
 }
 
+function requireEntryBasisCustomText(entryBasis, entryBasisCustom) {
+  if (entryBasis === "Custom" && !String(entryBasisCustom || "").trim()) {
+    throw new ApiError(400, "Custom entry basis requires a description", "VALIDATION_ERROR");
+  }
+}
+
 function normalizeOptionalNumber(target, field) {
   const parsed = parseFiniteNumber(target[field]);
   if (parsed == null) {
@@ -144,6 +218,16 @@ function buildIndianTradeDocument(
     if (!validOptionTypes.includes(ot)) {
       throw new ApiError(400, "Option type must be CE or PE", "VALIDATION_ERROR");
     }
+    // Previously only enforced when the symbol had to be *built* from
+    // underlying+strike (i.e. only when pair was absent) -- a pair given
+    // directly (e.g. "NIFTY 24AUG 22500 CE") bypassed both checks entirely
+    // even though every real option position has a strike and an expiry.
+    if (strikePrice == null || !(Number(strikePrice) > 0)) {
+      throw new ApiError(400, "Strike price is required for option trades", "VALIDATION_ERROR");
+    }
+    if (!editablePayload.expiryDate) {
+      throw new ApiError(400, "Expiry date is required for option trades", "VALIDATION_ERROR");
+    }
   }
 
   if (isEquity) {
@@ -172,6 +256,8 @@ function buildIndianTradeDocument(
   if (!tradeDate) {
     throw new ApiError(400, "Trade date is required", "VALIDATION_ERROR");
   }
+
+  requireEntryBasisCustomText(editablePayload.entryBasis, editablePayload.entryBasisCustom);
 
   const tradeData = {
     ...editablePayload,
@@ -211,11 +297,32 @@ function buildIndianTradeDocument(
       tradeData.quantity = requirePositiveNumber(tradeData.quantity, "Quantity");
       tradeData.lotSize = requirePositiveNumber(tradeData.lotSize, "Lot size");
     }
+
+    // "Quantity" is number of lots, not shares (units = quantity * lotSize
+    // in deriveIndianProfit) -- there's no reason lot count would need to be
+    // a multiple of lot size. The real compatibility check is whether the
+    // submitted lot size matches the underlying's real, official lot size.
+    const expectedLotSize = expectedLotSizeFor(underlying || symbol);
+    if (expectedLotSize != null) {
+      const submittedLotSize = parseFiniteNumber(tradeData.lotSize);
+      if (submittedLotSize != null && submittedLotSize !== expectedLotSize) {
+        throw new ApiError(
+          400,
+          `Lot size looks wrong for this underlying: expected ${expectedLotSize}, got ${submittedLotSize}`,
+          "VALIDATION_ERROR"
+        );
+      }
+    }
   } else {
     tradeData.instrumentType = "EQUITY";
     tradeData.segment = "EQUITY";
     tradeData.tradeType = "INTRADAY";
     tradeData.sharesQty = requirePositiveNumber(tradeData.sharesQty, "Shares quantity");
+    // Option-only fields don't apply to an equity trade -- clear them so an
+    // equity trade never ends up carrying CE/PE/strike/expiry data.
+    delete tradeData.optionType;
+    delete tradeData.strikePrice;
+    delete tradeData.expiryDate;
   }
 
   // entryPrice/exitPrice are only mandatory when we have to *derive* the P&L
@@ -255,14 +362,22 @@ function buildIndianTradeDocument(
 
 exports.createTrade = asyncHandler(async (req, res) => {
   const ocrJobId = req.body?.ocrJobId || null;
-  const extractedTrades = ocrJobId
-    ? await getOcrConfirmationTrades(req.user._id, ocrJobId, "Indian_Market")
-    : [];
+  let extractedTrades = [];
+  if (ocrJobId) {
+    const claimedJob = await claimOcrJobForConfirmation(req.user._id, ocrJobId, "Indian_Market");
+    extractedTrades = extractConfirmationTrades(claimedJob);
+  }
   const tradeData = buildIndianTradeDocument(req.user._id, req.body, {
     accountCreatedAt: req.user.createdAt,
     extractedTrades,
   });
-  const trade = await IndianTrade.create(tradeData);
+  let trade;
+  try {
+    trade = await IndianTrade.create(tradeData);
+  } catch (err) {
+    if (ocrJobId) await releaseOcrJobClaim(req.user._id, ocrJobId);
+    throw err;
+  }
 
   await invalidateTradeCaches({
     userId: req.user._id,
@@ -301,9 +416,14 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   }
 
   const ocrJobId = req.body?.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
-  const extractedTrades = ocrJobId
-    ? await getOcrConfirmationTrades(req.user._id, ocrJobId, "Indian_Market")
-    : [];
+  let extractedTrades = [];
+  if (ocrJobId) {
+    // Claim the job (COMPLETED -> CONFIRMED) before creating any trades, so
+    // a second concurrent confirm of the same screenshot is rejected here
+    // instead of both requests inserting their own batch of trades.
+    const claimedJob = await claimOcrJobForConfirmation(req.user._id, ocrJobId, "Indian_Market");
+    extractedTrades = extractConfirmationTrades(claimedJob);
+  }
   const docs = trades.map((trade, tradeIndex) => buildIndianTradeDocument(req.user._id, trade, {
     accountCreatedAt: req.user.createdAt,
     extractedTrades,
@@ -319,30 +439,41 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   let createdTrades;
   const session = await mongoose.startSession();
   try {
-    await session.withTransaction(async () => {
-      createdTrades = await IndianTrade.insertMany(docs, { ordered: true, session });
+    try {
+      await session.withTransaction(async () => {
+        createdTrades = await IndianTrade.insertMany(docs, { ordered: true, session });
+        if (ocrJobId && createdTrades[0]) {
+          await markOcrJobConfirmed(req.user._id, ocrJobId, {
+            tradeId: createdTrades[0]._id,
+            collection: "indian",
+            session,
+          });
+        }
+      });
+    } catch (txErr) {
+      const isStandaloneError =
+        txErr?.codeName === "IllegalOperation" ||
+        String(txErr?.message || "").includes("Transaction numbers are only allowed") ||
+        String(txErr?.message || "").includes("replica set");
+      if (!isStandaloneError) throw txErr;
+      // Fallback: non-transactional path for standalone MongoDB
+      createdTrades = await IndianTrade.insertMany(docs, { ordered: true });
       if (ocrJobId && createdTrades[0]) {
         await markOcrJobConfirmed(req.user._id, ocrJobId, {
           tradeId: createdTrades[0]._id,
           collection: "indian",
-          session,
         });
       }
-    });
-  } catch (txErr) {
-    const isStandaloneError =
-      txErr?.codeName === "IllegalOperation" ||
-      String(txErr?.message || "").includes("Transaction numbers are only allowed") ||
-      String(txErr?.message || "").includes("replica set");
-    if (!isStandaloneError) throw txErr;
-    // Fallback: non-transactional path for standalone MongoDB
-    createdTrades = await IndianTrade.insertMany(docs, { ordered: true });
-    if (ocrJobId && createdTrades[0]) {
-      await markOcrJobConfirmed(req.user._id, ocrJobId, {
-        tradeId: createdTrades[0]._id,
-        collection: "indian",
-      });
     }
+  } catch (err) {
+    // Trade creation failed after the claim above succeeded -- release it
+    // back to COMPLETED so the user can retry instead of it being stuck
+    // "confirmed" with no trades behind it.
+    if (ocrJobId) await releaseOcrJobClaim(req.user._id, ocrJobId);
+    // No-op for a transaction-abort error (nothing partially committed);
+    // turns a genuine standalone-fallback partial insertMany failure into a
+    // clear, actionable error instead of a generic 500.
+    throw wrapBatchInsertError(err, docs.length);
   } finally {
     await session.endSession();
   }
@@ -488,8 +619,9 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     Object.prototype.hasOwnProperty.call(req.body, field)
   );
 
+  const touchesEntryBasis = update.entryBasis !== undefined || update.entryBasisCustom !== undefined;
   let existing = null;
-  if (shouldDeriveProfit || Array.isArray(update.tradeImages)) {
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis) {
     existing = await IndianTrade.findOne({
       _id: req.params.id,
       user: req.user._id,
@@ -497,9 +629,16 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     })
       .select(
         "type entryPrice exitPrice instrumentType sharesQty quantity lotSize " +
-        "brokerage sttTaxes tradeImages"
+        "brokerage sttTaxes tradeImages entryBasis entryBasisCustom"
       )
       .lean();
+  }
+
+  if (touchesEntryBasis) {
+    requireEntryBasisCustomText(
+      update.entryBasis !== undefined ? update.entryBasis : existing?.entryBasis,
+      update.entryBasisCustom !== undefined ? update.entryBasisCustom : existing?.entryBasisCustom
+    );
   }
 
   if (shouldDeriveProfit) {

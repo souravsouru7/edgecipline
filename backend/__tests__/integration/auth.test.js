@@ -23,6 +23,8 @@ jest.mock('../../middleware/rateLimiter', () => {
   return {
     globalRateLimiter:  pass,
     authRateLimiter:    pass,
+    passwordResetRequestRateLimiter: pass,
+    passwordResetEmailRateLimiter: pass,
     refreshRateLimiter: pass,
     profileRateLimiter: pass,
     statusRateLimiter:  pass,
@@ -47,6 +49,15 @@ jest.mock('../../models/Users', () => ({
   findById:          jest.fn(),
   create:            jest.fn(),
   findByIdAndUpdate: jest.fn(),
+}));
+
+// logout-all disables every registered device, so the real Mongoose model would
+// reach for a database that is not connected here.
+// `deleteMany` is required too: accountDeletionService validates at import time
+// that every user-owned collection it sweeps is a real model.
+jest.mock('../../models/DeviceToken', () => ({
+  updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+  deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
 }));
 
 jest.mock('../../services/tokenService', () => ({
@@ -688,6 +699,21 @@ describe('POST /api/auth/google', () => {
     expect(second.status).toBe(200);
     expect(User.findOneAndUpdate).toHaveBeenCalled();
     expect(User.create).not.toHaveBeenCalled();
+  });
+
+  test('backend account persistence failure leaves no partial session', async () => {
+    getFirebaseAdmin.mockReturnValue(makeGoogleToken(makeFirebasePayload()));
+    User.findOne.mockResolvedValueOnce(null);
+    User.findOneAndUpdate.mockRejectedValueOnce(new Error('mongo unavailable'));
+
+    const res = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'google-id-token' });
+
+    expect(res.status).toBe(500);
+    expect(tokenSvc.createRefreshToken).not.toHaveBeenCalled();
+    expect(tokenSvc.generateAccessToken).not.toHaveBeenCalled();
+    expect(res.headers['set-cookie']).toBeUndefined();
   });
 });
 

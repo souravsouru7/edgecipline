@@ -213,7 +213,6 @@ export default function AdminLoginPage() {
       fontFamily: "'Plus Jakarta Sans',sans-serif",
       color: "#0F1923", position: "relative", overflow: "hidden",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
       {/* BG canvas */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>

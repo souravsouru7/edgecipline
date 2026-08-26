@@ -47,6 +47,7 @@ class SlidingWindowLimiter {
     if (times.length >= rule.max) {
       const err   = new Error(`Too many requests — please slow down and try again shortly.`);
       err.status  = 429;
+      err.code = 'RATE_LIMITED';
       err.isClientRateLimit = true;
       throw err;
     }
@@ -64,6 +65,47 @@ const AUTH_ENTRY_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/aut
 
 const isAuthEntryPath = (url = '') =>
   AUTH_ENTRY_PATHS.some((p) => url.includes(p));
+
+const PUBLIC_PAGE_PATHS = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-otp',
+  '/privacy-policy',
+  '/terms',
+  '/delete-account',
+  '/support',
+];
+
+const isPublicPagePath = (pathname = '') =>
+  PUBLIC_PAGE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+// Password-reset steps are deliberate, one-shot user actions. A 429 here means
+// "you have asked too often" — replaying it behind the user's back spends the
+// rest of their reset budget and can mail a second OTP that invalidates the
+// code they are already typing in. Show the message instead.
+const NO_RATE_LIMIT_RETRY_PATHS = ['/auth/forgot-password', '/auth/verify-otp', '/auth/reset-password'];
+
+const isNoRateLimitRetryPath = (url = '') =>
+  NO_RATE_LIMIT_RETRY_PATHS.some((p) => url.includes(p));
+
+// Sign-in endpoints need a longer budget than the 10s default.
+//
+// POST /auth/google verifies the token with the Firebase Admin SDK and, if that
+// fails, falls back to Google's tokeninfo endpoint — which the server aborts at
+// 5s. Add SDK cold start plus the Mongo writes on a remote Atlas cluster and the
+// legitimate worst case comfortably exceeds 10s, so the request was being
+// cancelled by the client while the server went on to succeed. The user saw
+// "Request timed out. Please try again." on a login that had actually worked,
+// and retrying produced the same result.
+//
+// 30s is deliberately generous: on this path a slow success beats a fast lie.
+const SLOW_AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/google'];
+const SLOW_AUTH_TIMEOUT_MS = 30000;
+
+const isSlowAuthPath = (url = '') =>
+  SLOW_AUTH_PATHS.some((p) => url.includes(p));
 
 // ---------------------------------------------------------------------------
 // Primary API client
@@ -119,11 +161,25 @@ function applyNativeClientHeaders(config = {}) {
   return config;
 }
 
-apiClient.interceptors.request.use((config) => applyNativeClientHeaders(config));
+apiClient.interceptors.request.use((config) => {
+  const withHeaders = applyNativeClientHeaders(config);
+  // Per-path timeout override — see SLOW_AUTH_PATHS. Only widens the budget for
+  // sign-in; every other endpoint keeps the 10s default.
+  //
+  // Note: axios merges instance defaults before interceptors run, so
+  // config.timeout is already 10000 here — never undefined. Comparing against
+  // the target rather than checking for absence is what makes this take effect,
+  // while still honouring a deliberately larger per-call value.
+  if (isSlowAuthPath(withHeaders.url || '')) {
+    withHeaders.timeout = Math.max(withHeaders.timeout || 0, SLOW_AUTH_TIMEOUT_MS);
+  }
+  return withHeaders;
+});
 refreshClient.interceptors.request.use((config) => applyNativeClientHeaders(config));
 
 const REFRESH_LOCK_KEY = 'edgecipline:auth-refresh-lock';
 const REFRESH_RESULT_KEY = 'edgecipline:auth-refresh-result';
+const AUTH_LOGOUT_KEY = 'edgecipline:auth-logout';
 const REFRESH_LOCK_TTL_MS = 10_000;
 const REFRESH_WAIT_TIMEOUT_MS = 12_000;
 const AUTH_CHANNEL_NAME = 'edgecipline-auth';
@@ -157,6 +213,7 @@ function handleAuthSyncMessage(message) {
   if (message.type === 'auth:logout') {
     void clearAuthToken();
     resolvePeerRefreshWaiters(null);
+    handleUnauthenticated(message.reason || 'peer_logout');
   }
 }
 
@@ -170,13 +227,39 @@ function ensureAuthSync() {
   }
 
   window.addEventListener('storage', (event) => {
-    if (event.key !== REFRESH_RESULT_KEY || !event.newValue) return;
+    if (![REFRESH_RESULT_KEY, AUTH_LOGOUT_KEY].includes(event.key) || !event.newValue) return;
     try {
       handleAuthSyncMessage(JSON.parse(event.newValue));
     } catch {
       // Ignore malformed cross-tab messages.
     }
   });
+}
+
+export function publishAuthLogout(reason = 'explicit_logout') {
+  if (typeof window === 'undefined') return;
+  ensureAuthSync();
+  const message = {
+    type: 'auth:logout',
+    reason,
+    owner: getTabId(),
+    createdAt: Date.now(),
+  };
+
+  _authChannel?.postMessage(message);
+
+  if (isNativeCapacitor()) return;
+
+  try {
+    localStorage.setItem(AUTH_LOGOUT_KEY, JSON.stringify(message));
+    setTimeout(() => {
+      if (localStorage.getItem(AUTH_LOGOUT_KEY)?.includes(message.owner)) {
+        localStorage.removeItem(AUTH_LOGOUT_KEY);
+      }
+    }, 1000);
+  } catch {
+    // BroadcastChannel is the primary path; storage is only the fallback.
+  }
 }
 
 function publishRefreshSuccess(token) {
@@ -372,7 +455,11 @@ apiClient.interceptors.response.use(
       // Never auto-retry credential endpoints — retrying burns more rate-limit budget
       // and provides no benefit (a 429 on login means the user is locked out, not that
       // the request should be transparently retried).
-      if (isAuthEntryPath(config.url) || config.skipRateLimitRetry === true) {
+      if (
+        isAuthEntryPath(config.url) ||
+        isNoRateLimitRetryPath(config.url) ||
+        config.skipRateLimitRetry === true
+      ) {
         return Promise.reject(buildError(error));
       }
 
@@ -488,7 +575,7 @@ function handleUnauthenticated(reason = 'auth_required') {
   if (typeof window === 'undefined') return;
   if (_redirectingToLogin) return;
   const { pathname } = window.location;
-  if (pathname === '/login' || pathname === '/register') return;
+  if (isPublicPagePath(pathname)) return;
   console.warn('[Auth] logout:triggered', {
     at: new Date().toISOString(),
     reason,

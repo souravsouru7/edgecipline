@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Push notification entitlement.
+
+    @capacitor/push-notifications is a dependency and the backend sends via
+    FCM, but without aps-environment iOS never returns a device token and
+    Xcode blocks the archive upload. Xcode rewrites the value to "production"
+    automatically when archiving for the App Store; "development" is correct
+    for local device builds.
+
+    Requires "Push Notifications" to be enabled on the App ID in the Apple
+    Developer portal, and an APNs auth key (.p8) uploaded to the Firebase
+    project, or tokens will register but never deliver.
+-->
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

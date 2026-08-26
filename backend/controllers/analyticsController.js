@@ -757,6 +757,10 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       strategyStats: {},
       mistakeTagStats: {}
     };
+    // Maps a case/whitespace-normalized mistake tag to the display key
+    // already used in mistakeTagStats, so "FOMO" and "fomo" accumulate into
+    // one bucket instead of undercounting the same mistake as two.
+    const mistakeTagDisplayKeyByNormalized = {};
 
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     let totalProfit = 0;
@@ -811,11 +815,14 @@ exports.getAIInsights = asyncHandler(async (req, res) => {
       // Mistake tag
       if (t.mistakeTag && t.mistakeTag.trim()) {
         const mk = t.mistakeTag.trim();
-        if (!stats.mistakeTagStats[mk]) stats.mistakeTagStats[mk] = { count: 0, pnl: 0, lessons: [] };
-        stats.mistakeTagStats[mk].count++;
-        stats.mistakeTagStats[mk].pnl += profit;
-        if (t.lesson && t.lesson.trim() && stats.mistakeTagStats[mk].lessons.length < 3) {
-          stats.mistakeTagStats[mk].lessons.push(t.lesson.trim());
+        const normalizedKey = mk.toLowerCase();
+        const displayKey = mistakeTagDisplayKeyByNormalized[normalizedKey] || mk;
+        mistakeTagDisplayKeyByNormalized[normalizedKey] = displayKey;
+        if (!stats.mistakeTagStats[displayKey]) stats.mistakeTagStats[displayKey] = { count: 0, pnl: 0, lessons: [] };
+        stats.mistakeTagStats[displayKey].count++;
+        stats.mistakeTagStats[displayKey].pnl += profit;
+        if (t.lesson && t.lesson.trim() && stats.mistakeTagStats[displayKey].lessons.length < 3) {
+          stats.mistakeTagStats[displayKey].lessons.push(t.lesson.trim());
         }
       }
 

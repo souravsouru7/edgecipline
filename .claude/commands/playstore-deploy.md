@@ -1,6 +1,6 @@
 # Google Play Store — Deployment Checklist & Fixer
 
-Audit and fix everything needed to ship **Edgecipline** (`com.edgecpline`) to Google Play.
+Audit and fix everything needed to ship **Edgecipline** (`com.edgecipline`) to Google Play.
 
 Usage: `/playstore-deploy [check|fix|all]`
 - `check` — audit only, no edits
@@ -28,7 +28,7 @@ Read these files and report what you find:
    - build script uses `assembleRelease` or `bundleRelease`? (Play needs AAB = `bundleRelease`)
 
 2. **`frontend/capacitor.config.ts`** — confirm:
-   - `appId` = `com.edgecpline`
+   - `appId` = `com.edgecipline`
    - `appName` = `Edgecipline`
    - `webDir` = `out`
 
@@ -157,7 +157,7 @@ After running fixes, print this checklist for the user to complete manually. Do 
       MYAPP_RELEASE_KEY_PASSWORD=<your-password>
 
 ### 🔥 FIREBASE (critical for Google Sign-In on release builds)
-[ ] In Firebase Console → Project Settings → Android app (com.edgecpline)
+[ ] In Firebase Console → Project Settings → Android app (com.edgecipline)
 [ ] Add the SHA-1 fingerprint of your RELEASE keystore:
       keytool -list -v -keystore android/app/release.keystore -alias edgecipline
     Copy the SHA-1 and add it in Firebase Console
@@ -188,7 +188,7 @@ After running fixes, print this checklist for the user to complete manually. Do 
 
 ### 📋 GOOGLE PLAY CONSOLE SETUP
 [ ] Create a Google Play Developer account ($25 one-time fee)
-[ ] Create new app → set package name: com.edgecpline
+[ ] Create new app → set package name: com.edgecipline
 [ ] Fill in Content Rating questionnaire (Finance app = likely Everyone)
 [ ] Fill in Data Safety section:
       - Firebase Auth collects: Email, User ID

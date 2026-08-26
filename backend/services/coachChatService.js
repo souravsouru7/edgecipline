@@ -12,12 +12,102 @@ const { logger } = require("../utils/logger");
 const HISTORY_TURNS = 10;
 const MAX_USER_QUESTION_CHARS = 1200;
 
+// A healthy coach reply lands in ~5s. Without an upper bound a hung upstream
+// connection would keep the SSE pipe heartbeating forever without ever
+// answering, and the browser would sit on a spinner until the user gave up.
+const REQUEST_TIMEOUT_MS = 60_000;
+const MAX_STREAM_ATTEMPTS = 2;
+const RETRY_BACKOFF_MS = 750;
+// Google's own transient failures: rate limit, overload, gateway blips.
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// `thinkingConfig` is a 2.5+ parameter. Older models reject the field with a
+// 400, so a rollback of GEMINI_MODEL would otherwise take the whole feature
+// down rather than just losing the thinking cap.
+function supportsThinkingConfig(modelName) {
+  const match = /gemini-(\d+)(?:\.(\d+))?/.exec(String(modelName || ""));
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2] || 0);
+  return major > 2 || (major === 2 && minor >= 5);
+}
+
+// gemini-2.5-* charges its internal "thinking" tokens against maxOutputTokens.
+// At 700 the model routinely spent ~670 of them thinking and returned a reply
+// truncated mid-sentence (finishReason MAX_TOKENS), so bound the thinking and
+// leave real room for the answer.
+function buildGenerationConfig(modelName) {
+  const config = { temperature: 0.35, maxOutputTokens: 2048 };
+  if (supportsThinkingConfig(modelName)) {
+    config.thinkingConfig = { thinkingBudget: 512 };
+  }
+  return config;
+}
+
 function getGeminiModel() {
   if (!appConfig.ai.geminiApiKey) {
     throw new ApiError(503, "Coach AI is not configured", "COACH_UNAVAILABLE");
   }
   const genAI = new GoogleGenerativeAI(appConfig.ai.geminiApiKey);
-  return genAI.getGenerativeModel({ model: appConfig.ai.geminiModel });
+  return genAI.getGenerativeModel(
+    { model: appConfig.ai.geminiModel },
+    { timeout: REQUEST_TIMEOUT_MS }
+  );
+}
+
+// Undici surfaces connection-level failures as a bare "fetch failed", which is
+// what killed live coach replies even though the API itself was healthy.
+// Google's 429/5xx are just as transient and just as worth one more attempt.
+function isRetryableError(error) {
+  if (RETRYABLE_STATUS.has(error?.status)) return true;
+  const message = String(error?.message || "");
+  if (/\[(429|500|502|503|504)\s/.test(message)) return true;
+  return /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|network error/i.test(message);
+}
+
+// Turn an upstream failure into something the trader can act on. Everything
+// used to surface as a flat "Coach response failed", which told them nothing
+// about whether to retry, rephrase, or wait.
+function describeFailure(error) {
+  if (error instanceof ApiError) return error;
+  const message = String(error?.message || "");
+  if (/SAFETY|RECITATION|blocked/i.test(message)) {
+    return new ApiError(502, "Coach couldn't answer that one. Try rephrasing the question.", "COACH_BLOCKED");
+  }
+  if (isRetryableError(error)) {
+    return new ApiError(503, "Coach is busy right now. Try again in a moment.", "COACH_BUSY");
+  }
+  return new ApiError(502, "Coach response failed", "COACH_STREAM_ERROR");
+}
+
+// One retry, and only when the failure happened before any token reached the
+// client — replaying a partially streamed reply would duplicate visible text.
+async function streamWithRetry({ model, request, onChunk, onRetry }) {
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_STREAM_ATTEMPTS; attempt += 1) {
+    let text = "";
+    try {
+      const result = await model.generateContentStream(request);
+      for await (const chunk of result.stream) {
+        const piece = typeof chunk.text === "function" ? chunk.text() : "";
+        if (!piece) continue;
+        text += piece;
+        if (onChunk) onChunk(piece);
+      }
+      return text;
+    } catch (error) {
+      lastError = error;
+      if (text || attempt === MAX_STREAM_ATTEMPTS || !isRetryableError(error)) {
+        error.partialText = text;
+        throw error;
+      }
+      if (onRetry) onRetry(error);
+      await delay(RETRY_BACKOFF_MS * attempt);
+    }
+  }
+  throw lastError;
 }
 
 function previewOf(text) {
@@ -135,9 +225,22 @@ async function enforceAndCountQuota(user) {
 // final assistant message persists exactly what the user saw.
 async function streamCompletion({ conversation, user, history, userMessage, onChunk, onMeta }) {
   const started = Date.now();
+  // "any" is the default for a thread opened before we knew which book it was
+  // about. Resolving it (rather than defaulting to Forex) is what keeps an
+  // Indian-market trader from being coached on an empty Forex snapshot.
+  const market = await coachContextService.resolveMarket({
+    market: conversation.market,
+    user,
+  });
+  if (conversation.market !== market) {
+    // Pin the thread to the resolved market so later turns stay consistent.
+    conversation.market = market;
+    await CoachConversation.updateOne({ _id: conversation._id }, { $set: { market } });
+  }
+
   const { context, digest, cached } = await coachContextService.getContext({
     userId: user._id,
-    market: conversation.market === "any" ? "Forex" : conversation.market,
+    market,
   });
 
   const input = coachPromptService.buildModelInput({
@@ -155,6 +258,7 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       tradeCount: digest.tradeCount,
       reflectionDays: digest.reflectionDays,
       hasWeeklyReport: digest.hasWeeklyReport,
+      market,
     });
   }
 
@@ -162,29 +266,36 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
   let fullText = "";
 
   try {
-    const result = await model.generateContentStream({
-      systemInstruction: input.systemInstruction,
-      contents: input.contents,
-      generationConfig: {
-        temperature: 0.35,
-        maxOutputTokens: 700,
+    fullText = await streamWithRetry({
+      model,
+      request: {
+        systemInstruction: input.systemInstruction,
+        contents: input.contents,
+        generationConfig: buildGenerationConfig(appConfig.ai.geminiModel),
+      },
+      onChunk,
+      onRetry: (error) => {
+        logger.warn("COACH_STREAM_RETRY", {
+          userId: String(user._id),
+          conversationId: String(conversation._id),
+          error: error?.message,
+        });
       },
     });
 
-    for await (const chunk of result.stream) {
-      const piece = typeof chunk.text === "function" ? chunk.text() : "";
-      if (piece) {
-        fullText += piece;
-        if (onChunk) onChunk(piece);
-      }
+    // A blocked or empty completion used to resolve as "done", leaving the
+    // trader watching an assistant bubble that never filled in. Fail loudly
+    // instead so the UI shows a retry affordance.
+    if (!fullText.trim()) {
+      throw new ApiError(502, "Coach returned an empty response. Try asking again.", "COACH_EMPTY_RESPONSE");
     }
 
     const persisted = await recordAssistantMessage({
       conversationId: conversation._id,
       userId: user._id,
       content: fullText.trim(),
-      status: fullText ? "complete" : "error",
-      error: fullText ? "" : "empty_response",
+      status: "complete",
+      error: "",
       model: appConfig.ai.geminiModel,
       latencyMs: Date.now() - started,
       streamed: true,
@@ -195,9 +306,13 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
 
     return { messageId: String(persisted._id), latencyMs: Date.now() - started };
   } catch (error) {
+    // Only a stream failure carries partial text; a later persistence failure
+    // must not discard what the client already saw.
+    if (typeof error?.partialText === "string") fullText = error.partialText;
     logger.warn("COACH_STREAM_FAILED", {
       userId: String(user._id),
       conversationId: String(conversation._id),
+      market,
       error: error?.message,
     });
 
@@ -215,7 +330,7 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       contextDigest: digest,
     });
 
-    throw new ApiError(502, "Coach response failed", "COACH_STREAM_ERROR");
+    throw describeFailure(error);
   }
 }
 
@@ -227,4 +342,10 @@ module.exports = {
   loadHistory,
   persistUserMessage,
   streamCompletion,
+  // Exported for testing
+  buildGenerationConfig,
+  describeFailure,
+  isRetryableError,
+  streamWithRetry,
+  supportsThinkingConfig,
 };

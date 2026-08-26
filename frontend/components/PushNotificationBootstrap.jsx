@@ -12,13 +12,24 @@ export default function PushNotificationBootstrap() {
     let idleId = null;
     let timerId = null;
 
-    const init = () => {
+    // initializePushNotifications() calls PushNotifications.requestPermissions(),
+    // which raises the OS notification dialog. Only do that for a user who is
+    // already signed in — otherwise a first-time user is asked to allow
+    // notifications on the login screen, before they know what the app is.
+    // Freshly registered users get this via useLogin, which initialises push
+    // once authentication succeeds.
+    const init = async () => {
       if (cancelled) return;
-      import("@/services/pushNotifications")
-        .then(({ initializePushNotifications }) => initializePushNotifications())
-        .catch((error) => {
-          console.error("Push notification initialization failed", error);
-        });
+      try {
+        const { hydrateAuthToken } = await import("@/utils/auth");
+        const token = await hydrateAuthToken();
+        if (cancelled || !token) return;
+
+        const { initializePushNotifications } = await import("@/services/pushNotifications");
+        await initializePushNotifications();
+      } catch (error) {
+        console.error("Push notification initialization failed", error);
+      }
     };
 
     if (typeof window.requestIdleCallback === "function") {

@@ -36,6 +36,15 @@ const userSchema = new mongoose.Schema(
       enum: ["active", "disabled"],
       default: "active",
     },
+    // Set when account deletion starts, cleared only by the account document
+    // itself being removed. Distinguishes "disabled because the user asked us
+    // to delete this" from "disabled by an admin" — the deletion endpoint
+    // re-admits the former so a failed purge stays retryable, and must not
+    // re-admit the latter. See accountDeletionService + authMiddleware.
+    pendingDeletion: {
+      type: Boolean,
+      default: false,
+    },
     avatar: {
       type: String
     },
@@ -210,11 +219,14 @@ userSchema.index({ subscriptionStatus: 1, subscriptionExpiry: -1 });
 // Trial expiry cron + day-5/6 warning queries — sparse so legacy users
 // without trial data don't bloat the index.
 userSchema.index({ "trial.endsAt": 1 }, { sparse: true });
+// `sparse` and `partialFilterExpression` can't be combined -- MongoDB
+// rejects the index outright, so it silently never got created (Mongoose's
+// background ensureIndexes() only logs the failure, it doesn't crash).
+// The partial filter alone already achieves what sparse was for here.
 userSchema.index(
   { googleId: 1 },
   {
     unique: true,
-    sparse: true,
     partialFilterExpression: {
       googleId: { $type: "string" },
     },

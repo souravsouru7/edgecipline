@@ -57,6 +57,20 @@ function validateExtractedTrade(parsedTrade = {}) {
   };
 }
 
+// Real NSE option symbols (e.g. "NIFTY24AUG22500CE") butt the strike digits
+// directly against CE/PE/FUT with no separator, so \b(CE|PE|FUT)\b never
+// matches -- there's no word boundary between a digit and a letter. Treat a
+// digit (or string start/space) before, and string end/space after, as the
+// boundary instead of relying on \b.
+const CE_PE_FUT_SUFFIX_RE = /(?:^|[^A-Z])(CE|PE|FUT)(?:$|[^A-Z])/i;
+// Same digit-adjacent-boundary problem as CE_PE_FUT_SUFFIX_RE: "NIFTY24AUG..."
+// has no \b between "NIFTY" and "24", so the index name never matched here
+// either. BANKNIFTY/FINNIFTY/MIDCPNIFTY are listed before plain NIFTY so a
+// leftmost match at the string's start prefers the longer, more specific
+// name over treating its "NIFTY" tail as a standalone match.
+const INDIAN_INDEX_UNDERLYING_RE =
+  /(?:^|[^A-Z])(BANKNIFTY|FINNIFTY|MIDCPNIFTY|NIFTY|SENSEX|BANKEX)(?:$|[^A-Z])/i;
+
 function validateIndianTrade(parsedTrade = {}) {
   const failures = [];
   const pair = String(parsedTrade.pair || parsedTrade.symbol || "").trim().toUpperCase();
@@ -66,12 +80,21 @@ function validateIndianTrade(parsedTrade = {}) {
   const strikePrice = Number(parsedTrade.strikePrice ?? 0);
   const optionType = String(parsedTrade.optionType || "").trim().toUpperCase();
   const broker = String(parsedTrade.broker || "").trim();
-  const hasUnderlying = /\b(NIFTY|BANKNIFTY|FINNIFTY|MIDCPNIFTY|SENSEX|BANKEX)\b/i.test(pair);
+  const hasUnderlying = INDIAN_INDEX_UNDERLYING_RE.test(pair);
+  const pairLooksLikeDerivative = CE_PE_FUT_SUFFIX_RE.test(pair);
+  // Index-underlying/strike/option-type only apply to options & futures.
+  // A plain equity trade (e.g. "RELIANCE") has none of these signals and
+  // shouldn't be flagged just for lacking an index name it was never going
+  // to have -- its own "pair is missing" check below is enough.
+  const isDerivative =
+    ["CE", "PE", "FUT"].includes(optionType) || strikePrice > 0 || pairLooksLikeDerivative;
 
   if (!pair) failures.push("pair is missing");
-  if (!hasUnderlying) failures.push("underlying is missing");
-  if (!(strikePrice > 0) && !/\bFUT\b/i.test(pair)) failures.push("strike price is missing");
-  if (!["CE", "PE", "FUT"].includes(optionType) && !/\b(CE|PE|FUT)\b/i.test(pair)) failures.push("option type is invalid");
+  if (isDerivative) {
+    if (!hasUnderlying) failures.push("underlying is missing");
+    if (!(strikePrice > 0) && !/\bFUT\b/i.test(pair)) failures.push("strike price is missing");
+    if (!["CE", "PE", "FUT"].includes(optionType) && !pairLooksLikeDerivative) failures.push("option type is invalid");
+  }
   // quantity = 0 is valid for closed positions (P&L/portfolio screenshots show Qty 0 after exit)
   // quantity = null means it was not extracted at all — flag it; 0 is intentional
   if (quantity == null && parsedTrade.quantity !== 0) failures.push("quantity must be greater than 0");
@@ -87,7 +110,7 @@ function validateIndianTrade(parsedTrade = {}) {
       price,
       pnl: pnl == null ? null : Number(pnl),
       strikePrice,
-      optionType: optionType || (pair.match(/\b(CE|PE|FUT)\b/i)?.[1]?.toUpperCase() || ""),
+      optionType: optionType || (pair.match(CE_PE_FUT_SUFFIX_RE)?.[1]?.toUpperCase() || ""),
       broker,
     },
   };

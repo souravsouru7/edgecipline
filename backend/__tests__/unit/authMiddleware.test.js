@@ -143,6 +143,30 @@ describe("authMiddleware protect terms gate", () => {
     );
   });
 
+  it("blocks protected product routes when an older terms version was accepted", async () => {
+    const req = buildReq("/api/analytics/summary");
+    const next = jest.fn();
+
+    mockFindById({
+      _id: "user-123",
+      tokenVersion: 1,
+      termsAcceptance: {
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        termsVersion: "v0.9",
+      },
+    });
+
+    await protect(req, {}, next);
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 403,
+        errorCode: "TERMS_NOT_ACCEPTED",
+      })
+    );
+  });
+
   it("allows the profile endpoint so the client can route to the terms gate", async () => {
     const req = buildReq("/api/auth/me");
     const next = jest.fn();

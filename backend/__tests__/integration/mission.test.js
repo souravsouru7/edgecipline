@@ -25,6 +25,7 @@ jest.mock("../../config/redis", () => ({
   getRedisClient: jest.fn().mockReturnValue(null),
 }));
 jest.mock("../../middleware/rateLimiter", () => ({
+  createRedisRateLimiter: () => (_req, _res, next) => next(),
   globalRateLimiter: (_req, _res, next) => next(),
   getRateLimiterHealth: jest.fn().mockReturnValue("ok"),
   authRateLimiter: (_req, _res, next) => next(),
@@ -38,13 +39,35 @@ jest.mock("../../middleware/rateLimiter", () => ({
   publicShareRateLimiter: (_req, _res, next) => next(),
   issueReportRateLimiter: (_req, _res, next) => next(),
   adminDestructiveRateLimiter: (_req, _res, next) => next(),
+  passwordResetRequestRateLimiter: (_req, _res, next) => next(),
+  passwordResetEmailRateLimiter: (_req, _res, next) => next(),
+  deviceTokenRateLimiter: (_req, _res, next) => next(),
+  paymentRateLimiter: (_req, _res, next) => next(),
+  webhookRateLimiter: (_req, _res, next) => next(),
+  adminFinancialRateLimiter: (_req, _res, next) => next(),
+  coachChatRateLimiter: (_req, _res, next) => next(),
 }));
-jest.mock("../../middleware/cacheMiddleware", () => ({
-  cacheMiddleware: () => (_req, _res, next) => next(),
-}));
+jest.mock("../../middleware/cacheMiddleware", () => () => (_req, _res, next) => next());
 
+const express = require("express");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
+const { errorHandler } = require("../../middleware/errorHandler");
+const { CURRENT_TERMS_VERSION } = require("../../constants/terms");
+
+// Build a real Express app around the mission routes, the same way every
+// other integration test here does. Requiring ../../server instead would
+// return {} (server.js has no module.exports, so supertest reports
+// "app.address is not a function") and would boot a listening server.
+function buildApp() {
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use("/api/missions", require("../../routes/missionRoutes"));
+  app.use((_req, res) => res.status(404).json({ message: "Not found" }));
+  app.use(errorHandler);
+  return app;
+}
+
 
 let app;
 let MissionTemplate;
@@ -54,17 +77,24 @@ let User;
 const TEST_USER_ID = new mongoose.Types.ObjectId();
 const TEST_TEMPLATE_ID = new mongoose.Types.ObjectId();
 
+// `protect` rejects a token whose tokenVersion is undefined or does not match
+// the user's current value, so read the real one back rather than assuming 0.
+let testUserTokenVersion;
+
 function makeAuthToken(userId) {
-  return jwt.sign({ id: String(userId), role: "user" }, process.env.JWT_SECRET || "test-secret-key-32chars-minimum!!", { expiresIn: "1h" });
+  return jwt.sign(
+    { id: String(userId), role: "user", tokenVersion: testUserTokenVersion },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
 }
 
 beforeAll(async () => {
-  process.env.JWT_SECRET = "test-secret-key-32chars-minimum!!";
-  process.env.ADMIN_JWT_SECRET = "test-admin-key-32chars-minimum!!!";
-  process.env.MONGO_URI = process.env.TEST_MONGO_URI || "mongodb://127.0.0.1:27017/stratedge_test";
-  process.env.NODE_ENV = "test";
-
-  await mongoose.connect(process.env.MONGO_URI);
+  // JWT_SECRET / ADMIN_JWT_SECRET / NODE_ENV are set by __tests__/env.js via
+  // jest setupFiles, which runs before config/index.js reads them. Reassigning
+  // them here would only change process.env — appConfig has already captured
+  // the original, so tokens signed with a new secret would fail `protect`.
+  await mongoose.connect(process.env.TEST_MONGO_URI || process.env.MONGO_URI);
 
   MissionTemplate = require("../../models/MissionTemplate");
   MissionAssignment = require("../../models/MissionAssignment");
@@ -81,11 +111,18 @@ beforeAll(async () => {
       lastName: "Tester",
       role: "user",
       isOnboardingCompleted: true,
-      termsVersion: 1,
-      acceptedTermsVersion: 1,
+      termsAcceptance: {
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        termsVersion: CURRENT_TERMS_VERSION,
+        acceptedAt: new Date(),
+      },
     },
     { upsert: true, setDefaultsOnInsert: true }
   );
+
+  const created = await User.findById(TEST_USER_ID).select("tokenVersion").lean();
+  testUserTokenVersion = created.tokenVersion;
 
   // Create test template
   await MissionTemplate.findOneAndUpdate(
@@ -107,8 +144,7 @@ beforeAll(async () => {
     { upsert: true, setDefaultsOnInsert: true }
   );
 
-  // Lazy-load the app after env is set
-  app = require("../../server");
+  app = buildApp();
 });
 
 afterAll(async () => {

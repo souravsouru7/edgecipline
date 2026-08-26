@@ -49,7 +49,7 @@ export default function ReflectionHistoryList({ items = [], loading }) {
         color: "#64748B",
         fontSize: 13,
       }}>
-        No reflections yet. Tonight's the night to start.
+        {"No reflections yet. Tonight's the night to start."}
       </div>
     );
   }

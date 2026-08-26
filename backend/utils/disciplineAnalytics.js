@@ -20,11 +20,13 @@
  *   rule.followed === true   → explicitly followed
  *   anything else            → not tracked (excluded from compliance calc)
  *
- * P&L fields:   All use trade.profit (raw net P&L)
+ * P&L fields:   All read trade.profit, which computeDisciplineAnalytics has
+ *               already normalised to NET for the market being analysed.
  * Performance:  O(n × m) where m = avg rules per trade ≤ 20
  */
 
 const { withLabels } = require("./setupScoreBuckets");
+const { withNetPnL } = require("./metricEngine");
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -778,7 +780,14 @@ function computeCoachInsights(data, currency) {
  * @param {number}   options.offsetHours   timezone offset hours (default 0)
  * @returns {object}
  */
-function computeDisciplineAnalytics(trades, { marketType = "Forex", period = "monthly", offsetHours = 0 } = {}) {
+function computeDisciplineAnalytics(inputTrades, { marketType = "Forex", period = "monthly", offsetHours = 0 } = {}) {
+// Indian trades store `profit` GROSS with brokerage/sttTaxes alongside, while
+// Forex stores it already net of commission/swap (see utils/tradeProfit.js).
+// Normalising once here means every helper below can keep reading
+// `trade.profit` and get the same (net) number in both markets.
+// getNetPnL is a no-op for Forex, so Forex output is unchanged.
+  const trades = withNetPnL(inputTrades, marketType);
+
   if (!Array.isArray(trades) || trades.length === 0) {
     return {
       insufficient: true,

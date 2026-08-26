@@ -152,11 +152,14 @@ export default function ReflectionSheet({ open, onClose }) {
   // prior values instead of looking like a fresh form.
   useEffect(() => {
     if (!open) return;
-    setFollowedPlan(existing?.followedPlan || null);
-    setMood(existing?.mood ?? null);
-    setConfidence(existing?.confidence ?? null);
-    setWouldRepeat(existing?.wouldRepeat || null);
-    setImprovement(existing?.improvement || "");
+    const id = requestAnimationFrame(() => {
+      setFollowedPlan(existing?.followedPlan || null);
+      setMood(existing?.mood ?? null);
+      setConfidence(existing?.confidence ?? null);
+      setWouldRepeat(existing?.wouldRepeat || null);
+      setImprovement(existing?.improvement || "");
+    });
+    return () => cancelAnimationFrame(id);
   }, [open, existing]);
 
   const planOptions = useMemo(() => {
@@ -319,7 +322,7 @@ export default function ReflectionSheet({ open, onClose }) {
             {hadTrades && (
               <section style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 6 }}>
-                  Would you repeat today's execution?
+                  {"Would you repeat today's execution?"}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {REPEAT_OPTIONS.map((opt) => (

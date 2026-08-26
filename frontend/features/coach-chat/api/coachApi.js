@@ -22,5 +22,6 @@ export const createConversation = (payload = {}) =>
 export const deleteConversation = (id) =>
   apiClient.delete(`/coach/conversations/${id}`);
 
-export const refreshCoachContext = () =>
-  apiClient.post("/coach/refresh-context", {});
+// Context is cached per market server-side, so tell it which one to rebuild.
+export const refreshCoachContext = (market) =>
+  apiClient.post("/coach/refresh-context", market ? { market } : {});

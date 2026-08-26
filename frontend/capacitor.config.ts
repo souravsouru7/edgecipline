@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.edgecpline',
+  appId: 'com.edgecipline',
   appName: 'Edgecipline',
   webDir: 'out',
   plugins: {

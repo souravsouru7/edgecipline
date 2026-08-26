@@ -6,6 +6,7 @@ const ApiError = require("../utils/ApiError");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 const { generateCoachFeed } = require("../utils/aiCoachFeed");
 const { getPlannedRiskReward } = require("../utils/riskReward");
+const { getTradePnLBreakdown } = require("../utils/metricEngine");
 
 const ALLOWED_FOREX_MARKETS = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks"]);
 const ALLOWED_INDIAN_INSTRUMENTS = new Set(["OPTION", "EQUITY"]);
@@ -51,7 +52,9 @@ function buildSummary(performance = {}) {
     losingTrades: performance.losingTrades || performance.losses || 0,
     pnlReadyTrades: performance.pnlReadyTrades || performance.analyticsTradeCount || 0,
     tradesMissingPnl: performance.tradesMissingPnl || 0,
-    avgSetupScore: fixed(performance.avgSetupScore ?? 0, 1),
+    // null when no trade carried a setupScore, so the UI can show "no data"
+    // rather than a 0.0 that reads like every setup scored zero.
+    avgSetupScore: fixedOrNull(performance.avgSetupScore, 1),
   };
 }
 
@@ -84,9 +87,108 @@ function buildPerformance(performance = {}) {
   };
 }
 
-function buildQuality(qualitySnapshot) {
-  if (!qualitySnapshot) return null;
-  return qualitySnapshot.quality || qualitySnapshot;
+// Planned-R:R buckets for the "RR Buckets (Win Rate)" table.
+const RR_BUCKETS = Object.freeze([
+  { label: "0-0.5R", min: 0, max: 0.5 },
+  { label: "0.5-1R", min: 0.5, max: 1 },
+  { label: "1-1.5R", min: 1, max: 1.5 },
+  { label: "1.5-2R", min: 1.5, max: 2 },
+  { label: "2-3R", min: 2, max: 3 },
+  { label: "3R+", min: 3, max: Infinity },
+]);
+
+// A trade counts as "breakeven" when it landed within this much of flat. It is
+// a display heuristic carried over from the legacy /trade-quality endpoint.
+const BREAKEVEN_BAND = 5;
+
+/**
+ * R:R quality metrics for the Trade Quality panel.
+ *
+ * aggregateTradeQuality only returns the Great/Average/Poor distribution, so
+ * every R:R-derived field the panel renders (quality score, breakeven rate,
+ * trades-with-R:R, the bucket table, cost-hit trades) has to be computed from
+ * the trade list here -- exactly like riskReward/timeAnalysis/drawdown above.
+ *
+ * Uses getPlannedRiskReward, the same helper computeRiskReward uses, so the
+ * "TRADES WITH RR" tile cannot disagree with the R:R panel on the same page.
+ */
+function computeTradeQuality(trades = [], marketType) {
+  const buckets = RR_BUCKETS.map((bucket) => ({ ...bucket, rows: [] }));
+  let rrSum = 0;
+  let tradesWithRR = 0;
+  let breakevenTrades = 0;
+  let totalCosts = 0;
+  let costImpactedTrades = 0;
+  let winningTrades = 0;
+
+  for (const trade of trades) {
+    const { gross, fees } = getTradePnLBreakdown(trade, marketType);
+    totalCosts += fees;
+    if (gross > 0) {
+      winningTrades += 1;
+      // A "win" the broker's charges swallowed whole.
+      if (fees > gross) costImpactedTrades += 1;
+    }
+    if (Math.abs(gross) < BREAKEVEN_BAND) breakevenTrades += 1;
+
+    const planned = getPlannedRiskReward(trade);
+    if (!planned || !(planned.rr > 0)) continue;
+    tradesWithRR += 1;
+    rrSum += planned.rr;
+    // Bucket on a rounded ratio. Derived from prices, a planned 1:2 comes out as
+    // 1.9999999999999900 (e.g. entry 713.2 / stop 700 / target 739.6), which a
+    // raw `rr < 2` test files under "1.5-2R" -- making deliberate 1:2 setups
+    // look like a sub-2R habit. Two decimals is finer than the bucket edges.
+    const bucketRR = Math.round(planned.rr * 100) / 100;
+    const bucket = buckets.find((row) => bucketRR >= row.min && bucketRR < row.max);
+    if (bucket) bucket.rows.push(gross);
+  }
+
+  const rrAnalysis = buckets
+    .filter((bucket) => bucket.rows.length > 0)
+    .map((bucket) => {
+      const wins = bucket.rows.filter((pnl) => pnl > 0).length;
+      const profit = bucket.rows.reduce((sum, pnl) => sum + pnl, 0);
+      return {
+        label: bucket.label,
+        total: bucket.rows.length,
+        wins,
+        losses: bucket.rows.length - wins,
+        winRate: ((wins / bucket.rows.length) * 100).toFixed(1),
+        avgProfit: (profit / bucket.rows.length).toFixed(2),
+      };
+    });
+
+  const total = trades.length;
+  const breakevenRate = total ? ((breakevenTrades / total) * 100).toFixed(1) : "0.0";
+  const avgRR = tradesWithRR ? rrSum / tradesWithRR : 0;
+  const qualityScore = Math.min(
+    100,
+    Math.max(
+      0,
+      (winningTrades / Math.max(1, total)) * 50
+        + (100 - parseFloat(breakevenRate)) * 0.3
+        + Math.min(20, avgRR * 5)
+    )
+  ).toFixed(0);
+
+  return {
+    rrAnalysis,
+    breakevenTrades,
+    breakevenRate,
+    totalCosts: fixed(totalCosts),
+    costImpactedTrades,
+    // null rather than a score built from zero R:R data, so the panel can show
+    // its "add entry + SL + TP" hint instead of a confident-looking number.
+    qualityScore: tradesWithRR > 0 ? qualityScore : null,
+    tradesWithRR,
+    avgRR: tradesWithRR ? fixed(avgRR) : null,
+  };
+}
+
+function buildQuality(qualitySnapshot, trades = [], marketType) {
+  const aggregated = qualitySnapshot ? (qualitySnapshot.quality || qualitySnapshot) : {};
+  return { ...aggregated, ...computeTradeQuality(trades, marketType) };
 }
 
 function buildCoachFeed(snapshot, marketType) {
@@ -235,21 +337,38 @@ function computeDrawdown(trades = []) {
   let balance = 0;
   let peak = 0;
   let maxDrawdown = 0;
+  // Peak at the moment the deepest drawdown happened -- the denominator for a
+  // peak-to-trough percentage. The running peak at the END of the series is a
+  // different (usually larger) number and understates the drop.
+  let peakAtMaxDrawdown = 0;
+  let troughBalance = 0;
   const equityCurve = trades.map((trade) => {
     balance += toNum(trade.profit);
     peak = Math.max(peak, balance);
-    maxDrawdown = Math.max(maxDrawdown, peak - balance);
+    if (peak - balance > maxDrawdown) {
+      maxDrawdown = peak - balance;
+      peakAtMaxDrawdown = peak;
+    }
+    troughBalance = Math.min(troughBalance, balance);
     return { date: trade.tradeDate || trade.createdAt, balance: fixed(balance), drawdown: fixed(peak - balance) };
   });
   const currentDrawdown = Math.max(0, peak - balance);
+
+  // This equity curve is cumulative P&L starting from zero, not account equity
+  // -- the app never captures starting capital. Once the curve goes negative a
+  // "percent of peak" has no meaningful denominator and produces figures like
+  // 126.8%, so report null and let the UI show the currency amount alone.
+  const percentIsMeaningful = peak > 0 && troughBalance >= 0;
   return {
     equityCurve,
     maxDrawdown: fixed(maxDrawdown),
     currentDrawdown: fixed(currentDrawdown),
     peakBalance: fixed(peak),
     currentBalance: fixed(balance),
-    maxDrawdownPercent: peak > 0 ? fixed((maxDrawdown / peak) * 100, 1) : "0.0",
-    currentDrawdownPercent: peak > 0 ? fixed((currentDrawdown / peak) * 100, 1) : "0.0",
+    maxDrawdownPercent: percentIsMeaningful && peakAtMaxDrawdown > 0
+      ? fixed((maxDrawdown / peakAtMaxDrawdown) * 100, 1)
+      : null,
+    currentDrawdownPercent: percentIsMeaningful ? fixed((currentDrawdown / peak) * 100, 1) : null,
     recoveryFactor: maxDrawdown > 0 ? fixed(balance / maxDrawdown) : balance > 0 ? "Infinity" : "0.00",
   };
 }
@@ -395,8 +514,8 @@ exports.getAnalyticsSnapshot = asyncHandler(async (req, res) => {
     performance: buildPerformance(performance),
     performanceMetrics: buildPerformance(performance),
     distribution: distributionSnapshot.distribution,
-    quality: buildQuality(qualitySnapshot),
-    tradeQualityAnalysis: buildQuality(qualitySnapshot),
+    quality: buildQuality(qualitySnapshot, pnlReadyTrades, marketType),
+    tradeQualityAnalysis: buildQuality(qualitySnapshot, pnlReadyTrades, marketType),
     pnlBreakdown: {
       daily: pnlBreakdown.daily || [],
       weekly: pnlBreakdown.weekly || [],

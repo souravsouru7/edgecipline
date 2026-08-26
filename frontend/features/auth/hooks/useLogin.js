@@ -48,10 +48,21 @@ function hasCompletedActivation(state = {}) {
   );
 }
 
+function clearFreshStartClientState() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("currentMarket");
+    sessionStorage.removeItem("auth_redirect");
+  } catch {
+    // Storage can be unavailable in private mode.
+  }
+}
+
 async function resolveLandingPath() {
   try {
     const state = await apiClient.get("/onboarding");
     if (hasCompletedActivation(state)) return "/dashboard";
+    clearFreshStartClientState();
     return "/onboarding";
   } catch {
     // Onboarding endpoint failed — try the lighter preferences endpoint so
@@ -65,6 +76,7 @@ async function resolveLandingPath() {
       const hasCompletionStamp = Boolean(o.completedAt || o.tourCompleted);
       if (prefs?.isOnboardingCompleted && hasCompletionStamp) return "/dashboard";
       if (corePassed) return "/dashboard";
+      clearFreshStartClientState();
       return "/onboarding";
     } catch {
       return "/dashboard";
@@ -191,7 +203,9 @@ export function useLogin() {
       if (token) {
         try {
           const profile = await getProfile();
-          if (!cancelled) router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : "/dashboard");
+          if (!cancelled) {
+            router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : await resolveLandingPath());
+          }
           return;
         } catch (err) {
           const status = err?.status;
@@ -235,16 +249,19 @@ export function useLogin() {
           : null;
         try {
           const profile = await getProfile();
+          const landingPath = await resolveLandingPath();
           if (profile?.requiresTermsAcceptance) {
             router.push("/accept-terms");
-          } else if (savedRedirect) {
+          } else if (savedRedirect && landingPath !== "/onboarding") {
             sessionStorage.removeItem("auth_redirect");
             router.push(savedRedirect);
           } else {
-            router.push(await resolveLandingPath());
+            if (savedRedirect) sessionStorage.removeItem("auth_redirect");
+            router.push(landingPath);
           }
         } catch {
-          router.push(savedRedirect || await resolveLandingPath());
+          const landingPath = await resolveLandingPath();
+          router.push(savedRedirect && landingPath !== "/onboarding" ? savedRedirect : landingPath);
           if (savedRedirect) sessionStorage.removeItem("auth_redirect");
         }
         return;
@@ -300,13 +317,15 @@ export function useLogin() {
     const savedRedirect = typeof window !== "undefined"
       ? sessionStorage.getItem("auth_redirect")
       : null;
-    if (savedRedirect) {
+    const landingPath = await resolveLandingPath();
+    if (savedRedirect && landingPath !== "/onboarding") {
       sessionStorage.removeItem("auth_redirect");
       router.push(savedRedirect);
     } else {
+      if (savedRedirect) sessionStorage.removeItem("auth_redirect");
       // New users go to /onboarding; returning users go straight to /dashboard.
       // resolveLandingPath() reads the user's onboarding state from the server.
-      router.push(await resolveLandingPath());
+      router.push(landingPath);
     }
   };
 

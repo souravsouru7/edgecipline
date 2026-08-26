@@ -63,6 +63,7 @@ captures/
 
 # Google Services config is injected per environment/CI.
 app/google-services.json
+app/google-services.json.bak-*
 
 # Freeline
 freeline.py

@@ -1,6 +1,15 @@
 const { buildPagination } = require("../../utils/apiResponse");
 const { standardizeResponse } = require("../../middleware/standardizeResponse");
+const { errorHandler } = require("../../middleware/errorHandler");
 const { notificationSchemas, tradeSchemas } = require("../../validation/schemas");
+
+jest.mock("../../utils/logger", () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+
+jest.mock("../../config/sentry", () => ({
+  captureOperationalError: jest.fn(),
+}));
 
 describe("API contract infrastructure", () => {
   test("builds deterministic pagination metadata", () => {
@@ -68,5 +77,44 @@ describe("API contract infrastructure", () => {
         requestId: "req-test",
       },
     });
+  });
+
+  test("normalizes malformed JSON without classifying it as an internal error", () => {
+    const err = new SyntaxError("Expected property name or '}' in JSON at position 1");
+    err.status = 400;
+    err.body = "{bad json";
+
+    const req = {
+      method: "POST",
+      originalUrl: "/api/auth/login",
+      headers: {},
+      get: jest.fn(() => "jest"),
+      ip: "127.0.0.1",
+      requestId: "req-json",
+    };
+    const res = {
+      headersSent: false,
+      statusCode: 200,
+      body: null,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      },
+    };
+
+    errorHandler(err, req, res, jest.fn());
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({
+      status: "error",
+      message: "Invalid JSON request body.",
+      errorCode: "INVALID_JSON",
+      requestId: "req-json",
+    });
+    expect(res.body).not.toHaveProperty("stack");
   });
 });

@@ -12,6 +12,13 @@ def releaseStorePassword = System.getenv('EDGE_RELEASE_STORE_PASSWORD') ?: keyst
 def releaseKeyAlias = System.getenv('EDGE_RELEASE_KEY_ALIAS') ?: keystoreProperties['keyAlias']
 def releaseKeyPassword = System.getenv('EDGE_RELEASE_KEY_PASSWORD') ?: keystoreProperties['keyPassword']
 def sentryDsn = System.getenv('SENTRY_ANDROID_DSN') ?: project.findProperty('SENTRY_ANDROID_DSN') ?: ''
+
+// Play rejects an upload whose versionCode is not strictly greater than every
+// previous one, so a hard-coded value fails on the second release. CI sets
+// EDGE_VERSION_CODE (e.g. the build number); local builds fall back to 1 so
+// day-to-day development is unaffected.
+def edgeVersionCode = Integer.parseInt(System.getenv('EDGE_VERSION_CODE') ?: '1')
+def edgeVersionName = System.getenv('EDGE_VERSION_NAME') ?: '1.0'
 def sentryUploadConfigured = [
     System.getenv('SENTRY_AUTH_TOKEN'),
     System.getenv('SENTRY_ORG'),
@@ -24,7 +31,7 @@ def releaseSigningConfigured = [
     releaseKeyPassword
 ].every { it != null && !it.toString().trim().isEmpty() }
 android {
-    namespace = "com.edgecpline"
+    namespace = "com.edgecipline"
     compileSdk = rootProject.ext.compileSdkVersion
 
     signingConfigs {
@@ -39,11 +46,11 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.edgecpline"
+        applicationId "com.edgecipline"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode edgeVersionCode
+        versionName edgeVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [sentryDsn: sentryDsn]
         aaptOptions {

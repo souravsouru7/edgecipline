@@ -39,6 +39,10 @@ const ocrJobSchema = new mongoose.Schema(
       mimeType: { type: String, default: "" },
       bytes: { type: Number, default: 0 },
     },
+    imageHash: {
+      type: String,
+      default: "",
+    },
     requestedTradeDate: {
       type: Date,
       default: null,
@@ -118,6 +122,7 @@ const ocrJobSchema = new mongoose.Schema(
 
 ocrJobSchema.index({ user: 1, createdAt: -1 });
 ocrJobSchema.index({ user: 1, status: 1, createdAt: -1 });
+ocrJobSchema.index({ user: 1, imageHash: 1 });
 
 module.exports = {
   OCR_JOB_STATUSES,

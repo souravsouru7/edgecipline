@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Edgecipline — App Store &amp; Play Store Readiness Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #ffffff;
+    color: #0F1923;
+    font-size: 12.5px;
+    line-height: 1.62;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 15mm 16mm;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: avoid; }
+
+  /* ─── Cover ─── */
+  .cover {
+    background: linear-gradient(160deg, #0F1923 0%, #1A2535 55%, #0D1218 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20mm 16mm 14mm;
+  }
+  .cover-tag {
+    display: inline-block;
+    background: rgba(214,59,59,0.20);
+    border: 1px solid rgba(214,59,59,0.50);
+    color: #FCA5A5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+    padding: 4px 12px; border-radius: 99px;
+    text-transform: uppercase; margin-bottom: 22px;
+    width: fit-content;
+  }
+  .cover h1 {
+    font-size: 42px; font-weight: 900; line-height: 1.08;
+    letter-spacing: -0.035em; margin-bottom: 16px;
+  }
+  .cover h1 .accent { color: #22C78E; }
+  .cover .sub {
+    font-size: 14.5px; color: rgba(255,255,255,0.62);
+    line-height: 1.6; max-width: 150mm; margin-bottom: 30px;
+  }
+  .cover-bar { width: 52px; height: 3px; background: linear-gradient(90deg,#D63B3B,#F59E0B); border-radius:2px; margin-bottom: 30px; }
+
+  .verdict-grid { display:flex; gap: 10px; margin-bottom: 30px; }
+  .verdict-card {
+    flex:1; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-left: 3px solid #D63B3B;
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .verdict-card .store { font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.55); letter-spacing:0.08em; text-transform: uppercase; margin-bottom:6px; }
+  .verdict-card .state { font-size: 17px; font-weight: 900; color: #FF6B6B; margin-bottom:6px; letter-spacing:-0.01em; }
+  .verdict-card .why { font-size: 11px; color: rgba(255,255,255,0.6); line-height:1.55; }
+
+  .cover-stats { display:flex; gap: 8px; margin-bottom: 40px; }
+  .stat {
+    flex:1; background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 9px; padding: 12px 14px; text-align:center;
+  }
+  .stat .n { font-family:'JetBrains Mono',monospace; font-size: 26px; font-weight: 700; line-height:1; margin-bottom:6px; }
+  .stat .l { font-size: 9.5px; color: rgba(255,255,255,0.5); font-weight:600; letter-spacing:0.09em; text-transform:uppercase; }
+  .stat.p0 .n { color:#FF6B6B; } .stat.p1 .n { color:#FBBF24; }
+  .stat.p2 .n { color:#93C5FD; } .stat.ok .n { color:#34D399; }
+
+  .cover-bottom {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .cover-bottom .brand { font-size: 14px; font-weight: 800; }
+  .cover-bottom .brand span { color: #22C78E; }
+  .cover-bottom .tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.35); letter-spacing: 0.1em; }
+
+  /* ─── Section chrome ─── */
+  .band { height: 3px; border-radius: 2px; margin-bottom: 16px; }
+  .band-red   { background: linear-gradient(90deg,#D63B3B,#D63B3B22); }
+  .band-amber { background: linear-gradient(90deg,#D97706,#D9770622); }
+  .band-slate { background: linear-gradient(90deg,#475569,#47556922); }
+  .band-green { background: linear-gradient(90deg,#0D9E6E,#0D9E6E22); }
+  .band-navy  { background: linear-gradient(90deg,#0F1923,#0F192322); }
+
+  .eyebrow {
+    font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700;
+    letter-spacing:0.18em; text-transform:uppercase; margin-bottom:7px;
+  }
+  .eyebrow.red{color:#D63B3B;} .eyebrow.amber{color:#B45309;}
+  .eyebrow.slate{color:#475569;} .eyebrow.green{color:#0D9E6E;} .eyebrow.navy{color:#0F1923;}
+
+  h2.cont { font-size:15px; font-weight:800; color:#94A3B8; letter-spacing:-0.01em; margin-bottom:13px; }
+  h2.sec { font-size: 24px; font-weight: 900; letter-spacing:-0.028em; margin-bottom: 6px; line-height:1.15; }
+  p.lede { font-size: 12.2px; color:#475569; margin-bottom: 15px; max-width: 165mm; }
+
+  /* ─── Finding cards ─── */
+  .finding {
+    border: 1px solid #E2E8F0; border-radius: 11px;
+    padding: 11px 14px 12px; margin-bottom: 9px;
+    page-break-inside: avoid; background:#fff;
+  }
+  .finding.p0 { border-left: 3px solid #D63B3B; background:#FFFBFB; }
+  .finding.p1 { border-left: 3px solid #D97706; background:#FFFDF8; }
+
+  .f-head { display:flex; align-items:baseline; gap:9px; margin-bottom:7px; }
+  .f-id {
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700;
+    padding:2px 7px; border-radius:5px; letter-spacing:0.05em; flex-shrink:0;
+  }
+  .p0 .f-id { background:#FEE2E2; color:#B91C1C; }
+  .p1 .f-id { background:#FEF3C7; color:#92400E; }
+  .f-title { font-size: 13.5px; font-weight: 800; letter-spacing:-0.012em; line-height:1.3; }
+  .f-body { font-size: 11.4px; color:#334155; line-height:1.56; }
+  .f-body p { margin-bottom: 6px; }
+  .f-body p:last-child { margin-bottom: 0; }
+  .f-body ul { margin: 6px 0 7px 0; padding-left: 15px; }
+  .f-body li { margin-bottom: 4px; }
+
+  .rule {
+    display:inline-block; background:#0F1923; color:#fff;
+    font-family:'JetBrains Mono',monospace; font-size:8.5px; font-weight:600;
+    padding:2px 7px; border-radius:4px; letter-spacing:0.04em;
+    margin-right:5px; white-space:nowrap;
+  }
+  .rule.apple { background:#1E293B; }
+  .rule.play  { background:#0D9E6E; }
+
+  .fix {
+    margin-top: 7px; padding: 8px 11px;
+    background:#F0FDF4; border-left:2px solid #0D9E6E; border-radius:0 7px 7px 0;
+    font-size: 11.1px; color:#14532D; line-height:1.58;
+  }
+  .fix b { color:#0D9E6E; font-weight:800; }
+
+  code, .path {
+    font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    background:#F1F5F9; color:#0F1923;
+    padding:1px 5px; border-radius:4px; border:1px solid #E2E8F0;
+    word-break: break-all;
+  }
+  pre {
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; line-height:1.55;
+    background:#0F1923; color:#E2E8F0;
+    padding:9px 12px; border-radius:8px; margin:7px 0;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  pre .cm { color:#64748B; }
+  pre .hl { color:#FCA5A5; }
+
+  /* ─── Tables ─── */
+  table { width:100%; border-collapse:collapse; margin: 9px 0 12px; font-size:11px; page-break-inside:avoid; }
+  th {
+    background:#0F1923; color:#fff; text-align:left;
+    padding:8px 11px; font-size:9.5px; font-weight:700;
+    letter-spacing:0.09em; text-transform:uppercase;
+  }
+  th:first-child { border-radius:7px 0 0 0; } th:last-child { border-radius:0 7px 0 0; }
+  td { padding:7px 10px; border-bottom:1px solid #E2E8F0; vertical-align:top; color:#334155; line-height:1.55; }
+  tr:nth-child(even) td { background:#F8FAFC; }
+  td b { color:#0F1923; font-weight:700; }
+  .tid { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#B45309; white-space:nowrap; }
+  .bad  { color:#D63B3B; font-weight:800; font-family:'JetBrains Mono',monospace; }
+  .good { color:#0D9E6E; font-weight:800; font-family:'JetBrains Mono',monospace; }
+
+  /* ─── Good list ─── */
+  .goods { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-bottom:6px; }
+  .goods div { font-size:11.3px; color:#334155; padding-left:17px; position:relative; line-height:1.5; }
+  .goods div::before { content:'✓'; position:absolute; left:0; color:#0D9E6E; font-weight:800; }
+
+  /* ─── Checklist ─── */
+  .checks { margin-bottom: 4px; }
+  .checks div { font-size:11.4px; color:#334155; padding-left:19px; position:relative; margin-bottom:5px; line-height:1.5; }
+  .checks div::before {
+    content:''; position:absolute; left:0; top:3px;
+    width:11px; height:11px; border:1.6px solid #94A3B8; border-radius:3px;
+  }
+  .checks div.crit::before { border-color:#D63B3B; }
+  .checks div.crit { color:#0F1923; font-weight:600; }
+
+  /* ─── Roadmap ─── */
+  .week { margin-bottom: 15px; page-break-inside:avoid; }
+  .week-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .week-chip {
+    font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700;
+    background:#0F1923; color:#fff; padding:3px 9px; border-radius:5px;
+    letter-spacing:0.09em; text-transform:uppercase;
+  }
+  .week-title { font-size:14px; font-weight:800; letter-spacing:-0.012em; }
+  ol.steps { padding-left: 19px; margin:0; }
+  ol.steps li { font-size:11.6px; color:#334155; margin-bottom:5px; line-height:1.56; }
+  ol.steps li b { color:#0F1923; }
+  .ref { color:#94A3B8; font-family:'JetBrains Mono',monospace; font-size:9.5px; }
+
+  .callout {
+    background:#FFF7ED; border:1px solid #FDBA74; border-left:3px solid #EA580C;
+    border-radius:0 9px 9px 0; padding:12px 15px; margin:12px 0;
+    font-size:11.8px; color:#7C2D12; line-height:1.6;
+  }
+  .callout b { color:#9A3412; font-weight:800; }
+
+  .summary {
+    background:linear-gradient(160deg,#0F1923,#1A2535); color:#fff;
+    border-radius:13px; padding:22px 24px; margin-top:16px;
+  }
+  .summary .eyebrow { color:#22C78E; }
+  .summary p { font-size:13px; color:rgba(255,255,255,0.78); line-height:1.7; }
+  .summary p b { color:#fff; font-weight:800; }
+
+  .foot {
+    position:absolute; bottom:8mm; left:15mm; right:15mm;
+    display:flex; justify-content:space-between; align-items:center;
+    border-top:1px solid #E2E8F0; padding-top:7px;
+    font-family:'JetBrains Mono',monospace; font-size:8.5px;
+    color:#94A3B8; letter-spacing:0.08em;
+  }
+  .foot .b { font-weight:700; color:#0F1923; font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:0; font-size:10px; }
+  .foot .b span { color:#0D9E6E; }
+</style>
+</head>
+<body>
+
+<!-- ══════════ COVER ══════════ -->
+<div class="page cover">
+  <div>
+    <div class="cover-tag">Release Readiness Audit</div>
+    <h1>App Store &amp;<br/>Play Store<br/><span class="accent">Readiness Report</span></h1>
+    <div class="cover-bar"></div>
+    <div class="sub">
+      A full pre-submission audit of Edgecipline — Next.js 16 static export wrapped in Capacitor 6 —
+      against Google Play Developer Program Policy and the Apple App Store Review Guidelines.
+    </div>
+
+    <div class="verdict-grid">
+      <div class="verdict-card">
+        <div class="store">Google Play</div>
+        <div class="state">Not ready</div>
+        <div class="why">Six policy and completeness blockers. A fake payment form ships inside the release APK, there is no account-deletion path, and the bundle points at the staging API.</div>
+      </div>
+      <div class="verdict-card">
+        <div class="store">Apple App Store</div>
+        <div class="state">Cannot submit</div>
+        <div class="why">Everything above, plus the iOS target has never been configured or compiled. Sign-in, camera and push are all broken on iOS today.</div>
+      </div>
+    </div>
+
+    <div class="cover-stats">
+      <div class="stat p0"><div class="n">11</div><div class="l">P0 Blockers</div></div>
+      <div class="stat p1"><div class="n">10</div><div class="l">P1 High</div></div>
+      <div class="stat p2"><div class="n">8</div><div class="l">P2 Medium</div></div>
+      <div class="stat ok"><div class="n">~1w</div><div class="l">To Android</div></div>
+      <div class="stat ok"><div class="n">~3w</div><div class="l">To iOS</div></div>
+    </div>
+  </div>
+
+  <div class="cover-bottom">
+    <div class="brand">Edge<span>cipline</span></div>
+    <div class="tag">04 AUG 2026 · BRANCH staging @ ebef14b · com.edgecpline</div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE 2 — VERDICT & WHAT'S RIGHT ══════════ -->
+<div class="page">
+  <div class="band band-navy"></div>
+  <div class="eyebrow navy">Section 01</div>
+  <h2 class="sec">Verdict</h2>
+  <p class="lede">Scope: Android (Google Play) and iOS (Apple App Store) release readiness, covering build configuration, store policy compliance, native platform setup, and console submission prerequisites.</p>
+
+  <table>
+    <tr><th style="width:20%">Store</th><th style="width:22%">Status</th><th>Reason</th></tr>
+    <tr>
+      <td><b>Google Play</b></td>
+      <td><span class="bad">NOT READY</span><br/>will be rejected</td>
+      <td>Six policy/completeness blockers. A fake payment form ships inside the release APK, there is no account-deletion path, and the bundle points at the staging API.</td>
+    </tr>
+    <tr>
+      <td><b>Apple App Store</b></td>
+      <td><span class="bad">CANNOT SUBMIT</span></td>
+      <td>Everything above, plus the iOS target has never been configured: no Firebase config, no privacy manifest, no usage-description strings, no push entitlement. Sign-in, camera and push are all broken on iOS today.</td>
+    </tr>
+  </table>
+
+  <div class="callout">
+    <b>Realistic effort to a submittable build:</b> Android ≈ 1 week · iOS ≈ 2–3 weeks.
+    iOS also requires a Mac and an Apple Developer account before anything can be built at all — the project
+    has never been compiled.
+  </div>
+
+  <div class="band band-green" style="margin-top:22px"></div>
+  <div class="eyebrow green">Section 02</div>
+  <h2 class="sec">What is already right</h2>
+  <p class="lede">Credit where it is due — a large share of the hard release engineering is done. The problems in this report are almost entirely product and compliance gaps, not architecture gaps.</p>
+
+  <div class="goods">
+    <div>Release signing is env / <code>keystore.properties</code> driven and <b>fails the build</b> if unconfigured</div>
+    <div>R8 minification and resource shrinking enabled on release</div>
+    <div><code>targetSdk 36</code> / <code>compileSdk 36</code> — meets Play's 2026 target-API requirement</div>
+    <div>Cleartext traffic disabled via <code>network_security_config.xml</code></div>
+    <div><code>android:allowBackup="false"</code></div>
+    <div>Release output is an <b>AAB</b> (<code>bundleRelease</code>), not an APK</div>
+    <div>Sentry wired for crash reporting, with <code>send-default-pii=false</code></div>
+    <div>Build-time environment validation that hard-fails on bad config</div>
+    <div>Genuine in-app Privacy Policy and Terms with proper trading + AI disclaimers</div>
+    <div>Adaptive launcher icons at all densities, splash at all densities</div>
+    <div>Notification icon, accent colour and channels correctly declared</div>
+    <div>Secrets (<code>.env</code>, <code>keystore.properties</code>, <code>*.keystore</code>) correctly git-ignored</div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>02</div></div>
+</div>
+
+<!-- ══════════ PAGE 3 — P0 (1-2) ══════════ -->
+<div class="page">
+  <div class="band band-red"></div>
+  <div class="eyebrow red">Section 03 · Severity P0</div>
+  <h2 class="sec">Blockers</h2>
+  <p class="lede">Each of these causes a guaranteed store rejection or a functionally broken app. All eleven must close before either submission.</p>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-1</span><span class="f-title">No way to delete an account — violates both stores</span></div>
+    <div class="f-body">
+      <p>There is <b>no account-deletion feature anywhere</b> in the product. Verified: zero matches across <code>frontend/app</code>, <code>frontend/components</code>, <code>frontend/services</code>, and no delete-account route in <code>backend/routes</code> — the only <code>router.delete</code> handlers cover individual trades.</p>
+      <ul>
+        <li><span class="rule play">PLAY · USER DATA</span> Any app allowing account creation must offer in-app deletion <b>and</b> a publicly reachable web deletion URL declared in Play Console → Data safety. <code>edgecipline.com/delete-account</code> currently returns <span class="bad">404</span>.</li>
+        <li><span class="rule apple">APPLE · 5.1.1(v)</span> Apps supporting account creation must let users initiate deletion <b>from within the app</b>.</li>
+      </ul>
+      <div class="fix"><b>Fix →</b> Add <code>DELETE /api/profile/account</code> (hard-delete or anonymise User, Trades, Reflections, Checklists, device tokens, Cloudinary uploads and the Firebase Auth user), a confirm-flow entry in <code>app/profile/page.js</code>, and a public <code>/delete-account</code> web page describing the process.</div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-2</span><span class="f-title">A fake payment form ships inside the release build</span></div>
+    <div class="f-body">
+      <p><code>components/SmartPaywall.js</code> is live and mounted in <code>app/upload-trade/page.js:317</code>. Its checkout loader branches on platform:</p>
+<pre><span class="cm">// SmartPaywall.js:26</span>
+function isSandboxCheckout() {
+  return <span class="hl">isNativeAndroidApp()</span> || !String(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "").trim();
+}</pre>
+      <p>Two separate failures fall out of that one line:</p>
+      <p><b>On Android</b> — the check is <code>true</code>, so the app injects <code>utils/mockRazorpay.js</code>: a full-screen <b>imitation Razorpay checkout</b> with card-number, expiry and CVV inputs, a "Pay" button and a "simulate failure" button. It grants a paid subscription with no transaction. Confirmed present in the shipped bundle.
+      <span class="rule play">PLAY · DECEPTIVE BEHAVIOR + PAYMENTS</span> Rejection, with app-suspension risk.</p>
+      <p><b>On iOS</b> — the platform check is <code>false</code> and the Razorpay key is non-empty, so the sandbox branch is skipped and the app loads the <b>real</b> <code>checkout.razorpay.com/v1/checkout.js</code>.
+      <span class="rule apple">APPLE · 3.1.1</span> Digital subscriptions must use In-App Purchase; a third-party processor is an automatic rejection. It would also fail at runtime — the key is a placeholder.</p>
+      <div class="fix"><b>Fix →</b> Pick one strategy; do not ship the current hybrid.
+      <b>(a) Recommended for v1:</b> remove the paywall from both mobile builds. Sell on the web only and have the app read subscription status — Apple 3.1.3(b) <i>Multiplatform</i> permits honouring a subscription bought elsewhere, provided the app contains no purchase UI and no link to buy.
+      <b>(b)</b> Implement Google Play Billing + StoreKit properly (weeks, not days).
+      Either way, <b>delete <code>utils/mockRazorpay.js</code> from production builds entirely</b> — a fake payment screen must never be in a store artifact.</div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>03</div></div>
+</div>
+
+<!-- ══════════ PAGE 4 — P0 (3-5) ══════════ -->
+<div class="page">
+  <div class="band band-red"></div>
+  <div class="eyebrow red">Section 03 · Severity P0 — continued</div>
+  <h2 class="cont">Blockers</h2>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-3</span><span class="f-title">"Upgrade Plan" button leads to a 404 inside the app</span></div>
+    <div class="f-body">
+      <p><code>app/profile/page.js:349</code> renders a prominent gradient CTA:</p>
+<pre>{profile?.subscriptionStatus !== "active" &amp;&amp; (
+  &lt;Link href=<span class="hl">"/pricing"</span>&gt;Upgrade Plan →&lt;/Link&gt;
+)}</pre>
+      <p>There is <b>no <code>/pricing</code> route</b> — not in <code>frontend/app/</code>, and no <code>out/pricing*</code> in the static export. Every user whose subscription is not active — which includes <b>every fresh reviewer account</b> — taps this and gets a 404 screen.</p>
+      <p><span class="rule apple">APPLE · 2.1 APP COMPLETENESS</span><span class="rule play">PLAY · BROKEN FUNCTIONALITY</span> Near-certain rejection on first review.</p>
+      <div class="fix"><b>Fix →</b> Remove the CTA (per P0-2a) or build the route. Then sweep for other dead links — <code>app/admin/users/page.js:49</code> also deep-links to <code>/pricing</code>.</div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-4</span><span class="f-title">The release bundle is baked against the staging API</span></div>
+    <div class="f-body">
+      <p><code>frontend/.env.local</code> line 1 sets <code>NEXT_PUBLIC_API_URL=https://staging-api.stratedge.live/api</code>.</p>
+      <p><code>output: "export"</code> compiles that string into the JS chunks — verified present in <code>out/</code>, <code>android/app/src/main/assets/public</code> <b>and</b> <code>ios/App/App/public</code>. <code>npm run android:build</code> reads the same file, so today's release AAB ships pointing at staging.</p>
+      <p>The guard meant to catch this has been widened to let it through:</p>
+<pre><span class="cm">// config/environment.js:5</span>
+const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live", <span class="hl">"staging-api.stratedge.live"</span>]);</pre>
+      <p>The comment three lines above literally reads <i>"Never point a release build here"</i> — but nothing enforces it.</p>
+      <div class="fix"><b>Fix →</b> Add a <code>.env.production</code> pinned to <code>api.stratedge.live</code>, and gate the staging host behind a non-production mode so a production build physically cannot resolve it.</div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-5</span><span class="f-title">Placeholder Razorpay key passes production validation</span></div>
+    <div class="f-body">
+      <p><code>.env.local</code> sets <code>NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_placeholder</code>. The validator at <code>config/environment.js:127</code> only checks <code>startsWith("rzp_live_")</code>, and <code>hasPlaceholder()</code> at line 44 only matches <code>^(your_|replace_|example|changeme|&lt;)</code>. The value sails through both.</p>
+      <p>So the "production requires a live key" control is defeated — and combined with P0-2, the iOS build would load a real Razorpay SDK holding a dead key.</p>
+      <div class="fix"><b>Fix →</b> Add <code>placeholder|dummy|test|sample</code> to <code>hasPlaceholder()</code> and enforce a minimum key length.</div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>04</div></div>
+</div>
+
+<!-- ══════════ PAGE 5 — P0 (6-8) ══════════ -->
+<div class="page">
+  <div class="band band-red"></div>
+  <div class="eyebrow red">Section 03 · Severity P0 — continued</div>
+  <h2 class="cont">Blockers</h2>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-6</span><span class="f-title">The full admin console ships inside the consumer app</span></div>
+    <div class="f-body">
+      <p>Both mobile bundles contain the complete internal back-office:</p>
+<pre>android/app/src/main/assets/public/admin/{login, dashboard, users, payments,
+                                          trades, monitoring, feedback, issues, expired-users}
+ios/App/App/public/admin/...          <span class="cm">(identical)</span></pre>
+      <p>A reviewer — or any user — can navigate to <code>/admin/login</code> inside the app. <code>admin/users</code> exposes subscription activation/deactivation; <code>admin/payments</code> exposes revenue.</p>
+      <p><span class="rule apple">APPLE · 2.3.1 HIDDEN FEATURES</span> Apple explicitly rejects for this. It is also an unnecessary attack surface — the auth check lives in <code>admin/layout.js</code>, which is client-side.</p>
+      <div class="fix"><b>Fix →</b> Exclude <code>app/admin/**</code> from the Capacitor export (separate build target, or a build-time route filter) and ship admin as a web-only deployment.</div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-7</span><span class="f-title">iOS: Firebase is not configured — Google Sign-In is dead</span></div>
+    <div class="f-body">
+      <ul>
+        <li><code>ios/App/App/GoogleService-Info.plist</code> — <b>missing</b></li>
+        <li><code>AppDelegate.swift</code> — never calls <code>FirebaseApp.configure()</code></li>
+        <li><code>Info.plist</code> has no <code>CFBundleURLTypes</code> with the <code>REVERSED_CLIENT_ID</code> scheme</li>
+      </ul>
+      <p><code>@capacitor-firebase/authentication</code> is the only sign-in path with a configured provider (<code>google.com</code>). On iOS it will fail or crash on first tap.</p>
+      <div class="fix"><b>Fix →</b> Register the iOS app in the Firebase console, add <code>GoogleService-Info.plist</code> to the Xcode target, call <code>FirebaseApp.configure()</code>, and add the reversed-client-ID URL scheme.</div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-8</span><span class="f-title">iOS: no privacy manifest (PrivacyInfo.xcprivacy)</span></div>
+    <div class="f-body">
+      <p>Required by Apple since May 2024 for apps using "required reason" APIs. Capacitor core uses <code>UserDefaults</code>; the app also touches file timestamps and disk space. Submitting without it produces <b>ITMS-91053: Missing API declaration</b> and the build is rejected at upload.</p>
+      <div class="fix"><b>Fix →</b> Add <code>PrivacyInfo.xcprivacy</code> to the App target declaring at minimum <code>NSPrivacyAccessedAPICategoryUserDefaults</code> (reason <code>CA92.1</code>), plus your data-collection types: email, name, user content, crash data, device ID.</div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>05</div></div>
+</div>
+
+<!-- ══════════ PAGE 6 — P0 (9-11) ══════════ -->
+<div class="page">
+  <div class="band band-red"></div>
+  <div class="eyebrow red">Section 03 · Severity P0 — continued</div>
+  <h2 class="cont">Blockers</h2>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-9</span><span class="f-title">iOS: missing camera / photo usage descriptions → guaranteed crash</span></div>
+    <div class="f-body">
+      <p>The app uploads trade screenshots — Android declares <code>CAMERA</code> and <code>READ_MEDIA_IMAGES</code> (<code>AndroidManifest.xml:91-97</code>). Inside a <code>WKWebView</code>, <code>&lt;input type="file" accept="image/*"&gt;</code> triggers the iOS camera and photo picker.</p>
+      <p><code>Info.plist</code> contains <b>no</b> <code>NSCameraUsageDescription</code> and <b>no</b> <code>NSPhotoLibraryUsageDescription</code>. iOS terminates the app immediately when a permission is requested without its string, and the binary is rejected at upload (<b>ITMS-90683</b>).</p>
+      <div class="fix"><b>Fix →</b> Add both keys with honest, specific copy, e.g. <i>"Edgecipline uses your camera to capture broker screenshots so trades can be logged automatically."</i></div>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-10</span><span class="f-title">iOS: push notifications cannot work</span></div>
+    <div class="f-body">
+      <p><code>@capacitor/push-notifications</code> is a dependency and appears in <code>packageClassList</code>, but:</p>
+      <ul>
+        <li>there is <b>no <code>App.entitlements</code></b> file → no <code>aps-environment</code> key → APNs registration fails and Xcode blocks the upload</li>
+        <li><code>AppDelegate.swift</code> does not forward the registration callbacks the Capacitor plugin requires</li>
+        <li>no APNs auth key uploaded to Firebase (required for FCM → APNs)</li>
+      </ul>
+<pre>func application(_ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+}
+func application(_ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+}</pre>
+    </div>
+  </div>
+  <div class="finding p0">
+    <div class="f-head"><span class="f-id">P0-11</span><span class="f-title">The public Privacy Policy URL is broken</span></div>
+    <div class="f-body">
+      <p>Both consoles require a live, publicly reachable privacy policy URL, and Play flags the listing if it ever stops resolving.</p>
+      <table style="margin-top:6px">
+        <tr><th style="width:62%">URL</th><th>Status</th></tr>
+        <tr><td><code>https://www.edgecipline.com/privacy-policy</code></td><td><span class="bad">404</span></td></tr>
+        <tr><td><code>https://www.edgecipline.com/privacy</code></td><td><span class="good">200</span></td></tr>
+        <tr><td><code>https://www.edgecipline.com/terms</code></td><td><span class="good">200</span></td></tr>
+        <tr><td><code>https://www.edgecipline.com/support</code></td><td><span class="bad">404</span></td></tr>
+      </table>
+      <p>The repo defines <code>app/privacy-policy/</code> and has <b>no</b> <code>app/privacy/</code> — so the live site is a <b>stale deploy</b>. The moment you redeploy the current tree, <code>/privacy</code> starts 404-ing and the URL registered with Google and Apple dies.</p>
+      <div class="fix"><b>Fix →</b> Redeploy the site from this tree, settle on one canonical path, add a redirect from the other, and ship <code>/support</code> and <code>/delete-account</code> publicly before submitting.</div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>06</div></div>
+</div>
+
+<!-- ══════════ PAGE 7 — P1 (1-6) ══════════ -->
+<div class="page">
+  <div class="band band-amber"></div>
+  <div class="eyebrow amber">Section 04 · Severity P1</div>
+  <h2 class="sec">High — rejection risk, or breaks on launch day</h2>
+  <p class="lede">These will not necessarily stop the first review, but each one either invites a policy question or silently breaks the app in production.</p>
+  <div class="finding p1">
+    <div class="f-head"><span class="f-id">P1-1</span><span class="f-title">Signing key is compromised, and the artifacts are still tracked</span></div>
+    <div class="f-body">
+      <p>The June report claimed these were "staged for untracking." They remain tracked today: <code>frontend/android.zip</code> (21 MB) and <code>frontend/android/app/build/outputs/apk/debug/app-debug.apk</code>.</p>
+      <p><code>android.zip</code> contains <code>google-services.json</code>, <code>local.properties</code>, a debug APK and the <b>old plaintext signing properties</b>, and is still in git history (commit <code>6beeccd</code>).</p>
+      <div class="fix"><b>Fix →</b> <code>git rm --cached</code> both, rotate the upload key, then <code>git filter-repo</code> before the repo is ever shared.</div>
+    </div>
+  </div>
+  <div class="finding p1">
+    <div class="f-head"><span class="f-id">P1-2</span><span class="f-title">Google Sign-In will break the day you publish</span></div>
+    <div class="f-body">
+      <p><code>google-services.json</code> registers exactly <b>one</b> Android OAuth client (cert hash <code>2c2e3202…</code>). Play App Signing <b>re-signs your AAB with Google's key</b>, so the installed app's SHA-1 will not match anything in Firebase.</p>
+      <div class="fix"><b>Fix →</b> After the first upload, copy the <i>App signing key certificate</i> SHA-1 from Play Console → Setup → App integrity into Firebase, re-download <code>google-services.json</code>, and rebuild. Add the upload-key SHA-1 too.</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th style="width:8%">ID</th><th style="width:37%">Issue</th><th>Detail and fix</th></tr>
+<tr>
+      <td class="tid">P1-3</td>
+      <td><b>SCHEDULE_EXACT_ALARM needs a Play declaration</b></td>
+      <td><code>AndroidManifest.xml:108</code>. On API 34+ this is revoked by default, and Play restricts it to alarm-clock/calendar apps via a sensitive-permission form. A trading-checklist reminder is unlikely to qualify. <b>Drop it</b> and rely on the WorkManager fallback already implemented.</td>
+    </tr>
+<tr>
+      <td class="tid">P1-4</td>
+      <td><b>READ_MEDIA_IMAGES needs the Photo &amp; Video declaration</b></td>
+      <td><code>AndroidManifest.xml:95</code>. Play requires broad photo access to be core functionality, otherwise you must use the Android Photo Picker. Also missing <code>READ_MEDIA_VISUAL_USER_SELECTED</code> for Android 14 partial access.</td>
+    </tr>
+<tr>
+      <td class="tid">P1-5</td>
+      <td><b>FOREGROUND_SERVICE declared with no service</b></td>
+      <td><code>AndroidManifest.xml:112</code> — no <code>&lt;service&gt;</code> exists. On API 34+ every FGS needs a <code>foregroundServiceType</code> and a matching granular permission. Unused sensitive permissions attract review questions. <b>Delete the line.</b></td>
+    </tr>
+<tr>
+      <td class="tid">P1-6</td>
+      <td><b>versionCode 1 is hard-coded</b></td>
+      <td><code>build.gradle:44</code>. Every Play upload needs a strictly higher code; you will hit "version code already used" on the second submission. Drive it from CI.</td>
+    </tr>
+</table>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>07</div></div>
+</div>
+
+<!-- ══════════ PAGE 8 — P1 (7-10) ══════════ -->
+<div class="page">
+  <div class="band band-amber"></div>
+  <div class="eyebrow amber">Section 04 · Severity P1 — continued</div>
+  <h2 class="cont">High — rejection risk, or breaks on launch day</h2>
+  <table>
+    <tr><th style="width:8%">ID</th><th style="width:37%">Issue</th><th>Detail and fix</th></tr>
+<tr>
+      <td class="tid">P1-7</td>
+      <td><b>iOS project is unbuilt and misconfigured</b></td>
+      <td>
+        <code>IPHONEOS_DEPLOYMENT_TARGET = 13.0</code> — below Xcode 16's floor, raise to 15.0+ ·
+        <code>CODE_SIGN_IDENTITY = "iPhone Developer"</code> — deprecated, release needs <i>Apple Distribution</i> ·
+        <code>DEVELOPMENT_TEAM</code> unset ·
+        no <code>Podfile.lock</code> and no <code>Pods/</code> → <b><code>pod install</code> has never been run</b> ·
+        <code>UIRequiredDeviceCapabilities = [armv7]</code> in <code>Info.plist:29-31</code> is 32-bit, unsupported since iOS 11 → change to <code>arm64</code> ·
+        no <code>ITSAppUsesNonExemptEncryption</code> key, so App Store Connect blocks every submission on the export-compliance question.
+      </td>
+    </tr>
+<tr>
+      <td class="tid">P1-8</td>
+      <td><b>Notification permission requested cold at first launch</b></td>
+      <td><code>MainActivity.java:37</code> calls <code>requestNotificationPermissionIfNeeded()</code> inside <code>onCreate()</code>, before the user has seen anything. Not a hard rejection, but it tanks opt-in rates and Apple reviewers dislike it. Ask after onboarding, with a rationale screen.</td>
+    </tr>
+<tr>
+      <td class="tid">P1-9</td>
+      <td><b>Verify Apple Guideline 4.8 (Sign in with Apple)</b></td>
+      <td>Google is the only third-party provider. Because email/password registration also exists, 4.8 is <i>likely</i> satisfied — but only if that path collects nothing beyond name + email and does no tracking. Confirm before submitting; adding Sign in with Apple removes all doubt.</td>
+    </tr>
+<tr>
+      <td class="tid">P1-10</td>
+      <td><b>Reviewers land straight in a broken state</b></td>
+      <td>A brand-new reviewer account has <code>subscriptionStatus !== "active"</code> → sees the dead Upgrade button (P0-3) and, on upload, the mock paywall (P0-2). You must also supply Apple with a <b>demo account</b> in App Review notes — <code>app/verify-otp/</code> implies email verification, and reviewers cannot receive your OTP emails.</td>
+    </tr>
+</table>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>08</div></div>
+</div>
+
+<!-- ══════════ PAGE 9 — P2 ══════════ -->
+<div class="page">
+  <div class="band band-slate"></div>
+  <div class="eyebrow slate">Section 05 · Severity P2</div>
+  <h2 class="sec">Medium — quality, polish, long-term cost</h2>
+  <table>
+    <tr><th style="width:8%">ID</th><th style="width:31%">Issue</th><th>Detail</th></tr>
+    <tr><td class="tid">P2-1</td><td><b>Google Fonts loaded from CDN in 29 files</b></td><td><code>app/layout.tsx:45-49</code> plus 28 pages fetch <code>fonts.googleapis.com</code> at runtime. In a packaged app that means visible FOUT, a broken look offline, and GDPR exposure — German courts have ruled CDN font loading transmits IP without consent. <b>Self-host via <code>next/font/local</code>.</b></td></tr>
+    <tr><td class="tid">P2-2</td><td><b>App ID typo is permanent</b></td><td><code>com.edgecpline</code> vs the brand "Edgecipline" (<code>capacitor.config.ts:4</code>). Cannot be changed after first publication on either store. It is also only two segments — Apple convention is reverse-DNS (<code>com.edgecipline.app</code>). <b>Last chance to fix is before the first upload.</b></td></tr>
+    <tr><td class="tid">P2-3</td><td><b>PWA manifest icons are fake</b></td><td><code>public/manifest.webmanifest</code> declares one <code>logo.png</code> as 192×192, 512×512 <i>and</i> 180×180. Generate real sizes.</td></tr>
+    <tr><td class="tid">P2-4</td><td><b>Dev leftovers committed</b></td><td><code>tmp-refactor.js</code>, <code>tmp-refactor-add.js</code>, <code>tmp-refactor-login.js</code>, <code>tmp-refactor-register.js</code>, <code>frontend/image.png</code>, root <code>image.png</code>.</td></tr>
+    <tr><td class="tid">P2-5</td><td><b>ESLint lints the build output</b></td><td><code>globalIgnores</code> in <code>eslint.config.mjs</code> overrides the defaults and drops <code>ios/App/App/public/**</code> and <code>android/**/assets/public/**</code>, so lint reports <b>44,737 problems</b> — roughly 44,300 from minified bundles. Real source issues are buried. Add those paths back.</td></tr>
+    <tr><td class="tid">P2-6</td><td><b>Privacy policy names the wrong product</b></td><td><code>privacy-policy/page.js:352</code> says "Edge Discipline", not "Edgecipline". Reviewers do read these.</td></tr>
+    <tr><td class="tid">P2-7</td><td><b>Policy dated April 17, 2026</b></td><td>Refresh before submission. Both stores check that the policy covers what the app actually collects: screenshots, trade data, Firebase auth, Sentry, FCM tokens, Cloudinary uploads.</td></tr>
+    <tr><td class="tid">P2-8</td><td><b>Debug logging in shipped native code</b></td><td><code>MainActivity.java</code> logs cookie and permission state via <code>Log.d</code>. Harmless but noisy — gate on <code>BuildConfig.DEBUG</code>.</td></tr>
+  </table>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>09</div></div>
+</div>
+
+<!-- ══════════ PAGE 10 — CONSOLE WORK ══════════ -->
+<div class="page">
+  <div class="band band-navy"></div>
+  <div class="eyebrow navy">Section 06</div>
+  <h2 class="sec">Store console work still outstanding</h2>
+  <p class="lede">None of this exists yet, and none of it is code.</p>
+
+  <div style="display:flex; gap:20px;">
+    <div style="flex:1">
+      <div style="font-size:12px; font-weight:800; margin-bottom:8px; color:#0D9E6E;">Google Play Console</div>
+      <div class="checks">
+        <div class="crit">Developer account ($25) + D-U-N-S / identity verification — can take 1–2 weeks</div>
+        <div class="crit">20 testers for 14 continuous days on closed testing before production access is granted to new personal accounts</div>
+        <div>Data safety form — collection, sharing, encryption in transit, deletion URL</div>
+        <div>Content rating questionnaire — expect finance / simulated-gambling probes</div>
+        <div>Target audience &amp; content (must be 18+)</div>
+        <div>Ads declaration (none) · News declaration (no)</div>
+        <div>Financial features declaration — argue journal, not advisory</div>
+        <div>Listing: 2–8 phone screenshots, 1024×500 feature graphic, 512×512 icon, short + full description</div>
+        <div>Privacy policy URL (see P0-11)</div>
+      </div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:12px; font-weight:800; margin-bottom:8px; color:#0D9E6E;">App Store Connect</div>
+      <div class="checks">
+        <div class="crit">Apple Developer Program ($99/yr) + a Mac — iOS cannot be built or uploaded from Windows</div>
+        <div>App Privacy "nutrition label" questionnaire</div>
+        <div>Age rating — 17+ recommended for financial content</div>
+        <div>Screenshots: 6.9" and 6.5" iPhone required; 12.9" iPad if you claim iPad support</div>
+        <div>Decide iPad support — <code>Info.plist</code> currently declares iPad orientations</div>
+        <div class="crit">Demo account credentials in App Review notes</div>
+        <div>Support URL (currently 404) and marketing URL</div>
+        <div>Export compliance answer (see P1-7)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>10</div></div>
+</div>
+
+<!-- ══════════ PAGE 11 — ROADMAP ══════════ -->
+<div class="page">
+  <div class="band band-green"></div>
+  <div class="eyebrow green">Section 07</div>
+  <h2 class="sec">Recommended order of work</h2>
+  <p class="lede">Sequenced so the longest calendar dependencies start on day one and code work runs in parallel behind them.</p>
+
+  <div class="callout">
+    <b>Start today, before any code:</b> open the Play Console account, complete identity verification, and begin the
+    14-day / 20-tester closed test. It is the longest pole in the schedule and it is pure waiting — every day you
+    delay it is a day added to launch.
+  </div>
+
+  <div class="week">
+    <div class="week-head"><span class="week-chip">Week 1</span><span class="week-title">Unblock Android</span></div>
+    <ol class="steps">
+      <li>Delete <code>mockRazorpay.js</code>; strip the paywall and <code>/pricing</code> CTA from mobile builds <span class="ref">P0-2, P0-3</span></li>
+      <li>Build account deletion end to end: API, profile UI, public web page <span class="ref">P0-1</span></li>
+      <li><code>.env.production</code> with the prod API; remove staging from the prod allowlist; tighten <code>hasPlaceholder()</code> <span class="ref">P0-4, P0-5</span></li>
+      <li>Exclude <code>app/admin/**</code> from the Capacitor export <span class="ref">P0-6</span></li>
+      <li>Redeploy the website; fix <code>/privacy-policy</code>, <code>/support</code>, <code>/delete-account</code> <span class="ref">P0-11</span></li>
+      <li>Untrack <code>android.zip</code> and <code>app-debug.apk</code>; rotate the upload key <span class="ref">P1-1</span></li>
+      <li>Drop <code>SCHEDULE_EXACT_ALARM</code> and <code>FOREGROUND_SERVICE</code>; wire <code>versionCode</code> to CI <span class="ref">P1-3, P1-5, P1-6</span></li>
+    </ol>
+  </div>
+
+  <div class="week">
+    <div class="week-head"><span class="week-chip">Week 2</span><span class="week-title">Android submission + iOS setup</span></div>
+    <ol class="steps" start="8">
+      <li>Add the Play App Signing SHA-1 to Firebase; verify Google Sign-In on a Play-signed internal build <span class="ref">P1-2</span></li>
+      <li>Self-host fonts <span class="ref">P2-1</span></li>
+      <li>Decide the <code>com.edgecpline</code> question — <b>now or never</b> <span class="ref">P2-2</span></li>
+      <li>On a Mac: <code>pod install</code>, Firebase iOS config, <code>PrivacyInfo.xcprivacy</code>, usage-description strings, push entitlement + AppDelegate callbacks, deployment target, <code>arm64</code>, signing <span class="ref">P0-7 → P0-10, P1-7</span></li>
+    </ol>
+  </div>
+
+  <div class="week">
+    <div class="week-head"><span class="week-chip">Week 3</span><span class="week-title">iOS QA and submission</span></div>
+    <ol class="steps" start="12">
+      <li>Full device pass on iOS: sign-in, camera upload, push, offline, deep links</li>
+      <li>Screenshots, listing copy, demo account, App Privacy label</li>
+    </ol>
+  </div>
+
+  <div class="summary">
+    <div class="eyebrow">In one line</div>
+    <p>
+      The engineering foundation is solid, but the app is <b>not shippable in its current state</b> — a mock payment
+      screen and a dead upgrade button would fail review on their own, account deletion is legally mandatory and
+      entirely absent, the bundle points at staging, and the iOS target has never been configured or compiled.
+      Fix the eleven P0s and <b>Android is a realistic one-week submission; iOS needs a Mac and roughly three.</b>
+    </p>
+  </div>
+
+  <div class="foot"><div class="b">Edge<span>cipline</span></div><div>READINESS AUDIT · 04 AUG 2026</div><div>11</div></div>
+</div>
+
+</body>
+</html>

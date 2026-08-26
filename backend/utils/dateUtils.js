@@ -30,21 +30,36 @@ function normalizeTradeDate(tradeDate, { accountCreatedAt } = {}) {
     parsed = tradeDate;
   } else {
     const raw = String(tradeDate).trim();
-    const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
 
     if (dateOnly) {
-      // Date inputs do not include a clock time; use the actual save-time clock.
+      // Preserve the submitted calendar date at a stable local noon. Browser
+      // date inputs submit YYYY-MM-DD, while some mobile/native callers send
+      // ISO strings with an offset; using Date(raw) would convert the day
+      // through UTC and can file late-night local trades under the next
+      // calendar day. A fixed time also keeps retry/deduplication keys stable.
       const [, year, month, day] = dateOnly;
-      const now = new Date();
       parsed = new Date(
         Number(year),
         Number(month) - 1,
         Number(day),
-        now.getHours(),
-        now.getMinutes(),
-        now.getSeconds(),
-        now.getMilliseconds()
+        12,
+        0,
+        0,
+        0
       );
+      // JS silently rolls invalid day/month values over into a different
+      // real date (e.g. Feb 29 in a non-leap year becomes Mar 1, day 32
+      // becomes the 1st/2nd of the next month) instead of erroring -- so a
+      // typo can misfile a trade onto the wrong day with no warning at all.
+      // Round-trip the parsed value against the original input to catch it.
+      if (
+        parsed.getFullYear() !== Number(year) ||
+        parsed.getMonth() !== Number(month) - 1 ||
+        parsed.getDate() !== Number(day)
+      ) {
+        throw new ApiError(400, "Trade date is invalid", "VALIDATION_ERROR");
+      }
     } else {
       parsed = new Date(raw);
     }

@@ -74,6 +74,9 @@ function deriveForexProfit(trade) {
     }
   }
 
+  // Forex stores profit NET of costs: commission comes off and swap is applied
+  // with its own sign (a credit when positive). metricEngine mirrors this and
+  // does not deduct Forex costs a second time.
   return roundCurrency(gross - commission + swap);
 }
 
@@ -102,11 +105,12 @@ function deriveIndianProfit(trade) {
     return null;
   }
 
-  const brokerage = Math.abs(toFiniteNumber(trade?.brokerage) || 0);
-  const taxes = Math.abs(toFiniteNumber(trade?.sttTaxes) || 0);
   const gross = direction * (exitPrice - entryPrice) * units;
 
-  return roundCurrency(gross - brokerage - taxes);
+  // Returns GROSS, pre-cost P&L, matching what the add-trade form's own
+  // "Profit / Loss" input carries. brokerage/sttTaxes remain on the document
+  // and are deducted once, centrally, by metricEngine.getNetPnL.
+  return roundCurrency(gross);
 }
 
 function normalizedTradeIdentity(trade) {

@@ -3,10 +3,8 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function TermsPage() {
-  const router = useRouter();
-
-  const Section = ({ title, children, id }) => (
+function Section({ title, children, id }) {
+  return (
     <section id={id} style={{ marginBottom: 48 }}>
       <h2 style={{
         fontSize: 20,
@@ -24,11 +22,13 @@ export default function TermsPage() {
       </div>
     </section>
   );
+}
 
-  const BulletList = ({ items }) => (
+function BulletList({ items }) {
+  return (
     <ul style={{ paddingLeft: 0, listStyle: "none", marginTop: 12 }}>
-      {items.map((item, i) => (
-        <li key={i} style={{
+      {items.map((item) => (
+        <li key={item} style={{
           display: "flex", alignItems: "flex-start", gap: 10,
           marginBottom: 10, color: "#CBD5E1", fontSize: 15, lineHeight: 1.7
         }}>
@@ -41,8 +41,10 @@ export default function TermsPage() {
       ))}
     </ul>
   );
+}
 
-  const Warning = ({ children }) => (
+function Warning({ children }) {
+  return (
     <div style={{
       background: "rgba(239,68,68,0.06)",
       border: "1px solid rgba(239,68,68,0.25)",
@@ -58,8 +60,10 @@ export default function TermsPage() {
       {children}
     </div>
   );
+}
 
-  const Highlight = ({ children }) => (
+function Highlight({ children }) {
+  return (
     <div style={{
       background: "rgba(184,134,11,0.08)",
       border: "1px solid rgba(184,134,11,0.25)",
@@ -74,6 +78,10 @@ export default function TermsPage() {
       {children}
     </div>
   );
+}
+
+export default function TermsPage() {
+  const router = useRouter();
 
   const toc = [
     { id: "acceptance", label: "Acceptance of Terms" },
@@ -96,10 +104,6 @@ export default function TermsPage() {
       fontFamily: "'Plus Jakarta Sans', Arial, sans-serif",
       color: "#E2E8F0",
     }}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
 
       {/* ── HEADER ── */}
       <header style={{
@@ -131,7 +135,7 @@ export default function TermsPage() {
               fontSize: 9, color: "#22C78E", letterSpacing: "0.15em",
               fontFamily: "'JetBrains Mono'", fontWeight: 700
             }}>
-              EDGE DISCIPLINE
+              EDGECIPLINE
             </div>
           </div>
         </div>
@@ -172,7 +176,7 @@ export default function TermsPage() {
           Terms & Conditions
         </h1>
         <p style={{ fontSize: 15, color: "#94A3B8", maxWidth: 540, margin: "0 auto 20px", lineHeight: 1.7 }}>
-          Please read these Terms & Conditions carefully before using Edge Discipline. By accessing or using our app, you agree to be bound by these terms.
+          Please read these Terms & Conditions carefully before using Edgecipline. By accessing or using our app, you agree to be bound by these terms.
         </p>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 6,
@@ -180,7 +184,7 @@ export default function TermsPage() {
           padding: "8px 16px",
           fontSize: 12, color: "#64748B", fontFamily: "'JetBrains Mono'"
         }}>
-          Last Updated: April 17, 2026
+          Last Updated: August 6, 2026
         </div>
       </div>
 
@@ -202,7 +206,7 @@ export default function TermsPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px 24px" }}>
             {toc.map((item, i) => (
-              <a key={i} href={`#${item.id}`} style={{
+              <a key={item.id} href={`#${item.id}`} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 textDecoration: "none", color: "#94A3B8",
                 fontSize: 13, padding: "6px 0", transition: "color 0.2s",
@@ -225,13 +229,13 @@ export default function TermsPage() {
 
         {/* ── INTRO ── */}
         <p style={{ fontSize: 15, color: "#94A3B8", lineHeight: 1.8, marginBottom: 48 }}>
-          Welcome to <strong style={{ color: "#F1F5F9" }}>Edge Discipline</strong>. These Terms & Conditions ("Terms") govern your use of our application and services. By creating an account or using any part of the app, you acknowledge that you have read, understood, and agree to be legally bound by these Terms.
+          Welcome to <strong style={{ color: "#F1F5F9" }}>Edgecipline</strong>. {"These Terms & Conditions (\"Terms\") govern your use of our application and services. By creating an account or using any part of the app, you acknowledge that you have read, understood, and agree to be legally bound by these Terms."}
         </p>
 
         {/* ── SECTION 1 ── */}
         <Section title="1. Acceptance of Terms" id="acceptance">
           <p>
-            By downloading, installing, accessing, or using Edge Discipline, you confirm that you are at least 18 years of age and have the legal capacity to enter into a binding agreement. If you do not agree with any part of these Terms, you must not use the application.
+            By downloading, installing, accessing, or using Edgecipline, you confirm that you are at least 18 years of age and have the legal capacity to enter into a binding agreement. If you do not agree with any part of these Terms, you must not use the application.
           </p>
           <p style={{ marginTop: 12 }}>
             These Terms apply to all users, including registered users and visitors. We reserve the right to update these Terms at any time, and your continued use of the app after changes constitutes acceptance of the revised Terms.
@@ -240,7 +244,7 @@ export default function TermsPage() {
 
         {/* ── SECTION 2 ── */}
         <Section title="2. App Usage Rules" id="app-usage">
-          <p style={{ marginBottom: 12 }}>When using Edge Discipline, you agree to:</p>
+          <p style={{ marginBottom: 12 }}>When using Edgecipline, you agree to:</p>
           <BulletList items={[
             "Use the app only for lawful, personal, and non-commercial purposes",
             "Provide accurate and current information during registration",
@@ -257,11 +261,11 @@ export default function TermsPage() {
         {/* ── SECTION 3 — TRADING DISCLAIMER ── */}
         <Section title="3. Trading Disclaimer — Important" id="disclaimer">
           <Warning>
-            EDGE DISCIPLINE IS A JOURNALING AND SELF-IMPROVEMENT TOOL. IT DOES NOT PROVIDE FINANCIAL ADVICE, INVESTMENT ADVICE, OR TRADING RECOMMENDATIONS OF ANY KIND.
+            EDGECIPLINE IS A JOURNALING AND SELF-IMPROVEMENT TOOL. IT DOES NOT PROVIDE FINANCIAL ADVICE, INVESTMENT ADVICE, OR TRADING RECOMMENDATIONS OF ANY KIND.
           </Warning>
           <BulletList items={[
             "Nothing in this application, including AI-generated feedback, analytics, insights, trade patterns, or any other content, constitutes financial advice, investment advice, or a recommendation to buy or sell any financial instrument",
-            "Edge Discipline is not a licensed financial advisor, broker, or investment firm",
+            "Edgecipline is not a licensed financial advisor, broker, or investment firm",
             "Any information displayed in the app is for educational, journaling, and self-reflective purposes only",
             "You are solely responsible for all trading decisions you make",
             "Past trade performance documented in the app does not guarantee future results",
@@ -275,7 +279,7 @@ export default function TermsPage() {
         {/* ── SECTION 4 ── */}
         <Section title="4. No Profit Guarantee" id="no-guarantee">
           <Warning>
-            EDGE DISCIPLINE MAKES NO REPRESENTATION, WARRANTY, OR GUARANTEE — EXPRESS OR IMPLIED — THAT USING THIS APPLICATION WILL RESULT IN PROFITABLE TRADES OR IMPROVED TRADING PERFORMANCE.
+            EDGECIPLINE MAKES NO REPRESENTATION, WARRANTY, OR GUARANTEE — EXPRESS OR IMPLIED — THAT USING THIS APPLICATION WILL RESULT IN PROFITABLE TRADES OR IMPROVED TRADING PERFORMANCE.
           </Warning>
           <BulletList items={[
             "Improved journaling and self-discipline may contribute to better trading habits, but we cannot guarantee financial outcomes",
@@ -288,7 +292,7 @@ export default function TermsPage() {
         {/* ── SECTION 5 ── */}
         <Section title="5. AI Features Disclaimer" id="ai-disclaimer">
           <p style={{ marginBottom: 12 }}>
-            Edge Discipline uses artificial intelligence to generate feedback, pattern analysis, and insights based on your trade journal entries.
+            Edgecipline uses artificial intelligence to generate feedback, pattern analysis, and insights based on your trade journal entries.
           </p>
           <BulletList items={[
             "AI-generated content is informational only and does not constitute financial, trading, or investment advice",
@@ -297,13 +301,13 @@ export default function TermsPage() {
             "AI models can make errors or provide output that is misleading — always apply your own judgment",
           ]} />
           <Highlight>
-            The AI features in Edge Discipline are designed to help you reflect on your trading behavior, not to direct your trading strategy or predict market outcomes.
+            The AI features in Edgecipline are designed to help you reflect on your trading behavior, not to direct your trading strategy or predict market outcomes.
           </Highlight>
         </Section>
 
         {/* ── SECTION 6 ── */}
         <Section title="6. Subscription & Payments" id="subscriptions">
-          <p style={{ marginBottom: 16 }}>Access to premium features of Edge Discipline requires a paid subscription.</p>
+          <p style={{ marginBottom: 16 }}>Access to premium features of Edgecipline requires a paid subscription.</p>
 
           <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 10, marginTop: 16 }}>Available Plans</h3>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginBottom: 20 }}>
@@ -358,7 +362,7 @@ export default function TermsPage() {
         {/* ── SECTION 8 ── */}
         <Section title="8. Limitation of Liability" id="liability">
           <Warning>
-            TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, EDGE DISCIPLINE AND ITS OWNERS, OPERATORS, AND AFFILIATES SHALL NOT BE LIABLE FOR ANY TRADING LOSSES, FINANCIAL LOSSES, LOST PROFITS, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE APPLICATION OR YOUR TRADING ACTIVITY.
+            TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, EDGECIPLINE AND ITS OWNERS, OPERATORS, AND AFFILIATES SHALL NOT BE LIABLE FOR ANY TRADING LOSSES, FINANCIAL LOSSES, LOST PROFITS, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE APPLICATION OR YOUR TRADING ACTIVITY.
           </Warning>
           <BulletList items={[
             "We are not responsible for any financial losses you incur from trading decisions, whether or not influenced by features of the app",
@@ -378,7 +382,7 @@ export default function TermsPage() {
             "Active subscriptions should be cancelled before account deletion to avoid future charges",
           ]} />
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>Termination by Edge Discipline</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>Termination by Edgecipline</h3>
           <BulletList items={[
             "We reserve the right to suspend or terminate your account immediately, without prior notice, if you violate these Terms",
             "We may also terminate accounts for extended inactivity, fraudulent activity, or legal requirements",
@@ -390,7 +394,7 @@ export default function TermsPage() {
         {/* ── SECTION 10 ── */}
         <Section title="10. Intellectual Property" id="ip">
           <BulletList items={[
-            "Edge Discipline, including its name, logo, design, code, and content, is the intellectual property of its owners",
+            "Edgecipline, including its name, logo, design, code, and content, is the intellectual property of its owners",
             "You are granted a limited, non-exclusive, non-transferable license to use the app for personal purposes",
             "You retain ownership of the trading data and content you upload to the app",
             "You grant us a limited license to process and store your data solely to provide the service",
@@ -401,17 +405,17 @@ export default function TermsPage() {
         {/* ── SECTION 11 ── */}
         <Section title="11. Changes to These Terms" id="changes">
           <p>
-            We reserve the right to modify these Terms & Conditions at any time. When we make significant changes, we will update the "Last Updated" date at the top of this page and may notify you via in-app notification or email.
+            {"We reserve the right to modify these Terms & Conditions at any time. When we make significant changes, we will update the \"Last Updated\" date at the top of this page and may notify you via in-app notification or email."}
           </p>
           <p style={{ marginTop: 12 }}>
-            Your continued use of Edge Discipline following notification of changes constitutes your acceptance of the revised Terms. If you disagree with the updated Terms, you must stop using the application and delete your account.
+            Your continued use of Edgecipline following notification of changes constitutes your acceptance of the revised Terms. If you disagree with the updated Terms, you must stop using the application and delete your account.
           </p>
         </Section>
 
         {/* ── SECTION 12 ── */}
         <Section title="12. Governing Law" id="law">
           <p>
-            These Terms are governed by and construed in accordance with applicable laws. Any disputes arising from these Terms or your use of Edge Discipline shall be resolved through good-faith negotiation. If a dispute cannot be resolved informally, it shall be submitted to the appropriate jurisdiction.
+            These Terms are governed by and construed in accordance with applicable laws. Any disputes arising from these Terms or your use of Edgecipline shall be resolved through good-faith negotiation. If a dispute cannot be resolved informally, it shall be submitted to the appropriate jurisdiction.
           </p>
         </Section>
 
@@ -427,7 +431,7 @@ export default function TermsPage() {
             padding: "24px 28px",
             display: "inline-block",
           }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edge Discipline</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edgecipline</div>
             <div style={{ fontSize: 14, color: "#94A3B8", marginBottom: 12 }}>Legal & Terms Inquiries</div>
             <a href="mailto:edgecipline@gmail.com" style={{
               display: "flex", alignItems: "center", gap: 8,
@@ -463,7 +467,7 @@ export default function TermsPage() {
           gap: 16,
         }}>
           <div style={{ fontSize: 12, color: "#475569", fontFamily: "'JetBrains Mono'" }}>
-            © 2026 Edge Discipline. All rights reserved.
+            © 2026 Edgecipline. All rights reserved.
           </div>
           <div style={{ display: "flex", gap: 20 }}>
             <Link href="/privacy-policy" style={{ fontSize: 12, color: "#64748B", textDecoration: "none" }}>

@@ -61,8 +61,8 @@
             android:name=".ChecklistActionReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.edgecpline.CHECKLIST_TOGGLE" />
-                <action android:name="com.edgecpline.CHECKLIST_RESET" />
+                <action android:name="com.edgecipline.CHECKLIST_TOGGLE" />
+                <action android:name="com.edgecipline.CHECKLIST_RESET" />
             </intent-filter>
         </receiver>
 
@@ -91,8 +91,16 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <!-- Android 13+ image picker -->
+    <!-- Android 13+ image picker.
+         Play's Photo and Video Permissions policy requires a declaration in
+         the Play Console for READ_MEDIA_IMAGES, and expects broad library
+         access to be core functionality. Reading broker screenshots from the
+         gallery is the app's primary import path, so it qualifies — but the
+         declaration form still has to be completed before release. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Android 14+ partial ("Select photos") access. Without this, users who
+         grant access to only some photos are treated as having denied it. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <!-- Android 12 and below -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -104,12 +112,26 @@
     <!-- WorkManager: keep scheduled jobs alive after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- WorkManager: allow exact timing on Android 12+ -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:minSdkVersion="31" />
+    <!--
+        SCHEDULE_EXACT_ALARM deliberately NOT declared.
 
-    <!-- Keep WorkManager constraint-free jobs running on battery optimization -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+        Google Play restricts it to apps whose core function is an alarm clock
+        or calendar, behind a sensitive-permission declaration; a trading
+        checklist reminder does not qualify, and on Android 14+ it is denied by
+        default anyway. ChecklistScheduler.scheduleExactAlarm() already checks
+        canScheduleExactAlarms() and returns early when it is unavailable,
+        leaving the WorkManager job — which is always enqueued first — as the
+        delivery path. Reminders fire within WorkManager's normal batching
+        window instead of to the exact second.
+
+        The explicit FOREGROUND_SERVICE declaration was also removed — but note
+        the permission still appears in the MERGED manifest, and that is
+        correct. androidx.work declares it, and ChecklistScheduler /
+        ChecklistAlarmReceiver both enqueue work with setExpedited(); below
+        API 31 WorkManager runs expedited work as a foreground service, and
+        minSdk here is 24. Do NOT strip it with tools:node="remove" — that
+        breaks checklist reminders on Android 7-11.
+    -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>

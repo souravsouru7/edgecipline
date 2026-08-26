@@ -237,8 +237,10 @@ function insightsFromPsychologyCost(psych, currency, totalVolume) {
         type: "negative",
         impactScore: impactFromPnl(worstRule.cost, totalVolume),
         title: `Breaking "${worstRule.rule}" Is Destroying Your Edge`,
-        insight: `Violating your "${worstRule.rule}" rule costs ${formatAmount(Math.abs(worstRule.cost), currency)} in net losses across ${broken} violations.`,
-        evidence: `${broken} violations · Win rate: ${entry?.winRate ?? 0}% · Net P&L: ${signedAmount(worstRule.cost, currency)}`,
+        // `cost` comes from trade.profit, which excludes brokerage/STT on Indian
+        // trades and commission/swap on Forex — so it is gross, not net.
+        insight: `Violating your "${worstRule.rule}" rule costs ${formatAmount(Math.abs(worstRule.cost), currency)} across ${broken} violations.`,
+        evidence: `${broken} violations · Win rate: ${entry?.winRate ?? 0}% · P&L: ${signedAmount(worstRule.cost, currency)}`,
         recommendation: `Write "${worstRule.rule}" in your pre-trade checklist. Treat violations as automatic disqualifiers, not optional guidelines.`,
       }));
     }

@@ -144,7 +144,8 @@ describe("notification quiet hours", () => {
     expect(NotificationHistory.create).toHaveBeenCalled();
     expect(NotificationHistory.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: "notification-1", user: "user-1" },
-      { status: "skipped", "delivery.error": "quiet_hours" }
+      { status: "skipped", "delivery.error": "quiet_hours" },
+      { returnDocument: "after" }
     );
     expect(getFirebaseAdmin).not.toHaveBeenCalled();
   });

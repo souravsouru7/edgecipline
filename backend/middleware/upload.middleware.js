@@ -1,5 +1,7 @@
 const multer = require("multer");
 const path = require("path");
+const crypto = require("crypto");
+const sharp = require("sharp");
 const cloudinary = require("../config/cloudinary");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
@@ -42,6 +44,76 @@ function detectMagicBytes(buffer) {
     }
   }
   return null;
+}
+
+// Rejections that carry their own user-facing wording. Kept distinct from
+// MulterError so formatUploadError can pass the message through untouched.
+function createUploadError(message, code) {
+  const error = new Error(message);
+  error.uploadCode = code;
+  return error;
+}
+
+// Everything the magic-byte sniff can't catch: an empty part, a header that
+// claims more pixels than we will ever decode, and a file whose header is a
+// valid PNG/JPEG but whose pixel data is truncated or garbage. Without the
+// decode pass a corrupted screenshot is stored, queued, charged against the
+// user's allowance and only "explained" minutes later by the OCR pipeline.
+async function assertDecodableImage(buffer) {
+  if (buffer.length === 0) {
+    throw createUploadError(
+      "This file is empty. Please upload a valid screenshot.",
+      "EMPTY_FILE"
+    );
+  }
+
+  if (!detectMagicBytes(buffer)) {
+    throw new multer.MulterError("LIMIT_UNEXPECTED_FILE", "file");
+  }
+
+  const maxPixels = appConfig.upload.maxImagePixels;
+
+  let metadata;
+  try {
+    // Header read only — cheap, and it happens before anything allocates a
+    // raster, so a decompression bomb is rejected without being decoded.
+    metadata = await sharp(buffer, { limitInputPixels: false }).metadata();
+  } catch {
+    throw createUploadError(
+      "This image appears to be corrupted or incomplete. Please re-take the screenshot and try again.",
+      "CORRUPT_IMAGE"
+    );
+  }
+
+  const width = Number(metadata?.width || 0);
+  const height = Number(metadata?.height || 0);
+  if (!width || !height) {
+    throw createUploadError(
+      "This image appears to be corrupted or incomplete. Please re-take the screenshot and try again.",
+      "CORRUPT_IMAGE"
+    );
+  }
+
+  if (width * height > maxPixels) {
+    throw createUploadError(
+      `Image is too large to process (${width}x${height}). Please upload a normal screenshot.`,
+      "IMAGE_DIMENSIONS_TOO_LARGE"
+    );
+  }
+
+  try {
+    // Full decode, bounded by the same ceiling. A truncated PNG passes the
+    // header check above and only fails here.
+    await sharp(buffer, { failOn: "error", limitInputPixels: maxPixels })
+      .resize(32, 32, { fit: "inside" })
+      .raw()
+      .toBuffer();
+  } catch {
+    throw createUploadError(
+      "This image appears to be corrupted or incomplete. Please re-take the screenshot and try again.",
+      "CORRUPT_IMAGE"
+    );
+  }
 }
 
 function isCloudinaryConnectivityError(error) {
@@ -137,10 +209,16 @@ function createCloudinaryStorage(folderName) {
         }
 
         const buffer = Buffer.concat(chunks);
-        const detectedMime = detectMagicBytes(buffer);
-        if (!detectedMime) {
-          return done(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
+        try {
+          await assertDecodableImage(buffer);
+        } catch (error) {
+          if (error instanceof multer.MulterError) {
+            error.field = file.fieldname;
+          }
+          return done(error);
         }
+
+        const imageHash = crypto.createHash("sha256").update(buffer).digest("hex");
 
         try {
           const result = await uploadBufferToCloudinary(buffer, folderName);
@@ -153,6 +231,7 @@ function createCloudinaryStorage(folderName) {
             originalname: sanitizeFilename(file.originalname),
             mimetype: file.mimetype,
             storageProvider: "cloudinary",
+            imageHash,
           });
         } catch (error) {
           return done(error);
@@ -175,7 +254,10 @@ function createCloudinaryUpload(folderName) {
   return multer({
     storage: createCloudinaryStorage(folderName),
     limits: {
-      fileSize: appConfig.upload.maxFileSizeBytes,
+      // busboy trips its limit at `fileSize`, not above it, so passing the
+      // configured maximum verbatim rejects a file of exactly that size —
+      // the size the UI and the client-side compressor both advertise as OK.
+      fileSize: appConfig.upload.maxFileSizeBytes + 1,
       files: 1,
       fields: 20,
       parts: 25,
@@ -196,6 +278,10 @@ function createCloudinaryUpload(folderName) {
 }
 
 function formatUploadError(error) {
+  if (error?.uploadCode) {
+    return error.message;
+  }
+
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
       return `File too large. Max allowed size is ${Math.floor(appConfig.upload.maxFileSizeBytes / (1024 * 1024))}MB.`;
@@ -258,6 +344,7 @@ function createUploadMiddleware({ fieldName, folderName, required = true }) {
             originalName: req.file.originalname,
             mimeType: req.file.mimetype,
             storageProvider: req.file.storageProvider,
+            imageHash: req.file.imageHash || "",
           }
         : null;
 
@@ -278,7 +365,7 @@ function createMultiUploadMiddleware({
   const upload = multer({
     storage: createCloudinaryStorage(folderName),
     limits: {
-      fileSize: fileSizeBytes || appConfig.upload.maxFileSizeBytes,
+      fileSize: (fileSizeBytes || appConfig.upload.maxFileSizeBytes) + 1,
       files: maxCount,
       fields: 20,
       parts: maxCount + 20,

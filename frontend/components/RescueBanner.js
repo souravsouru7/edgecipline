@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useRescueBanner } from "@/features/shared/hooks/useRescueBanner";
 import { recordRescueEvent } from "@/services/api";
+import { canShowPurchaseUI } from "@/config/payments";
 
 // Subscription Rescue Funnel banner. Rendered below the TrialCountdownBanner
 // in the app shell; auto-hides when the user has nothing to rescue (healthy
@@ -33,6 +34,9 @@ export default function RescueBanner({ onUpgrade }) {
     [banner?.tone]
   );
 
+  // The rescue funnel exists only to recover a lapsed subscription; with no
+  // checkout available it has nowhere to send the user.
+  if (!canShowPurchaseUI()) return null;
   if (loading || !banner) return null;
 
   const handleCta = () => {

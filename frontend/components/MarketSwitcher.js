@@ -1,13 +1,22 @@
 "use client";
 
+import { useEffect, useRef, useState } from 'react';
 import { useMarket, MARKETS } from '@/context/MarketContext';
 import { setPreferredMarket } from '@/services/api';
 import { useRouter, usePathname } from 'next/navigation';
 
+const SWITCH_DURATION_MS = 240;
+
 export default function MarketSwitcher() {
-  const { currentMarket, toggleMarket, getCurrencySymbol, getMarketLabel } = useMarket();
+  const { currentMarket, toggleMarket } = useMarket();
   const router = useRouter();
   const pathname = usePathname();
+  const navigationTimerRef = useRef(null);
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  useEffect(() => () => {
+    if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+  }, []);
 
   const handleSwitch = () => {
     const targetMarket = currentMarket === MARKETS.FOREX
@@ -41,6 +50,8 @@ export default function MarketSwitcher() {
       newPath = '/weekly-reports?market=Indian_Market';
     }
 
+    router.prefetch(newPath);
+    setIsSwitching(true);
     toggleMarket(targetMarket);
     // Persist the choice. Only onboarding used to write this, so the server kept
     // returning the market the user picked at signup no matter how often they
@@ -48,11 +59,15 @@ export default function MarketSwitcher() {
     // restore) disagreeing with the switcher. Fire-and-forget: a failed PATCH
     // must not block navigation, and the local choice already took effect.
     setPreferredMarket(targetMarket).catch(() => {});
-    router.push(newPath);
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    navigationTimerRef.current = setTimeout(() => {
+      router.push(newPath);
+      setIsSwitching(false);
+    }, prefersReducedMotion ? 0 : SWITCH_DURATION_MS);
   };
 
   const isForex = currentMarket === MARKETS.FOREX;
-  const currencySymbol = getCurrencySymbol();
 
   return (
     <div className="market-switcher-wrap" style={{
@@ -63,6 +78,8 @@ export default function MarketSwitcher() {
       {/* Toggle Container */}
       <button
         onClick={handleSwitch}
+        disabled={isSwitching}
+        aria-label={`Switch to ${isForex ? 'Indian Market' : 'Forex'}`}
         suppressHydrationWarning
         style={{
           position: 'relative',
@@ -73,7 +90,7 @@ export default function MarketSwitcher() {
           borderRadius: '24px',
           padding: '4px',
           cursor: 'pointer',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'border-color 180ms ease, box-shadow 180ms ease',
           boxShadow: '0 2px 8px rgba(13, 158, 110, 0.2)',
           width: '168px',
           height: '36px',
@@ -85,12 +102,14 @@ export default function MarketSwitcher() {
         <div
           style={{
             position: 'absolute',
-            left: isForex ? '4px' : 'calc(50% + 2px)',
+            left: '4px',
             width: 'calc(50% - 6px)',
             height: '24px',
             background: 'linear-gradient(135deg, #0D9E6E 0%, #22C78E 100%)',
             borderRadius: '16px',
-            transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transform: isForex ? 'translateX(0)' : 'translateX(calc(100% + 4px))',
+            transition: `transform ${SWITCH_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+            willChange: 'transform',
             boxShadow: '0 2px 6px rgba(13,158,110,0.35)',
           }}
         />
@@ -104,7 +123,7 @@ export default function MarketSwitcher() {
             justifyContent: 'center',
             gap: '5px',
             zIndex: 1,
-            transition: 'color 0.3s ease',
+            transition: `color ${SWITCH_DURATION_MS}ms ease`,
             color: isForex ? '#FFFFFF' : '#94A3B8',
             fontSize: '11px',
             fontWeight: '700',
@@ -128,7 +147,7 @@ export default function MarketSwitcher() {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1,
-            transition: 'color 0.3s ease',
+            transition: `color ${SWITCH_DURATION_MS}ms ease`,
             color: !isForex ? '#FFFFFF' : '#94A3B8',
             fontSize: '10px',
             fontWeight: '700',
@@ -140,55 +159,6 @@ export default function MarketSwitcher() {
           INDIA MKT
         </div>
       </button>
-
-      {/* Currency Symbol Indicator */}
-      <div
-        className="market-currency-badge"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '34px',
-          height: '34px',
-          background: 'linear-gradient(135deg, #0D9E6E 0%, #22C78E 100%)',
-          borderRadius: '10px',
-          boxShadow: '0 2px 8px rgba(13, 158, 110, 0.3)',
-          color: '#FFFFFF',
-          fontSize: '16px',
-          fontWeight: '700',
-          fontFamily: "'JetBrains Mono', monospace",
-          transition: 'all 0.3s ease',
-        }}
-        title={`Current: ${getMarketLabel()}`}
-      >
-        {currencySymbol}
-      </div>
-
-      {/* Market Status Label - hidden on mobile */}
-      <div
-        className="market-status-label"
-        style={{
-          fontSize: '10px',
-          fontWeight: '600',
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          color: '#0D9E6E',
-          background: 'rgba(13, 158, 110, 0.08)',
-          padding: '6px 12px',
-          borderRadius: '8px',
-          border: '1px solid rgba(13, 158, 110, 0.25)',
-          whiteSpace: 'nowrap',
-          transition: 'all 0.3s ease',
-        }}
-      >
-        {getMarketLabel()}
-      </div>
-
-      <style>{`
-        @media (max-width: 768px) {
-          .market-currency-badge { display: none !important; }
-          .market-status-label   { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 }

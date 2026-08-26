@@ -5,8 +5,8 @@
 -keep @com.getcapacitor.annotation.PluginMethod class * { *; }
 
 # ─── App-specific Capacitor plugins ───────────────────────────────────────────
--keep class com.edgecpline.** { *; }
--keepclassmembers class com.edgecpline.** { *; }
+-keep class com.edgecipline.** { *; }
+-keepclassmembers class com.edgecipline.** { *; }
 
 # ─── Firebase ─────────────────────────────────────────────────────────────────
 -keep class com.google.firebase.** { *; }

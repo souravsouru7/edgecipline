@@ -247,13 +247,21 @@ exports.sendMessage = asyncHandler(async (req, res) => {
 });
 
 exports.refreshContext = asyncHandler(async (req, res) => {
-  await coachContextService.invalidate(req.user._id);
+  // Context is cached per market; refresh the one the caller is looking at so
+  // the "↻" in the chat header rebuilds the snapshot the coach actually reads.
+  const market = await coachContextService.resolveMarket({
+    market: req.body?.market || req.query?.market,
+    user: req.user,
+  });
+  await coachContextService.invalidate(req.user._id, market);
   const { context, digest } = await coachContextService.getContext({
     userId: req.user._id,
+    market,
     forceRefresh: true,
   });
   res.json({
     refreshed: true,
+    market,
     digest,
     summary: {
       tradeCount:     context.recentTrades.length,

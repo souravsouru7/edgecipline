@@ -1,0 +1,10 @@
+# Cloudflare static-asset redirects. Copied to out/_redirects by `next build`.
+#
+# The deployed site currently serves /privacy, but this repo defines the page
+# at /privacy-policy — so redeploying would 404 the URL people already have.
+# Both stores require the privacy policy URL you register to keep resolving,
+# and Play flags a listing whose policy link goes dead.
+#
+# /privacy-policy is canonical (it matches app/privacy-policy/).
+/privacy      /privacy-policy   301
+/privacy/     /privacy-policy   301

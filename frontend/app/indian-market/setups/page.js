@@ -2,17 +2,52 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { fetchSetups, saveSetups, uploadSetupReferenceImages } from "@/services/setupApi";
+import { markOnboardingStep } from "@/services/api";
 import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { Trash2, X } from "lucide-react";
 import { invalidateSetupDependentQueries } from "@/utils/queryInvalidation";
+import { refreshChecklistNotificationFromSetups } from "@/services/checklistNotificationSync";
 
 const MAX_IMAGES = 20;
+
+const STARTER_TEMPLATES = [
+  {
+    name: "NIFTY Opening Range Breakout",
+    description: "Use when NIFTY breaks the first range with volume and clean risk.",
+    rules: [
+      "First 15-minute range is clearly formed",
+      "Breakout candle closes beyond the range high or low",
+      "Volume supports the breakout direction",
+      "Stop loss is inside or below the broken range",
+    ],
+  },
+  {
+    name: "BANKNIFTY VWAP Pullback",
+    description: "Use when BANKNIFTY trends, pulls back to VWAP, then rejects.",
+    rules: [
+      "Trend direction is clear before the pullback",
+      "Price pulls back near VWAP or a key moving average",
+      "Rejection candle forms in the trend direction",
+      "Target gives at least 1:2 risk reward",
+    ],
+  },
+  {
+    name: "Stock Breakout Retest",
+    description: "Use for NSE stocks breaking a major level and retesting it cleanly.",
+    rules: [
+      "Stock breaks a strong support or resistance level",
+      "Retest holds the broken level",
+      "Entry happens after confirmation, not during the first spike",
+      "Invalidation level is clear before entry",
+    ],
+  },
+];
 
 function genId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -20,7 +55,9 @@ function genId() {
 
 export default function IndianSetupStrategiesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const onboardingMode = searchParams?.get("onboarding") === "1";
   const { ready } = useRequireAuth();
   const [mounted, setMounted] = useState(false);
   const [strategies, setStrategies] = useState([]);
@@ -38,7 +75,11 @@ export default function IndianSetupStrategiesPage() {
   const toggleExpand = (id) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -52,9 +93,12 @@ export default function IndianSetupStrategiesPage() {
         if (Array.isArray(serverStrategies) && serverStrategies.length) {
           setStrategies(serverStrategies.map((s, i) => ({
             id: i + 1,
+            // Kept so the save can update this strategy in place instead of
+            // recreating it — the checklist notification binds to this id.
+            _id: s._id ? String(s._id) : undefined,
             name: s.name || "",
             rules: Array.isArray(s.rules)
-              ? s.rules.map((r, j) => ({ id: j + 1, label: r.label || "", followed: false }))
+              ? s.rules.map((r, j) => ({ id: j + 1, _id: r._id ? String(r._id) : undefined, label: r.label || "" }))
               : [],
             referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
           })));
@@ -89,6 +133,21 @@ export default function IndianSetupStrategiesPage() {
     });
   };
 
+  const addStarterTemplate = (template) => {
+    setError("");
+    setStrategies(prev => {
+      const nextId = (prev[prev.length - 1]?.id || 0) + 1;
+      const nextStrategy = {
+        id: nextId,
+        name: template.name,
+        rules: template.rules.map((label, index) => ({ id: index + 1, label })),
+        referenceImages: [],
+      };
+      setExpandedIds(ids => new Set([...ids, nextId]));
+      return [...prev, nextStrategy];
+    });
+  };
+
   const updateStrategyName = (id, name) =>
     setStrategies(prev => prev.map(s => s.id === id ? { ...s, name } : s));
 
@@ -109,16 +168,8 @@ export default function IndianSetupStrategiesPage() {
     setStrategies(prev => prev.map(s => {
       if (s.id !== strategyId) return s;
       const nextId = (s.rules[s.rules.length - 1]?.id || 0) + 1;
-      return { ...s, rules: [...s.rules, { id: nextId, label: "", followed: false }] };
+      return { ...s, rules: [...s.rules, { id: nextId, label: "" }] };
     }));
-
-  const toggleRule = (strategyId, ruleId) =>
-    setStrategies(prev => prev.map(s =>
-      s.id !== strategyId ? s : {
-        ...s,
-        rules: s.rules.map(r => r.id === ruleId ? { ...r, followed: !r.followed } : r),
-      }
-    ));
 
   const updateRuleLabel = (strategyId, ruleId, label) =>
     setStrategies(prev => prev.map(s =>
@@ -128,11 +179,6 @@ export default function IndianSetupStrategiesPage() {
   const deleteRule = (strategyId, ruleId) =>
     setStrategies(prev => prev.map(s =>
       s.id !== strategyId ? s : { ...s, rules: s.rules.filter(r => r.id !== ruleId) }
-    ));
-
-  const clearTicksForStrategy = (strategyId) =>
-    setStrategies(prev => prev.map(s =>
-      s.id !== strategyId ? s : { ...s, rules: s.rules.map(r => ({ ...r, followed: false })) }
     ));
 
   // ── Image management ───────────────────────────────────────────────────
@@ -203,6 +249,29 @@ export default function IndianSetupStrategiesPage() {
   // ── Save (upload pending → save all) ──────────────────────────────────
 
   const handleSave = async () => {
+    // Validate before uploading: a save rejected after the upload step leaves
+    // the just-uploaded images on Cloudinary with nothing referencing them.
+    const named = strategies.filter(s => (s.name || "").trim());
+    const seen = new Map();
+    for (const s of named) {
+      const key = s.name.trim().toLowerCase();
+      if (seen.has(key)) {
+        setError(`Duplicate strategy name "${s.name.trim()}" (matches "${seen.get(key)}")`);
+        return;
+      }
+      seen.set(key, s.name.trim());
+    }
+    const unnamedWithContent = strategies.find(
+      s => !(s.name || "").trim() &&
+        ((s.rules || []).some(r => (r.label || "").trim()) ||
+          (s.referenceImages || []).length > 0 ||
+          (pendingByStrategy[s.id] || []).length > 0)
+    );
+    if (unnamedWithContent) {
+      setError("Give every strategy a name before saving.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setUploadStatus(null);
@@ -247,13 +316,38 @@ export default function IndianSetupStrategiesPage() {
       setUploadStatus(null);
 
       const payload = newStrategies.map(s => ({
+        ...(s._id ? { _id: s._id } : {}),
         name: s.name,
         referenceImages: (s.referenceImages || []).slice(0, MAX_IMAGES),
         rules: (s.rules || []).map(r => ({ label: r.label })),
       }));
-      await saveSetups(payload, MARKETS.INDIAN_MARKET);
+      const saved = await saveSetups(payload, MARKETS.INDIAN_MARKET);
       await Promise.all(invalidateSetupDependentQueries(queryClient));
+
+      if (Array.isArray(saved)) {
+        setStrategies(saved.map((s, i) => ({
+          id: i + 1,
+          _id: s._id ? String(s._id) : undefined,
+          name: s.name || "",
+          rules: Array.isArray(s.rules)
+            ? s.rules.map((r, j) => ({ id: j + 1, _id: r._id ? String(r._id) : undefined, label: r.label || "" }))
+            : [],
+          referenceImages: Array.isArray(s.referenceImages) ? s.referenceImages : [],
+        })));
+        await refreshChecklistNotificationFromSetups({
+          strategies: saved,
+          market: MARKETS.INDIAN_MARKET,
+        });
+      }
       setSavedAt(new Date());
+
+      const hasNamedStrategy = payload.some(p => (p.name || "").trim().length > 0);
+      if (hasNamedStrategy) {
+        markOnboardingStep("setupAdded", true).catch(() => {});
+        if (onboardingMode) {
+          setTimeout(() => router.push("/indian-market/upload-trade?onboarding=1"), 600);
+        }
+      }
     } catch (e) {
       setError(e.message || "Failed to save setups");
     } finally {
@@ -345,6 +439,20 @@ export default function IndianSetupStrategiesPage() {
           </div>
         )}
 
+        {onboardingMode && (
+          <div style={{ marginBottom: 16, padding: 16, borderRadius: 14, background: "linear-gradient(135deg, rgba(34,199,142,0.10), rgba(184,134,11,0.06))", border: "1px solid rgba(13,158,110,0.28)", boxShadow: "0 2px 10px rgba(15,25,35,0.04)" }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>
+              ONBOARDING - STEP 1 OF 3
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#0F1923", marginBottom: 5 }}>
+              Create one Indian market setup first.
+            </div>
+            <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, maxWidth: 680 }}>
+              Pick an example below or create your own, add simple NSE / BSE rules, then press Save Setups. After saving, we will take you to import your first Indian trade.
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <IndianMarketLoadingState
             title="Loading Indian Market setups"
@@ -353,6 +461,38 @@ export default function IndianSetupStrategiesPage() {
           />
         ) : (
           <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E2E8F0", padding: "18px 20px 14px", boxShadow: "0 2px 10px rgba(15,25,35,0.04)" }}>
+            <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, background: "#F8FAFB", border: "1px solid #DDEFE8" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#0F1923", marginBottom: 4 }}>Use an Indian market example</div>
+              <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55, marginBottom: 12 }}>
+                Pick a sample setup to prefill the strategy name and rules, then edit it to match your real process.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+                {STARTER_TEMPLATES.map(template => (
+                  <button
+                    key={template.name}
+                    type="button"
+                    onClick={() => addStarterTemplate(template)}
+                    style={{
+                      minHeight: 112,
+                      padding: 12,
+                      borderRadius: 12,
+                      border: "1px solid #E2E8F0",
+                      background: "#FFFFFF",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      fontFamily: "'Plus Jakarta Sans',sans-serif",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923", marginBottom: 5 }}>{template.name}</div>
+                    <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.45, marginBottom: 10 }}>{template.description}</div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
+                      USE EXAMPLE
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#0F1923" }}>Your Strategies</div>
@@ -380,8 +520,6 @@ export default function IndianSetupStrategiesPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {strategies.map(strategy => {
                 const activeRules = strategy.rules.filter(r => r.label && r.label.trim().length > 0);
-                const followedCount = activeRules.filter(r => r.followed).length;
-                const score = activeRules.length > 0 ? Math.round((followedCount / activeRules.length) * 100) : null;
                 const isExpanded = expandedIds.has(strategy.id);
                 const uploadedImgs = strategy.referenceImages || [];
                 const pendingImgs = pendingByStrategy[strategy.id] || [];
@@ -401,10 +539,10 @@ export default function IndianSetupStrategiesPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", fontWeight: 700 }}>
-                            {score !== null ? `${score}% FOLLOWED` : "NO TICKS"}
+                            {activeRules.length} RULE{activeRules.length === 1 ? "" : "S"}
                           </div>
                           <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
-                            {activeRules.length} rule{activeRules.length === 1 ? "" : "s"}
+                            setup checklist
                           </div>
                         </div>
                         <div style={{ width: 22, height: 22, borderRadius: 6, background: "#F1F4F8", display: "flex", alignItems: "center", justifyContent: "center", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "none" }}>
@@ -513,9 +651,9 @@ export default function IndianSetupStrategiesPage() {
 
                       {/* Rule management buttons */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
-                        <button type="button" onClick={() => clearTicksForStrategy(strategy.id)} style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748B", cursor: "pointer" }}>
-                          CLEAR TICKS
-                        </button>
+                        <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", color: "#94A3B8" }}>
+                          RULES CHECKLIST
+                        </div>
                         <button type="button" onClick={() => deleteStrategy(strategy.id)} style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", cursor: "pointer" }}>
                           DELETE SETUP
                         </button>
@@ -526,13 +664,11 @@ export default function IndianSetupStrategiesPage() {
 
                       {/* Rules list */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {strategy.rules.map(rule => (
-                          <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 9, background: rule.followed ? "rgba(13,158,110,0.04)" : "transparent", border: "1px solid #E2E8F0" }}>
-                            <button type="button" onClick={() => toggleRule(strategy.id, rule.id)} style={{ width: 18, height: 18, borderRadius: 5, border: rule.followed ? "1.5px solid #0D9E6E" : "1.5px solid #CBD5E1", background: rule.followed ? "linear-gradient(135deg,#0D9E6E,#22C78E)" : "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                              {rule.followed && (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4"><polyline points="20 6 9 17 4 12" /></svg>
-                              )}
-                            </button>
+                        {strategy.rules.map((rule, ruleIdx) => (
+                          <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 9, background: "#FAFBFC", border: "1px solid #E2E8F0" }}>
+                            <div style={{ width: 24, height: 24, borderRadius: 7, background: "#E8ECF0", color: "#64748B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, flexShrink: 0 }}>
+                              {ruleIdx + 1}
+                            </div>
                             <input
                               type="text"
                               value={rule.label}

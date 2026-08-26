@@ -1,5 +1,16 @@
 const mongoose = require("mongoose");
 
+// Plain Number fields accept Infinity/-Infinity with no error -- a bad OCR
+// read or client bug could silently save it and corrupt every downstream
+// aggregate (totals, averages, equity curves) built from these fields.
+const FINITE_NUMBER = {
+  type: Number,
+  validate: {
+    validator: (v) => v == null || Number.isFinite(v),
+    message: "{PATH} must be a finite number",
+  },
+};
+
 /**
  * Indian Market — Options (F&O) trades (NSE/BSE).
  */
@@ -29,19 +40,23 @@ const indianTradeSchema = new mongoose.Schema(
       required: true
     },
 
-    // Option type: Call or Put
+    // Option type: Call or Put. "" is a real state — an EQUITY trade has no
+    // option type. This must NOT default to "CE": indianTradeController
+    // deletes the key for equity trades, but a default silently puts it back,
+    // so every equity trade lands in the analytics `byOptionType` CE bucket.
+    // Option trades always set CE/PE explicitly before save.
     optionType: {
       type: String,
-      enum: ["CE", "PE"],
-      default: "CE"
+      enum: ["CE", "PE", ""],
+      default: ""
     },
 
     // Premium (entry/exit in ₹ per share or per unit)
-    entryPrice: Number,
-    exitPrice: Number,
-    stopLoss: Number,
-    takeProfit: Number,
-    profit: Number,
+    entryPrice: FINITE_NUMBER,
+    exitPrice: FINITE_NUMBER,
+    stopLoss: FINITE_NUMBER,
+    takeProfit: FINITE_NUMBER,
+    profit: FINITE_NUMBER,
 
     strategy: String,
     session: String,
@@ -54,7 +69,7 @@ const indianTradeSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    notes: String,
+    notes: { type: String, maxlength: 2000 },
 
     riskRewardRatio: { type: String, enum: ["1:1", "1:1.5", "1:2", "1:3", "1:4", "1:5", "custom", ""], default: "" },
     riskRewardCustom: { type: String, default: "" },
@@ -90,13 +105,13 @@ const indianTradeSchema = new mongoose.Schema(
     // Equity intraday fields (populated when instrumentType === "EQUITY")
     stockSymbol: { type: String, default: "" },   // NSE/BSE ticker e.g. RELIANCE, TCS
     exchange: { type: String, enum: ["NSE", "BSE", ""], default: "NSE" },
-    sharesQty: { type: Number, default: null },    // actual shares (not lots)
+    sharesQty: { ...FINITE_NUMBER, default: null },    // actual shares (not lots)
     sector: { type: String, default: "" },         // IT, Banking, Pharma, Auto, etc.
 
-    strikePrice: Number,
+    strikePrice: FINITE_NUMBER,
     expiryDate: Date,
-    quantity: Number, // number of lots
-    lotSize: Number,  // e.g. 25 for NIFTY, 15 for BANKNIFTY
+    quantity: FINITE_NUMBER, // number of lots
+    lotSize: FINITE_NUMBER,  // e.g. 25 for NIFTY, 15 for BANKNIFTY
 
     tradeType: {
       type: String,
@@ -104,8 +119,8 @@ const indianTradeSchema = new mongoose.Schema(
       default: "INTRADAY"
     },
 
-    brokerage: Number,
-    sttTaxes: Number,
+    brokerage: FINITE_NUMBER,
+    sttTaxes: FINITE_NUMBER,
 
     entryBasis: {
       type: String,

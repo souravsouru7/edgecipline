@@ -52,6 +52,7 @@ yarn-error.log*
 backend/logs/
 logs/
 **/logs/
+.mongo-data/
 
 # IDE
 .vscode/

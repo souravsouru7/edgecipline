@@ -27,8 +27,9 @@ const STEPS = [
   "journalSeen",
 ];
 
-function setupRouteForMarket() {
-  return "/setups?onboarding=1";
+function setupRouteForMarket(market) {
+  const marketRoot = market === "Indian_Market" ? "/indian-market" : "";
+  return `${marketRoot}/setups?onboarding=1`;
 }
 
 function Page() {
@@ -51,6 +52,7 @@ function Page() {
   useEffect(() => { setActiveKey(resumeKey); }, [resumeKey]);
 
   const [marketChoice, setMarketChoice] = useState(state?.preferredMarket || null);
+  const selectedMarket = state?.preferredMarket || marketChoice;
 
   useEffect(() => {
     if (state?.preferredMarket && !marketChoice) setMarketChoice(state.preferredMarket);
@@ -76,8 +78,8 @@ function Page() {
 
   useEffect(() => {
     if (activeKey !== "setupAdded") return;
-    router.replace(setupRouteForMarket());
-  }, [activeKey, state?.preferredMarket, marketChoice, router]);
+    router.replace(setupRouteForMarket(selectedMarket));
+  }, [activeKey, selectedMarket, router]);
 
   // Final hop — when the funnel is complete, route to the dashboard. The
   // dashboard hides FirstLoginWelcome via the existing welcomeSeen flag.
@@ -153,7 +155,7 @@ function Page() {
           setPreferredMarketLocal(marketChoice).catch(() => {});
           try {
             await selectMarket.mutateAsync(marketChoice);
-            router.push(setupRouteForMarket());
+            router.push(setupRouteForMarket(marketChoice));
           } catch {/* error banner already shown via mutation state */}
         }}
       >

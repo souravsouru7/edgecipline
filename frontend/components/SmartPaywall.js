@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createPaymentOrder,
   verifyPayment,
@@ -8,6 +9,7 @@ import {
   recordTrialEvent,
 } from "@/services/api";
 import { validateEnvironment } from "@/config/environment";
+import { canShowPurchaseUI } from "@/config/payments";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 
 let razorpayCheckoutPromise = null;
@@ -33,7 +35,7 @@ function loadRazorpayCheckout() {
   if (window.Razorpay) return Promise.resolve(window.Razorpay);
   if (razorpayCheckoutPromise) return razorpayCheckoutPromise;
 
-  if (isSandboxCheckout()) {
+  if (process.env.NODE_ENV !== "production" && isSandboxCheckout()) {
     razorpayCheckoutPromise = import("@/utils/mockRazorpay")
       .then(({ injectMockRazorpay }) => {
         injectMockRazorpay();
@@ -103,20 +105,27 @@ function formatTile(key, metrics) {
 }
 
 export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "upgrade" }) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [ctx, setCtx] = useState(null);
   const [ctxLoading, setCtxLoading] = useState(true);
 
+  // Hard gate. Callers are already guarded, but this is the last line of
+  // defence: with payments off there is no purchase surface in the build at
+  // all, which is what Apple 3.1.1 and the Play payments policy require.
+  const purchaseAllowed = canShowPurchaseUI();
+  const active = isOpen && purchaseAllowed;
+
   // Razorpay SDK — loads real SDK when key is set, injects sandbox mock otherwise.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!active) return;
     loadRazorpayCheckout().catch(() => {});
-  }, [isOpen]);
+  }, [active]);
 
   // Personalized context — loaded each time the modal opens.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!active) return;
     let cancelled = false;
     setCtxLoading(true);
     setError("");
@@ -125,7 +134,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
       .catch(() => { if (!cancelled) setCtx(null); })
       .finally(() => { if (!cancelled) setCtxLoading(false); });
     return () => { cancelled = true; };
-  }, [isOpen]);
+  }, [active]);
 
   const handlePayment = async () => {
     try {
@@ -158,6 +167,10 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
               razorpay_signature:  response.razorpay_signature,
             });
             if (result.success) {
+              // useTrialStatus polls every 60s and only refetches on focus,
+              // so without this the tab that just paid keeps showing the
+              // pre-upgrade paywall state until the next tick.
+              queryClient.invalidateQueries({ queryKey: ["trial", "status"] });
               if (typeof onSuccess === "function") onSuccess();
               if (typeof onClose === "function") onClose();
               return;
@@ -195,7 +208,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
     if (typeof onClose === "function") onClose();
   };
 
-  if (!isOpen) return null;
+  if (!active) return null;
 
   const sandboxMode = isSandboxCheckout();
   const headline =

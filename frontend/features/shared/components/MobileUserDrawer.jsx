@@ -26,15 +26,20 @@ export default function MobileUserDrawer({
 
   useEffect(() => {
     if (open) {
-      setVisible(true);
       const raf = requestAnimationFrame(() => {
+        setVisible(true);
         requestAnimationFrame(() => setAnimate(true));
       });
       return () => cancelAnimationFrame(raf);
     } else {
-      setAnimate(false);
-      const t = setTimeout(() => setVisible(false), 320);
-      return () => clearTimeout(t);
+      const animateTimer = setTimeout(() => {
+        setAnimate(false);
+      }, 0);
+      const visibleTimer = setTimeout(() => setVisible(false), 320);
+      return () => {
+        clearTimeout(animateTimer);
+        clearTimeout(visibleTimer);
+      };
     }
   }, [open]);
 

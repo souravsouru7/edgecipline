@@ -106,6 +106,13 @@ function number(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// Real NSE option symbols (e.g. "NIFTY24AUG22500CE") butt the strike digits
+// directly against CE/PE with no separator, so \b(CE|PE)\b never matches --
+// there's no word boundary between a digit and a letter. Treat a digit (or
+// string start/space) before, and string end/space after, as the boundary
+// instead of relying on \b.
+const CE_PE_SUFFIX_RE = /(?:^|[^A-Z])(CE|PE)(?:$|[^A-Z])/;
+
 function validateTradeLogic(trade = {}, marketType = "Forex") {
   const failures = [];
   const warnings = [];
@@ -127,8 +134,8 @@ function validateTradeLogic(trade = {}, marketType = "Forex") {
 
   if (marketType === "Indian_Market") {
     const pair = String(trade.pair || trade.symbol || "").toUpperCase();
-    const optionType = String(trade.optionType || pair.match(/\b(CE|PE)\b/)?.[1] || "").toUpperCase();
-    if (/\b(CE|PE)\b/.test(pair) && !["CE", "PE"].includes(optionType)) failures.push("INVALID_OPTION_TYPE");
+    const optionType = String(trade.optionType || pair.match(CE_PE_SUFFIX_RE)?.[1] || "").toUpperCase();
+    if (CE_PE_SUFFIX_RE.test(pair) && !["CE", "PE"].includes(optionType)) failures.push("INVALID_OPTION_TYPE");
     if (["CE", "PE"].includes(optionType) && !(number(trade.strikePrice ?? trade.strike) > 0)) failures.push("INVALID_STRIKE");
   } else {
     const pair = String(trade.pair || trade.symbol || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

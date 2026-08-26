@@ -11,7 +11,9 @@ const { handleStreakEvents } = require("./streakNotification.service");
 const tradeLifecycleService = require("./tradeLifecycle.service");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const {
-  getOcrConfirmationTrades,
+  claimOcrJobForConfirmation,
+  releaseOcrJobClaim,
+  extractConfirmationTrades,
   markOcrJobConfirmed,
 } = require("./ocrJob.service");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
@@ -35,6 +37,126 @@ function normalizeTradeType(type) {
   return normalizedType;
 }
 
+// Forex trades had no business-rule check on position size at all -- the
+// Mongoose schema alone accepts negative/zero quantity and lot size. Mirrors
+// the equivalent guard already in indianTradeController.js. Only validates
+// when a value is actually provided, since neither field is required.
+function requirePositiveIfProvided(value, label) {
+  if (value == null || value === "") return undefined;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    throw new ApiError(400, `${label} must be a positive number`, "VALIDATION_ERROR");
+  }
+  return num;
+}
+
+function requirePositiveNumber(value, label) {
+  if (value == null || value === "") {
+    throw new ApiError(400, `${label} is required`, "VALIDATION_ERROR");
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    throw new ApiError(400, `${label} must be a positive number`, "VALIDATION_ERROR");
+  }
+  return num;
+}
+
+function requireEntryBasisCustomText(entryBasis, entryBasisCustom) {
+  if (entryBasis === "Custom" && !String(entryBasisCustom || "").trim()) {
+    throw new ApiError(400, "Custom entry basis requires a description", "VALIDATION_ERROR");
+  }
+}
+
+function enforcePositiveTradeSize(tradePayload) {
+  const quantity = requirePositiveIfProvided(tradePayload.quantity, "Quantity");
+  if (quantity !== undefined) tradePayload.quantity = quantity;
+  const lotSize = requirePositiveIfProvided(tradePayload.lotSize, "Lot size");
+  if (lotSize !== undefined) tradePayload.lotSize = lotSize;
+}
+
+function enforceManualForexPricing(tradePayload) {
+  tradePayload.entryPrice = requirePositiveNumber(tradePayload.entryPrice, "Entry price");
+  tradePayload.exitPrice = requirePositiveNumber(tradePayload.exitPrice, "Exit price");
+
+  if (tradePayload.lotSize == null && tradePayload.quantity == null) {
+    throw new ApiError(400, "Lot size is required", "VALIDATION_ERROR");
+  }
+}
+
+// insertMany({ordered:true}) on a mid-batch failure leaves the earlier
+// documents committed in Mongo but throws a plain (non-ApiError) bulk-write
+// error -- which the global error handler flattens into a generic 500
+// "Something went wrong", hiding both which trades already saved and that
+// a retry of the full batch would duplicate them. Surface that explicitly.
+function isBulkWriteError(err) {
+  return Boolean(err) && (
+    err.name === "MongoBulkWriteError" ||
+    err.name === "BulkWriteError" ||
+    Array.isArray(err.writeErrors) ||
+    Array.isArray(err.insertedDocs)
+  );
+}
+
+// An OCR-confirmed trade gets its double-submit protection from the atomic
+// claimOcrJobForConfirmation() gate above -- but a plain manual trade has no
+// ocrJobId to key that off, so a double-click or a client retry after a
+// dropped response creates two identical Trade documents with nothing to
+// stop it. Fall back to matching on the trade's own content within a short
+// window: if the same user just created a trade with the same pair/type/
+// date/size/prices/profit, treat this submission as the same one.
+const DUPLICATE_TRADE_WINDOW_MS = 10_000;
+
+function buildDuplicateTradeQuery(userId, tradeDoc) {
+  const query = {
+    user: userId,
+    pair: tradeDoc.pair,
+    type: tradeDoc.type,
+    tradeDate: tradeDoc.tradeDate,
+    createdAt: { $gte: new Date(Date.now() - DUPLICATE_TRADE_WINDOW_MS) },
+  };
+  for (const field of ["quantity", "lotSize", "entryPrice", "exitPrice", "profit"]) {
+    if (tradeDoc[field] !== undefined) query[field] = tradeDoc[field];
+  }
+  return query;
+}
+
+async function findRecentDuplicateTrade(userId, tradeDoc) {
+  return Trade.findOne(buildDuplicateTradeQuery(userId, tradeDoc)).sort({ createdAt: -1 });
+}
+
+function wrapBatchInsertError(err, totalCount) {
+  if (!isBulkWriteError(err)) return err;
+  const insertedDocs = Array.isArray(err.insertedDocs) ? err.insertedDocs : [];
+  const insertedCount = insertedDocs.length || Number(err?.result?.nInserted ?? err?.result?.result?.nInserted ?? 0);
+  const failedCount = Math.max(0, totalCount - insertedCount);
+  const insertedTradeIds = insertedDocs.map((d) => d?._id).filter(Boolean);
+  return new ApiError(
+    409,
+    insertedCount > 0
+      ? `${insertedCount} of ${totalCount} trades were saved before an error occurred (${failedCount} failed). Check your trade log before retrying to avoid duplicates.`
+      : `Failed to save trades: ${err.message}`,
+    "BATCH_PARTIAL_FAILURE",
+    { insertedCount, failedCount, insertedTradeIds }
+  );
+}
+
+// setMonth()/setFullYear() don't clamp -- subtracting a month from e.g. Mar
+// 31 overflows into Feb 31, which JS silently rolls into Mar 3 instead of
+// erroring, shrinking the "last month" filter to skip nearly all of
+// February. Set the day to 1 before changing month/year (so the change
+// itself can't overflow), then clamp back to the last real day of the
+// resulting month. Same rollover class as the bug already fixed in
+// normalizeTradeDate (utils/dateUtils.js).
+function subtractMonthsClamped(date, months) {
+  const originalDay = date.getDate();
+  const result = new Date(date);
+  result.setDate(1);
+  result.setMonth(result.getMonth() - months);
+  const daysInResultMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(originalDay, daysInResultMonth));
+  return result;
+}
+
 function getPeriodStart(period) {
   const now = new Date();
   const start = new Date(now);
@@ -44,14 +166,11 @@ function getPeriodStart(period) {
       start.setDate(start.getDate() - 7);
       return start;
     case "1m":
-      start.setMonth(start.getMonth() - 1);
-      return start;
+      return subtractMonthsClamped(now, 1);
     case "3m":
-      start.setMonth(start.getMonth() - 3);
-      return start;
+      return subtractMonthsClamped(now, 3);
     case "1y":
-      start.setFullYear(start.getFullYear() - 1);
-      return start;
+      return subtractMonthsClamped(now, 12);
     default:
       return null;
   }
@@ -70,28 +189,58 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
 
   const ocrJobId = payload.ocrJobId;
   const tradePayload = pickForexTradeFields(payload);
+  enforcePositiveTradeSize(tradePayload);
+  requireEntryBasisCustomText(tradePayload.entryBasis, tradePayload.entryBasisCustom);
   let trustedProfit = null;
   if (ocrJobId) {
-    const extractedTrades = await getOcrConfirmationTrades(userId, ocrJobId, "Forex");
+    // Claim the job (COMPLETED -> CONFIRMED) before creating the trade, so a
+    // second concurrent confirm of the same screenshot is rejected here
+    // instead of both requests silently creating separate Trade documents.
+    const claimedJob = await claimOcrJobForConfirmation(userId, ocrJobId, "Forex");
+    const extractedTrades = extractConfirmationTrades(claimedJob);
     trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades);
   }
   if (trustedProfit !== null) {
     tradePayload.profit = trustedProfit;
   } else {
+    if (!ocrJobId) enforceManualForexPricing(tradePayload);
     const derivedProfit = deriveForexProfit(tradePayload);
-    if (derivedProfit !== null) tradePayload.profit = derivedProfit;
+    if (derivedProfit !== null) {
+      tradePayload.profit = derivedProfit;
+    } else if (!ocrJobId) {
+      throw new ApiError(
+        400,
+        "P&L cannot be derived for this Forex instrument",
+        "VALIDATION_ERROR"
+      );
+    }
   }
   const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
-  const trade = await tradeRepository.createTrade({
+  const candidateDoc = {
     ...tradePayload,
     type: normalizeTradeType(payload.type),
     tradeDate: normalizedTradeDate,
-    effectiveTradeDate: normalizedTradeDate,
-    user: userId,
-    status: "completed",
-    error: null,
-    processedAt: new Date(),
-  });
+  };
+
+  if (!ocrJobId) {
+    const duplicate = await findRecentDuplicateTrade(userId, candidateDoc);
+    if (duplicate) return duplicate;
+  }
+
+  let trade;
+  try {
+    trade = await tradeRepository.createTrade({
+      ...candidateDoc,
+      effectiveTradeDate: normalizedTradeDate,
+      user: userId,
+      status: "completed",
+      error: null,
+      processedAt: new Date(),
+    });
+  } catch (err) {
+    if (ocrJobId) await releaseOcrJobClaim(userId, ocrJobId);
+    throw err;
+  }
 
   await invalidateTradeCaches({
     userId,
@@ -142,7 +291,7 @@ async function updateStreaksForTrade(userId, trade) {
 function buildCreateTradeDocument(
   userId,
   payload,
-  { accountCreatedAt, extractedTrades = [], tradeIndex = 0 } = {}
+  { accountCreatedAt, extractedTrades = [], tradeIndex = 0, ocrConfirmed = false } = {}
 ) {
   if (!payload.pair) {
     throw new ApiError(400, "Pair is required", "VALIDATION_ERROR");
@@ -155,12 +304,23 @@ function buildCreateTradeDocument(
   }
 
   const tradePayload = pickForexTradeFields(payload);
+  enforcePositiveTradeSize(tradePayload);
+  requireEntryBasisCustomText(tradePayload.entryBasis, tradePayload.entryBasisCustom);
   const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
   if (trustedProfit !== null) {
     tradePayload.profit = trustedProfit;
   } else {
+    if (!ocrConfirmed) enforceManualForexPricing(tradePayload);
     const derivedProfit = deriveForexProfit(tradePayload);
-    if (derivedProfit !== null) tradePayload.profit = derivedProfit;
+    if (derivedProfit !== null) {
+      tradePayload.profit = derivedProfit;
+    } else if (!ocrConfirmed) {
+      throw new ApiError(
+        400,
+        "P&L cannot be derived for this Forex instrument",
+        "VALIDATION_ERROR"
+      );
+    }
   }
   const normalizedTradeDate = normalizeTradeDate(payload.tradeDate, { accountCreatedAt });
   return {
@@ -185,15 +345,24 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
   }
 
   const ocrJobId = payload.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
-  const extractedTrades = ocrJobId
-    ? await getOcrConfirmationTrades(userId, ocrJobId, "Forex")
-    : [];
+  let extractedTrades = [];
+  if (ocrJobId) {
+    const claimedJob = await claimOcrJobForConfirmation(userId, ocrJobId, "Forex");
+    extractedTrades = extractConfirmationTrades(claimedJob);
+  }
   const docs = trades.map((trade, tradeIndex) => buildCreateTradeDocument(userId, trade, {
     accountCreatedAt,
     extractedTrades,
     tradeIndex,
+    ocrConfirmed: Boolean(ocrJobId),
   }));
-  const createdTrades = await tradeRepository.createTrades(docs);
+  let createdTrades;
+  try {
+    createdTrades = await tradeRepository.createTrades(docs);
+  } catch (err) {
+    if (ocrJobId) await releaseOcrJobClaim(userId, ocrJobId);
+    throw wrapBatchInsertError(err, docs.length);
+  }
 
   await invalidateTradeCaches({
     userId,
@@ -380,13 +549,23 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     Object.prototype.hasOwnProperty.call(payload, field)
   );
 
+  const touchesEntryBasis = update.entryBasis !== undefined || update.entryBasisCustom !== undefined;
+
   // Load the current calculation inputs when the P&L basis changes. The same
-  // query also supplies tradeImages for cleanup when that array is replaced.
+  // query also supplies tradeImages for cleanup when that array is replaced,
+  // and entryBasis/entryBasisCustom for the custom-text cross-field check.
   let existing = null;
-  if (shouldDeriveProfit || Array.isArray(update.tradeImages)) {
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis) {
     existing = await Trade.findOne({ _id: tradeId, user: userId })
-      .select("pair type entryPrice exitPrice lotSize quantity commission swap tradeImages")
+      .select("pair type entryPrice exitPrice lotSize quantity commission swap tradeImages entryBasis entryBasisCustom")
       .lean();
+  }
+
+  if (touchesEntryBasis) {
+    requireEntryBasisCustomText(
+      update.entryBasis !== undefined ? update.entryBasis : existing?.entryBasis,
+      update.entryBasisCustom !== undefined ? update.entryBasisCustom : existing?.entryBasisCustom
+    );
   }
 
   let derivedProfit;
@@ -505,4 +684,5 @@ module.exports = {
   getTradeStatus,
   restoreTrade,
   updateTrade,
+  wrapBatchInsertError,
 };

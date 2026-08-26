@@ -21,7 +21,7 @@ function getItems(routes = {}) {
       key: "setupAdded",
       label: "Create your first setup",
       sub: "Strategy name, rules, and examples",
-      href: "/setups?onboarding=1",
+      href: `${routes.onboardingSetup || routes.setups || "/setups"}?onboarding=1`,
     },
     {
       key: "tradeAdded",

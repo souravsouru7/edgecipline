@@ -22,6 +22,10 @@ const CACHE_PROJECTION = [
   "_id",
   "role",
   "accountStatus",
+  // Required by protect() to tell a deletion lockout apart from an admin ban.
+  // Omitting it here would make every cache hit look like a ban and block the
+  // user's retry, which is exactly the state this flag exists to escape.
+  "pendingDeletion",
   "tokenVersion",
   "subscriptionStatus",
   "subscriptionPlan",
@@ -33,6 +37,11 @@ const CACHE_PROJECTION = [
   "termsAcceptance",
   "hasSeenWelcomeGuide",
   "isOnboardingCompleted",
+  // Subdocument driving the dashboard's onboarding funnel (welcomeSeen,
+  // marketSelected, etc.) and login's landing-page decision. Omitting it
+  // makes req.user.onboarding permanently undefined, so those checks never
+  // see a step as done regardless of what's actually saved in MongoDB.
+  "onboarding",
   "freeUploadUsed",
   "authProvider",
   "email",

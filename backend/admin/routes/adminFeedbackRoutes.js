@@ -6,9 +6,10 @@ const {
   deleteFeedback 
 } = require("../../controllers/feedbackController");
 const { adminAuth } = require("../../middleware/adminAuth");
+const { validateObjectId } = require("../../middleware/validateObjectId");
 
 router.get("/", adminAuth, getAllFeedback);
-router.patch("/:id", adminAuth, updateFeedbackStatus);
-router.delete("/:id", adminAuth, deleteFeedback);
+router.patch("/:id", adminAuth, validateObjectId("id"), updateFeedbackStatus);
+router.delete("/:id", adminAuth, validateObjectId("id"), deleteFeedback);
 
 module.exports = router;

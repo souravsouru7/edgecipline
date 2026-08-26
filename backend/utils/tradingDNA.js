@@ -262,15 +262,22 @@ function computeEmotionDNA(trades) {
 }
 
 function computeMistakeDNA(trades) {
-  const map = {};
+  const map = {};      // normalizedKey -> pnls[]
+  const labels = {};   // normalizedKey -> display label (first-seen casing)
   for (const t of trades) {
-    const tag = t.mistakeTag;
-    if (!tag) continue;
-    if (!map[tag]) map[tag] = [];
-    map[tag].push(t.profit || 0);
+    if (!t.mistakeTag) continue;
+    const trimmed = String(t.mistakeTag).trim();
+    if (!trimmed) continue;
+    // Case-fold so "FOMO" and "fomo" are grouped as the same mistake.
+    const key = trimmed.toLowerCase();
+    if (!map[key]) {
+      map[key] = [];
+      labels[key] = trimmed;
+    }
+    map[key].push(t.profit || 0);
   }
 
-  const list = buildInsightList(map).sort((a, b) =>
+  const list = buildInsightList(map, (key) => labels[key]).sort((a, b) =>
     a.netPnL !== b.netPnL ? a.netPnL - b.netPnL : a.name.localeCompare(b.name)
   );
 
@@ -765,4 +772,10 @@ function enrichTradingDNAWithPatterns(dnaResult, patternResult) {
   };
 }
 
-module.exports = { computeTradingDNA, enrichTradingDNAWithPatterns, getConfidence };
+module.exports = {
+  computeTradingDNA,
+  enrichTradingDNAWithPatterns,
+  getConfidence,
+  // Exported for testing
+  computeMistakeDNA,
+};

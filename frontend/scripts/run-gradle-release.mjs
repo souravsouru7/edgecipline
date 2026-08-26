@@ -7,9 +7,16 @@ const frontendRoot = path.resolve(
   ".."
 );
 const androidRoot = path.join(frontendRoot, "android");
-const wrapper = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+const gradleWrapper = path.join(
+  androidRoot,
+  process.platform === "win32" ? "gradlew.bat" : "gradlew"
+);
+const command = process.platform === "win32" ? "cmd.exe" : gradleWrapper;
+const args = process.platform === "win32"
+  ? ["/c", gradleWrapper, "bundleRelease"]
+  : ["bundleRelease"];
 
-const result = spawnSync(wrapper, ["bundleRelease"], {
+const result = spawnSync(command, args, {
   cwd: androidRoot,
   stdio: "inherit",
   shell: false,

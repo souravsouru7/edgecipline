@@ -18,7 +18,10 @@ import { FormSelect }        from "@/features/trade/components/FormSelect";
 import { useUploadTrade }    from "@/features/trade/hooks/useUploadTrade";
 import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
 import OcrConfirmationBanner from "@/features/issues/OcrConfirmationBanner";
-import SmartPaywall          from "@/components/SmartPaywall";
+import PaywallGate           from "@/components/PaywallGate";
+import { canShowPurchaseUI } from "@/config/payments";
+import OnboardingMarketGuard from "@/features/onboarding/components/OnboardingMarketGuard";
+import { getOnboardingUploadPath } from "@/features/onboarding/utils/onboardingMarketRouting.mjs";
 
 // ── shared form constants ─────────────────────────────────────────────────────
 const ENTRY_BASIS  = ["Plan", "Impulsive", "Emotion", "Custom"];
@@ -70,10 +73,15 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
   const [showSample, setShowSample] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const confirmSubmitRef = useRef(false);
   const confirmImageUrl = useMemo(
     () => (showConfirmModal && file ? URL.createObjectURL(file) : ""),
     [showConfirmModal, file]
   );
+
+  useEffect(() => {
+    if (showConfirmModal) confirmSubmitRef.current = false;
+  }, [showConfirmModal]);
   const normalizedError = String(error || "").toLowerCase();
   const isSubscriptionError =
     normalizedError.includes("subscription required") ||
@@ -85,6 +93,20 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
     normalizedError.includes("not a valid trade screenshot") ||
     normalizedError.includes("could not extract any trade") ||
     normalizedError.includes("upload a screenshot from your broker");
+  const manualEntryPath = isInd ? "/indian-market/add-trade" : "/add-trade";
+  const screenshotTips = isInd
+    ? [
+        "Open your Indian broker app (Zerodha, Upstox, Groww, Angel One, Dhan, or Fyers)",
+        "Open your orders, positions, or trade history",
+        "Take a screenshot showing symbol, quantity, entry/exit price, and P&L",
+        "Upload that screenshot here",
+      ]
+    : [
+        "Open your Forex broker app (MT4, MT5, cTrader, or your broker platform)",
+        "Open your trade history or positions",
+        "Take a screenshot showing pair, lot size, entry/exit price, and P&L",
+        "Upload that screenshot here",
+      ];
 
   useEffect(() => {
     if (!confirmImageUrl) return;
@@ -273,6 +295,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
             {/* CTAs */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {canShowPurchaseUI() && (
               <button
                 type="button"
                 onClick={() => setShowPaywall(true)}
@@ -291,9 +314,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
               >
                 ✨ UPGRADE TO EDGECIPLINE PRO
               </button>
+              )}
 
               <Link
-                href="/add-trade"
+                href={manualEntryPath}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                   padding: "10px", borderRadius: 10,
@@ -314,12 +338,14 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
       )}
 
       {/* SmartPaywall modal — triggered by upgrade CTA */}
-      <SmartPaywall
-        isOpen={showPaywall}
-        variant="upgrade"
-        onClose={() => setShowPaywall(false)}
-        onSuccess={() => { setShowPaywall(false); setError(null); }}
-      />
+      {canShowPurchaseUI() && (
+        <PaywallGate
+          isOpen={showPaywall}
+          variant="upgrade"
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => { setShowPaywall(false); setError(null); }}
+        />
+      )}
 
       {/* ── Non-subscription errors (wrong screenshot, upload failure, etc.) ── */}
       {error && !isSubscriptionError && (
@@ -334,7 +360,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
             <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.65 }}>{error}</p>
             {isWrongScreenshotError && (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
-                {["Open your broker app (MT5, Zerodha Kite, Upstox, etc.)", "Go to your trade history or positions", "Take a screenshot showing pair, entry/exit price, and P&L", "Upload that screenshot here"].map((tip, i) => (
+                {screenshotTips.map((tip, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
                     <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#FCA5A5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#9B1C1C", flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                     <span style={{ fontSize: 11, color: "#7F1D1D", lineHeight: 1.5 }}>{tip}</span>
@@ -479,7 +505,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 </button>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => {
+                    if (confirmSubmitRef.current || loading) return;
+                    confirmSubmitRef.current = true;
                     setShowConfirmModal(false);
                     handleUpload();
                   }}
@@ -492,7 +521,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                     fontSize: 12,
                     fontWeight: 800,
                     letterSpacing: "0.06em",
-                    cursor: "pointer",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.6 : 1,
                   }}
                 >
                   Yes, Upload
@@ -985,10 +1015,24 @@ function UploadTradeContent() {
   const searchParams = useSearchParams();
   const onboardingMode = searchParams?.get("onboarding") === "1";
   const { isInd, isDemo, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax, isRedirecting } = state;
+  const onboardingMarket = isInd ? "Indian_Market" : "Forex";
+  const realUploadPath = getOnboardingUploadPath(onboardingMarket);
+  const demoUploadPath = getOnboardingUploadPath(onboardingMarket, { demo: true });
+  const manualEntryPath = isInd
+    ? "/indian-market/add-trade?onboarding=1"
+    : "/add-trade?onboarding=1";
   const visibleTradeCount = trades.length > 1 ? trades.length : tradeCount;
   const [accuracyAcknowledged, setAccuracyAcknowledged] = useState(false);
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
-  const extractionStepMap = {
+  // Demo replays these stages locally — nothing leaves the browser — so it gets
+  // its own copy rather than claiming to upload and queue work server-side.
+  const extractionStepMap = isDemo ? {
+    uploading: { label: "Loading sample screenshot", hint: "Reading the bundled demo image", progress: 25 },
+    cancelling: { label: "Cancelling demo", hint: "Clearing the sample extraction", progress: 10 },
+    pending: { label: "Preparing sample extraction", hint: "No upload — the demo runs on your device", progress: 45 },
+    processing: { label: "Reading sample trade details", hint: "Filling the form from bundled sample data", progress: 75 },
+    completed: { label: "Demo extraction completed", hint: "Nothing was uploaded or stored", progress: 100 },
+  } : {
     uploading: { label: "Uploading screenshot", hint: "Securely sending image to server", progress: 25 },
     cancelling: { label: "Cancelling upload", hint: "Stopping OCR and cleaning up resources", progress: 10 },
     pending: { label: "Queued for extraction", hint: "Preparing OCR and AI pipeline", progress: 45 },
@@ -1087,7 +1131,6 @@ function UploadTradeContent() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <CandlestickBackground canvasId="upload-bg-canvas" />
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -1109,7 +1152,7 @@ function UploadTradeContent() {
                 We loaded a <strong>sample {isInd ? "Indian broker" : "MT5"} screenshot</strong> for you. Hit <strong>Extract Trade Data</strong> to watch the AI read it — exactly how it works with your own screenshots. <strong>Nothing here is saved</strong> to your trade log.
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
-                Ready with your own? <Link href={isInd ? "/indian-market/upload-trade?onboarding=1" : "/upload-trade?onboarding=1"} style={{ color: "#0284C7", fontWeight: 700, textDecoration: "none" }}>Upload a real screenshot →</Link>
+                Ready with your own? <Link href={realUploadPath} style={{ color: "#0284C7", fontWeight: 700, textDecoration: "none" }}>Upload a real screenshot →</Link>
               </div>
             </div>
           )}
@@ -1124,10 +1167,14 @@ function UploadTradeContent() {
                 STEP 2 OF 3 · LOG YOUR FIRST TRADE
               </div>
               <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
-                Upload a <strong>broker screenshot</strong> (MT4/MT5, Zerodha, Upstox, etc.) — our AI reads it and fills in pair, entry, exit, and P&L for you. Review, hit <strong>Save</strong>, and we&apos;ll take you to your trade log.
+                {isInd ? (
+                  <>Upload a <strong>Zerodha, Upstox, Groww, Angel One, Dhan, or Fyers screenshot</strong>. Our AI reads it and fills in the symbol, quantity, entry, exit, and P&amp;L. Review the details, then save it to your Indian Market trade log.</>
+                ) : (
+                  <>Upload an <strong>MT4, MT5, cTrader, or Forex broker screenshot</strong>. Our AI reads it and fills in the pair, lot size, entry, exit, and P&amp;L. Review the details, then save it to your Forex trade log.</>
+                )}
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
-                Prefer typing it in? <Link href="/add-trade?onboarding=1" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
+                Prefer typing it in? <Link href={manualEntryPath} style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
               </div>
             </div>
           )}
@@ -1137,7 +1184,7 @@ function UploadTradeContent() {
               as the clear fallback to uploading a real screenshot. */}
           {onboardingMode && !isDemo && (
             <Link
-              href={isInd ? "/indian-market/upload-trade?onboarding=1&demo=1" : "/upload-trade?onboarding=1&demo=1"}
+              href={demoUploadPath}
               style={{
                 display: "flex", alignItems: "center", gap: 14,
                 padding: "18px 18px", borderRadius: 14, marginBottom: 18,
@@ -1425,7 +1472,9 @@ export default function UploadTradePage() {
   return (
     <ErrorBoundary fallback={(error, reset) => <UploadErrorFallback error={error} resetError={reset} />}>
       <Suspense>
-        <UploadTradeContent />
+        <OnboardingMarketGuard>
+          <UploadTradeContent />
+        </OnboardingMarketGuard>
       </Suspense>
     </ErrorBoundary>
   );

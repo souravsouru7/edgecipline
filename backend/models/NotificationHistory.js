@@ -54,7 +54,7 @@ const NotificationHistorySchema = new mongoose.Schema(
     },
     sourceType: {
       type: String,
-      enum: ["trade", "weekly_report", "cron", "system"],
+      enum: ["trade", "weekly_report", "cron", "system", "ocr_job", "issue_report", "streak"],
       default: "system",
     },
     sourceId: {

@@ -43,9 +43,12 @@ function makePerformanceAggregate(trades, marketType = "Forex") {
     wins: trades.filter((trade) => trade.profit > 0).length,
     losses: trades.filter((trade) => trade.profit < 0).length,
     breakEven: trades.filter((trade) => trade.profit === 0).length,
-    grossPnL: trades.reduce((sum, trade) => sum + (trade.profit || 0), 0),
+    // trade.profit is already net of costs at save time -- netPnL sums it
+    // as-is; grossPnL adds fees back as an approximate pre-cost estimate.
+    // Mirrors the real $group pipeline in analyticsSnapshotService.js.
+    grossPnL: trades.reduce((sum, trade) => sum + (trade.profit || 0) + feesFor(trade), 0),
     fees: trades.reduce((sum, trade) => sum + feesFor(trade), 0),
-    netPnL: trades.reduce((sum, trade) => sum + (trade.profit || 0) - feesFor(trade), 0),
+    netPnL: trades.reduce((sum, trade) => sum + (trade.profit || 0), 0),
     totalVolume: trades.reduce((sum, trade) => sum + Math.abs(trade.profit || 0), 0),
     totalWinPnL: trades.filter((trade) => trade.profit > 0).reduce((sum, trade) => sum + trade.profit, 0),
     totalLossPnL: trades.filter((trade) => trade.profit < 0).reduce((sum, trade) => sum + trade.profit, 0),
@@ -269,6 +272,11 @@ describe("AnalyticsSnapshotService", () => {
     expect(snapshot.performance.pnlReadyTrades).toBe(2);
     expect(snapshot.performance.tradesMissingPnl).toBe(1);
     expect(snapshot.performance.winRate).toBe(50);
+    // profit is the gross figure: the two P&L-ready trades gross 100 + -50 = 50
+    // and carry brokerage 5 + sttTaxes 1 each, so netPnL is 50 - 12 = 38. The
+    // profit-less third trade contributes neither P&L nor costs.
+    expect(snapshot.performance.grossPnL).toBe(50);
+    expect(snapshot.performance.totalCosts).toBe(12);
     expect(snapshot.performance.netPnL).toBe(38);
   });
 

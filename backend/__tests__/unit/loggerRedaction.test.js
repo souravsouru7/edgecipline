@@ -24,4 +24,11 @@ describe("logger redaction", () => {
       second: "[REDACTED] then [REDACTED]",
     });
   });
+
+  test("redacts raw token-shaped values and internal filesystem paths in strings", () => {
+    const input = "failed at C:/srv/app/internal/file.js with token abc.def.ghi";
+    expect(redactMeta({ message: input })).toEqual({
+      message: "failed at [REDACTED] with token [REDACTED]",
+    });
+  });
 });

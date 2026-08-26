@@ -17,6 +17,7 @@
  */
 
 const { calculateActualTradeQuality } = require("./tradeEvaluation");
+const { withNetPnL } = require("./metricEngine");
 const {
   calculateDisciplineScore,
   calculatePerformanceMetrics,
@@ -123,9 +124,13 @@ function computeBucketEmotions(trades) {
 }
 
 function computeBucketPnL(trades) {
+  // Rows arrive already net-normalised from computePsychologyTimeline, so the
+  // default "stored profit is net" convention is the correct one to read them
+  // under. grossPnL would add commission/swap back on Forex rows and report a
+  // gross figure through a field named `net`.
   const performance = calculatePerformanceMetrics(trades);
   return {
-    net: performance.grossPnL,
+    net: performance.netPnL,
     tradeCount: performance.totalTrades,
     winRate: performance.winRate,
   };
@@ -259,6 +264,9 @@ function generateAISummary(buckets, trends, totalTrades, marketType) {
   }
 
   const recent   = buckets.slice(-3);
+  // Named so the copy below can state the window instead of saying "recent",
+  // which readers reasonably take to mean the latest period alone.
+  const span = recent.length === 1 ? "the latest period" : `the last ${recent.length} periods`;
   const avgRecent = (arr) => {
     const vals = arr.filter(v => v !== null);
     return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
@@ -282,22 +290,22 @@ function generateAISummary(buckets, trends, totalTrades, marketType) {
   // Recent state
   if (recentPsycho !== null) {
     if (recentPsycho >= 70) {
-      parts.push(`Recent psychology is healthy at ${recentPsycho}/100 — you are trading with good emotional balance.`);
+      parts.push(`Averaged over ${span}, psychology is healthy at ${recentPsycho}/100 — you are trading with good emotional balance.`);
     } else if (recentPsycho >= 50) {
-      parts.push(`Recent psychology score of ${recentPsycho}/100 is average — there is room to reduce emotional interference.`);
+      parts.push(`Averaged over ${span}, psychology is ${recentPsycho}/100 — average, with room to reduce emotional interference.`);
     } else {
-      parts.push(`Recent psychology score of ${recentPsycho}/100 is below healthy — emotional costs are actively reducing returns.`);
+      parts.push(`Averaged over ${span}, psychology is ${recentPsycho}/100 — below healthy, and emotional costs are actively reducing returns.`);
     }
   }
 
   // Self-awareness
   if (recentAwareness !== null) {
     if (recentAwareness >= 75) {
-      parts.push(`Self-awareness is strong at ${recentAwareness}% — you accurately judge your own trade quality.`);
+      parts.push(`Self-awareness across ${span} is strong at ${recentAwareness}% — you accurately judge your own trade quality.`);
     } else if (recentAwareness >= 50) {
-      parts.push(`Self-awareness is developing at ${recentAwareness}% — continue rating trades consistently to improve calibration.`);
+      parts.push(`Self-awareness across ${span} is developing at ${recentAwareness}% — continue rating trades consistently to improve calibration.`);
     } else {
-      parts.push(`Self-awareness is low at ${recentAwareness}% — your self-ratings frequently disagree with execution quality.`);
+      parts.push(`Self-awareness across ${span} is low at ${recentAwareness}% — your self-ratings frequently disagree with execution quality.`);
     }
   }
 
@@ -334,7 +342,14 @@ function generateAISummary(buckets, trends, totalTrades, marketType) {
  * @param {number}   options.offsetHours  timezone offset hours (default 0)
  * @returns {object}
  */
-function computePsychologyTimeline(trades, { period = "weekly", marketType = "Forex", offsetHours = 0 } = {}) {
+function computePsychologyTimeline(inputTrades, { period = "weekly", marketType = "Forex", offsetHours = 0 } = {}) {
+// Indian trades store `profit` GROSS with brokerage/sttTaxes alongside, while
+// Forex stores it already net of commission/swap (see utils/tradeProfit.js).
+// Normalising once here means every helper below can keep reading
+// `trade.profit` and get the same (net) number in both markets.
+// getNetPnL is a no-op for Forex, so Forex output is unchanged.
+  const trades = withNetPnL(inputTrades, marketType);
+
   if (!Array.isArray(trades) || trades.length === 0) {
     return {
       insufficient: true,

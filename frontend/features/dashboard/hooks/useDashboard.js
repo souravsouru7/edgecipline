@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
@@ -29,8 +29,15 @@ function setupRouteForMarket(market) {
 
 export function useDashboard() {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
-  const { currentMarket, toggleMarket, marketDecided, isLoading: marketLoading } = useMarket();
+  const { currentMarket, isLoading: marketLoading } = useMarket();
+  const routeMarket = pathname?.startsWith("/indian-market")
+    ? MARKETS.INDIAN_MARKET
+    : pathname === "/dashboard"
+      ? MARKETS.FOREX
+      : null;
+  const dashboardMarket = routeMarket || currentMarket;
   const [mounted, setMounted] = useState(false);
   const [firstLoginDismissed, setFirstLoginDismissed] = useState(false);
 
@@ -39,11 +46,11 @@ export function useDashboard() {
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: ["dashboard", "snapshot", currentMarket],
-    queryFn: ({ signal }) => getDashboardSnapshot(signal, currentMarket),
+    queryKey: ["dashboard", "snapshot", dashboardMarket],
+    queryFn: ({ signal }) => getDashboardSnapshot(signal, dashboardMarket),
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 30 * 60 * 1000,
-    enabled: mounted && !marketLoading && hasValidAuthToken(),
+    enabled: mounted && (!marketLoading || Boolean(routeMarket)) && hasValidAuthToken(),
   });
 
   useEffect(() => {
@@ -103,28 +110,20 @@ export function useDashboard() {
   // sits on the Forex dashboard — which then renders the other market's data
   // (0 trades, blank KPIs) on the wrong page.
   useEffect(() => {
-    if (marketDecided) return;
-    const preferred = snapshot?.preferredMarket;
-    if (!preferred) return;
-    if (preferred === currentMarket) return;
-    if (!Object.values(MARKETS).includes(preferred)) return;
-    toggleMarket(preferred);
-  }, [snapshot?.preferredMarket, currentMarket, toggleMarket, marketDecided]);
-
-  useEffect(() => {
     const onboarding = snapshot?.onboarding;
     if (!mounted || loading || !onboarding) return;
     if (onboarding.checklistDismissed || onboarding.tourCompleted || onboarding.completedAt) return;
     if (!onboarding.welcomeSeen || !onboarding.marketSelected || onboarding.setupAdded) return;
 
-    const market = snapshot?.preferredMarket || currentMarket;
+    const market = routeMarket || snapshot?.preferredMarket || dashboardMarket;
     router.replace(setupRouteForMarket(market));
   }, [
     mounted,
     loading,
     snapshot?.onboarding,
     snapshot?.preferredMarket,
-    currentMarket,
+    routeMarket,
+    dashboardMarket,
     router,
   ]);
 
@@ -166,12 +165,14 @@ export function useDashboard() {
     showFirstLogin,
     closeFirstLogin,
     refreshOnboarding,
-    currentMarket,
+    currentMarket: dashboardMarket,
+    preferredMarket: snapshot?.preferredMarket || null,
     onboarding: snapshot?.onboarding || null,
     error,
     selfAwareness: snapshot?.selfAwareness || null,
     psychologyCost: snapshot?.psychologyCost || null,
     tradingDNA: snapshot?.tradingDNA || null,
+    timeline: snapshot?.timeline || null,
     profile: snapshot?.profile || null,
     notificationsSummary: snapshot?.notificationsSummary || null,
     streaks: snapshot?.streaks || null,
