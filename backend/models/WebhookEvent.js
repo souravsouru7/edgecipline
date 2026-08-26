@@ -48,6 +48,23 @@ const webhookEventSchema = new mongoose.Schema(
     processingError: {
       type: String,
     },
+    // Set once reconciliation has burned through MAX_PROCESSING_ATTEMPTS.
+    // Stops the retry loop and marks the event for human attention. These
+    // documents are deliberately exempt from retention pruning — they are the
+    // record of money that may have been taken without being fulfilled.
+    permanentlyFailed: {
+      type: Boolean,
+      default: false,
+    },
+    permanentlyFailedAt: {
+      type: Date,
+    },
+    // Set when a processed event's payload has been pruned by the retention
+    // job. The document itself is kept forever so eventId idempotency can
+    // never regress — only the bulky, PII-bearing payload is dropped.
+    payloadPrunedAt: {
+      type: Date,
+    },
     payload: {
       type: mongoose.Schema.Types.Mixed,
       required: true,
@@ -58,5 +75,15 @@ const webhookEventSchema = new mongoose.Schema(
 
 webhookEventSchema.index({ provider: 1, eventId: 1 }, { unique: true });
 webhookEventSchema.index({ processed: 1, processing: 1, createdAt: 1 });
+// Reconciliation sweep: unprocessed, unclaimed, not yet given up on.
+webhookEventSchema.index(
+  { processed: 1, permanentlyFailed: 1, createdAt: 1 },
+  { partialFilterExpression: { processed: false } }
+);
+// Retention sweep: processed events whose payload is still present.
+webhookEventSchema.index(
+  { processedAt: 1 },
+  { partialFilterExpression: { processed: true } }
+);
 
 module.exports = mongoose.model("WebhookEvent", webhookEventSchema);

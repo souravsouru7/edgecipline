@@ -11,10 +11,27 @@ const {
   verifyRazorpayOrderSignature,
 } = require("../services/paymentService");
 
-// Sandbox mode is active whenever RAZORPAY_KEY_ID is not set.
-// Removes the real Razorpay dependency so the full payment flow can be
-// demoed without keys — activates a real subscription in the database.
-const isSandboxMode = () => !String(appConfig.razorpay.keyId || "").trim();
+// Sandbox mode removes the real Razorpay dependency so the full payment flow
+// can be demoed without keys — but it activates a REAL subscription in the
+// REAL database from a fabricated payment ID, so any authenticated user who
+// can reach it can grant themselves premium.
+//
+// Missing credentials are therefore NOT sufficient to enter sandbox mode, and
+// are never treated as a successful payment. Sandbox requires BOTH:
+//   1. no configured RAZORPAY_KEY_ID, and
+//   2. ALLOW_SANDBOX_PAYMENTS=true on a non-production NODE_ENV
+//      (the environment half is enforced in config/index.js, so production
+//       cannot opt in even by setting the flag).
+//
+// Any other combination fails closed with 503. Previously this keyed on
+// NODE_ENV alone, which meant a staging box that forgot NODE_ENV=production
+// silently became a free-premium faucet against a real database.
+const isSandboxMode = () => {
+  const keyMissing = !String(appConfig.razorpay.keyId || "").trim();
+  if (!keyMissing) return false;
+  if (appConfig.razorpay.allowSandboxPayments) return true;
+  throw new ApiError(503, "Razorpay is not configured", "RAZORPAY_CONFIG_MISSING");
+};
 
 function addDays(date, days) {
   const next = new Date(date);
@@ -56,7 +73,7 @@ async function applySandboxSubscription({ userId, expiryDate, amount, userPlan, 
           },
         },
       },
-    ]);
+    ], { updatePipeline: true });
     return;
   }
 

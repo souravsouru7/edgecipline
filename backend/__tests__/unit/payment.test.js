@@ -293,16 +293,22 @@ describe('verifyPayment', () => {
 describe('sandbox payment demo', () => {
   const { appConfig } = require('../../config');
   const originalKeyId = appConfig.razorpay.keyId;
+  const originalAllowSandbox = appConfig.razorpay.allowSandboxPayments;
   const authUser = { _id: '507f1f77bcf86cd799439011' };
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers().setSystemTime(new Date('2026-07-12T00:00:00.000Z'));
     appConfig.razorpay.keyId = '';
+    // Sandbox is no longer implied by a missing key — it requires deliberate
+    // opt-in via ALLOW_SANDBOX_PAYMENTS. See sandboxIsolation.test.js for the
+    // tests that prove the opt-out path fails closed.
+    appConfig.razorpay.allowSandboxPayments = true;
   });
 
   afterEach(() => {
     appConfig.razorpay.keyId = originalKeyId;
+    appConfig.razorpay.allowSandboxPayments = originalAllowSandbox;
     jest.useRealTimers();
   });
 
@@ -358,7 +364,11 @@ describe('sandbox payment demo', () => {
     }, res, jest.fn());
 
     expect(Payment.create).not.toHaveBeenCalled();
-    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.any(Array));
+    // updatePipeline: true is required for Mongoose to accept an array
+    // (aggregation-pipeline) update on findByIdAndUpdate/updateOne -- without
+    // it, this call throws in real Mongoose (the mock here doesn't surface
+    // that, which is exactly how this bug went undetected).
+    expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.any(Array), { updatePipeline: true });
     expect(JSON.stringify(User.findByIdAndUpdate.mock.calls[0][1])).not.toContain('totalPaid');
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       success: true,
