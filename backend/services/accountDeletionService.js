@@ -32,6 +32,9 @@ const Users = require("../models/Users");
 const Trade = require("../models/Trade");
 const IndianTrade = require("../models/IndianTrade");
 const RefreshToken = require("../models/RefreshToken");
+// Needed by collectImagePublicIds as well as the purge table below. Mongoose
+// caches models, so this is the same object the table's inline require returns.
+const SupportMessage = require("../models/SupportMessage");
 
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
@@ -46,7 +49,8 @@ const { logger } = require("../utils/logger");
 // and the user's data would survive deletion — a compliance hole that would
 // not surface in testing. A bad path here is a startup crash instead.
 //
-// Payment and WebhookEvent are deliberately absent: they hold no personal data
+// Payment, WebhookEvent, CheckoutSession and CouponRedemption are
+// deliberately absent: they hold no personal data
 // beyond the (now dangling) user id and are subject to statutory retention.
 //
 // Each entry must be the MODEL ITSELF, not the module that holds it. Most model
@@ -58,6 +62,7 @@ const { logger } = require("../utils/logger");
 // in the unit tests, which asserts every entry is a real model.
 const USER_OWNED_COLLECTIONS = [
   ["user",   require("../models/AnalyticsEvent")],
+  ["user",   require("../models/AttributionTouch")],
   ["user",   require("../models/ChecklistNotificationSetting")],
   ["user",   require("../models/ChecklistTracking")],
   ["user",   require("../models/CoachConversation")],
@@ -76,6 +81,13 @@ const USER_OWNED_COLLECTIONS = [
   ["user",   require("../models/OCRJob").OCRJob],
   ["user",   require("../models/RescueDispatch")],
   ["user",   require("../models/SetupStrategy")],
+  // Customer support. Messages and the audit trail are keyed on `ticketUser`
+  // (the customer) rather than the author/actor, so an agent's reply on this
+  // customer's ticket goes with the ticket instead of surviving it.
+  ["user",       require("../models/SupportTicket")],
+  ["ticketUser", require("../models/SupportMessage")],
+  ["ticketUser", require("../models/SupportAuditLog")],
+  ["user",       require("../models/ArticleFeedback")],
   ["user",   Trade],
   ["user",   require("../models/TradingDnaReport")],
   ["user",   require("../models/WeeklyReport")],
@@ -110,6 +122,23 @@ async function collectImagePublicIds(userId) {
 
   push(await Trade.find({ user: userId }).select("tradeImages").lean());
   push(await IndianTrade.find({ user: userId }).select("tradeImages").lean());
+
+  // Support attachments live on Cloudinary under a different shape (a flat
+  // `attachments` array on each message, keyed by publicId). They are private
+  // customer data — screenshots of statements, invoices, error dialogs — so
+  // leaving them behind after a deletion request would defeat the point.
+  const supportMessages = await SupportMessage.find({
+    ticketUser: userId,
+    "attachments.0": { $exists: true },
+  })
+    .select("attachments")
+    .lean();
+
+  for (const message of supportMessages) {
+    for (const attachment of message.attachments || []) {
+      if (attachment?.publicId) publicIds.push(attachment.publicId);
+    }
+  }
 
   return [...new Set(publicIds)];
 }

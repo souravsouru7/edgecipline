@@ -7,6 +7,7 @@ import { useMarket, MARKETS } from "@/context/MarketContext";
 import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/services/uploadApi";
 import { compressImage } from "@/utils/imageCompression";
 import { createTrade, createTradesBatch } from "@/services/tradeApi";
+import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
@@ -510,6 +511,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [mounted, setMounted]                 = useState(false);
   const [file, setFile]                       = useState(null);
   const [error, setError]                     = useState(null);
+  // Non-null while a save is blocked by the free-tier allowance.
+  const [limitBlock, setLimitBlock]           = useState(null);
   const [jobId, setJobId]                     = useState("");
   const [uploadedJobId, setUploadedJobId]     = useState(null);
   const [broker, setBroker]                   = useState("AUTO");
@@ -1235,6 +1238,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       }
     },
     onError: (err) => {
+      if (isTradeLimitError(err)) {
+        setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+        return;
+      }
       addToast(err.message || "Failed to save trade", "error");
     }
   });
@@ -1510,6 +1517,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     extractedText, extractionInsights, strategies, setupsLoading, jobId, processingStatus, mounted, saved, isRedirecting,
     showCustomRR, setShowCustomRR, broker, setBroker, setupRules, isInd, marketType,
     tradeCount, tradeSubType, setTradeSubType,
+    limitBlock,
+    dismissLimitBlock: () => setLimitBlock(null),
     savingAll: saveTradeMutation.isPending || isBatchSaving,
     handleUpload,
     clearOcrSession: async () => {
@@ -1668,7 +1677,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           setTimeout(() => router.push(dest), 1200);
         } catch (err) {
           removeToast(toastId);
-          addToast(err?.message || "Batch import failed. Please review and try again.", "error");
+          if (isTradeLimitError(err)) {
+            // The server refuses the batch as a unit, so nothing was written.
+            // The dialog states that explicitly — a bare toast would leave the
+            // user unsure whether some of the import landed.
+            setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+          } else {
+            addToast(err?.message || "Batch import failed. Please review and try again.", "error");
+          }
         } finally {
           setIsBatchSaving(false);
         }

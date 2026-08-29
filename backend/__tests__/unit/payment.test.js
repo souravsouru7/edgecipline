@@ -39,7 +39,7 @@ jest.mock('razorpay', () =>
     orders: {
       create: jest.fn().mockResolvedValue({
         id:       'order_test123',
-        amount:   15000,
+        amount:   53700,
         currency: 'INR',
         receipt:  'rcpt_test',
       }),
@@ -112,7 +112,7 @@ beforeEach(() => {
   mockSession.endSession.mockClear();
   mockOrderFetch.mockResolvedValue({
     id: ORDER_ID,
-    amount: 15000,
+    amount: 53700,
     currency: 'INR',
     status: 'paid',
     notes: { userId: '507f1f77bcf86cd799439011', planType: '3_months' },
@@ -120,7 +120,7 @@ beforeEach(() => {
   mockPaymentFetch.mockResolvedValue({
     id: PAYMENT_ID,
     order_id: ORDER_ID,
-    amount: 15000,
+    amount: 53700,
     currency: 'INR',
     status: 'captured',
     captured: true,
@@ -251,8 +251,8 @@ describe('verifyPayment', () => {
 
     await verifyPayment(req, res, next);
 
-    // Server always uses PLAN_AMOUNTS["3_months"] = 150, not the client value
-    expect(capturedAmount).toBe(150);
+    // Server always uses PLAN_AMOUNTS["3_months"] = 537, not the client value
+    expect(capturedAmount).toBe(537);
   });
 
   test.each([
@@ -263,7 +263,7 @@ describe('verifyPayment', () => {
     mockPaymentFetch.mockResolvedValueOnce({
       id: PAYMENT_ID,
       order_id: ORDER_ID,
-      amount: 15000,
+      amount: 53700,
       currency: 'INR',
       status: 'captured',
       captured: true,
@@ -278,7 +278,7 @@ describe('verifyPayment', () => {
   test('rejects an order created for another user', async () => {
     mockOrderFetch.mockResolvedValueOnce({
       id: ORDER_ID,
-      amount: 15000,
+      amount: 53700,
       currency: 'INR',
       status: 'paid',
       notes: { userId: '507f1f77bcf86cd799439099', planType: '3_months' },
@@ -331,12 +331,12 @@ describe('sandbox payment demo', () => {
     }, res, jest.fn());
 
     expect(Payment.create).toHaveBeenCalledWith(expect.objectContaining({
-      amount: 150,
+      amount: 537,
       transactionId: 'sandbox_pay_1',
       expiryDate: new Date('2026-10-13T00:00:00.000Z'),
     }));
     expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.objectContaining({
-      $inc: { totalPaid: 150 },
+      $inc: { totalPaid: 537 },
     }));
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       success: true,

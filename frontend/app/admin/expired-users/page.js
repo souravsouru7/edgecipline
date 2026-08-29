@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { 
   getExpiredAdminUsers, 
   sendAdminRenewalReminder,
-  extendAdminUserPlan 
+  extendAdminUserPlan,
+  getAdminSessionName,
 } from "@/services/adminApi";
 
 /* ─────────────────────────────────────────
@@ -26,8 +27,7 @@ export default function ExpiredUsersPage() {
 
   useEffect(() => {
     setMounted(true);
-    const name = localStorage.getItem("adminName") || "Admin";
-    setAdminName(name);
+    setAdminName(getAdminSessionName());
     fetchExpiredUsers();
   }, []);
 

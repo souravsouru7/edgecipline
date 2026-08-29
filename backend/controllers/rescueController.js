@@ -51,7 +51,7 @@ exports.getBanner = asyncHandler(async (req, res) => {
       headline: banner.headline,
       body: banner.body,
       ctaLabel: banner.ctaLabel,
-      ctaDeepLink: "/pricing",
+      ctaDeepLink: "/settings",
       metricLabel: banner.metricLabel,
       metricValue: banner.metricValue,
       subscriptionExpiry: user.subscriptionExpiry,

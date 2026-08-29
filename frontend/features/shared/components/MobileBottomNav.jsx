@@ -37,7 +37,7 @@ const FOREX_TABS = [
   { href: "/trades",       label: "Trades",       Icon: BookOpen },
   { href: "/upload-trade", label: "Add",          Icon: Plus,  primary: true },
   { href: "/intelligence", label: "Intelligence", Icon: Brain },
-  { href: "/profile",      label: "Profile",      Icon: User },
+  { href: "/settings",     label: "Settings",     Icon: User },
 ];
 
 const INDIAN_TABS = [
@@ -45,7 +45,7 @@ const INDIAN_TABS = [
   { href: "/indian-market/trades",    label: "Trades",    Icon: BookOpen },
   { href: "/indian-market/upload-trade", label: "Add",     Icon: Plus, primary: true },
   { href: "/indian-market/analytics", label: "Analytics", Icon: Brain },
-  { href: "/profile",                 label: "Profile",   Icon: User },
+  { href: "/settings",                label: "Settings",  Icon: User },
 ];
 
 const NAV_HEIGHT = 68;

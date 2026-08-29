@@ -4,6 +4,7 @@ import "./globals.css";
 import "./mobile-optimizations.css";
 import Providers from "./providers";
 import MobileBottomNav from "@/features/shared/components/MobileBottomNav";
+import SupportWidget from "@/features/support/components/SupportWidget";
 
 import { getBaseMetadata } from "../config/seo";
 
@@ -55,6 +56,9 @@ export default function RootLayout({
             {children}
           </div>
           <MobileBottomNav />
+          {/* Floating help. Hides itself on the admin console, the auth
+              screens, onboarding and /support — see HIDDEN_PREFIXES. */}
+          <SupportWidget />
         </Providers>
         <script
           type="application/ld+json"

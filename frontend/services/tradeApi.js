@@ -19,6 +19,13 @@ export const createTradesBatch = async ({ trades, ocrJobId } = {}, marketType = 
   return await apiClient.post(`${path}/trades/batch`, { trades, ocrJobId });
 };
 
+// Remaining free-tier allowance for this market. Lets the form warn before a
+// user fills it in, rather than rejecting them on submit.
+export const getTradeQuota = async (marketType = 'Forex') => {
+  const path = getMarketPath(marketType);
+  return await apiClient.get(`${path}/trades/quota`);
+};
+
 export const getTrades = async (marketType = 'Forex', options = {}) => {
   const path = getMarketPath(marketType);
   const params = new URLSearchParams();

@@ -1,8 +1,24 @@
 const asyncHandler = require("../utils/asyncHandler");
 const tradeService = require("../services/trade.service");
+const tradeQuotaService = require("../services/tradeQuotaService");
 const { paginated, success } = require("../utils/apiResponse");
 
+exports.getTradeQuota = asyncHandler(async (req, res) => {
+  const quota = await tradeQuotaService.getQuota({
+    user: req.user,
+    market: tradeQuotaService.FOREX,
+  });
+  success(res, { quota });
+});
+
 exports.createTrade = asyncHandler(async (req, res) => {
+  // Gate before the service does any work — an OCR job gets claimed and a
+  // trade document built in there, so failing later would burn the job.
+  await tradeQuotaService.assertCanCreateTrades({
+    user: req.user,
+    market: tradeQuotaService.FOREX,
+    count: 1,
+  });
   const trade = await tradeService.createTrade(req.user._id, req.body, {
     accountCreatedAt: req.user.createdAt,
   });
@@ -10,6 +26,17 @@ exports.createTrade = asyncHandler(async (req, res) => {
 });
 
 exports.createTradesBatch = asyncHandler(async (req, res) => {
+  // A batch is all-or-nothing against the allowance: importing 5 trades with
+  // 1 slot left is rejected outright rather than silently truncated, so the
+  // user never thinks trades were saved when they were not.
+  const requested = Array.isArray(req.body?.trades) ? req.body.trades.length : 0;
+  if (requested > 0) {
+    await tradeQuotaService.assertCanCreateTrades({
+      user: req.user,
+      market: tradeQuotaService.FOREX,
+      count: requested,
+    });
+  }
   const result = await tradeService.createTradesBatch(req.user._id, req.body, {
     accountCreatedAt: req.user.createdAt,
   });

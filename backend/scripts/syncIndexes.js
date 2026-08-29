@@ -5,6 +5,15 @@ const IndianTrade = require("../models/IndianTrade");
 const WeeklyReport = require("../models/WeeklyReport");
 const SetupStrategy = require("../models/SetupStrategy");
 const User = require("../models/Users");
+// Support collections carry text and partial indexes, which are the two kinds
+// MongoDB rejects outright on a bad definition. Mongoose's background build
+// only LOGS that rejection, so an unaudited support model can silently run
+// every queue query as a collection scan.
+const SupportTicket = require("../models/SupportTicket");
+const SupportMessage = require("../models/SupportMessage");
+const SupportAuditLog = require("../models/SupportAuditLog");
+const KnowledgeBaseArticle = require("../models/KnowledgeBaseArticle");
+const ArticleFeedback = require("../models/ArticleFeedback");
 
 const APPLY_CREATE = process.argv.includes("--apply-create");
 const DROP_OBSOLETE = process.argv.includes("--drop-obsolete");
@@ -73,6 +82,17 @@ async function main() {
     await inspectModelIndexes(WeeklyReport);
     await inspectModelIndexes(SetupStrategy);
     await inspectModelIndexes(User);
+    await inspectModelIndexes(SupportTicket);
+    await inspectModelIndexes(SupportMessage);
+    await inspectModelIndexes(SupportAuditLog);
+    await inspectModelIndexes(KnowledgeBaseArticle);
+    await inspectModelIndexes(ArticleFeedback);
+    await inspectModelIndexes(require("../models/Campaign"));
+    await inspectModelIndexes(require("../models/Coupon"));
+    await inspectModelIndexes(require("../models/Influencer"));
+    await inspectModelIndexes(require("../models/CheckoutSession"));
+    await inspectModelIndexes(require("../models/CouponRedemption"));
+    await inspectModelIndexes(require("../models/AttributionTouch"));
     await explainCoreQueries();
   } finally {
     await mongoose.disconnect();

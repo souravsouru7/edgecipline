@@ -131,7 +131,7 @@ describe('sandbox isolation — explicit opt-in on a non-production env', () => 
     expect(next).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       sandbox: true,
-      amount: 15000,
+      amount: 53700,
       currency: 'INR',
     }));
   });

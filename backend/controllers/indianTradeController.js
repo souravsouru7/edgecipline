@@ -8,6 +8,7 @@ const streakService = require("../services/streak.service");
 const onboardingService = require("../services/onboardingService");
 const { handleStreakEvents } = require("../services/streakNotification.service");
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
+const tradeQuotaService = require("../services/tradeQuotaService");
 
 // insertMany({ordered:true}) on a mid-batch failure (only reachable via the
 // standalone-Mongo fallback below -- the transactional path is all-or-
@@ -360,7 +361,23 @@ function buildIndianTradeDocument(
   return tradeData;
 }
 
+exports.getTradeQuota = asyncHandler(async (req, res) => {
+  const quota = await tradeQuotaService.getQuota({
+    user: req.user,
+    market: tradeQuotaService.INDIAN,
+  });
+  res.json({ quota });
+});
+
 exports.createTrade = asyncHandler(async (req, res) => {
+  // Gate before claiming the OCR job: a rejection after the claim would move
+  // the job to CONFIRMED with no trade to show for it, stranding the upload.
+  await tradeQuotaService.assertCanCreateTrades({
+    user: req.user,
+    market: tradeQuotaService.INDIAN,
+    count: 1,
+  });
+
   const ocrJobId = req.body?.ocrJobId || null;
   let extractedTrades = [];
   if (ocrJobId) {
@@ -414,6 +431,15 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   if (trades.length > 100) {
     throw new ApiError(400, "Batch trade import cannot exceed 100 trades", "VALIDATION_ERROR");
   }
+
+  // All-or-nothing against the allowance, and again before the OCR claim.
+  // Truncating a 5-trade screenshot import to the 1 remaining slot would look
+  // like silent data loss to the user.
+  await tradeQuotaService.assertCanCreateTrades({
+    user: req.user,
+    market: tradeQuotaService.INDIAN,
+    count: trades.length,
+  });
 
   const ocrJobId = req.body?.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
   let extractedTrades = [];

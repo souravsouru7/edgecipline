@@ -34,7 +34,7 @@ const FOREX_NAV_LINKS = [
   { href: "/intelligence",                 label: "Intelligence" },
   { href: "/analytics",                    label: "Analytics" },
   { href: "/weekly-reports?market=Forex",  label: "Reports"   },
-  { href: "/profile",                      label: "Settings"  },
+  { href: "/settings",                      label: "Settings"  },
 ];
 
 const INDIAN_NAV_LINKS = [
@@ -46,7 +46,7 @@ const INDIAN_NAV_LINKS = [
   { href: "/indian-market/intelligence",          label: "Intelligence" },
   { href: "/indian-market/analytics",             label: "Analytics" },
   { href: "/weekly-reports?market=Indian_Market", label: "Reports"   },
-  { href: "/profile",                             label: "Settings"  },
+  { href: "/settings",                             label: "Settings"  },
 ];
 
 export default function PageHeader({
@@ -61,6 +61,10 @@ export default function PageHeader({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
+  // Prompting a paying customer to upgrade reads as the app not knowing they
+  // paid. `isPremium` is resolved server-side (paid plan or admin) so the UI
+  // never re-derives entitlement rules.
+  const showUpgrade = canShowPurchaseUI() && !profile?.isPremium;
   const { currentMarket } = useMarket();
   const isIndianMarket = currentMarket === MARKETS.INDIAN_MARKET;
   const navLinks = isIndianMarket ? INDIAN_NAV_LINKS : FOREX_NAV_LINKS;
@@ -142,20 +146,22 @@ export default function PageHeader({
 
           {rightSlot}
 
-          <button
-            onClick={() => setPricingOpen(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 7,
-              height: 36, marginLeft: 8, padding: "0 12px",
-              background: "var(--color-dark)", border: "1px solid var(--color-dark)",
-              borderRadius: 8, cursor: "pointer", color: "var(--color-surface)",
-              fontSize: 12, fontWeight: 700,
-              fontFamily: "var(--font-plus-jakarta-sans)",
-            }}
-          >
-            <CreditCard size={15} />
-            Upgrade
-          </button>
+          {showUpgrade && (
+            <button
+              onClick={() => setPricingOpen(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                height: 36, marginLeft: 8, padding: "0 12px",
+                background: "var(--color-dark)", border: "1px solid var(--color-dark)",
+                borderRadius: 8, cursor: "pointer", color: "var(--color-surface)",
+                fontSize: 12, fontWeight: 700,
+                fontFamily: "var(--font-plus-jakarta-sans)",
+              }}
+            >
+              <CreditCard size={15} />
+              Upgrade
+            </button>
+          )}
 
           <button onClick={handleLogout} title="Logout" style={{
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -185,7 +191,7 @@ export default function PageHeader({
         profile={profile}
         navItems={navLinks}
         extraSlot={showMarketSwitcher ? <MarketSwitcher /> : null}
-        paymentSlot={canShowPurchaseUI() ? (
+        paymentSlot={showUpgrade ? (
           <button
             onClick={() => { setDrawerOpen(false); setPricingOpen(true); }}
             style={{

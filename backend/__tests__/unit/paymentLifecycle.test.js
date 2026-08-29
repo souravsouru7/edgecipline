@@ -166,7 +166,7 @@ describe('Phase 20 — duplicate checkout behaviour', () => {
     );
 
     for (const call of mockOrderCreate.mock.calls) {
-      expect(call[0].amount).toBe(15000);
+      expect(call[0].amount).toBe(53700);
       expect(call[0].currency).toBe('INR');
     }
   });
@@ -202,6 +202,15 @@ describe('Phase 21 — subscription stacking by user state', () => {
     const expiry = new Date(createdPaymentDoc().expiryDate).getTime();
     expect(expiry).toBeGreaterThanOrEqual(now + 89 * DAY_MS);
     expect(expiry).toBeLessThanOrEqual(now + 91 * DAY_MS);
+  });
+
+  test('books the verified charged amount rather than the live catalogue price', async () => {
+    await activate({ amount: 376, promo: { listAmount: 537, discountAmount: 161 } });
+    const payment = createdPaymentDoc();
+    expect(payment.amount).toBe(376);
+    expect(payment.listAmount).toBe(537);
+    expect(payment.discountAmount).toBe(161);
+    expect(userUpdate().$inc.totalPaid).toBe(376);
   });
 
   test('an active subscriber stacks 90 days on top of the existing expiry', async () => {
@@ -296,7 +305,7 @@ describe('Phase 22 — database integrity', () => {
     expect(createdPaymentDoc()).toEqual(
       expect.objectContaining({
         user: USER_ID,
-        amount: 150,
+        amount: 537,
         currency: 'INR',
         status: 'completed',
         paymentMethod: 'razorpay',
@@ -324,7 +333,7 @@ describe('Phase 22 — database integrity', () => {
       expect.objectContaining({
         subscriptionStatus: 'active',
         subscriptionPlan: 'monthly',
-        $inc: { totalPaid: 150 },
+        $inc: { totalPaid: 537 },
       })
     );
     expect(User.findByIdAndUpdate).toHaveBeenCalledTimes(1);
@@ -386,7 +395,7 @@ describe('Phase 23 — refund matrix', () => {
     return {
       _id: 'db-payment-1',
       user: USER_ID,
-      amount: 150,
+      amount: 537,
       status: 'completed',
       planType: '3_months',
       subscriptionDays: 90,
@@ -429,14 +438,14 @@ describe('Phase 23 — refund matrix', () => {
     await applyVerifiedRazorpayRefund({
       razorpayPaymentId: 'pay-1',
       refundKey: 'rfnd-balance',
-      totalRefundedAmount: 150,
+      totalRefundedAmount: 537,
       fullyRefunded: true,
     });
 
     expect(payment.status).toBe('refunded');
-    expect(payment.refundedAmount).toBe(150);
+    expect(payment.refundedAmount).toBe(537);
     expect(payment.razorpayRefundIds).toEqual(['rfnd-partial', 'rfnd-balance']);
-    // Only the incremental 100 is reversed, not the full 150 twice.
+    // Only the incremental 487 is reversed, not the full 537 twice.
     expect(JSON.stringify(User.updateOne.mock.calls[0][1])).toContain('subscriptionExpiry');
   });
 
@@ -448,7 +457,7 @@ describe('Phase 23 — refund matrix', () => {
       applyVerifiedRazorpayRefund({
         razorpayPaymentId: 'pay-1',
         refundKey: 'rfnd-over',
-        totalRefundedAmount: 500,
+        totalRefundedAmount: 1000,
         fullyRefunded: true,
       })
     ).rejects.toMatchObject({ errorCode: 'PAYMENT_INTEGRITY_CHECK_FAILED' });
@@ -464,7 +473,7 @@ describe('Phase 23 — refund matrix', () => {
       applyVerifiedRazorpayRefund({
         razorpayPaymentId: 'pay-nonexistent',
         refundKey: 'rfnd-ghost',
-        totalRefundedAmount: 150,
+        totalRefundedAmount: 537,
         fullyRefunded: true,
       })
     ).rejects.toMatchObject({ errorCode: 'PAYMENT_NOT_FOUND' });
@@ -495,7 +504,7 @@ describe('Phase 23 — refund matrix', () => {
       applyVerifiedRazorpayRefund({
         razorpayPaymentId: 'pay-1',
         refundKey: '',
-        totalRefundedAmount: 150,
+        totalRefundedAmount: 537,
         fullyRefunded: true,
       })
     ).rejects.toMatchObject({ errorCode: 'RAZORPAY_REFUND_INVALID' });
@@ -504,7 +513,7 @@ describe('Phase 23 — refund matrix', () => {
   test('refunding an already fully refunded payment with a new key does not double-reverse', async () => {
     const payment = refundablePayment({
       status: 'refunded',
-      refundedAmount: 150,
+      refundedAmount: 537,
       razorpayRefundIds: ['rfnd-1'],
     });
     Payment.findOne.mockReturnValue(refundPaymentQuery(payment));
@@ -512,12 +521,12 @@ describe('Phase 23 — refund matrix', () => {
     await applyVerifiedRazorpayRefund({
       razorpayPaymentId: 'pay-1',
       refundKey: 'rfnd-2',
-      totalRefundedAmount: 150,
+      totalRefundedAmount: 537,
       fullyRefunded: true,
     });
 
-    // refundedAmount is a total, not a delta — it stays at 150.
-    expect(payment.refundedAmount).toBe(150);
+    // refundedAmount is a total, not a delta — it stays at 537.
+    expect(payment.refundedAmount).toBe(537);
     // becameFullyRefunded is false (already refunded), so no second duration cut.
     expect(JSON.stringify(User.updateOne.mock.calls[0][1])).not.toContain('subscriptionExpiry');
   });
@@ -529,7 +538,7 @@ describe('Phase 23 — refund matrix', () => {
     await applyVerifiedRazorpayRefund({
       razorpayPaymentId: 'pay-1',
       refundKey: 'rfnd-floor',
-      totalRefundedAmount: 150,
+      totalRefundedAmount: 537,
       fullyRefunded: true,
     });
 

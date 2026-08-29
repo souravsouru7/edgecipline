@@ -314,7 +314,7 @@ function QuotaExhaustedBanner({ quota }) {
         </div>
       </div>
       <Link
-        href="/profile?section=billing"
+        href="/settings?section=billing"
         style={{
           padding: "8px 14px",
           borderRadius: 10,

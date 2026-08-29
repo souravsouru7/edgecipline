@@ -40,6 +40,17 @@ const NotificationHistorySchema = new mongoose.Schema(
         "winback_d_plus_3",
         "winback_d_plus_7",
         "winback_d_plus_14",
+        // Customer support. One type per event so NotificationPreference can
+        // gate the whole group and analytics can separate customer-facing
+        // updates from the staff fan-out without string matching.
+        "support_ticket_created",
+        "support_agent_reply",
+        "support_status_changed",
+        "support_resolved",
+        "support_reopened",
+        "support_assigned",
+        "support_new_ticket_staff",
+        "support_user_reply_staff",
       ],
     },
     title: { type: String, required: true },
@@ -54,7 +65,16 @@ const NotificationHistorySchema = new mongoose.Schema(
     },
     sourceType: {
       type: String,
-      enum: ["trade", "weekly_report", "cron", "system", "ocr_job", "issue_report", "streak"],
+      enum: [
+        "trade",
+        "weekly_report",
+        "cron",
+        "system",
+        "ocr_job",
+        "issue_report",
+        "streak",
+        "support_ticket",
+      ],
       default: "system",
     },
     sourceId: {

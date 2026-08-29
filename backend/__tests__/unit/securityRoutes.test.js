@@ -23,6 +23,9 @@ jest.mock("../../admin/controllers/adminTradeController", () => ({
 }));
 
 jest.mock("../../controllers/tradeController", () => ({
+  // Route registration throws "handler must be a function" if any export the
+  // router references is missing from this mock.
+  getTradeQuota: jest.fn(),
   createTrade: jest.fn(),
   createTradesBatch: jest.fn(),
   getTrades: jest.fn(),

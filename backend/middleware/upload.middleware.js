@@ -143,12 +143,21 @@ function isHeicImage(file) {
   return [".heic", ".heif"].includes(ext) || HEIC_MIME_TYPES.has(String(file.mimetype || "").toLowerCase());
 }
 
-function uploadBufferToCloudinary(buffer, folderName) {
+// `deliveryType` is Cloudinary's asset access mode.
+//   "upload"        — the default everywhere else in this app. Produces a
+//                     public secure_url that anyone holding the link can read.
+//                     Correct for a user's own trade screenshot.
+//   "authenticated" — the plain delivery path 404s; only a URL signed with the
+//                     API secret resolves. Required for support attachments,
+//                     which are one customer's private data and must not become
+//                     permanently world-readable the moment a link is forwarded.
+function uploadBufferToCloudinary(buffer, folderName, deliveryType = "upload") {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folderName,
         resource_type: "image",
+        type: deliveryType,
         secure: true,
         unique_filename: true,
         use_filename: false,
@@ -169,11 +178,16 @@ function uploadBufferToCloudinary(buffer, folderName) {
 
 async function removeUploadedFile(file) {
   if (file?.publicId) {
-    await cloudinary.uploader.destroy(file.publicId, { resource_type: "image" });
+    // `type` has to match what the asset was uploaded as — destroying an
+    // authenticated asset with the default type silently deletes nothing.
+    await cloudinary.uploader.destroy(file.publicId, {
+      resource_type: "image",
+      type: file.deliveryType || "upload",
+    });
   }
 }
 
-function createCloudinaryStorage(folderName) {
+function createCloudinaryStorage(folderName, deliveryType = "upload") {
   return {
     _handleFile(_req, file, cb) {
       if (!isAllowedImage(file)) {
@@ -221,13 +235,16 @@ function createCloudinaryStorage(folderName) {
         const imageHash = crypto.createHash("sha256").update(buffer).digest("hex");
 
         try {
-          const result = await uploadBufferToCloudinary(buffer, folderName);
+          const result = await uploadBufferToCloudinary(buffer, folderName, deliveryType);
           return done(null, {
             path: result.secure_url,
             imageUrl: result.secure_url,
             publicId: result.public_id,
             bytes: result.bytes,
             format: result.format,
+            width: result.width,
+            height: result.height,
+            deliveryType,
             originalname: sanitizeFilename(file.originalname),
             mimetype: file.mimetype,
             storageProvider: "cloudinary",
@@ -361,9 +378,10 @@ function createMultiUploadMiddleware({
   folderName,
   fileSizeBytes,
   optional = false,
+  deliveryType = "upload",
 }) {
   const upload = multer({
-    storage: createCloudinaryStorage(folderName),
+    storage: createCloudinaryStorage(folderName, deliveryType),
     limits: {
       fileSize: (fileSizeBytes || appConfig.upload.maxFileSizeBytes) + 1,
       files: maxCount,
@@ -431,6 +449,9 @@ function createMultiUploadMiddleware({
         publicId: f.publicId,
         bytes: f.bytes,
         format: f.format,
+        width: f.width || 0,
+        height: f.height || 0,
+        deliveryType: f.deliveryType || "upload",
         originalName: sanitizeFilename(f.originalname),
         mimeType: f.mimetype,
         storageProvider: f.storageProvider,
@@ -483,6 +504,20 @@ const uploadIssueReportImages = createMultiUploadMiddleware({
   optional: true,
 });
 
+// Support attachments are the one upload path in this app that stores another
+// person's private data — invoices, account screenshots, error dialogs. They
+// go up as `authenticated`, so the public delivery path 404s and the only way
+// to read one is a URL signed after an ownership check. See
+// utils/supportAttachments and GET /api/support/attachments/:messageId/:index.
+const uploadSupportAttachments = createMultiUploadMiddleware({
+  fieldName: "attachments",
+  maxCount: appConfig.support.maxAttachmentsPerMessage,
+  folderName: "support-attachments",
+  fileSizeBytes: appConfig.support.maxAttachmentBytes,
+  optional: true,
+  deliveryType: "authenticated",
+});
+
 module.exports = {
   createUploadMiddleware,
   createMultiUploadMiddleware,
@@ -492,5 +527,6 @@ module.exports = {
   uploadTradeEvidenceImages,
   uploadTradeImage,
   uploadIssueReportImages,
+  uploadSupportAttachments,
   MAX_ISSUE_REPORT_IMAGES,
 };

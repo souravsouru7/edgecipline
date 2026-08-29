@@ -1,12 +1,14 @@
 const crypto = require("crypto");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
+const { logger } = require("../utils/logger");
 const { appConfig } = require("../config");
 const {
   activateRazorpaySubscriptionPayment,
   createRazorpayOrder,
   fetchAndValidateRazorpayPayment,
   getPlanConfig,
+  getOrderablePlanConfig,
   getRazorpayClient,
   verifyRazorpayOrderSignature,
 } = require("../services/paymentService");
@@ -93,21 +95,54 @@ async function applySandboxSubscription({ userId, expiryDate, amount, userPlan, 
 }
 
 exports.createOrder = asyncHandler(async (req, res) => {
+  const { planType = "3_months", couponCode } = req.body;
+
   if (isSandboxMode()) {
-    const plan = getPlanConfig("3_months");
+    const plan = getOrderablePlanConfig(planType);
+    if (!plan) {
+      throw new ApiError(400, "Unknown or unpurchasable plan", "INVALID_PLAN_TYPE");
+    }
+    const { quoteCheckout, publicQuote } = require("../services/promotionQuote.service");
+    const {
+      persistCheckoutSession,
+    } = require("../services/promotionFulfillment.service");
+    const { CHECKOUT_SESSION_TTL_MS } = require("../constants/promotions");
+
+    const quote = await quoteCheckout({
+      user: req.user,
+      plan,
+      couponCode,
+    });
+    const orderId = `sandbox_order_${crypto.randomBytes(8).toString("hex")}`;
+    await persistCheckoutSession({
+      user: req.user._id,
+      razorpayOrderId: orderId,
+      planType: plan.planType,
+      listAmount: quote.listAmount,
+      discountAmount: quote.discountAmount,
+      payableAmount: quote.payableAmount,
+      coupon: quote.coupon?._id || null,
+      campaign: quote.campaignId || null,
+      influencer: quote.influencerId || null,
+      codeUsed: quote.codeUsed || "",
+      rulesSnapshot: quote.rulesSnapshot || {},
+      status: "open",
+      expiresAt: new Date(Date.now() + CHECKOUT_SESSION_TTL_MS),
+    });
     return res.json({
-      id: `sandbox_order_${crypto.randomBytes(8).toString("hex")}`,
-      amount: plan.amount * 100,
+      id: orderId,
+      amount: quote.payablePaise,
       currency: "INR",
       planType: plan.planType,
       sandbox: true,
+      quote: publicQuote(quote),
     });
   }
 
-  const { planType = "3_months" } = req.body;
   const order = await createRazorpayOrder({
     userId: req.user._id,
     planType,
+    couponCode,
   });
   res.json(order);
 });
@@ -123,9 +158,14 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     const {
       razorpay_order_id,
       razorpay_payment_id,
+      planType: requestedPlanType,
     } = req.body;
 
-    const plan = getPlanConfig("3_months");
+    // Sandbox orders aren't persisted, so the tier has to come back from the
+    // client here. Without it every sandbox purchase grants 90 days no matter
+    // which plan was picked. Still validated against PLAN_CONFIG, and this
+    // path is already dev-gated.
+    const plan = getOrderablePlanConfig(requestedPlanType || "3_months");
     if (!plan?.orderable) {
       throw new ApiError(500, "Sandbox payment plan is not configured", "PAYMENT_PLAN_CONFIG_INVALID");
     }
@@ -136,6 +176,30 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) {
       throw new ApiError(404, "User not found", "NOT_FOUND");
+    }
+
+    let chargedAmount = plan.amount;
+    let listAmount = plan.amount;
+    let discountAmount = 0;
+    const promo = {};
+    const mongoose = require("mongoose");
+    if (mongoose.connection.readyState === 1) {
+      const CheckoutSession = require("../models/CheckoutSession");
+      const checkout = await CheckoutSession.findOne({
+        razorpayOrderId: sandboxOrderId,
+        user: user._id,
+      }).lean();
+      if (checkout) {
+        chargedAmount = checkout.payableAmount;
+        listAmount = checkout.listAmount;
+        discountAmount = checkout.discountAmount;
+        promo.couponId = checkout.coupon || null;
+        promo.campaignId = checkout.campaign || null;
+        promo.influencerId = checkout.influencer || null;
+        promo.listAmount = listAmount;
+        promo.discountAmount = discountAmount;
+        promo.codeUsed = checkout.codeUsed || null;
+      }
     }
 
     let payment = await Payment.findOne({
@@ -156,7 +220,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       if (!payment) {
         payment = await Payment.create({
           user: user._id,
-          amount: plan.amount,
+          amount: chargedAmount,
           currency: "INR",
           status: "completed",
           paymentMethod: "razorpay",
@@ -167,6 +231,11 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
           planType: plan.planType,
           expiryDate,
           subscriptionDays: plan.days,
+          listAmount,
+          discountAmount,
+          coupon: promo.couponId || null,
+          campaign: promo.campaignId || null,
+          influencer: promo.influencerId || null,
           notes: "Sandbox demo payment - no real charge",
         });
       }
@@ -187,10 +256,25 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     await applySandboxSubscription({
       userId: user._id,
       expiryDate,
-      amount: plan.amount,
+      amount: chargedAmount,
       userPlan: plan.userPlan,
       incrementTotalPaid: !idempotent,
     });
+
+    if (!idempotent) {
+      try {
+        const { recordRedemption, markCheckoutPaid } = require("../services/promotionFulfillment.service");
+        await markCheckoutPaid(sandboxOrderId);
+        await recordRedemption({
+          payment,
+          promo,
+          userId: user._id,
+          planType: plan.planType,
+        });
+      } catch {
+        /* non-fatal in sandbox / unit tests */
+      }
+    }
 
     invalidateAuthCache(user._id).catch(() => {});
 
@@ -234,15 +318,43 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Payment plan does not match the Razorpay order", "PAYMENT_INTEGRITY_CHECK_FAILED");
   }
 
-  const result = await activateRazorpaySubscriptionPayment({
-    ...verifiedPayment,
-    razorpaySignature: razorpay_signature,
-    source: "manual_verify",
-  });
+  // Past this point Razorpay has ALREADY captured the money. If activation
+  // then fails, letting a bare 500 reach the browser renders "Something went
+  // wrong" over a completed payment — which invites the user to pay a second
+  // time. The webhook and the reconciliation cron settle this asynchronously,
+  // so report it as received-and-pending and page an operator instead.
+  let result;
+  try {
+    result = await activateRazorpaySubscriptionPayment({
+      ...verifiedPayment,
+      razorpaySignature: razorpay_signature,
+      source: "manual_verify",
+    });
+  } catch (error) {
+    logger.error("PAYMENT_ACTIVATION_FAILED_AFTER_CAPTURE", {
+      userId: String(req.user._id),
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      amount: verifiedPayment.amount,
+      planType: verifiedPayment.planType,
+      error: error?.message,
+    });
+    res.status(202).json({
+      success: true,
+      pending: true,
+      message:
+        "Payment received. We're still activating your plan — this usually takes under a minute. "
+        + "Please don't pay again; contact support if it hasn't appeared shortly.",
+    });
+    return;
+  }
 
   res.json({
     success: true,
     message: result.message,
     idempotent: result.idempotent,
+    // Drives the "Active until ..." line in the premium celebration.
+    expiryDate: result.expiryDate || null,
+    planType: verifiedPayment.planType,
   });
 });

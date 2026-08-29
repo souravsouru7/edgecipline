@@ -36,6 +36,16 @@ const TYPE_CHANNEL = {
   streak_broken:          "edgecipline_coaching",
   evening_reflection:     "edgecipline_coaching",
   mission_update:         "edgecipline_coaching",
+  // Support replies get their own channel so a customer can silence coaching
+  // nudges without also silencing the answer to their billing question.
+  support_ticket_created:   "edgecipline_support",
+  support_agent_reply:      "edgecipline_support",
+  support_status_changed:   "edgecipline_support",
+  support_resolved:         "edgecipline_support",
+  support_reopened:         "edgecipline_support",
+  support_assigned:         "edgecipline_support",
+  support_new_ticket_staff: "edgecipline_support",
+  support_user_reply_staff: "edgecipline_support",
 };
 
 // Per-channel accent colours (hex) shown in the notification LED + icon tint
@@ -46,6 +56,7 @@ const CHANNEL_COLOR = {
   edgecipline_coaching:   "#3B82F6", // blue      — calm / wisdom
   edgecipline_session:    "#8B5CF6", // purple    — focus / preparation
   edgecipline_ocr:        "#0EA5E9",
+  edgecipline_support:    "#B8860B", // gold — matches the support UI accent
 };
 
 // ─── Preference gate ──────────────────────────────────────────────────────────
@@ -68,6 +79,25 @@ const SMART_TYPE_TO_PREF = {
   evening_reflection:     "eveningReflection",
   mission_update:         "smartCoach",
 };
+
+// Support notifications are transactional, not coaching. They are kept OUT of
+// SMART_TYPE_TO_PREF on purpose: a customer who has switched off the smart
+// coach has not asked to stop hearing back about their billing dispute.
+// The two staff types are intentionally unmapped — an agent silencing queue
+// alerts should do it by turning push off on their own account, not by
+// flipping a customer-facing preference.
+const SUPPORT_TYPE_TO_PREF = {
+  support_ticket_created: "supportUpdates",
+  support_agent_reply:    "supportUpdates",
+  support_status_changed: "supportUpdates",
+  support_resolved:       "supportUpdates",
+  support_reopened:       "supportUpdates",
+  support_assigned:       "supportUpdates",
+};
+
+function resolvePreferenceFlag(type) {
+  return SMART_TYPE_TO_PREF[type] || SUPPORT_TYPE_TO_PREF[type] || null;
+}
 
 const INVALID_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
@@ -247,7 +277,7 @@ function isNotificationTypeEnabled(prefs, type) {
   if (!prefs.inAppEnabled && !prefs.pushEnabled) return null;
   if (isSmartCoachType(type) && !prefs.smartCoach) return null;
 
-  const flag = SMART_TYPE_TO_PREF[type];
+  const flag = resolvePreferenceFlag(type);
   if (flag && prefs[flag] === false) return null;
   return true;
 }

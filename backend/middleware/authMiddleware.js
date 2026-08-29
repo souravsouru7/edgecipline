@@ -150,4 +150,46 @@ const protect = asyncHandler(async (req, res, next) => {
   return next();
 });
 
-module.exports = { protect };
+/**
+ * Attach `req.user` when a valid token is present, and carry on when it is not.
+ *
+ * Exists for the public Help Center. Apple requires /support to work with no
+ * session, so article reads and "was this helpful?" votes must serve anonymous
+ * visitors — but when the caller IS signed in, the vote should be keyed to
+ * their account rather than to a browser fingerprint, so it still counts once
+ * across their phone and their laptop.
+ *
+ * This NEVER throws and NEVER blocks. Any problem with the token — missing,
+ * expired, malformed, revoked, disabled account, or a cache outage — resolves
+ * to "anonymous visitor", because on these routes that is a perfectly valid
+ * thing to be. Never use it on a route that needs an identity.
+ */
+const optionalProtect = async (req, _res, next) => {
+  try {
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ")) return next();
+
+    const token = header.split(" ")[1];
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, appConfig.jwt.secret, { algorithms: ["HS256"] });
+    const { user } = await loadAuthUser(decoded.id);
+
+    // Same revocation and account-status gates as protect(). A logged-out or
+    // suspended session must not be silently upgraded to an identity here.
+    if (
+      user &&
+      isAccountActive(user) &&
+      decoded.tokenVersion !== undefined &&
+      decoded.tokenVersion === user.tokenVersion
+    ) {
+      req.user = user;
+    }
+  } catch {
+    // Anonymous is a valid outcome on these routes.
+  }
+
+  return next();
+};
+
+module.exports = { protect, optionalProtect };

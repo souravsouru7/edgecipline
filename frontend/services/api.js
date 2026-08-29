@@ -64,8 +64,22 @@ export const submitFeedback = async (data) => {
 };
 
 // Payment APIs
-export const createPaymentOrder = async () => {
-  return await apiClient.post(`/payments/order`);
+export const createPaymentOrder = async (planType, couponCode) => {
+  const body = planType ? { planType } : {};
+  if (couponCode) body.couponCode = couponCode;
+  return await apiClient.post(`/payments/order`, body);
+};
+
+export const validateCoupon = async (code, planType) => {
+  return await apiClient.post(`/promotions/coupons/validate`, { code, planType });
+};
+
+export const recordPromoTouch = async (data) => {
+  try {
+    return await apiClient.post(`/promotions/touch`, data || {});
+  } catch {
+    return null;
+  }
 };
 
 export const verifyPayment = async (data) => {

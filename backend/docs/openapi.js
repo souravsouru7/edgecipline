@@ -203,6 +203,51 @@ const routeGroups = [
     ["get", "/{id}", "Get an issue report"],
     ["patch", "/{id}/status", "Update issue status"],
   ]],
+  // The first five are deliberately public — /support is the support URL
+  // submitted to Google Play and App Store Connect, and both open it with no
+  // session. Marked publicRoute so the spec does not advertise auth they do
+  // not require.
+  ["Support", "/api/support", true, [
+    ["get", "/config", "Get support contact details and categories"],
+    ["get", "/home", "Get Help Center categories and popular articles"],
+    ["post", "/assistant", "Ask the support assistant (retrieval only, no generated text)"],
+    ["get", "/articles", "Search or browse knowledge-base articles"],
+    ["get", "/articles/{slug}", "Read a published article"],
+    ["post", "/articles/{slug}/feedback", "Rate an article as helpful or not"],
+  ]],
+  ["Support Tickets", "/api/support/tickets", false, [
+    ["post", "", "Create a support ticket"],
+    ["get", "", "List your own tickets"],
+    ["get", "/duplicates", "List your open tickets in a category"],
+    ["get", "/suggestions", "Get articles that may answer the question"],
+    ["get", "/{id}", "Get one of your tickets"],
+    ["get", "/{id}/messages", "Read the conversation (public messages only)"],
+    ["post", "/{id}/messages", "Reply on your ticket"],
+    ["post", "/{id}/reopen", "Reopen a resolved ticket"],
+    ["post", "/{id}/satisfaction", "Rate the resolution"],
+  ]],
+  ["Admin Support", "/api/admin/support", false, [
+    ["get", "/me", "Get your support capabilities"],
+    ["get", "/agents", "List assignable agents"],
+    ["get", "/metrics", "Get support dashboard metrics"],
+    ["get", "/tickets", "Search and filter the ticket queue"],
+    ["get", "/tickets/{id}", "Get a ticket"],
+    ["get", "/tickets/{id}/messages", "Read the conversation including internal notes"],
+    ["get", "/tickets/{id}/context", "Get customer context for a ticket"],
+    ["get", "/tickets/{id}/audit", "Get the staff action history"],
+    ["post", "/tickets/{id}/messages", "Reply or add an internal note"],
+    ["patch", "/tickets/{id}/assign", "Assign, reassign, or unassign"],
+    ["patch", "/tickets/{id}/status", "Change ticket status"],
+    ["patch", "/tickets/{id}/priority", "Change ticket priority"],
+    ["patch", "/tickets/{id}/tags", "Replace ticket tags"],
+    ["get", "/articles", "List knowledge-base articles"],
+    ["post", "/articles", "Create an article"],
+    ["get", "/articles/{id}", "Get an article for editing"],
+    ["patch", "/articles/{id}", "Update an article"],
+    ["patch", "/articles/{id}/status", "Publish, unpublish, or archive an article"],
+    ["delete", "/articles/{id}", "Delete an article"],
+    ["get", "/articles/{id}/feedback", "Get article usefulness report"],
+  ]],
 ];
 
 for (const [tag, base, publicRoute, routes] of routeGroups) {

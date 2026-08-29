@@ -6,6 +6,7 @@ import { getValidToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
+import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
 import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { MARKETS } from "@/context/MarketContext";
@@ -99,6 +100,9 @@ export function useAddTrade(marketType, isIndianMarket) {
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
   });
 
+  // Non-null while a create is blocked by the free-tier allowance.
+  const [limitBlock, setLimitBlock] = useState(null);
+
   // 2. Submit Trade via useMutation
   const createTradeMutation = useMutation({
     mutationFn: (data) => createTrade(data, marketType),
@@ -119,6 +123,13 @@ export function useAddTrade(marketType, isIndianMarket) {
       }, 1000);
     },
     onError: (err) => {
+      // Hitting the free allowance is not a form error — a toast would scroll
+      // away and leave the user re-submitting the same trade forever. Surface
+      // it as a dedicated dialog that explains the limit and offers upgrade.
+      if (isTradeLimitError(err)) {
+        setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+        return;
+      }
       addToast(err.message || "Failed to save trade. Please check your inputs.", "error");
     },
     onSettled: () => {
@@ -263,6 +274,8 @@ export function useAddTrade(marketType, isIndianMarket) {
     trade, setTrade, handleChange, handleStrategyChange, handleScreenshotChange,
     setupRules, toggleSetupRule, updateSetupRuleLabel, addSetupRule, clearSetupRules,
     handleSubmit, screenshotPreview, uploading, setupsLoading, strategies, mounted,
-    isSaving: createTradeMutation.isPending
+    isSaving: createTradeMutation.isPending,
+    limitBlock,
+    dismissLimitBlock: () => setLimitBlock(null),
   };
 }

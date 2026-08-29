@@ -122,7 +122,7 @@ export default function TrialCountdownBanner({ initial = null, onUpgrade }) {
           flexShrink: 0,
         }}
       >
-        Upgrade ₹50/mo
+        Upgrade ₹199/mo
       </button>
     </div>
   );

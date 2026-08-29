@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Camera, Save, ArrowLeft } from "lucide-react";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
+import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -48,7 +49,8 @@ function AddTradeContent() {
   const {
     trade, setTrade, handleChange, handleStrategyChange, handleScreenshotChange,
     setupRules, toggleSetupRule, updateSetupRuleLabel, addSetupRule, clearSetupRules,
-    handleSubmit, screenshotPreview, uploading, isSaving, setupsLoading, strategies, mounted
+    handleSubmit, screenshotPreview, uploading, isSaving, setupsLoading, strategies, mounted,
+    limitBlock, dismissLimitBlock
   } = useAddTrade(currentMarket, isIndianMarket);
 
   const { accountCreatedDate } = useUserProfile();
@@ -359,6 +361,13 @@ function AddTradeContent() {
           </button>
         </form>
       </main>
+
+      <TradeLimitDialog
+        open={Boolean(limitBlock)}
+        quota={limitBlock?.quota}
+        requested={limitBlock?.requested}
+        onClose={dismissLimitBlock}
+      />
 
       <style jsx>{`
         @media (max-width: 640px) {

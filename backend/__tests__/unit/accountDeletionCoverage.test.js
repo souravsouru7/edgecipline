@@ -31,6 +31,19 @@ const INTENTIONALLY_RETAINED = new Set([
   'WebhookEvent',
   // The account record itself, removed explicitly at the end of deleteAccount.
   'Users',
+  // Help-centre articles are company content, not user data. Their `author`
+  // and `lastEditedBy` fields point at the STAFF member who wrote them, so
+  // purging on a user ref would delete the knowledge base the first time a
+  // former employee's account is removed. Once the account is gone the ref is
+  // an anonymous ObjectId, exactly as with Payment.
+  'KnowledgeBaseArticle',
+  // Promotions: staff-authored marketing records (createdBy is an admin).
+  'Influencer',
+  'Campaign',
+  'Coupon',
+  // Checkout + redemptions are financial ledgers, same retention as Payment.
+  'CheckoutSession',
+  'CouponRedemption',
 ]);
 
 /** Model files that hold a ref to the Users collection, and on which field. */

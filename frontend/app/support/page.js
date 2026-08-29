@@ -1,262 +1,521 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { submitFeedback } from "@/services/api";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { Search, X, FileText, ChevronRight, LifeBuoy } from "lucide-react";
+import SupportShell from "@/features/support/components/SupportShell";
+import ContactChannels from "@/features/support/components/ContactChannels";
+import {
+  LoadingBlock,
+  ErrorBlock,
+  EmptyState,
+  Pager,
+} from "@/features/support/components/SupportBits";
+import {
+  useSupportConfig,
+  useSupportHome,
+  useArticleSearch,
+  useIsSignedIn,
+  useResettablePage,
+} from "@/features/support/hooks/useSupport";
 
-/* ─────────────────────────────────────────
-   SUPPORT & HELP PAGE – User Side
-───────────────────────────────────────── */
-export default function SupportPage() {
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [formData, setFormData] = useState({
-    type: "GENERAL_FEEDBACK",
-    subject: "",
-    message: "",
-    screenshot: null
-  });
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+/**
+ * Help Center — the public front door.
+ *
+ * THIS PAGE MUST RENDER FOR A LOGGED-OUT VISITOR. It is the support URL given
+ * to Google Play and App Store Connect, and scripts/check-public-routes.mjs
+ * asserts that a cold browser with no session sees the word "Support" here.
+ * Nothing on this screen may require a session, and nothing may block the
+ * first paint on a network call — every panel below degrades to static content
+ * plus working contact links if the API is unreachable.
+ */
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+function ArticleRow({ article }) {
+  return (
+    <Link href={`/support/article?slug=${encodeURIComponent(article.slug)}`} className="ar-row">
+      <FileText size={15} aria-hidden="true" className="ar-icon" />
+      <span className="ar-body">
+        <span className="ar-title">{article.title}</span>
+        {article.excerpt && <span className="ar-excerpt">{article.excerpt}</span>}
+      </span>
+      <ChevronRight size={15} aria-hidden="true" className="ar-chev" />
+      <style jsx>{`
+        :global(.ar-row) {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 12px;
+          border: 1px solid var(--color-border);
+          background: var(--color-surface);
+          text-decoration: none;
+          margin-bottom: 9px;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        :global(.ar-row:hover) {
+          border-color: var(--color-primary);
+          background: var(--color-primary-bg);
+        }
+        :global(.ar-row:focus-visible) {
+          outline: 2px solid var(--color-primary);
+          outline-offset: 2px;
+        }
+        :global(.ar-icon) {
+          color: var(--color-primary);
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        .ar-body {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          flex: 1;
+          min-width: 0;
+        }
+        .ar-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--color-dark);
+          line-height: 1.4;
+        }
+        .ar-excerpt {
+          font-size: 12.5px;
+          color: var(--color-text-muted);
+          line-height: 1.55;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        :global(.ar-chev) {
+          color: var(--color-text-disabled);
+          flex-shrink: 0;
+          margin-top: 3px;
+        }
+      `}</style>
+    </Link>
+  );
+}
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.subject || !formData.message) {
-      setError("Please fill in all required fields.");
-      return;
-    }
+function HelpCenter() {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const signedIn = useIsSignedIn();
+  // Returns to page 1 whenever the search or category changes — otherwise a
+  // new query asks for page 3 of a completely different result set.
+  const [page, setPage] = useResettablePage(`${query.trim()}|${category}`);
 
-    try {
-      setLoading(true);
-      setError("");
-      
-      const data = new FormData();
-      data.append("type", formData.type);
-      data.append("subject", formData.subject);
-      data.append("message", formData.message);
-      if (formData.screenshot) {
-        data.append("screenshot", formData.screenshot);
-      }
+  const configQuery = useSupportConfig();
+  const homeQuery = useSupportHome();
 
-      await submitFeedback(data);
-      setSuccess(true);
-      setFormData({ type: "GENERAL_FEEDBACK", subject: "", message: "", screenshot: null });
-    } catch (err) {
-      setError(err.message || "Failed to submit feedback. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const searching = query.trim().length > 0 || Boolean(category);
+  const searchQuery = useArticleSearch(
+    { q: query.trim(), category, page },
+    { enabled: searching }
+  );
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File size should be less than 5MB");
-        return;
-      }
-      setFormData({ ...formData, screenshot: file });
-    }
-  };
+  const config = configQuery.data;
+  // Memoised on the query result: a fresh `[]` every render would change the
+  // dependency of the useMemo below every render, defeating it entirely.
+  const categories = useMemo(() => homeQuery.data?.categories || [], [homeQuery.data]);
+  const popular = homeQuery.data?.popular || [];
 
-  if (!mounted) return null;
+  const activeCategory = useMemo(
+    () => categories.find((c) => c.value === category),
+    [categories, category]
+  );
+
+  // Categories with nothing published in them would be dead ends.
+  const visibleCategories = categories.filter((c) => c.articleCount > 0);
 
   return (
-    <div style={{
-      minHeight: "100vh", background: "#F0EEE9",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923", position: "relative"
-    }}>
+    <SupportShell
+      eyebrow="SUPPORT"
+      actions={
+        signedIn ? (
+          <Link href="/support/tickets" className="hc-mine">
+            My tickets
+          </Link>
+        ) : null
+      }
+    >
+      {/* ── Hero + search ─────────────────────────────────────────────── */}
+      <section className="hc-hero">
+        <h1 className="hc-h1">
+          How can we <span className="hc-accent">help?</span>
+        </h1>
+        <p className="hc-sub">
+          Search our guides, or reach the team directly. Support is available for every
+          Edgecipline account.
+        </p>
 
-      {/* ── HEADER ── */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 24px", height: 60,
-        background: "rgba(255,255,255,0.92)", backdropFilter: "blur(20px)",
-        borderBottom: "1px solid #E2E8F0", position: "sticky", top: 0, zIndex: 100,
-        boxShadow: "0 1px 12px rgba(15,25,35,0.06)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#0F1923", padding: 8, display: "flex", alignItems: "center" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          </button>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.02em" }}>SUPPORT & HELP</div>
-            <div style={{ fontSize: 8, color: "#0D9E6E", letterSpacing: "0.15em", fontFamily: "'JetBrains Mono'", fontWeight: 700 }}>24/7 ASSISTANCE</div>
-          </div>
+        <div className="hc-search">
+          <Search size={17} aria-hidden="true" className="hc-search-icon" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search for answers…"
+            aria-label="Search help articles"
+            className="hc-input"
+            enterKeyHint="search"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="hc-clear"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          )}
         </div>
-        <Link href="/dashboard" style={{ textDecoration: "none", fontSize: 11, fontWeight: 700, color: "#B8860B", fontFamily: "'JetBrains Mono'" }}>
-          BACK TO DASHBOARD
-        </Link>
-      </header>
 
-      <div style={{ height: 3, background: "linear-gradient(90deg,#B8860B 0%,#0D9E6E 50%,#B8860B 100%)" }} />
-
-      <main style={{ padding: "40px 24px", maxWidth: 900, margin: "0 auto" }}>
-        
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 40, alignItems: "start" }}>
-          
-          {/* Left: Info */}
-          <div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: "#0F1923", marginBottom: 16, lineHeight: 1.1 }}>
-              How can we <span style={{ color: "#0D9E6E" }}>help you</span> today?
-            </h1>
-            <p style={{ fontSize: 14, color: "#4A5568", lineHeight: 1.6, marginBottom: 32 }}>
-              {"Have a feature request, found a bug, or just want to say hi? We're all ears. Your feedback helps us make Edgecipline the best trading companion."}
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {[
-                { icon: "🐛", title: "Report a Bug", desc: "Found something broken? Let us fix it." },
-                { icon: "💡", title: "Feature Request", desc: "Have an idea to improve the platform?" },
-                { icon: "💬", title: "General Feedback", desc: "Tell us what you think or ask a question." }
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", gap: 16, alignItems: "start" }}>
-                  <div style={{ fontSize: 24 }}>{item.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#0F1923" }}>{item.title}</div>
-                    <div style={{ fontSize: 12, color: "#94A3B8" }}>{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 40, padding: 20, background: "white", borderRadius: 16, border: "1px solid #E2E8F0" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#B8860B", marginBottom: 8, letterSpacing: "0.05em" }}>RESPONSE TIME</div>
-              <div style={{ fontSize: 13, color: "#4A5568" }}>We typically respond to all inquiries within 24-48 hours. Most bug reports are addressed even faster.</div>
-            </div>
+        {activeCategory && (
+          <div className="hc-filter">
+            <span>Filtered by</span>
+            <button type="button" onClick={() => setCategory("")} className="hc-chip-active">
+              {activeCategory.label}
+              <X size={12} aria-hidden="true" />
+            </button>
           </div>
+        )}
+      </section>
 
-          {/* Right: Form */}
-          <div style={{ background: "white", borderRadius: 24, padding: 40, border: "1px solid #E2E8F0", boxShadow: "0 4px 24px rgba(0,0,0,0.04)" }}>
-            {success ? (
-              <div style={{ textAlign: "center", py: 40 }}>
-                <div style={{ fontSize: 48, marginBottom: 20 }}>✅</div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0F1923", marginBottom: 12 }}>Message Received!</h2>
-                <p style={{ fontSize: 14, color: "#4A5568", lineHeight: 1.6, marginBottom: 32 }}>
-                  Thank you for your feedback. Our team has been notified and will review your message shortly.
+      {/* ── Results, or browse ────────────────────────────────────────── */}
+      {searching ? (
+        <section aria-live="polite" className="hc-section">
+          <h2 className="hc-h2">Results</h2>
+
+          {searchQuery.isPending && <LoadingBlock label="Searching" rows={3} />}
+
+          {searchQuery.isError && (
+            <ErrorBlock
+              message="We couldn't search the help centre just now."
+              onRetry={() => searchQuery.refetch()}
+            />
+          )}
+
+          {searchQuery.data?.items?.length > 0 && (
+            <>
+              {/* When the exact search found nothing, the server falls back to
+                  a substring match and then to spelling correction. Saying so
+                  is the honest framing — presenting a loose or corrected match
+                  as the answer wastes the reader's time. */}
+              {["partial", "fuzzy"].includes(searchQuery.data.matchedBy) && (
+                <p className="hc-note">
+                  No exact matches
+                  {searchQuery.data.matchedBy === "fuzzy" ? " — did you mean:" : ". Here is the closest we found:"}
                 </p>
-                <button 
-                  onClick={() => setSuccess(false)}
-                  style={{ 
-                    width: "100%", padding: "14px", background: "#0F1923", color: "white", 
-                    border: "none", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer"
-                  }}
-                >
-                  SEND ANOTHER MESSAGE
-                </button>
+              )}
+              {searchQuery.data.items.map((article) => (
+                <ArticleRow key={article.slug} article={article} />
+              ))}
+              <Pager pagination={searchQuery.data.pagination} onPage={setPage} />
+            </>
+          )}
+
+          {searchQuery.data && searchQuery.data.items.length === 0 && (
+            <EmptyState
+              icon={<Search size={28} aria-hidden="true" />}
+              title="No articles matched that"
+              description="Try a different word, or skip straight to the team — the contact options below all work."
+            />
+          )}
+        </section>
+      ) : (
+        <>
+          {homeQuery.isPending && (
+            <section className="hc-section">
+              <LoadingBlock label="Loading help topics" rows={2} />
+            </section>
+          )}
+
+          {visibleCategories.length > 0 && (
+            <section className="hc-section">
+              <h2 className="hc-h2">Browse by topic</h2>
+              <div className="hc-cats">
+                {visibleCategories.map((cat) => (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setCategory(cat.value)}
+                    className="hc-cat"
+                  >
+                    <span className="hc-cat-label">{cat.label}</span>
+                    <span className="hc-cat-desc">{cat.description}</span>
+                    <span className="hc-cat-count">
+                      {cat.articleCount} {cat.articleCount === 1 ? "article" : "articles"}
+                    </span>
+                  </button>
+                ))}
               </div>
-            ) : (
-              <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#64748B", display: "block", marginBottom: 10, letterSpacing: "0.08em" }}>ISSUE TYPE</label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    {[
-                      { val: "BUG", label: "BUG" },
-                      { val: "FEATURE_REQUEST", label: "FEATURE" },
-                      { val: "GENERAL_FEEDBACK", label: "GENERAL" }
-                    ].map(t => (
-                      <button 
-                        key={t.val} type="button"
-                        onClick={() => setFormData({ ...formData, type: t.val })}
-                        style={{
-                          padding: "10px", borderRadius: 10, border: "1px solid",
-                          borderColor: formData.type === t.val ? "#B8860B" : "#E2E8F0",
-                          background: formData.type === t.val ? "#FFF7ED" : "white",
-                          color: formData.type === t.val ? "#B8860B" : "#64748B",
-                          fontSize: 10, fontWeight: 800, cursor: "pointer", transition: "all 0.2s"
-                        }}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            </section>
+          )}
 
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#64748B", display: "block", marginBottom: 10, letterSpacing: "0.08em" }}>SUBJECT</label>
-                  <input 
-                    type="text" 
-                    value={formData.subject}
-                    onChange={e => setFormData({ ...formData, subject: e.target.value })}
-                    placeholder="Brief summary of your issue..."
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid #E2E8F0", outline: "none", fontSize: 14, fontFamily: "inherit" }}
-                  />
-                </div>
+          {popular.length > 0 && (
+            <section className="hc-section">
+              <h2 className="hc-h2">Popular questions</h2>
+              {popular.map((article) => (
+                <ArticleRow key={article.slug} article={article} />
+              ))}
+            </section>
+          )}
 
-                <div style={{ marginBottom: 32 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#64748B", display: "block", marginBottom: 10, letterSpacing: "0.08em" }}>DETAILED MESSAGE</label>
-                  <textarea 
-                    value={formData.message}
-                    onChange={e => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Describe your issue or request in detail..."
-                    style={{ width: "100%", height: 160, padding: "12px 16px", borderRadius: 10, border: "1px solid #E2E8F0", outline: "none", fontSize: 14, fontFamily: "inherit", resize: "none" }}
-                  />
-                </div>
-                <div style={{ marginBottom: 32 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#64748B", display: "block", marginBottom: 10, letterSpacing: "0.08em" }}>ATTACH SCREENSHOT (OPTIONAL)</label>
-                  <div style={{ 
-                    border: "2px dashed #E2E8F0", borderRadius: 12, padding: "20px", 
-                    textAlign: "center", position: "relative", cursor: "pointer",
-                    background: formData.screenshot ? "#F0FDF4" : "transparent",
-                    transition: "all 0.2s"
-                  }}>
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      style={{ 
-                        position: "absolute", inset: 0, width: "100%", height: "100%", 
-                        opacity: 0, cursor: "pointer" 
-                      }}
-                    />
-                    {formData.screenshot ? (
-                      <div>
-                        <div style={{ fontSize: 20, marginBottom: 8 }}>🖼️</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0D9E6E" }}>{formData.screenshot.name}</div>
-                        <div style={{ fontSize: 10, color: "#94A3B8" }}>Click or drag to change</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={{ fontSize: 20, marginBottom: 8 }}>📁</div>
-                        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600 }}>Click to upload screenshot</div>
-                        <div style={{ fontSize: 10, color: "#94A3B8" }}>Supports PNG, JPG (Max 5MB)</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {error && <div style={{ background: "#FEF2F2", color: "#B91C1C", padding: 12, borderRadius: 10, fontSize: 12, marginBottom: 24, fontWeight: 500 }}>{error}</div>}
+          {/* An outage and an empty knowledge base look identical from the
+              component's point of view, but they are not the same message.
+              Telling someone we haven't written any articles when the real
+              cause is a failed request is a lie they can act on. */}
+          {homeQuery.isError && (
+            <section className="hc-section">
+              <ErrorBlock
+                message="We couldn't load the help articles just now. The contact options below still work."
+                onRetry={() => homeQuery.refetch()}
+              />
+            </section>
+          )}
 
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  style={{ 
-                    width: "100%", padding: "16px", background: "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)", 
-                    color: "#22C78E", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, 
-                    fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: "0.08em",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)", transition: "all 0.2s"
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.15)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)"; }}
-                >
-                  {loading ? "SUBMITTING..." : "SEND TO EDGEDISCIPLINE"}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      </main>
+          {/* The knowledge base being genuinely empty must not leave the page
+              blank — the contact channels below are the actual guarantee this
+              page makes to the app stores. */}
+          {!homeQuery.isPending && !homeQuery.isError && visibleCategories.length === 0 && popular.length === 0 && (
+            <section className="hc-section">
+              <EmptyState
+                icon={<LifeBuoy size={28} aria-hidden="true" />}
+                title="Guides are on their way"
+                description="We're still writing our help articles. In the meantime the team below will answer anything you need."
+              />
+            </section>
+          )}
+        </>
+      )}
 
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #F0EEE9; }
+      {/* ── Contact ───────────────────────────────────────────────────── */}
+      <section className="hc-section">
+        <h2 className="hc-h2">Still need help?</h2>
+        <p className="hc-lead">
+          Pick whichever suits you. For anything involving your account, billing, or a payment,
+          a ticket is best — it keeps a written record against your account.
+        </p>
+
+        {configQuery.isError ? (
+          <ErrorBlock
+            message="We couldn't load the contact options. Please refresh, or email us at info@edgecipline.com."
+            onRetry={() => configQuery.refetch()}
+          />
+        ) : (
+          <ContactChannels
+            config={config}
+            categoryLabel={activeCategory?.label}
+            ticketsEnabled={config?.ticketsEnabled !== false}
+            ticketHref={signedIn ? "/support/tickets/new" : "/login?next=/support/tickets/new"}
+          />
+        )}
+      </section>
+
+      <style jsx>{`
+        .hc-hero {
+          margin-bottom: 32px;
+        }
+        .hc-h1 {
+          font-size: 28px;
+          font-weight: 800;
+          line-height: 1.15;
+          letter-spacing: -0.02em;
+          margin: 0 0 10px;
+          color: var(--color-dark);
+        }
+        .hc-accent {
+          color: var(--color-primary);
+        }
+        .hc-sub {
+          font-size: 14.5px;
+          line-height: 1.65;
+          color: var(--color-text-muted);
+          margin: 0 0 22px;
+          max-width: 560px;
+        }
+        .hc-search {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        :global(.hc-search-icon) {
+          position: absolute;
+          left: 16px;
+          color: var(--color-text-disabled);
+          pointer-events: none;
+        }
+        .hc-input {
+          width: 100%;
+          height: 52px;
+          padding: 0 46px;
+          border-radius: 13px;
+          border: 1px solid var(--color-border);
+          background: var(--color-surface);
+          font-size: 15px;
+          font-family: inherit;
+          color: var(--color-dark);
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .hc-input::placeholder {
+          color: var(--color-text-disabled);
+        }
+        .hc-input:focus {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px var(--color-primary-bg);
+        }
+        .hc-clear {
+          position: absolute;
+          right: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border: none;
+          border-radius: 50%;
+          background: var(--color-surface-hover);
+          color: var(--color-text-muted);
+          cursor: pointer;
+        }
+        .hc-clear:focus-visible {
+          outline: 2px solid var(--color-primary);
+          outline-offset: 2px;
+        }
+        .hc-filter {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 12px;
+          font-size: 12px;
+          color: var(--color-text-muted);
+        }
+        .hc-chip-active {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          border: 1px solid var(--color-primary);
+          background: var(--color-primary-bg);
+          color: var(--color-primary);
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .hc-section {
+          margin-bottom: 34px;
+        }
+        .hc-h2 {
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.09em;
+          text-transform: uppercase;
+          color: var(--color-text-muted);
+          margin: 0 0 14px;
+        }
+        .hc-lead {
+          font-size: 13.5px;
+          line-height: 1.65;
+          color: var(--color-text-muted);
+          margin: -4px 0 16px;
+          max-width: 620px;
+        }
+        .hc-note {
+          font-size: 13px;
+          color: var(--color-text-muted);
+          margin: 0 0 12px;
+        }
+        .hc-cats {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+          gap: 11px;
+        }
+        .hc-cat {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          text-align: left;
+          padding: 15px 16px;
+          border-radius: 13px;
+          border: 1px solid var(--color-border);
+          background: var(--color-surface);
+          cursor: pointer;
+          font-family: inherit;
+          transition: border-color 0.15s, transform 0.15s;
+          min-height: 92px;
+        }
+        .hc-cat:hover {
+          border-color: var(--color-primary);
+          transform: translateY(-2px);
+        }
+        .hc-cat:focus-visible {
+          outline: 2px solid var(--color-primary);
+          outline-offset: 2px;
+        }
+        .hc-cat-label {
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--color-dark);
+        }
+        .hc-cat-desc {
+          font-size: 12px;
+          color: var(--color-text-muted);
+          line-height: 1.5;
+          flex: 1;
+        }
+        .hc-cat-count {
+          font-family: var(--font-jetbrains-mono);
+          font-size: 10px;
+          font-weight: 700;
+          color: var(--color-primary);
+          letter-spacing: 0.03em;
+        }
+        :global(.hc-mine) {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: var(--color-primary);
+          text-decoration: none;
+          padding: 8px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(13, 158, 110, 0.3);
+          background: var(--color-primary-bg);
+          white-space: nowrap;
+        }
+        :global(.hc-mine:focus-visible) {
+          outline: 2px solid var(--color-primary);
+          outline-offset: 2px;
+        }
+        @media (min-width: 720px) {
+          .hc-h1 {
+            font-size: 38px;
+          }
+          .hc-sub {
+            font-size: 15.5px;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hc-cat,
+          .hc-cat:hover {
+            transform: none;
+            transition: none;
+          }
+        }
       `}</style>
-    </div>
+    </SupportShell>
+  );
+}
+
+export default function SupportPage() {
+  // The shell renders synchronously so the page never flashes blank while the
+  // client bundle hydrates — which is what an app-store reviewer would see.
+  return (
+    <Suspense fallback={<SupportShell eyebrow="SUPPORT"><LoadingBlock label="Loading support" rows={3} /></SupportShell>}>
+      <HelpCenter />
+    </Suspense>
   );
 }

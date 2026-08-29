@@ -1,3 +1,23 @@
+// The 7-day trial is RETIRED in the shipped config — the free tier is now the
+// 2-trades-per-market allowance. The machinery is kept behind a switch, so
+// this suite loads it with trials ON to keep covering that machinery, and the
+// final block asserts what actually ships.
+//
+// The env var is restored immediately after each load. Jest reuses worker
+// processes across test files, so leaving it set at file scope leaks into
+// unrelated suites and makes them fail only when run together.
+function loadPremium(enabled) {
+  const previous = process.env.TRIAL_ENABLED;
+  let mod;
+  jest.isolateModules(() => {
+    process.env.TRIAL_ENABLED = enabled ? "true" : "false";
+    mod = require("../../utils/premium");
+  });
+  if (previous === undefined) delete process.env.TRIAL_ENABLED;
+  else process.env.TRIAL_ENABLED = previous;
+  return mod;
+}
+
 const {
   isPremium,
   isTrialActive,
@@ -7,7 +27,7 @@ const {
   buildTrialStart,
   TRIAL_DAYS,
   TRIAL_MS,
-} = require("../../utils/premium");
+} = loadPremium(true);
 
 const future = (ms) => new Date(Date.now() + ms);
 const past   = (ms) => new Date(Date.now() - ms);
@@ -135,5 +155,48 @@ describe("buildTrialStart", () => {
 
   it("TRIAL_DAYS exported is 7", () => {
     expect(TRIAL_DAYS).toBe(7);
+  });
+});
+
+
+describe("shipped default: the trial is retired", () => {
+  const loadWithTrial = loadPremium;
+
+  const midTrial = {
+    subscriptionStatus: "inactive",
+    subscriptionPlan: "free",
+    trial: { startedAt: past(ONE_DAY), endsAt: future(3 * ONE_DAY), used: true },
+  };
+
+  it("does not grant premium to a user carrying a stale trial", () => {
+    expect(loadWithTrial(false).isPremium(midTrial)).toBe(false);
+  });
+
+  it("reports no trial state, so the badge and countdown banner stay empty", () => {
+    expect(loadWithTrial(false).getTrialState(midTrial)).toBeNull();
+  });
+
+  it("resolves planSource to free rather than trial", () => {
+    expect(loadWithTrial(false).getPlanSource(midTrial)).toBe("free");
+  });
+
+  it("creates new accounts with no trial subdocument", () => {
+    expect(loadWithTrial(false).buildTrialStart()).toEqual({});
+  });
+
+  it("still honours a paid subscription", () => {
+    expect(loadWithTrial(false).isPremium({
+      subscriptionStatus: "active",
+      subscriptionPlan: "monthly",
+      subscriptionExpiry: future(30 * ONE_DAY),
+    })).toBe(true);
+  });
+
+  it("still honours admins", () => {
+    expect(loadWithTrial(false).isPremium({ role: "admin" })).toBe(true);
+  });
+
+  it("re-enabling the switch restores the old behaviour", () => {
+    expect(loadWithTrial(true).isPremium(midTrial)).toBe(true);
   });
 });

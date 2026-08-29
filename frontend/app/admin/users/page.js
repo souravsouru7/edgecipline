@@ -46,7 +46,7 @@ const notificationTemplates = [
     label: "Subscription",
     title: "Keep your edge active 🚀",
     body: "Your discipline coach keeps your progress visible. Renew your plan to continue tracking every improvement. ✨",
-    deepLink: "/pricing",
+    deepLink: "/settings",
   },
 ];
 

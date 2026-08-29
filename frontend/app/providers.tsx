@@ -9,6 +9,7 @@ import EnvironmentGuard from "@/components/EnvironmentGuard";
 import PushNotificationBootstrap from "@/components/PushNotificationBootstrap";
 import AuthSessionBootstrap from "@/components/AuthSessionBootstrap";
 import RouteTransitionProgress from "@/components/RouteTransitionProgress";
+import AttributionCapture from "@/features/promotions/components/AttributionCapture";
 export default function Providers({ children }: { children: React.ReactNode }) {
   // We Create the QueryClient inside the state to ensure it is only initialized once
   const [queryClient] = useState(
@@ -37,6 +38,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                   <RouteTransitionProgress />
                 </Suspense>
                 <PushNotificationBootstrap />
+                <Suspense fallback={null}>
+                  <AttributionCapture />
+                </Suspense>
                 {children}
               </AuthSessionBootstrap>
             </ToastProvider>

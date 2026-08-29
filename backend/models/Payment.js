@@ -34,7 +34,11 @@ const paymentSchema = new mongoose.Schema(
     },
     planType: {
       type: String,
-      enum: ["3_months", "monthly", "yearly", "custom"],
+      // Must cover every key in paymentService's PLAN_CONFIG. A plan added
+      // there but missed here is captured by Razorpay and then rejected by
+      // Mongoose validation — the customer is charged and never activated.
+      // paymentPlanEnum.test.js fails if the two ever drift apart.
+      enum: ["monthly", "3_months", "6_months", "yearly", "custom"],
       default: "3_months"
     },
     expiryDate: {
@@ -69,11 +73,47 @@ const paymentSchema = new mongoose.Schema(
     },
     refundedAt: {
       type: Date
-    }
+    },
+    listAmount: {
+      type: Number,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    coupon: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Coupon",
+      default: null,
+    },
+    campaign: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Campaign",
+      default: null,
+    },
+    influencer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Influencer",
+      default: null,
+    },
+    checkoutSession: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CheckoutSession",
+      default: null,
+    },
+    attribution: {
+      firstInfluencer: { type: mongoose.Schema.Types.ObjectId, ref: "Influencer", default: null },
+      convertingCoupon: { type: mongoose.Schema.Types.ObjectId, ref: "Coupon", default: null },
+      refSlug: { type: String, default: "", trim: true },
+    },
   },
   { timestamps: true }
 );
 
+paymentSchema.index({ coupon: 1, createdAt: -1 }, { sparse: true });
+paymentSchema.index({ campaign: 1, createdAt: -1 }, { sparse: true });
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
 paymentSchema.index({ createdAt: -1 });

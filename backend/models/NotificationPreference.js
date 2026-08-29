@@ -23,6 +23,10 @@ const NotificationPreferenceSchema = new mongoose.Schema(
     morningMentor: { type: Boolean, default: true },
     streakProtection: { type: Boolean, default: true },
     eveningReflection: { type: Boolean, default: true },
+    // Ticket replies, status changes, resolutions. Defaults on and is gated
+    // separately from smartCoach — switching off coaching nudges must not
+    // silence the answer to a support request.
+    supportUpdates: { type: Boolean, default: true },
     quietHours: {
       enabled: { type: Boolean, default: false },
       start: { type: String, default: "22:00" },

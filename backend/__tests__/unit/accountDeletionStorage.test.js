@@ -40,6 +40,10 @@ describe("account deletion storage cleanup", () => {
       "NotificationPreference",
       "RescueDispatch",
       "SetupStrategy",
+      "SupportTicket",
+      "SupportAuditLog",
+      "ArticleFeedback",
+      "AttributionTouch",
       "TradingDnaReport",
       "WeeklyReport",
       "Notification",
@@ -71,12 +75,22 @@ describe("account deletion storage cleanup", () => {
     };
     const RefreshToken = makeModel("RefreshToken");
     const OCRJob = makeModel("OCRJob");
-    const destroyImages = jest.fn().mockResolvedValue({ destroyed: 3, failed: 0 });
+    // Support attachments are private customer data stored on Cloudinary under
+    // a different shape to trade images, so they need their own sweep.
+    const SupportMessage = {
+      ...makeModel("SupportMessage"),
+      find: jest.fn(() => queryResult([
+        { attachments: [{ publicId: "support/c" }, { publicId: "shared/dup" }] },
+        { attachments: [] },
+      ])),
+    };
+    const destroyImages = jest.fn().mockResolvedValue({ destroyed: 4, failed: 0 });
 
     jest.doMock("../../models/Users", () => Users);
     jest.doMock("../../models/Trade", () => Trade);
     jest.doMock("../../models/IndianTrade", () => IndianTrade);
     jest.doMock("../../models/RefreshToken", () => RefreshToken);
+    jest.doMock("../../models/SupportMessage", () => SupportMessage);
     jest.doMock("../../models/OCRJob", () => ({ OCRJob }));
     jest.doMock("../../utils/cloudinaryHelpers", () => ({ destroyImages }));
     jest.doMock("../../config/firebaseAdmin", () => ({
@@ -97,8 +111,19 @@ describe("account deletion storage cleanup", () => {
 
     expect(Trade.find).toHaveBeenCalledWith({ user: userId });
     expect(IndianTrade.find).toHaveBeenCalledWith({ user: userId });
-    expect(destroyImages).toHaveBeenCalledWith(["trade/a", "shared/dup", "indian/b"]);
+    // Keyed on ticketUser (the customer), not author — an agent's reply on
+    // this customer's ticket carries attachments that belong to the customer.
+    expect(SupportMessage.find).toHaveBeenCalledWith({
+      ticketUser: userId,
+      "attachments.0": { $exists: true },
+    });
+    expect(destroyImages).toHaveBeenCalledWith([
+      "trade/a",
+      "shared/dup",
+      "indian/b",
+      "support/c",
+    ]);
     expect(Users.deleteOne).toHaveBeenCalledWith({ _id: userId });
-    expect(result.images).toEqual({ destroyed: 3, failed: 0 });
+    expect(result.images).toEqual({ destroyed: 4, failed: 0 });
   });
 });

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Link from "next/link";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
+import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
 import { useClock }          from "@/features/shared/hooks/useClock";
@@ -1132,6 +1133,13 @@ function UploadTradeContent() {
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
       <CandlestickBackground canvasId="upload-bg-canvas" />
+
+      <TradeLimitDialog
+        open={Boolean(state.limitBlock)}
+        quota={state.limitBlock?.quota}
+        requested={state.limitBlock?.requested}
+        onClose={state.dismissLimitBlock}
+      />
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <PageHeader showMarketSwitcher showClock clock={clock} />

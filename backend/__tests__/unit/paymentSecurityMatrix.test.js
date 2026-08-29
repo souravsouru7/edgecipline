@@ -62,7 +62,10 @@ const USER_ID = '507f1f77bcf86cd799439011';
 const OTHER_USER_ID = '507f1f77bcf86cd799439099';
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-const PLAN_AMOUNT_PAISE = 15000; // 150 INR, from PLAN_CONFIG["3_months"]
+// Derived, not hardcoded: a price change in PLAN_CONFIG should not silently
+// invalidate the amount-integrity assertions below.
+const { PLAN_CONFIG } = require('../../services/paymentService');
+const PLAN_AMOUNT_PAISE = PLAN_CONFIG['3_months'].amount * 100;
 
 function validSignature(orderId = ORDER_ID, paymentId = PAYMENT_ID, secret = KEY_SECRET) {
   return crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest('hex');
@@ -205,7 +208,6 @@ describe('Phase 6 — client cannot control the amount', () => {
 
   test.each([
     ['unknown plan', 'lifetime_free'],
-    ['non-orderable monthly plan', 'monthly'],
     ['non-orderable yearly plan', 'yearly'],
     ['custom plan (admin-only)', 'custom'],
     ['empty string', ''],
@@ -273,7 +275,7 @@ describe('Phase 6 — client cannot control the amount', () => {
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     expect(Payment.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ amount: 150, currency: 'INR', subscriptionDays: 90 })],
+      [expect.objectContaining({ amount: 537, currency: 'INR', subscriptionDays: 90 })],
       expect.anything()
     );
   });

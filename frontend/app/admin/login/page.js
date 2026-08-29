@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { adminLogin, clearAdminSession, getAdminProfile, hasAdminSession } from "@/services/adminApi";
+import {
+  adminLogin,
+  clearAdminSession,
+  getAdminProfile,
+  hasAdminSession,
+  setAdminSessionName,
+} from "@/services/adminApi";
 import { useRouter } from "next/navigation";
 
 /* ─────────────────────────────────────────
@@ -169,19 +175,23 @@ export default function AdminLoginPage() {
     try {
       await clearAdminSession();
       const data = await adminLogin(form);
-      if (data?._id && data?.token) {
-        if (data.name) localStorage.setItem("adminName", data.name);
+      // The session IS the httpOnly admin_sid cookie the server set on this
+      // response — JS cannot read it, and the body deliberately carries no
+      // token. Gating on data.token here rejected every successful login.
+      if (data?._id && data?.role === "admin") {
+        setAdminSessionName(data.name);
         router.replace("/admin/dashboard");
-      } else if (data?._id && !data?.token) {
+      } else if (data?._id) {
+        // Credentials were right but the account is not an admin. Drop the
+        // cookie the server just issued rather than leaving a half-session.
+        await clearAdminSession();
         setShake(true);
         setTimeout(() => setShake(false), 600);
-        setError(
-          "Login succeeded but no session token was returned. Redeploy the staging API, then try again."
-        );
+        setError("That account does not have admin access.");
       } else {
         setShake(true);
         setTimeout(() => setShake(false), 600);
-        setError(data.message || "Login failed");
+        setError("Login failed. Please try again.");
       }
     } catch (err) {
       await clearAdminSession();

@@ -7,10 +7,12 @@ import {
   verifyPayment,
   getPaywallContext,
   recordTrialEvent,
+  validateCoupon,
 } from "@/services/api";
 import { validateEnvironment } from "@/config/environment";
 import { canShowPurchaseUI } from "@/config/payments";
 import FocusTrap from "@/features/shared/components/FocusTrap";
+import PremiumWelcome from "@/features/premium/components/PremiumWelcome";
 
 let razorpayCheckoutPromise = null;
 
@@ -83,7 +85,7 @@ function loadRazorpayCheckout() {
 //   isOpen     — controls visibility
 //   onClose    — callback to dismiss
 //   onSuccess  — invoked after Razorpay verifies the payment
-//   variant    — "trial_ended" | "upgrade" (default). Adjusts headline copy.
+//   variant    — "trade-limit" | "upgrade" (default). Adjusts headline copy.
 
 const METRIC_TILES = [
   { key: "disciplineScore",     label: "Your Discipline Score", emptyHint: "Log a trade to start your streak" },
@@ -110,6 +112,14 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
   const [error, setError] = useState("");
   const [ctx, setCtx] = useState(null);
   const [ctxLoading, setCtxLoading] = useState(true);
+  const [selectedPlanType, setSelectedPlanType] = useState(null);
+  // Set on a verified payment so the celebration can replace the paywall
+  // instead of the modal just vanishing.
+  const [celebrating, setCelebrating] = useState(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [appliedQuote, setAppliedQuote] = useState(null);
 
   // Hard gate. Callers are already guarded, but this is the last line of
   // defence: with payments off there is no purchase surface in the build at
@@ -130,13 +140,43 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
     setCtxLoading(true);
     setError("");
     getPaywallContext()
-      .then((data) => { if (!cancelled) setCtx(data); })
+      .then((data) => {
+        if (cancelled) return;
+        setCtx(data);
+        setSelectedPlanType(data?.cta?.planType || null);
+      })
       .catch(() => { if (!cancelled) setCtx(null); })
       .finally(() => { if (!cancelled) setCtxLoading(false); });
     return () => { cancelled = true; };
   }, [active]);
 
+  // Server-driven catalog; the selection defaults to whatever the paywall
+  // context pre-selects so the price on screen is always one the order
+  // endpoint will honour.
+  const plans = Array.isArray(ctx?.plans) ? ctx.plans : [];
+  const selectedPlan =
+    plans.find((plan) => plan.planType === selectedPlanType)
+    || plans.find((plan) => plan.planType === ctx?.cta?.planType)
+    || plans[0]
+    || null;
+
+  const payableAmount =
+    appliedQuote?.planType === selectedPlan?.planType && Number.isFinite(appliedQuote?.payableAmount)
+      ? appliedQuote.payableAmount
+      : selectedPlan?.amount;
+  const couponDiscount =
+    appliedQuote?.planType === selectedPlan?.planType ? Number(appliedQuote?.discountAmount) || 0 : 0;
+
+  useEffect(() => {
+    setAppliedQuote(null);
+    setCouponError("");
+  }, [selectedPlanType]);
+
   const handlePayment = async () => {
+    if (!selectedPlan) {
+      setError("Plans couldn't be loaded. Close this and try again.");
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -149,13 +189,20 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
       const isSandbox = isSandboxCheckout();
       const RazorpayCheckout = await loadRazorpayCheckout();
 
-      const order = await createPaymentOrder();
+      const order = await createPaymentOrder(
+        selectedPlan?.planType,
+        appliedQuote?.code && appliedQuote.planType === selectedPlan?.planType
+          ? couponInput
+          : undefined
+      );
       const options = {
         key: isSandbox ? "rzp_sandbox_demo" : environment.razorpayKeyId,
         amount: order.amount,
         currency: order.currency,
         name: "Edgecipline",
-        description: ctx?.cta?.orderableLabel || "3 Months Premium Access",
+        description: selectedPlan
+          ? `Edgecipline Premium — ${selectedPlan.label}`
+          : (ctx?.cta?.orderableLabel || "3 Months Premium Access"),
         image: "/mainlogo1.png",
         order_id: order.id,
         handler: async (response) => {
@@ -165,14 +212,33 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
               razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature:  response.razorpay_signature,
+              planType:            selectedPlan?.planType,
             });
             if (result.success) {
               // useTrialStatus polls every 60s and only refetches on focus,
               // so without this the tab that just paid keeps showing the
               // pre-upgrade paywall state until the next tick.
               queryClient.invalidateQueries({ queryKey: ["trial", "status"] });
-              if (typeof onSuccess === "function") onSuccess();
-              if (typeof onClose === "function") onClose();
+              // userProfile has a 10-minute staleTime, so without this the
+              // settings page keeps showing "Free / Inactive" for ten minutes
+              // after a successful upgrade.
+              queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+              // The charge went through but entitlement is still settling
+              // server-side. Say so plainly and keep the modal open — closing
+              // it silently would look like the payment did nothing, and
+              // "try again" would charge them twice.
+              if (result.pending) {
+                setError(result.message || "Payment received — activating your plan. Please don't pay again.");
+                return;
+              }
+              // Celebrate before closing. Dismissing the celebration is what
+              // fires onSuccess/onClose, so the paywall never blinks out with
+              // no acknowledgement that the money landed.
+              setLoading(false);
+              setCelebrating({
+                planLabel: selectedPlan?.label ? `Premium · ${selectedPlan.label}` : "Premium",
+                expiresAt: result.expiryDate || null,
+              });
               return;
             }
             setError("Payment could not be confirmed. Please try again.");
@@ -208,12 +274,30 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
     if (typeof onClose === "function") onClose();
   };
 
+  if (celebrating) {
+    return (
+      <PremiumWelcome
+        open
+        planLabel={celebrating.planLabel}
+        expiresAt={celebrating.expiresAt}
+        onClose={() => {
+          setCelebrating(null);
+          if (typeof onSuccess === "function") onSuccess();
+          if (typeof onClose === "function") onClose();
+        }}
+      />
+    );
+  }
+
   if (!active) return null;
 
   const sandboxMode = isSandboxCheckout();
   const headline =
     ctx?.headline ||
-    (variant === "trial_ended" ? "Your 7-day Premium trial has ended" : "Unlock your full edge");
+    // The 7-day trial is retired; the paywall is now reached by filling the
+    // free trade allowance. The server supplies the real headline — this is
+    // only the fallback when that fetch fails.
+    (variant === "trade-limit" ? "You've used your free trades" : "Unlock your full edge");
   const subheadline =
     ctx?.subheadline ||
     "Continue improving with unlimited AI insights, weekly reports, and the full coach.";
@@ -322,41 +406,137 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
             )}
 
             {/* Price */}
-            <div style={{
-              background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
-              borderRadius: 20,
-              padding: 20,
-              border: "1px solid #E2E8F0",
-              marginBottom: 18,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.04em" }}>
-                  CONTINUE IMPROVING FOR ONLY
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
-                  <span style={{ fontSize: 30, fontWeight: 800, color: "#0F1923", letterSpacing: "-0.02em" }}>
-                    ₹50
-                  </span>
-                  <span style={{ fontSize: 14, color: "#64748B", fontWeight: 600 }}>/month</span>
-                </div>
-                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
-                  Billed ₹150 every 3 months · Cancel anytime
-                </div>
-              </div>
-              <div aria-hidden="true" style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "rgba(13,158,110,0.12)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#0D9E6E",
-              }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
+            <div role="radiogroup" aria-label="Choose a plan" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {plans.map((plan) => {
+                const isSelected = plan.planType === selectedPlan?.planType;
+                return (
+                  <button
+                    key={plan.planType}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setSelectedPlanType(plan.planType)}
+                    style={{
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? "linear-gradient(135deg, #F0FDF9 0%, #ECFDF5 100%)"
+                        : "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      border: isSelected ? "2px solid #0D9E6E" : "1px solid #E2E8F0",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0F1923", letterSpacing: "0.01em" }}>
+                          {plan.label}
+                        </span>
+                        {plan.savingsPct > 0 && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 800, letterSpacing: "0.04em",
+                            color: "#0D9E6E", background: "rgba(13,158,110,0.12)",
+                            borderRadius: 999, padding: "2px 8px",
+                          }}>
+                            SAVE {plan.savingsPct}%
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
+                        {plan.listPerMonth && (
+                          <span style={{ fontSize: 14, color: "#94A3B8", fontWeight: 600, textDecoration: "line-through" }}>
+                            ₹{plan.listPerMonth}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 26, fontWeight: 800, color: "#0F1923", letterSpacing: "-0.02em" }}>
+                          ₹{plan.perMonth}
+                        </span>
+                        <span style={{ fontSize: 13, color: "#64748B", fontWeight: 600 }}>/month</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                        {plan.listAmount && (
+                          <span style={{ textDecoration: "line-through", marginRight: 5 }}>₹{plan.listAmount}</span>
+                        )}
+                        Billed ₹{plan.amount} {plan.days === 30 ? "monthly" : `every ${plan.label}`} · Cancel anytime
+                      </div>
+                    </div>
+                    <div aria-hidden="true" style={{
+                      width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+                      border: isSelected ? "none" : "2px solid #CBD5E1",
+                      background: isSelected ? "#0D9E6E" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "#FFFFFF",
+                    }}>
+                      {isSelected && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const code = couponInput.trim();
+                if (!code || !selectedPlan) return;
+                setCouponBusy(true);
+                setCouponError("");
+                try {
+                  const quote = await validateCoupon(code, selectedPlan.planType);
+                  setAppliedQuote(quote);
+                } catch (err) {
+                  setAppliedQuote(null);
+                  setCouponError(err?.message || "This code isn't valid");
+                } finally {
+                  setCouponBusy(false);
+                }
+              }}
+              style={{ display: "flex", gap: 8, marginBottom: 14 }}
+            >
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(e) => setCouponInput(e.target.value)}
+                placeholder="Have a code?"
+                autoCapitalize="characters"
+                aria-label="Promotion code"
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: 10,
+                  border: "1px solid #E2E8F0", fontSize: 13, fontWeight: 600,
+                  color: "#0F1923", outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                disabled={couponBusy || !couponInput.trim()}
+                style={{
+                  padding: "10px 14px", borderRadius: 10, border: "none",
+                  background: "#0F1923", color: "#fff", fontSize: 12, fontWeight: 800,
+                  cursor: couponBusy ? "wait" : "pointer", opacity: couponBusy || !couponInput.trim() ? 0.6 : 1,
+                }}
+              >
+                {couponBusy ? "…" : "Apply"}
+              </button>
+            </form>
+            {couponError && (
+              <div style={{ color: "#D63B3B", fontSize: 12, fontWeight: 600, marginTop: -8, marginBottom: 12 }}>
+                {couponError}
+              </div>
+            )}
+            {couponDiscount > 0 && (
+              <div style={{ color: "#0D9E6E", fontSize: 12, fontWeight: 700, marginTop: -8, marginBottom: 12 }}>
+                Code {appliedQuote.code} saves ₹{couponDiscount} — you pay ₹{payableAmount}
+              </div>
+            )}
 
             {error && (
               <div style={{
@@ -376,7 +556,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
             <button
               type="button"
               onClick={handlePayment}
-              disabled={loading}
+              disabled={loading || !selectedPlan}
               style={{
                 width: "100%",
                 padding: 18,
@@ -386,13 +566,19 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
                 borderRadius: 14,
                 fontSize: 15,
                 fontWeight: 800,
-                cursor: loading ? "wait" : "pointer",
+                cursor: loading ? "wait" : (selectedPlan ? "pointer" : "not-allowed"),
                 letterSpacing: "0.02em",
                 boxShadow: "0 16px 36px -10px rgba(15,25,35,0.32)",
-                opacity: loading ? 0.7 : 1,
+                opacity: loading || !selectedPlan ? 0.7 : 1,
               }}
             >
-              {loading ? "Processing..." : (ctx?.cta?.label || "Continue improving")}
+              {/* The amount rides on the button itself so the figure being
+                  charged is on screen at the moment of the click. */}
+              {loading
+                ? "Processing..."
+                : selectedPlan
+                  ? `${ctx?.cta?.label || "Continue improving"} — ₹${payableAmount}`
+                  : (ctx?.cta?.label || "Continue improving")}
             </button>
 
             <div style={{

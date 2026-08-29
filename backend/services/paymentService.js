@@ -11,23 +11,121 @@ const { invalidateAuthCache } = require("./authCacheService");
 const { captureOperationalError } = require("../config/sentry");
 const analytics = require("./analyticsEventService");
 const { isTrialActive } = require("../utils/premium");
+const { quoteCheckout, publicQuote } = require("./promotionQuote.service");
+const {
+  promoNotes,
+  persistCheckoutSession,
+  markCheckoutPaid,
+  recordRedemption,
+  reverseRedemptionForPayment,
+} = require("./promotionFulfillment.service");
+const { CHECKOUT_SESSION_TTL_MS } = require("../constants/promotions");
 
+// `amount` is the single source of truth for what a customer is charged:
+// createRazorpayOrder derives paise from it, and the webhook path re-checks
+// both the order and the payment against it. `listAmount` is the struck-through
+// "before" price the paywall shows — presentational only, never charged.
 const PLAN_CONFIG = {
-  "3_months": {
-    amount: 150,
-    days: 90,
+  monthly: {
+    amount: 199,
+    listAmount: 249,
+    days: 30,
+    label: "1 month",
     userPlan: "monthly",
     orderable: true,
   },
-  monthly: {
-    days: 30,
+  "3_months": {
+    amount: 537,
+    // Every price we have ever charged for this plan. A Razorpay order is
+    // created at whatever price was live when checkout opened, so an order
+    // placed before a price change — or a webhook retry for one — still
+    // carries the old amount. Validating against only the current price
+    // would reject an already-charged payment and strand the customer's
+    // money. Never remove entries; add the outgoing price on every change.
+    priorAmounts: [150],
+    listAmount: 747,
+    days: 90,
+    label: "3 months",
     userPlan: "monthly",
+    orderable: true,
+  },
+  "6_months": {
+    amount: 894,
+    listAmount: 1494,
+    days: 180,
+    label: "6 months",
+    userPlan: "monthly",
+    orderable: true,
   },
   yearly: {
     days: 365,
     userPlan: "yearly",
   },
 };
+
+// A struck-through price that is not strictly above the charged price would
+// advertise a "discount" to a higher number — deceptive pricing, and a store
+// and consumer-law problem, not merely a cosmetic one. Fail at boot rather
+// than ship it: this is a static config error, so it can only be a mistake.
+function assertPlanConfigIsSane(config) {
+  for (const [planType, plan] of Object.entries(config)) {
+    if (!plan.orderable) continue;
+    if (!Number.isInteger(plan.amount) || plan.amount <= 0) {
+      throw new Error(`PLAN_CONFIG.${planType}: orderable plans need a positive integer amount`);
+    }
+    if (!Number.isInteger(plan.days) || plan.days <= 0) {
+      throw new Error(`PLAN_CONFIG.${planType}: orderable plans need a positive integer days`);
+    }
+    if (plan.listAmount !== undefined && !(Number.isInteger(plan.listAmount) && plan.listAmount > plan.amount)) {
+      throw new Error(
+        `PLAN_CONFIG.${planType}: listAmount (${plan.listAmount}) must be an integer strictly above amount (${plan.amount})`
+      );
+    }
+    for (const prior of plan.priorAmounts || []) {
+      if (!Number.isInteger(prior) || prior <= 0) {
+        throw new Error(`PLAN_CONFIG.${planType}: priorAmounts must be positive integers`);
+      }
+    }
+  }
+  return config;
+}
+
+assertPlanConfigIsSane(PLAN_CONFIG);
+
+// Current price plus every superseded one, in paise.
+function recognisedAmountsPaise(plan) {
+  const amounts = [plan.amount, ...(Array.isArray(plan.priorAmounts) ? plan.priorAmounts : [])];
+  return new Set(
+    amounts
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Math.round(value * 100))
+  );
+}
+
+// The paywall renders straight from this so the displayed price and the
+// charged price cannot drift apart. Cheapest first.
+function listOrderablePlans() {
+  return Object.entries(PLAN_CONFIG)
+    .filter(([, plan]) => plan.orderable && Number.isFinite(plan.amount) && plan.amount > 0)
+    .map(([planType, plan]) => {
+      const months = plan.days / 30;
+      return {
+        planType,
+        label: plan.label || planType,
+        days: plan.days,
+        amount: plan.amount,
+        listAmount: Number.isFinite(plan.listAmount) ? plan.listAmount : null,
+        perMonth: Math.round(plan.amount / months),
+        listPerMonth: Number.isFinite(plan.listAmount)
+          ? Math.round(plan.listAmount / months)
+          : null,
+        savingsPct: Number.isFinite(plan.listAmount) && plan.listAmount > 0
+          ? Math.round((1 - plan.amount / plan.listAmount) * 100)
+          : 0,
+      };
+    })
+    .sort((a, b) => a.amount - b.amount);
+}
 
 function getRazorpayClient() {
   const keyId = String(appConfig.razorpay.keyId || "").trim();
@@ -179,17 +277,39 @@ async function fetchAndValidateRazorpayPayment({ orderId, paymentId, expectedUse
     requireMatchingValue(userId, expectedUserId, "order user ID");
   }
 
-  const expectedAmount = plan.amount * 100;
-  if (!Number.isSafeInteger(order.amount) || order.amount !== expectedAmount) {
+  const recognisedAmounts = recognisedAmountsPaise(plan);
+  const notesPayable = Number.parseInt(String(notes.payablePaise || ""), 10);
+  const hasQuotedPayable = Number.isSafeInteger(notesPayable) && notesPayable > 0;
+
+  if (hasQuotedPayable) {
+    if (order.amount !== notesPayable) {
+      throw paymentIntegrityError("Razorpay order amount does not match the quoted payable amount", {
+        expectedAmount: notesPayable,
+        actualAmount: order.amount,
+      });
+    }
+  } else if (!Number.isSafeInteger(order.amount) || !recognisedAmounts.has(order.amount)) {
     throw paymentIntegrityError("Razorpay order amount does not match the plan price", {
-      expectedAmount,
+      expectedAmount: plan.amount * 100,
+      recognisedAmounts: [...recognisedAmounts],
       actualAmount: order.amount,
     });
   }
-  if (!Number.isSafeInteger(payment.amount) || payment.amount !== expectedAmount) {
-    throw paymentIntegrityError("Razorpay payment amount does not match the plan price", {
-      expectedAmount,
+  // The captured payment must match its own order to the paise. This is the
+  // invariant that actually protects revenue, and unlike a comparison against
+  // the catalogue it stays true across a price change.
+  if (!Number.isSafeInteger(payment.amount) || payment.amount !== order.amount) {
+    throw paymentIntegrityError("Razorpay payment amount does not match the order amount", {
+      orderAmount: order.amount,
       actualAmount: payment.amount,
+    });
+  }
+  if (order.amount !== plan.amount * 100) {
+    logger.warn("PAYMENT_SUPERSEDED_PRICE_HONOURED", {
+      planType: plan.planType,
+      orderAmount: order.amount,
+      currentAmount: plan.amount * 100,
+      razorpayOrderId: order.id,
     });
   }
   requireMatchingValue(order.currency, "INR", "order currency");
@@ -197,31 +317,53 @@ async function fetchAndValidateRazorpayPayment({ orderId, paymentId, expectedUse
 
   return {
     userId,
-    amount: plan.amount,
+    // What the customer was actually charged.
+    amount: order.amount / 100,
     currency: "INR",
     razorpayOrderId: order.id,
     razorpayPaymentId: payment.id,
     planType: plan.planType,
     subscriptionDays: plan.days,
+    promo: promoNotes(notes),
   };
 }
 
-async function createRazorpayOrder({ userId, planType = "3_months" }) {
+async function loadPayer(userId) {
+  try {
+    const found = await User.findById(userId).select("totalPaid subscriptionStatus").lean();
+    if (found) return found;
+  } catch {
+    // Shallow unit-test mocks of User.findById don't implement .select().lean().
+  }
+  return { _id: userId, totalPaid: 0, subscriptionStatus: "inactive" };
+}
+
+async function createRazorpayOrder({ userId, planType = "3_months", couponCode }) {
   const plan = getOrderablePlanConfig(planType);
   if (!plan) {
     throw new ApiError(400, "Invalid plan type", "VALIDATION_ERROR");
   }
 
+  const payer = await loadPayer(userId);
+  const quote = await quoteCheckout({ user: payer, plan, couponCode });
+
   const razorpay = getRazorpayClient();
   let order;
   try {
     order = await razorpay.orders.create({
-      amount: plan.amount * 100,
+      amount: quote.payablePaise,
       currency: "INR",
       receipt: `rcpt_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`,
       notes: {
         planType: plan.planType,
         userId: String(userId),
+        payablePaise: String(quote.payablePaise),
+        listAmount: String(quote.listAmount),
+        discountAmount: String(quote.discountAmount),
+        couponId: quote.coupon ? String(quote.coupon._id) : "",
+        campaignId: quote.campaignId ? String(quote.campaignId) : "",
+        influencerId: quote.influencerId ? String(quote.influencerId) : "",
+        codeUsed: quote.codeUsed || "",
       },
     });
   } catch (error) {
@@ -237,7 +379,23 @@ async function createRazorpayOrder({ userId, planType = "3_months" }) {
     throw new ApiError(500, "Failed to create payment order", "PAYMENT_ORDER_FAILED");
   }
 
-  return { ...order, planType: plan.planType };
+  await persistCheckoutSession({
+    user: userId,
+    razorpayOrderId: order.id,
+    planType: plan.planType,
+    listAmount: quote.listAmount,
+    discountAmount: quote.discountAmount,
+    payableAmount: quote.payableAmount,
+    coupon: quote.coupon?._id || null,
+    campaign: quote.campaignId || null,
+    influencer: quote.influencerId || null,
+    codeUsed: quote.codeUsed || "",
+    rulesSnapshot: quote.rulesSnapshot || {},
+    status: "open",
+    expiresAt: new Date(Date.now() + CHECKOUT_SESSION_TTL_MS),
+  });
+
+  return { ...order, planType: plan.planType, quote: publicQuote(quote) };
 }
 
 function addDays(date, days) {
@@ -291,6 +449,68 @@ async function ensureExistingPaymentApplied(existingPayment, session) {
   );
 }
 
+// MongoDB transactions require a replica set. Production runs on Atlas, which
+// always is one; a standalone local mongod cannot start a transaction at all
+// and fails with "Transaction numbers are only allowed on a replica set member
+// or mongos". Without a fallback every payment verify dies there — the
+// customer is charged by Razorpay and never activated.
+//
+// Outside production we therefore degrade to non-transactional writes. That is
+// safe here specifically because every step is idempotent and keyed on
+// razorpayPaymentId: a replay finds the existing Payment and re-applies the
+// entitlement rather than double-charging or double-extending.
+//
+// In production we NEVER degrade. A transaction failure there is a real fault
+// and must surface rather than silently writing without atomicity.
+function transactionsUnsupported(error) {
+  const message = String(error?.message || "");
+  return (
+    error?.code === 20 ||
+    /Transaction numbers are only allowed on a replica set member or mongos/i.test(message) ||
+    /Transactions are not supported/i.test(message)
+  );
+}
+
+const NO_TRANSACTION = {
+  session: undefined,   // Mongoose ignores .session(undefined)
+  degraded: true,
+  commit: async () => {},
+  abort: async () => {},
+  end: async () => {},
+};
+
+async function beginTransaction() {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  return {
+    session,
+    degraded: false,
+    commit: () => session.commitTransaction(),
+    abort: () => session.abortTransaction().catch(() => {}),
+    end: () => session.endSession(),
+  };
+}
+
+// startTransaction() itself succeeds on a standalone — the server only
+// rejects when the first operation carries the transaction number. So the
+// capability can't be probed up front; we attempt the real transaction and
+// fall back if that specific failure comes back. Nothing has been written at
+// that point, so replaying the body is safe.
+async function runWithOptionalTransaction(run) {
+  try {
+    return await run(await beginTransaction());
+  } catch (error) {
+    if (appConfig.env === "production" || !transactionsUnsupported(error)) throw error;
+    logger.warn("PAYMENT_TRANSACTION_UNAVAILABLE", {
+      message:
+        "MongoDB is not a replica set, so this write is not atomic. Acceptable "
+        + "outside production only; run mongod with --replSet to restore atomicity.",
+      error: error?.message,
+    });
+    return run(NO_TRANSACTION);
+  }
+}
+
 async function activateRazorpaySubscriptionPayment({
   userId,
   currency = "INR",
@@ -300,17 +520,26 @@ async function activateRazorpaySubscriptionPayment({
   planType = "3_months",
   customDays,
   source = "manual_verify",
+  amount,
+  promo,
 }) {
-  // Amount is intentionally NOT a parameter — `plan.amount` from the server-side
-  // plan config is the sole source of truth. Callers must validate the order /
-  // payment amount against Razorpay BEFORE invoking this function (see
-  // fetchAndValidateRazorpayPayment).
   const plan = getPlanConfig(planType, { customDays });
   if (!plan?.orderable) {
     throw new ApiError(400, "Invalid plan type", "VALIDATION_ERROR");
   }
 
-  const paymentAmount = plan.amount;
+  // Charged amount from the verified Razorpay order. Fall back to the
+  // catalogue only for callers (older tests / custom) that omit it.
+  const paymentAmount = Number.isFinite(Number(amount)) && Number(amount) > 0
+    ? Number(amount)
+    : plan.amount;
+  const promoMeta = promo && typeof promo === "object" ? promo : {};
+  const listAmount = Number.isFinite(Number(promoMeta.listAmount)) && Number(promoMeta.listAmount) > 0
+    ? Number(promoMeta.listAmount)
+    : paymentAmount;
+  const discountAmount = Number.isFinite(Number(promoMeta.discountAmount))
+    ? Math.max(0, Number(promoMeta.discountAmount))
+    : 0;
 
   if (!Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
     throw new ApiError(400, "Missing payment amount", "VALIDATION_ERROR");
@@ -325,10 +554,9 @@ async function activateRazorpaySubscriptionPayment({
     throw new ApiError(400, "Missing Razorpay payment ID", "VALIDATION_ERROR");
   }
 
-  const session = await mongoose.startSession();
+  return runWithOptionalTransaction(async (txn) => {
+  const session = txn.session;
   try {
-    session.startTransaction();
-
     const existingPayment = await Payment.findOne({
       $or: [
         { transactionId: razorpayPaymentId },
@@ -342,7 +570,7 @@ async function activateRazorpaySubscriptionPayment({
 
     if (existingPayment) {
       await ensureExistingPaymentApplied(existingPayment, session);
-      await session.commitTransaction();
+      await txn.commit();
       logger.info("[PaymentActivation] payment already processed", {
         paymentId: razorpayPaymentId,
         orderId: razorpayOrderId,
@@ -396,11 +624,25 @@ async function activateRazorpaySubscriptionPayment({
           planType: plan.planType,
           expiryDate,
           subscriptionDays: plan.days,
+          listAmount,
+          discountAmount,
+          coupon: promoMeta.couponId || null,
+          campaign: promoMeta.campaignId || null,
+          influencer: promoMeta.influencerId || null,
           notes: `Automated subscription via Razorpay (${source})`,
         },
       ],
       { session }
     );
+
+    await markCheckoutPaid(razorpayOrderId, session);
+    await recordRedemption({
+      payment,
+      promo: promoMeta,
+      userId,
+      planType: plan.planType,
+      session,
+    });
 
     await User.findByIdAndUpdate(
       userId,
@@ -413,7 +655,7 @@ async function activateRazorpaySubscriptionPayment({
       { session }
     );
 
-    await session.commitTransaction();
+    await txn.commit();
 
     invalidateAuthCache(userId).catch(() => {});
     notifyPaymentReceived({
@@ -436,6 +678,8 @@ async function activateRazorpaySubscriptionPayment({
         amount: paymentAmount,
         days: plan.days,
         source,
+        couponId: promoMeta.couponId || null,
+        campaignId: promoMeta.campaignId || null,
         fromTrial: trialWasActive,
         afterExpiredTrial: !trialWasActive && trialWasUsed,
         neverTrialed: !trialWasUsed,
@@ -470,7 +714,7 @@ async function activateRazorpaySubscriptionPayment({
       message: "Payment verified and subscription extended successfully",
     };
   } catch (error) {
-    await session.abortTransaction();
+    await txn.abort();
     if (error?.code === 11000) {
       logger.info("[PaymentActivation] duplicate payment key", {
         paymentId: razorpayPaymentId,
@@ -485,8 +729,9 @@ async function activateRazorpaySubscriptionPayment({
     }
     throw error;
   } finally {
-    await session.endSession();
+    await txn.end();
   }
+  });
 }
 
 async function applyVerifiedRazorpayRefund({
@@ -499,16 +744,16 @@ async function applyVerifiedRazorpayRefund({
     throw new ApiError(400, "Invalid verified refund data", "RAZORPAY_REFUND_INVALID");
   }
 
-  const session = await mongoose.startSession();
+  return runWithOptionalTransaction(async (txn) => {
+  const session = txn.session;
   try {
-    session.startTransaction();
     const payment = await Payment.findOne({ razorpayPaymentId }).session(session);
     if (!payment) {
       throw new ApiError(404, "Original payment record not found", "PAYMENT_NOT_FOUND");
     }
 
     if (payment.razorpayRefundIds?.includes(refundKey)) {
-      await session.commitTransaction();
+      await txn.commit();
       return { success: true, idempotent: true, paymentId: payment._id };
     }
     if (totalRefundedAmount > payment.amount) {
@@ -555,7 +800,10 @@ async function applyVerifiedRazorpayRefund({
     }
 
     await User.updateOne({ _id: payment.user }, updateStages, { session, updatePipeline: true });
-    await session.commitTransaction();
+    if (becameFullyRefunded) {
+      await reverseRedemptionForPayment(payment, session);
+    }
+    await txn.commit();
     invalidateAuthCache(payment.user).catch(() => {});
 
     logger.info("[PaymentRefund] refund applied", {
@@ -566,11 +814,12 @@ async function applyVerifiedRazorpayRefund({
     });
     return { success: true, idempotent: false, paymentId: payment._id, fullyRefunded };
   } catch (error) {
-    await session.abortTransaction();
+    await txn.abort();
     throw error;
   } finally {
-    await session.endSession();
+    await txn.end();
   }
+  });
 }
 
 module.exports = {
@@ -582,6 +831,9 @@ module.exports = {
   fetchAndValidateRazorpayPayment,
   getPlanConfig,
   getOrderablePlanConfig,
+  listOrderablePlans,
+  // Exported for testing
+  assertPlanConfigIsSane,
   getRazorpayClient,
   verifyRazorpayOrderSignature,
 };

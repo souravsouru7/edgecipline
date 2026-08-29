@@ -317,13 +317,27 @@ function createRedisRateLimiter({
   };
 }
 
+// Endpoints the UI polls on a timer. The global budget is 100 requests per 15
+// minutes; a ticket conversation refreshing every 15 seconds would spend 60 of
+// them on its own and lock the customer out of the rest of the app mid-
+// conversation. These get their own, much higher, dedicated limiter instead.
+const SUPPORT_POLLED_PATHS = [
+  /^\/api\/support\/tickets\/[a-f0-9]{24}$/i,
+  /^\/api\/support\/tickets\/[a-f0-9]{24}\/messages$/i,
+  /^\/api\/admin\/support\/tickets$/i,
+  /^\/api\/admin\/support\/tickets\/[a-f0-9]{24}$/i,
+  /^\/api\/admin\/support\/tickets\/[a-f0-9]{24}\/messages$/i,
+  /^\/api\/admin\/support\/metrics$/i,
+];
+
 function skipGlobalForDedicatedStatusLimiter(req) {
   if (req.method !== "GET") return false;
   const path = String(req.originalUrl || req.path || "").split("?")[0];
   return (
     /^\/api\/upload\/job-status\/[a-f0-9]{24}$/i.test(path) ||
     /^\/api\/trade\/status\/[a-f0-9]{24}$/i.test(path) ||
-    path === "/api/upload/queue-health"
+    path === "/api/upload/queue-health" ||
+    SUPPORT_POLLED_PATHS.some((pattern) => pattern.test(path))
   );
 }
 
@@ -487,6 +501,82 @@ const coachChatRateLimiter = createRedisRateLimiter({
   message: "Too many coach messages in a short time. Take a breath and try again in a moment.",
 });
 
+// ─── Customer support ────────────────────────────────────────────────────────
+// Sized so a customer in genuine trouble is never the one who trips them. The
+// abuse these stop is automated: a retry loop opening thousands of tickets, a
+// script hammering the public search, a bot inflating article feedback.
+
+// Ticket creation. Five an hour is far more than a real person opens, and the
+// service additionally caps concurrent OPEN tickets per user.
+const supportTicketCreateRateLimiter = createRedisRateLimiter({
+  scope: "support-ticket-create",
+  windowMs: 60 * 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_TICKET_CREATE_RATE_LIMIT_MAX) || 5,
+  message:
+    "You have opened several tickets recently. Please reply on an existing ticket, or try again a little later.",
+});
+
+// Replies. A back-and-forth conversation is bursty by nature, so this is a
+// short window with a generous ceiling rather than an hourly cap.
+const supportMessageRateLimiter = createRedisRateLimiter({
+  scope: "support-message",
+  windowMs: 10 * 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_MESSAGE_RATE_LIMIT_MAX) || 30,
+  message: "Too many messages in a short time. Please wait a moment and try again.",
+});
+
+// Public Help Center search + article reads. Keyed per IP for anonymous
+// visitors, per user once signed in.
+const supportSearchRateLimiter = createRedisRateLimiter({
+  scope: "support-search",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_SEARCH_RATE_LIMIT_MAX) || 60,
+  message: "Too many searches. Please slow down and try again shortly.",
+});
+
+// "Was this helpful?" votes. The unique index already enforces one vote per
+// reader per article; this stops someone hammering the endpoint to find out.
+const supportArticleFeedbackRateLimiter = createRedisRateLimiter({
+  scope: "support-article-feedback",
+  windowMs: 60 * 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_ARTICLE_FEEDBACK_RATE_LIMIT_MAX) || 20,
+  message: "Too much feedback submitted. Please try again later.",
+});
+
+// Polled reads (conversation refresh, agent queue). Deliberately high: this
+// exists to bound a runaway client, not to pace a normal one. These paths are
+// excluded from the global limiter, so this is their only ceiling.
+const supportPollRateLimiter = createRedisRateLimiter({
+  scope: "support-poll",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_POLL_RATE_LIMIT_MAX) || 120,
+  message: "Too many requests. Please try again shortly.",
+});
+
+// Attachment downloads. Each one mints a signed Cloudinary URL, so an
+// unbounded loop is both a bandwidth cost and a way to farm signed links.
+const supportAttachmentRateLimiter = createRedisRateLimiter({
+  scope: "support-attachment",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.SUPPORT_ATTACHMENT_RATE_LIMIT_MAX) || 60,
+  message: "Too many attachment requests. Please try again shortly.",
+});
+
+const couponValidateRateLimiter = createRedisRateLimiter({
+  scope: "coupon-validate",
+  windowMs: 15 * 60 * 1000,
+  maxRequests: Number(process.env.COUPON_VALIDATE_RATE_LIMIT_MAX_REQUESTS) || 20,
+  message: "Too many coupon attempts. Please try again later.",
+  failureMode: "deny",
+});
+
+const promotionTouchRateLimiter = createRedisRateLimiter({
+  scope: "promo-touch",
+  windowMs: 60 * 1000,
+  maxRequests: Number(process.env.PROMO_TOUCH_RATE_LIMIT_MAX_REQUESTS) || 30,
+  message: "Too many requests. Please try again later.",
+});
+
 module.exports = {
   createRedisRateLimiter,
   getRateLimiterHealth,
@@ -506,4 +596,12 @@ module.exports = {
   adminDestructiveRateLimiter,
   issueReportRateLimiter,
   coachChatRateLimiter,
+  supportTicketCreateRateLimiter,
+  supportMessageRateLimiter,
+  supportSearchRateLimiter,
+  supportArticleFeedbackRateLimiter,
+  supportPollRateLimiter,
+  supportAttachmentRateLimiter,
+  couponValidateRateLimiter,
+  promotionTouchRateLimiter,
 };

@@ -76,6 +76,7 @@ const PUBLIC_PAGE_PATHS = [
   '/terms',
   '/delete-account',
   '/support',
+  '/r',
 ];
 
 const isPublicPagePath = (pathname = '') =>
@@ -412,6 +413,12 @@ apiClient.interceptors.request.use(
       const token = getValidToken() || await hydrateAuthToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+      try {
+        const aid = window.localStorage.getItem('ec_aid');
+        if (aid) config.headers['X-Attribution-Id'] = aid;
+      } catch {
+        /* private mode */
       }
     }
     return config;

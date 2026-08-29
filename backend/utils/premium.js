@@ -9,7 +9,14 @@
 //   1. role === "admin"
 //   2. active paid subscription (status=active, plan≠free, expiry in future)
 //   3. inside the 7-day trial window (trial.endsAt in the future)
-const TRIAL_DAYS = 7;
+const { appConfig } = require("../config");
+
+// Retiring the trial is a one-line switch here on purpose: isPremium, the
+// settings badge, the paywall context and the paid-window stacking in
+// paymentService all resolve entitlement through isTrialActive/getTrialState,
+// so gating those two covers every caller.
+const TRIAL_ENABLED = appConfig.trial?.enabled === true;
+const TRIAL_DAYS = Number(appConfig.trial?.days ?? 7);
 const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
 function hasActiveSubscription(user, now = Date.now()) {
@@ -21,6 +28,9 @@ function hasActiveSubscription(user, now = Date.now()) {
 }
 
 function isTrialActive(user, now = Date.now()) {
+  // With trials retired, a stale trial.endsAt left on an old account must not
+  // keep granting free access.
+  if (!TRIAL_ENABLED) return false;
   const endsAt = user?.trial?.endsAt;
   if (!endsAt) return false;
   return new Date(endsAt).getTime() > now;
@@ -38,6 +48,10 @@ function isPremium(user) {
 // UI-facing trial snapshot. Returns null for users who never had a trial
 // (legacy accounts pre-feature). Callers can treat null as "not in trial".
 function getTrialState(user) {
+  // null means "this account has no trial", which is what every UI already
+  // renders as nothing — so disabling trials empties the badge and the
+  // countdown banner without touching either component.
+  if (!TRIAL_ENABLED) return null;
   if (!user) return null;
   const startedAt = user?.trial?.startedAt;
   const endsAt = user?.trial?.endsAt;
@@ -87,6 +101,9 @@ function describePlan(user) {
 // Callers spread this into User.create({...}). Idempotent at the call site —
 // don't apply if user.trial.used is already true.
 function buildTrialStart({ source = "auto_register", now = new Date() } = {}) {
+  // Empty object so the spread at the registration call site simply adds
+  // nothing — a new account is created with no trial subdocument at all.
+  if (!TRIAL_ENABLED) return {};
   const start = new Date(now);
   return {
     trial: {
@@ -100,6 +117,7 @@ function buildTrialStart({ source = "auto_register", now = new Date() } = {}) {
 }
 
 module.exports = {
+  TRIAL_ENABLED,
   TRIAL_DAYS,
   TRIAL_MS,
   isPremium,

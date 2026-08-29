@@ -302,7 +302,7 @@ beforeEach(() => {
 
   mockOrderFetch.mockResolvedValue({
     id: ORDER_ID,
-    amount: 15000,
+    amount: 53700,
     currency: 'INR',
     status: 'paid',
     notes: { userId: USER_ID, planType: '3_months' },
@@ -310,7 +310,7 @@ beforeEach(() => {
   mockPaymentFetch.mockResolvedValue({
     id: PAYMENT_ID,
     order_id: ORDER_ID,
-    amount: 15000,
+    amount: 53700,
     currency: 'INR',
     status: 'captured',
     captured: true,
@@ -333,7 +333,7 @@ describe('Phase 16 — duplicate webhook delivery', () => {
     }
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(mockUserState.subscriptionStatus).toBe('active');
 
     // Every redelivery is acknowledged so Razorpay stops retrying.
@@ -351,7 +351,7 @@ describe('Phase 16 — duplicate webhook delivery', () => {
     await runWebhook(event);
 
     expect(new Date(mockUserState.subscriptionExpiry).getTime()).toBe(expiryAfterFirst);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
   });
 });
 
@@ -366,7 +366,7 @@ describe('Phase 17 — concurrent webhook race', () => {
     const results = await Promise.all([runWebhook(event), runWebhook(event)]);
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(results.every((r) => r.success)).toBe(true);
   });
 
@@ -376,7 +376,7 @@ describe('Phase 17 — concurrent webhook race', () => {
     await Promise.all(Array.from({ length: 5 }, () => runWebhook(event)));
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(mockUserState.subscriptionStatus).toBe('active');
   });
 });
@@ -393,7 +393,7 @@ describe('Phase 18 — verify and webhook race', () => {
     ]);
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(mockUserState.subscriptionStatus).toBe('active');
     // The synchronous path must never surface an error to the paying user.
     expect(verifyOutcome.next).not.toHaveBeenCalled();
@@ -408,7 +408,7 @@ describe('Phase 18 — verify and webhook race', () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ idempotent: true }));
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(new Date(mockUserState.subscriptionExpiry).getTime()).toBe(expiryAfterWebhook);
   });
 
@@ -419,7 +419,7 @@ describe('Phase 18 — verify and webhook race', () => {
     await runWebhook(capturedEvent('evt_verify_first'));
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
     expect(new Date(mockUserState.subscriptionExpiry).getTime()).toBe(expiryAfterVerify);
   });
 });
@@ -434,7 +434,7 @@ describe('Phase 19 — webhook ordering independence', () => {
     await runWebhook(orderPaidEvent('evt_a2'));
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
   });
 
   test('order.paid then payment.captured yields the identical final state', async () => {
@@ -479,7 +479,7 @@ describe('Phase 19 — webhook ordering independence', () => {
     ]);
 
     expect(mockPaymentStore).toHaveLength(1);
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
   });
 });
 
@@ -496,7 +496,7 @@ describe('Phase 11 — payment.failed followed by payment.captured', () => {
         entity: {
           id: PAYMENT_ID,
           order_id: ORDER_ID,
-          amount: 15000,
+          amount: 53700,
           error_code: 'BAD_REQUEST_ERROR',
           error_reason: 'payment_failed',
           notes: { userId: USER_ID, planType: '3_months' },
@@ -521,7 +521,7 @@ describe('Phase 11 — payment.failed followed by payment.captured', () => {
 
     expect(mockPaymentStore).toHaveLength(1);
     expect(mockUserState.subscriptionStatus).toBe('active');
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
   });
 
   test('a failure arriving after a successful capture does not revoke it', async () => {
@@ -530,6 +530,6 @@ describe('Phase 11 — payment.failed followed by payment.captured', () => {
 
     expect(mockPaymentStore).toHaveLength(1);
     expect(mockUserState.subscriptionStatus).toBe('active');
-    expect(mockUserState.totalPaid).toBe(150);
+    expect(mockUserState.totalPaid).toBe(537);
   });
 });

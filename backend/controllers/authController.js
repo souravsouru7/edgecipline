@@ -21,13 +21,18 @@ const {
   REFRESH_COOKIE_NAME,
 } = require("../services/tokenService");
 const { invalidateAuthCache } = require("../services/authCacheService");
-const { buildTrialStart, TRIAL_DAYS } = require("../utils/premium");
+const { buildTrialStart, TRIAL_DAYS, TRIAL_ENABLED, isPremium, getTrialState } = require("../utils/premium");
 const analytics = require("../services/analyticsEventService");
+const attribution = require("../services/attribution.service");
 const { invalidateTradeCaches } = require("../utils/cacheUtils");
 const { deleteAccount } = require("../services/accountDeletionService");
 
-const LOGIN_MAX_ATTEMPTS = 5;
-const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+// Lockout thresholds live in constants/loginPolicy.js because an admin's
+// password is accepted by this endpoint as well as /api/admin/auth/login, and
+// both write the same loginAttempts/loginLockedUntil fields. Declaring a
+// softer limit here would hand an attacker a faster door to the same
+// credential — see the note in that file.
+const { lockoutPolicyFor } = require("../constants/loginPolicy");
 
 // Dummy bcrypt hash used to keep login response time constant even when the
 // email doesn't exist — prevents timing-based user enumeration.
@@ -138,6 +143,12 @@ async function issueTokenPair(user, req, res) {
     userId: String(user._id),
   });
   return accessToken;
+}
+
+function bindAttribution(req, userId) {
+  const anonymousId = attribution.readAnonymousId(req);
+  if (!anonymousId || !userId) return;
+  attribution.attachUser(userId, anonymousId).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +269,7 @@ exports.registerUser = asyncHandler(async (req, res) => {
   });
 
   const token = await issueTokenPair(user, req, res);
+  bindAttribution(req, user._id);
 
   res.status(201).json({
     _id: user._id,
@@ -293,9 +305,13 @@ exports.loginUser = asyncHandler(async (req, res) => {
 
   if (!user || !isPasswordValid || !isAccountActive(user)) {
     if (user) {
+      // Policy is chosen by the account's role, not by this endpoint, so an
+      // admin gets the same 3-strike / 1-hour treatment here as at the admin
+      // login door.
+      const { maxAttempts, lockMs } = lockoutPolicyFor(user);
       user.loginAttempts = (user.loginAttempts || 0) + 1;
-      if (user.loginAttempts >= LOGIN_MAX_ATTEMPTS) {
-        user.loginLockedUntil = new Date(Date.now() + LOGIN_LOCK_DURATION_MS);
+      if (user.loginAttempts >= maxAttempts) {
+        user.loginLockedUntil = new Date(Date.now() + lockMs);
         user.loginAttempts = 0;
       }
       await user.save();
@@ -310,6 +326,7 @@ exports.loginUser = asyncHandler(async (req, res) => {
 
   const needsTerms = needsTermsAcceptance(user);
   const token = await issueTokenPair(user, req, res);
+  bindAttribution(req, user._id);
 
   res.json({
     _id: user._id,
@@ -418,6 +435,7 @@ exports.googleLogin = asyncHandler(async (req, res) => {
 
   const needsTerms = needsTermsAcceptance(user);
   const token = await issueTokenPair(user, req, res);
+  bindAttribution(req, user._id);
 
   res.json({
     _id: user._id,
@@ -568,12 +586,47 @@ exports.getMe = asyncHandler(async (req, res) => {
 
   const needsTerms = needsTermsAcceptance(req.user);
 
+  // The settings page renders subscription state and join date from this
+  // response. `req.user` comes from the auth cache projection, which carries
+  // the subscription fields but deliberately omits createdAt/lastLogin — so
+  // without this read a paying customer sees "Free / Inactive" and a blank
+  // "Member Since". This endpoint is low-traffic (profile page only), so one
+  // extra lean read is cheaper than widening the hot-path auth cache.
+  // Display-only extras. This read must never be able to break the profile:
+  // before it existed the endpoint touched no collection, so a transient
+  // database problem would now turn a working page into a 500. Degrade to
+  // nulls instead — a blank "Member Since" beats an unusable settings page.
+  let details = null;
+  try {
+    details = await User.findById(req.user._id).select("createdAt lastLogin").lean();
+  } catch (error) {
+    logger.warn("GET_ME_DETAIL_LOOKUP_FAILED", {
+      userId: String(req.user._id),
+      error: error?.message,
+    });
+  }
+
+  // A trial user has subscriptionStatus "inactive" yet full access, so status
+  // alone would render them "Free / Inactive" while they are mid-trial. Send
+  // the resolved entitlement so the UI never has to re-derive premium rules
+  // that live in utils/premium.
+  const trial = getTrialState(req.user);
+
   res.json({
     _id: req.user._id,
     name: req.user.name,
     email: req.user.email,
     role: req.user.role,
-    createdAt: req.user.createdAt,
+    authProvider: req.user.authProvider,
+    createdAt: details?.createdAt ?? req.user.createdAt ?? null,
+    lastLogin: details?.lastLogin ?? null,
+    subscriptionStatus: req.user.subscriptionStatus || "inactive",
+    subscriptionPlan: req.user.subscriptionPlan || "free",
+    subscriptionExpiry: req.user.subscriptionExpiry || null,
+    isPremium: isPremium(req.user),
+    trial: trial
+      ? { active: trial.active, used: trial.used, endsAt: trial.endsAt, daysRemaining: trial.daysRemaining }
+      : null,
     requiresTermsAcceptance: needsTerms || undefined,
   });
 });
@@ -733,7 +786,7 @@ exports.acceptTerms = asyncHandler(async (req, res) => {
     "termsAcceptance.termsVersion":    CURRENT_TERMS_VERSION,
   };
 
-  const shouldGrantTrial = !req.user.trial?.used;
+  const shouldGrantTrial = TRIAL_ENABLED && !req.user.trial?.used;
   let trialPayload = null;
   if (shouldGrantTrial) {
     trialPayload = buildTrialStart({ source: "auto_register" }).trial;

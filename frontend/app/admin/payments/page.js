@@ -273,7 +273,9 @@ export default function PaymentsPage() {
                       value={manualForm.planType}
                       onChange={e => setManualForm({...manualForm, planType: e.target.value})}
                     >
-                      <option value="3_months">3 Months (₹150)</option>
+                      <option value="monthly">1 Month (₹199)</option>
+                      <option value="3_months">3 Months (₹537)</option>
+                      <option value="6_months">6 Months (₹894)</option>
                       <option value="custom">Custom Extension</option>
                     </select>
                   </div>

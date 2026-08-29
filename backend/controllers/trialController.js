@@ -6,6 +6,8 @@ const User = require("../models/Users");
 const Trade = require("../models/Trade");
 const IndianTrade = require("../models/IndianTrade");
 const NotificationHistory = require("../models/NotificationHistory");
+const { listOrderablePlans } = require("../services/paymentService");
+const tradeQuotaService = require("../services/tradeQuotaService");
 const WeeklyReport = require("../models/WeeklyReport");
 const {
   isPremium,
@@ -13,6 +15,7 @@ const {
   getPlanSource,
   buildTrialStart,
   TRIAL_DAYS,
+  TRIAL_ENABLED,
 } = require("../utils/premium");
 const { invalidateAuthCache } = require("../services/authCacheService");
 const analytics = require("../services/analyticsEventService");
@@ -32,6 +35,11 @@ const EXPIRED_EVENT_CAP = 50000;
 exports.getStatus = asyncHandler(async (req, res) => {
   const user = req.user;
   const trial = getTrialState(user);
+  // Same catalogue the paywall renders from, so the shell can never quote a
+  // price the order endpoint would refuse.
+  const statusPlans = listOrderablePlans();
+  const statusPlan = statusPlans.find((plan) => plan.planType === "3_months") || statusPlans[0] || null;
+  const freeTradeLimit = tradeQuotaService.FREE_TRADE_LIMIT;
 
   // Lazy `trial_expired` emission — fires the first time we observe a user
   // whose trial.endsAt has crossed. Without a cron this is our only signal
@@ -61,11 +69,15 @@ exports.getStatus = asyncHandler(async (req, res) => {
       plan: user.subscriptionPlan,
       expiresAt: user.subscriptionExpiry || null,
     },
+    // Derived from PLAN_CONFIG rather than hardcoded — these were still
+    // advertising the retired ₹50/₹150 pricing after the tiers changed.
     config: {
-      trialDays: TRIAL_DAYS,
-      priceMonthlyInr: 50,
-      planPriceInr: 150,
-      planMonths: 3,
+      trialEnabled: TRIAL_ENABLED,
+      trialDays: TRIAL_ENABLED ? TRIAL_DAYS : 0,
+      freeTradeLimit,
+      priceMonthlyInr: statusPlan?.perMonth ?? null,
+      planPriceInr: statusPlan?.amount ?? null,
+      planMonths: statusPlan ? Math.round(statusPlan.days / 30) : null,
     },
   });
 });
@@ -139,15 +151,33 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
     },
   });
 
+  // Copy depends on how the user reached the paywall. With trials retired
+  // that is always "you filled your free trade allowance", never "your trial
+  // ended" — naming a trial nobody was given reads as a bug to the user.
+  const freeTradeLimit = tradeQuotaService.FREE_TRADE_LIMIT;
+  let headline;
+  let subheadline;
+  if (TRIAL_ENABLED && trial?.used && !trial?.active) {
+    headline = "Your 7-day Premium trial has ended";
+    subheadline = tradesLogged > 0
+      ? `You've already built ${tradesLogged} trades of evidence. Keep the momentum going.`
+      : "Start logging trades and unlock pattern-level insights about your edge.";
+  } else if (tradesLogged > 0) {
+    headline = "You've used your free trades";
+    subheadline = `You've logged ${tradesLogged} trades. Upgrade to keep logging and unlock the full picture.`;
+  } else {
+    headline = "Unlock your full edge";
+    subheadline = `Log up to ${freeTradeLimit} trades in each market for free, then upgrade to keep going.`;
+  }
+
+  const plans = listOrderablePlans();
+  // Pre-select the middle tier: it is the one the copy has always quoted and
+  // it reads as the balanced option between the monthly and 6-month plans.
+  const defaultPlan = plans.find((plan) => plan.planType === "3_months") || plans[0];
+
   res.json({
-    headline:
-      trial?.used && !trial?.active
-        ? "Your 7-day Premium trial has ended"
-        : "Unlock your full edge",
-    subheadline:
-      tradesLogged > 0
-        ? `You've already built ${tradesLogged} trades of evidence. Keep the momentum going.`
-        : "Start logging trades and unlock pattern-level insights about your edge.",
+    headline,
+    subheadline,
     metrics: {
       disciplineScore,
       tradesLogged,
@@ -155,11 +185,14 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
       aiInsightsGenerated: aiInsightsCount,
       weeklyReports: weeklyReportsCount,
     },
+    // Served from PLAN_CONFIG so the paywall can never advertise a price the
+    // order endpoint would refuse to charge.
+    plans,
     cta: {
       label: "Continue improving",
-      priceLabel: "₹50/month",
-      orderableLabel: "₹150 for 3 months",
-      planType: "3_months",
+      priceLabel: `₹${defaultPlan.perMonth}/month`,
+      orderableLabel: `₹${defaultPlan.amount} for ${defaultPlan.label}`,
+      planType: defaultPlan.planType,
     },
     trialEnded: Boolean(trial?.used && !trial?.active),
   });

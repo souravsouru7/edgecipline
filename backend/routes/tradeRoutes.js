@@ -4,6 +4,7 @@ const router = express.Router();
 const {
     createTrade,
     createTradesBatch,
+    getTradeQuota,
     getTrades,
     getTrade,
     getTradeStatus,
@@ -16,6 +17,10 @@ const { protect } = require("../middleware/authMiddleware");
 const { statusRateLimiter } = require("../middleware/rateLimiter");
 const { validateRequest } = require("../middleware/validateRequest");
 const { tradeSchemas } = require("../validation/schemas");
+
+// Lets the client show the remaining free allowance and open the paywall
+// before the user fills in a form that would be rejected on submit.
+router.get("/quota", protect, getTradeQuota);
 
 router.post("/", protect, validateRequest(tradeSchemas.create), createTrade);
 router.post("/batch", protect, validateRequest(tradeSchemas.batchCreate), createTradesBatch);

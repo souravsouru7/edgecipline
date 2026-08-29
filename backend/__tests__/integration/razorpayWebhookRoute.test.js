@@ -115,9 +115,9 @@ function makeRawBody(overrides = {}) {
         entity: {
           id: 'pay_raw_1',
           order_id: 'order_raw_1',
-          amount: 15000,
+          amount: 53700,
           currency: 'INR',
-          notes: { userId: '507f1f77bcf86cd799439011', planType: '3_months', memo: 'café ₹150' },
+          notes: { userId: '507f1f77bcf86cd799439011', planType: '3_months', memo: 'café ₹537' },
         },
       },
     },
@@ -152,7 +152,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   paymentService.fetchAndValidateRazorpayPayment.mockResolvedValue({
     userId: '507f1f77bcf86cd799439011',
-    amount: 150,
+    amount: 537,
     currency: 'INR',
     razorpayOrderId: 'order_raw_1',
     razorpayPaymentId: 'pay_raw_1',
@@ -193,7 +193,7 @@ describe('POST /api/payments/webhook — raw body signature verification', () =>
 
     // Attacker inflates the amount after the signature was produced.
     const tampered = Buffer.from(
-      rawBody.toString('utf8').replace('"amount": 15000', '"amount": 100'),
+      rawBody.toString('utf8').replace('"amount": 53700', '"amount": 100'),
       'utf8'
     );
 

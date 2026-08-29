@@ -22,6 +22,12 @@ function loadUploadMiddlewareWithCloudinaryError(error) {
         maxFileSizeBytes: 2 * 1024 * 1024,
         maxImagePixels: 50 * 1000 * 1000,
       },
+      // upload.middleware builds the support-attachment uploader at module
+      // load, so this mock has to carry the same shape the real config does.
+      support: {
+        maxAttachmentsPerMessage: 5,
+        maxAttachmentBytes: 5 * 1024 * 1024,
+      },
     },
   }));
 

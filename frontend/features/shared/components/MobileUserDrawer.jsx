@@ -144,6 +144,39 @@ export default function MobileUserDrawer({
           })}
         </nav>
 
+        {/* Help & Support.
+            Rendered outside `navItems` on purpose: those are the two
+            market-specific nav sets, and support is neither — it is reachable
+            from every workspace and, unlike the rest of this drawer, works
+            without a session. */}
+        <div style={{ padding: "0 12px 4px" }}>
+          <Link
+            href="/support"
+            onClick={onClose}
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              height: 48, padding: "0 8px", borderRadius: 10,
+              textDecoration: "none",
+              fontSize: 15, fontWeight: 500,
+              color: isActive("/support") ? "var(--color-primary)" : "#2D3748",
+              background: isActive("/support") ? "rgba(13,158,110,0.07)" : "transparent",
+              fontFamily: "'Plus Jakarta Sans',sans-serif",
+            }}
+          >
+            <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: isActive("/support") ? "var(--color-primary)" : "#94A3B8" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="4" />
+                <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
+                <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
+                <line x1="14.83" y1="9.17" x2="19.07" y2="4.93" />
+                <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
+              </svg>
+            </span>
+            Help &amp; Support
+          </Link>
+        </div>
+
         {extraSlot && (
           <div style={{ padding: "4px 20px 8px" }}>
             <div style={{ height: 1, background: "#F1F5F9", marginBottom: 12 }} />

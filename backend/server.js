@@ -83,6 +83,7 @@ const { startWebhookRetentionCron } = require("./jobs/webhookRetentionCron");
 const { startStreakProtectorCron } = require("./jobs/streakProtectorCron");
 const { startReflectionReminderCron } = require("./jobs/reflectionReminderCron");
 const { startMissionProgressCron } = require("./jobs/missionProgressCron");
+const { startSupportAutoCloseCron } = require("./jobs/supportAutoCloseCron");
 const { startOcrWorker } = require("./workers/ocrWorker");
 const { startSmartNotificationWorker } = require("./workers/smartNotificationWorker");
 
@@ -135,6 +136,7 @@ startWebhookRetentionCron();
 startStreakProtectorCron();
 startReflectionReminderCron();
 startMissionProgressCron();
+startSupportAutoCloseCron();
 startDataCleanupCron();
 startOcrScreenshotRetentionCron();
 
@@ -362,6 +364,12 @@ app.use("/api/coach", require("./routes/coachRoutes"));
 app.use("/api/onboarding", require("./routes/onboardingRoutes"));
 app.use("/api/missions", require("./routes/missionRoutes"));
 
+// Customer support. /api/support/config, /home, /articles* are intentionally
+// PUBLIC — /support is the support URL submitted to Google Play and App Store
+// Connect, and both open it with no session. Everything under /tickets and
+// /attachments requires authentication.
+app.use("/api/support", require("./routes/supportRoutes"));
+
 // Admin routes (completely separate workspace)
 app.use("/api/admin/auth", require("./admin/routes/adminAuthRoutes"));
 app.use("/api/admin/analytics", require("./admin/routes/adminAnalyticsRoutes"));
@@ -373,6 +381,11 @@ app.use("/api/admin/auth-cache-metrics", require("./admin/routes/adminCacheMetri
 app.use("/api/admin/feedback", require("./admin/routes/adminFeedbackRoutes"));
 app.use("/api/admin/issues", require("./admin/routes/adminIssueRoutes"));
 app.use("/api/admin/missions", require("./admin/routes/adminMissionRoutes"));
+// Agent-facing support console. Guarded by supportAuth (admin session + a
+// supportRole capability check re-derived from the database on every request),
+// not by adminAuth — see middleware/supportAuth.
+app.use("/api/admin/support", require("./admin/routes/adminSupportRoutes"));
+app.use("/api/admin/promotions", require("./admin/routes/adminPromotionRoutes"));
 
 // User feedback submission
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
@@ -380,6 +393,7 @@ app.use("/api/issues", require("./routes/issueReportRoutes"));
 
 // Payment routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
+app.use("/api/promotions", require("./routes/promotionRoutes"));
 
 // Trial & smart-paywall routes (7-day premium trial)
 app.use("/api/trial", require("./routes/trialRoutes"));

@@ -129,6 +129,7 @@ const NOTIFICATION_CHANNELS = [
   { id: "edgecipline_session",    name: "Session Reminders",    description: "London, New York, and Asian session start reminders", importance: 4, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#8B5CF6" },
   { id: "edgecipline_checklist",  name: "Pre-Trade Checklist",  description: "Daily interactive checklist in the notification shade", importance: 5, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#0D9E6E" },
   { id: "edgecipline_ocr",        name: "OCR Results",          description: "Trade screenshot processing completion and failure alerts", importance: 4, visibility: 0, sound: "default", lights: true, vibration: true, lightColor: "#0EA5E9" },
+  { id: "edgecipline_support",    name: "Support",              description: "Replies and status updates on your support tickets", importance: 4, visibility: 0, sound: "default", lights: true, vibration: true, lightColor: "#B8860B" },
 ];
 
 // Channels are independent of auth, permission, and registration. They must

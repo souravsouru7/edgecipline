@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   createTrade,
   createTradesBatch,
+  getTradeQuota,
   getTrades,
   getTrade,
   updateTrade,
@@ -17,6 +18,7 @@ const { validateNumbers } = require("../middleware/validateNumbers");
 const { validateObjectId } = require("../middleware/validateObjectId");
 
 // Indian Market only — uses IndianTrade model, no shared Forex logic
+router.get("/quota", protect, getTradeQuota);
 router.post("/", protect, validateNumbers, createTrade);
 router.post("/batch", protect, validateNumbers, createTradesBatch);
 router.get(

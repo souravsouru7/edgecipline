@@ -307,7 +307,7 @@ async function dispatchTouchpoint({ user, touchpoint, context, dryRun = false })
           type: touchpoint.notificationType,
           title: payload.push.title,
           body: payload.push.body,
-          deepLink: "/pricing",
+          deepLink: "/settings",
           dedupeKey: `rescue:${touchpoint.code}:${user._id}:${new Date(cycleExpiry).toISOString()}`,
           data: {
             touchpoint: touchpoint.code,

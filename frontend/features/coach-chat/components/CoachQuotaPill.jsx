@@ -25,7 +25,7 @@ export default function CoachQuotaPill({ quota }) {
   const low = quota.remaining <= 1;
   return (
     <Link
-      href="/profile?section=billing"
+      href="/settings?section=billing"
       style={{
         display: "inline-flex", alignItems: "center", gap: 4,
         fontSize: 10, fontWeight: 800,

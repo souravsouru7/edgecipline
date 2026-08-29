@@ -31,6 +31,20 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user"
     },
+    // Customer-support capability, layered ON TOP of `role` rather than
+    // replacing it — every existing consumer of `role` keeps working. null
+    // means "not support staff". Admins hold every support capability
+    // regardless of this field; see constants/support resolveCapabilities.
+    //
+    // In this first release a support agent must also be role:"admin" to sign
+    // in, because adminAuthController only issues tokens to admins. supportAuth
+    // already accepts `role === "admin" || supportRole`, so enabling dedicated
+    // non-admin agent logins later is a change to the login controller alone.
+    supportRole: {
+      type: String,
+      enum: ["agent", "lead", null],
+      default: null,
+    },
     accountStatus: {
       type: String,
       enum: ["active", "disabled"],
@@ -198,6 +212,23 @@ const userSchema = new mongoose.Schema(
       // notification quiet-hours TZ if blank.
       timezone: { type: String, default: "Asia/Kolkata" },
     },
+    attribution: {
+      anonymousId: { type: String, default: null, maxlength: 80 },
+      firstTouch: {
+        source: { type: String, default: null },
+        refSlug: { type: String, default: "" },
+        influencer: { type: mongoose.Schema.Types.ObjectId, ref: "Influencer", default: null },
+        campaign: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign", default: null },
+        at: { type: Date, default: null },
+      },
+      signupTouch: {
+        source: { type: String, default: null },
+        refSlug: { type: String, default: "" },
+        influencer: { type: mongoose.Schema.Types.ObjectId, ref: "Influencer", default: null },
+        campaign: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign", default: null },
+        at: { type: Date, default: null },
+      },
+    },
     loginAttempts: {
       type: Number,
       default: 0,
@@ -209,6 +240,16 @@ const userSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+);
+
+// Agent picker + "assignable agents" fan-out. Partial so the index holds only
+// the handful of staff rows rather than every user in the database.
+userSchema.index(
+  { supportRole: 1 },
+  {
+    name: "support_staff",
+    partialFilterExpression: { supportRole: { $type: "string" } },
+  }
 );
 
 userSchema.index({ role: 1, subscriptionExpiry: -1 });

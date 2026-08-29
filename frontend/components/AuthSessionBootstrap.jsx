@@ -25,6 +25,14 @@ const STARTUP_REVEAL_TIMEOUT_MS = 1400;
 //
 // Bouncing a reviewer from any of these to a login screen reads as "the URL
 // does not work" and fails review.
+//
+// /admin is listed for a different reason: it is not public, it just isn't
+// ours to guard. The admin panel runs on a separate auth system — the
+// admin_sid httpOnly cookie signed with ADMIN_JWT_SECRET, enforced by
+// adminAuth on the API and by the guard in app/admin/layout.js. This
+// bootstrap only knows about the user session, so without this entry it finds
+// no user token on /admin/login and hard-redirects the admin to /login before
+// they can sign in at all.
 const PUBLIC_PATH_PREFIXES = [
   "/login",
   "/register",
@@ -35,6 +43,8 @@ const PUBLIC_PATH_PREFIXES = [
   "/terms",
   "/delete-account",
   "/support",
+  "/admin",
+  "/r",
 ];
 
 export default function AuthSessionBootstrap({ children }) {

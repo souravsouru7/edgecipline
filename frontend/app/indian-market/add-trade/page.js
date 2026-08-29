@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
+import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
+import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
 import { MARKETS } from "@/context/MarketContext";
 import { markOnboardingStep } from "@/services/api";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
@@ -116,6 +118,8 @@ function IndianOptionsAddTradeContent() {
     sector: ""
   });
   const [loading, setLoading] = useState(false);
+  // Non-null while a save is blocked by the free-tier allowance.
+  const [limitBlock, setLimitBlock] = useState(null);
   const evidenceRef = useRef(null);
   const [committingEvidence, setCommittingEvidence] = useState(false);
   const isEquity = tradeSubType === "EQUITY";
@@ -381,7 +385,13 @@ function IndianOptionsAddTradeContent() {
         throw new Error(result?.message || "Failed to save");
       }
     } catch (err) {
-      addToast(err.message || "Failed to save trade.", "error");
+      // The free-tier block gets a dialog, not a toast: a toast disappears and
+      // the user just re-submits the same trade into the same wall.
+      if (isTradeLimitError(err)) {
+        setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+      } else {
+        addToast(err.message || "Failed to save trade.", "error");
+      }
     } finally {
       submitLockRef.current = false;
       setLoading(false);
@@ -391,6 +401,13 @@ function IndianOptionsAddTradeContent() {
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, fontFamily: "'Plus Jakarta Sans',sans-serif", color: theme.secondary }}>
       <IndianMarketHeader />
+
+      <TradeLimitDialog
+        open={Boolean(limitBlock)}
+        quota={limitBlock?.quota}
+        requested={limitBlock?.requested}
+        onClose={() => setLimitBlock(null)}
+      />
 
       <main style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px" }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: theme.secondary }}>

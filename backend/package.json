@@ -22,6 +22,8 @@
     "pm2:restart": "pm2 restart ecosystem.config.js",
     "pm2:stop": "pm2 stop ecosystem.config.js",
     "pm2:delete": "pm2 delete ecosystem.config.js",
+    "support:seed-kb": "node scripts/seedKnowledgeBase.js",
+    "support:seed-kb:dry-run": "node scripts/seedKnowledgeBase.js --dry-run",
     "mail:test": "node scripts/test-resend.js",
     "password-reset:clear-limit": "node scripts/clear-password-reset-limiter.js"
   },

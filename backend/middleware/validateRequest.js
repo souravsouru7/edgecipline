@@ -18,12 +18,20 @@ async function cleanupRejectedUploads(uploadedImages) {
  * Parsed values are available through req.validated and parsed bodies replace
  * req.body so coercions are consistently consumed by controllers.
  */
+function toPlainObject(value) {
+  if (value == null) return {};
+  if (typeof value !== "object" || Array.isArray(value) || Buffer.isBuffer(value)) {
+    return {};
+  }
+  return { ...value };
+}
+
 function validateRequest(schema) {
   return async (req, _res, next) => {
     const result = await schema.safeParseAsync({
-      body: req.body,
-      query: req.query,
-      params: req.params,
+      body: req.body == null ? {} : req.body,
+      query: toPlainObject(req.query),
+      params: toPlainObject(req.params),
     });
 
     if (!result.success) {

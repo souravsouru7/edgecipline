@@ -1,4 +1,6 @@
 jest.mock("../../models/IndianTrade", () => ({
+  // The free-trade gate counts existing entries before every create.
+  countDocuments: jest.fn().mockResolvedValue(0),
   create: jest.fn(),
   findOne: jest.fn(),
   findOneAndUpdate: jest.fn(),

@@ -261,6 +261,69 @@ const appConfig = {
     geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     geminiTradeModel: process.env.GEMINI_TRADE_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash",
   },
+  trial: {
+    // The 7-day free trial is retired: the free tier is now the 2-trades-per-
+    // market allowance and nothing else. Flipping this back to true restores
+    // the old behaviour wholesale — granting on signup, the countdown banner,
+    // and trial users counting as premium.
+    enabled: readBoolean("TRIAL_ENABLED", false),
+    days: readNumber("TRIAL_DAYS", 7),
+  },
+  trades: {
+    // Free accounts may log this many trades in EACH market. Premium — an
+    // active paid plan, the 7-day trial, or an admin — is unlimited.
+    freeLimit: readNumber("FREE_TRADE_LIMIT", 2),
+    // Kill switch. The limit is only honest if there is somewhere to pay: with
+    // the purchase surface compiled out (NEXT_PUBLIC_PAYMENTS_ENABLED=false,
+    // which is what the mobile store policies require) an enforced limit
+    // strands free users with no way to unblock themselves. Set this to false
+    // to ship the code inert until checkout is live.
+    freeLimitEnforced: readBoolean("FREE_TRADE_LIMIT_ENFORCED", true),
+  },
+  // ── Customer support ──────────────────────────────────────────────────────
+  // Centralised so the WhatsApp number and support address exist in exactly
+  // one place. The frontend reads these from GET /api/support/config rather
+  // than NEXT_PUBLIC_* build vars, because /support is a store-submitted URL
+  // in a STATIC export — a number baked into the bundle cannot be corrected
+  // without shipping a new build to both app stores.
+  support: {
+    // E.164 digits only, no "+" and no spaces. wa.me rejects anything else,
+    // and normalising here means callers never have to think about it.
+    whatsappNumber: String(process.env.SUPPORT_WHATSAPP_NUMBER || "917510606322").replace(/[^\d]/g, ""),
+    whatsappEnabled: readBoolean("SUPPORT_WHATSAPP_ENABLED", true),
+    email: process.env.SUPPORT_EMAIL || "info@edgecipline.com",
+    // Kill switch for the ticket surface. With this off, the Help Center still
+    // renders articles and the WhatsApp/email CTAs — self-service and the
+    // external channels must never depend on the ticket system being healthy.
+    ticketsEnabled: readBoolean("SUPPORT_TICKETS_ENABLED", true),
+    maxAttachmentsPerMessage: readNumber("SUPPORT_MAX_ATTACHMENTS", 5),
+    maxAttachmentBytes: readNumber("SUPPORT_MAX_ATTACHMENT_BYTES", 5 * 1024 * 1024),
+    // Signed-URL lifetime for attachment downloads. Long enough for a browser
+    // to follow the redirect and fetch the image, short enough that a URL
+    // copied out of devtools is useless within the minute.
+    attachmentUrlTtlSeconds: readNumber("SUPPORT_ATTACHMENT_URL_TTL_SECONDS", 60),
+    // Cap on open tickets one customer may hold at once. Stops a loop or an
+    // abusive account from flooding the queue without punishing a customer
+    // who genuinely has several unrelated problems.
+    maxOpenTicketsPerUser: readNumber("SUPPORT_MAX_OPEN_TICKETS_PER_USER", 10),
+    // Nightly job that closes resolved tickets past the reopen window.
+    autoClose: {
+      enabled: readBoolean("ENABLE_SUPPORT_AUTO_CLOSE_CRON", true),
+      schedule: process.env.SUPPORT_AUTO_CLOSE_CRON || "0 2 * * *",
+      batchSize: readNumber("SUPPORT_AUTO_CLOSE_BATCH_SIZE", 500),
+    },
+    // Email notifications for ticket events. Independent of push: a customer
+    // with notifications disabled on their phone still needs the reply.
+    emailNotificationsEnabled: readBoolean("SUPPORT_EMAIL_NOTIFICATIONS_ENABLED", true),
+    // Absolute base for links inside support emails.
+    appBaseUrl: process.env.SUPPORT_APP_BASE_URL || process.env.APP_BASE_URL || "https://stratedge.live",
+    // Salt for the anonymous article-feedback fingerprint. Falls back to the
+    // admin JWT secret so a missing env var degrades to "still salted with
+    // something secret" rather than to an unsalted, rainbow-tableable hash of
+    // a visitor's IP address.
+    feedbackFingerprintSalt:
+      process.env.SUPPORT_FEEDBACK_FINGERPRINT_SALT || jwtSecrets.right,
+  },
   smtp: {
     host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: readNumber("SMTP_PORT", 587),

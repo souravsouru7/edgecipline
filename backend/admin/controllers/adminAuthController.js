@@ -16,8 +16,11 @@ const ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
 const ADMIN_JWT_SECRET = appConfig.jwt.adminSecret;
 
 // Account lockout thresholds for admin login brute-force protection.
-const MAX_ADMIN_LOGIN_ATTEMPTS = 3;
-const ADMIN_LOCK_DURATION_MS   = 60 * 60 * 1000; // 1 hour
+// Shared with the user login endpoint, which accepts these same credentials
+// and writes the same counters — see constants/loginPolicy.js.
+const { ADMIN_LOGIN_POLICY } = require("../../constants/loginPolicy");
+const MAX_ADMIN_LOGIN_ATTEMPTS = ADMIN_LOGIN_POLICY.maxAttempts;
+const ADMIN_LOCK_DURATION_MS   = ADMIN_LOGIN_POLICY.lockMs;
 
 function generateAdminToken(user) {
   return jwt.sign(
