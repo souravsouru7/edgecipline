@@ -273,9 +273,13 @@ export default function PaymentsPage() {
                       value={manualForm.planType}
                       onChange={e => setManualForm({...manualForm, planType: e.target.value})}
                     >
-                      <option value="monthly">1 Month (₹199)</option>
-                      <option value="3_months">3 Months (₹537)</option>
-                      <option value="6_months">6 Months (₹894)</option>
+                      {/* Informational labels. Keep in step with
+                          PLAN_CONFIG in backend/services/paymentService.js —
+                          the amount actually charged always comes from there,
+                          never from this dropdown. */}
+                      <option value="monthly">1 Month (₹349)</option>
+                      <option value="3_months">3 Months (₹899)</option>
+                      <option value="6_months">6 Months (₹1499)</option>
                       <option value="custom">Custom Extension</option>
                     </select>
                   </div>

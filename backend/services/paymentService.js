@@ -27,31 +27,40 @@ const { CHECKOUT_SESSION_TTL_MS } = require("../constants/promotions");
 // "before" price the paywall shows — presentational only, never charged.
 const PLAN_CONFIG = {
   monthly: {
-    amount: 199,
-    listAmount: 249,
-    days: 30,
-    label: "1 month",
-    userPlan: "monthly",
-    orderable: true,
-  },
-  "3_months": {
-    amount: 537,
+    amount: 349,
     // Every price we have ever charged for this plan. A Razorpay order is
     // created at whatever price was live when checkout opened, so an order
     // placed before a price change — or a webhook retry for one — still
     // carries the old amount. Validating against only the current price
     // would reject an already-charged payment and strand the customer's
     // money. Never remove entries; add the outgoing price on every change.
-    priorAmounts: [150],
-    listAmount: 747,
+    priorAmounts: [199],
+    // No listAmount: this IS the reference rate the longer plans are
+    // discounted against, so there is no honest "before" price to strike
+    // through. Inventing one would be the deceptive pricing that
+    // assertPlanConfigIsSane exists to catch.
+    days: 30,
+    label: "1 month",
+    userPlan: "monthly",
+    orderable: true,
+  },
+  "3_months": {
+    amount: 899,
+    priorAmounts: [150, 537],
+    // 349 x 3 — what the same 90 days cost at the monthly rate. Anchoring to
+    // a real, purchasable price keeps the advertised saving defensible;
+    // a made-up "was" number would not be.
+    listAmount: 1047,
     days: 90,
     label: "3 months",
     userPlan: "monthly",
     orderable: true,
   },
   "6_months": {
-    amount: 894,
-    listAmount: 1494,
+    amount: 1499,
+    priorAmounts: [894],
+    // 349 x 6, same reasoning as above.
+    listAmount: 2094,
     days: 180,
     label: "6 months",
     userPlan: "monthly",

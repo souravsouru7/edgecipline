@@ -9,6 +9,20 @@ const { logger } = require("../utils/logger");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { isRedisReady } = require("../config/redis");
 const { isPremium } = require("../utils/premium");
+const { listOrderablePlans } = require("./paymentService");
+
+// Quote the live catalogue rather than a literal. This message hard-coded
+// "Rs 150 for 3 months" through two price changes and was advertising a price
+// we had not charged in months — the kind of stale copy that only surfaces
+// when a customer quotes it back at support.
+function freeUploadUpgradeMessage() {
+  const cheapest = listOrderablePlans()[0];
+  if (!cheapest) {
+    return "You have used your free upload. Upgrade to continue.";
+  }
+  return `You have used your free upload. Subscribe from Rs ${cheapest.amount} `
+    + `for ${cheapest.label} to continue.`;
+}
 
 const BROKER_MAX_LENGTH = 50;
 const ACTIVE_DUPLICATE_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CONFIRMED"];
@@ -105,7 +119,7 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
           403,
           "Subscription required",
           "PAYMENT_REQUIRED",
-          "You have used your free upload. Please subscribe for Rs 150 for 3 months to continue."
+          freeUploadUpgradeMessage()
         );
       }
     }

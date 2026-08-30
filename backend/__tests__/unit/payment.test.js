@@ -58,6 +58,7 @@ const User     = require('../../models/Users');
 const mongoose = require('mongoose');
 
 const { createOrder, verifyPayment } = require('../../controllers/paymentController');
+const { PLAN_CONFIG } = require('../../services/paymentService');
 
 const ORDER_ID   = 'order_testABC';
 const PAYMENT_ID = 'pay_testXYZ';
@@ -251,7 +252,9 @@ describe('verifyPayment', () => {
 
     await verifyPayment(req, res, next);
 
-    // Server always uses PLAN_AMOUNTS["3_months"] = 537, not the client value
+    // The booked amount comes from the verified Razorpay ORDER (mocked at
+    // 53700 paise above), never from the client body. 537 is a superseded
+    // price kept in PLAN_CONFIG.priorAmounts, so it still validates.
     expect(capturedAmount).toBe(537);
   });
 
@@ -330,13 +333,17 @@ describe('sandbox payment demo', () => {
       user: authUser,
     }, res, jest.fn());
 
+    // Unlike the live path there is no Razorpay order here, so the sandbox
+    // books the CURRENT catalogue price. Derived so a price change does not
+    // need this assertion edited again.
+    const currentPrice = PLAN_CONFIG['3_months'].amount;
     expect(Payment.create).toHaveBeenCalledWith(expect.objectContaining({
-      amount: 537,
+      amount: currentPrice,
       transactionId: 'sandbox_pay_1',
       expiryDate: new Date('2026-10-13T00:00:00.000Z'),
     }));
     expect(User.findByIdAndUpdate).toHaveBeenCalledWith(authUser._id, expect.objectContaining({
-      $inc: { totalPaid: 537 },
+      $inc: { totalPaid: currentPrice },
     }));
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       success: true,

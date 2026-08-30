@@ -68,7 +68,7 @@ describe('quoteCheckout', () => {
 
   test('no code returns the catalogue price', async () => {
     const quote = await quoteCheckout({ user, plan, couponCode: '' });
-    expect(quote.payableAmount).toBe(537);
+    expect(quote.payableAmount).toBe(899);
     expect(quote.discountAmount).toBe(0);
     expect(Coupon.findOne).not.toHaveBeenCalled();
   });
@@ -76,10 +76,10 @@ describe('quoteCheckout', () => {
   test('percent coupon quotes a discounted payable amount', async () => {
     mockHappyPath();
     const quote = await quoteCheckout({ user, plan, couponCode: ' diwali30 ' });
-    expect(quote.listAmount).toBe(537);
-    expect(quote.discountAmount).toBe(161);
-    expect(quote.payableAmount).toBe(376);
-    expect(quote.payablePaise).toBe(37600);
+    expect(quote.listAmount).toBe(899);
+    expect(quote.discountAmount).toBe(270);   // round(899 * 0.30)
+    expect(quote.payableAmount).toBe(629);
+    expect(quote.payablePaise).toBe(62900);
   });
 
   test('unknown codes throw a generic COUPON_INVALID', async () => {

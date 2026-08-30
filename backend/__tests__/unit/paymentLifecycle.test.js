@@ -42,7 +42,13 @@ const {
   activateRazorpaySubscriptionPayment,
   applyVerifiedRazorpayRefund,
   resolveSubscriptionPlanLabel,
+  PLAN_CONFIG,
 } = require('../../services/paymentService');
+
+// activate() and createOrder() both fall back to the catalogue price when the
+// caller does not pass one, so these track PLAN_CONFIG rather than a literal.
+const PLAN_PRICE = PLAN_CONFIG['3_months'].amount;
+const PLAN_PAISE = PLAN_PRICE * 100;
 
 const USER_ID = '507f1f77bcf86cd799439011';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -166,7 +172,7 @@ describe('Phase 20 — duplicate checkout behaviour', () => {
     );
 
     for (const call of mockOrderCreate.mock.calls) {
-      expect(call[0].amount).toBe(53700);
+      expect(call[0].amount).toBe(PLAN_PAISE);
       expect(call[0].currency).toBe('INR');
     }
   });
@@ -305,7 +311,7 @@ describe('Phase 22 — database integrity', () => {
     expect(createdPaymentDoc()).toEqual(
       expect.objectContaining({
         user: USER_ID,
-        amount: 537,
+        amount: PLAN_PRICE,
         currency: 'INR',
         status: 'completed',
         paymentMethod: 'razorpay',
@@ -333,7 +339,7 @@ describe('Phase 22 — database integrity', () => {
       expect.objectContaining({
         subscriptionStatus: 'active',
         subscriptionPlan: 'monthly',
-        $inc: { totalPaid: 537 },
+        $inc: { totalPaid: PLAN_PRICE },
       })
     );
     expect(User.findByIdAndUpdate).toHaveBeenCalledTimes(1);

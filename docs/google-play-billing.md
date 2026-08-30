@@ -73,11 +73,11 @@ Three auto-renewing base plans mirroring the web catalogue in
 `paymentService.PLAN_CONFIG`, so an Android user and a web user buy the same
 thing:
 
-| Base plan ID | Billing period | Type | Mirrors web plan | Reference price (INR) |
-|---|---|---|---|---|
-| `edgecipline-pro-monthly` | `P1M` (1 month) | Auto-renewing | `monthly` | ₹199 |
-| `edgecipline-pro-3month` | `P3M` (3 months) | Auto-renewing | `3_months` | ₹537 |
-| `edgecipline-pro-6month` | `P6M` (6 months) | Auto-renewing | `6_months` | ₹894 |
+| Base plan ID | Billing period | Type | Mirrors web plan | Reference price (INR) | Effective |
+|---|---|---|---|---|---|
+| `edgecipline-pro-monthly` | `P1M` (1 month) | Auto-renewing | `monthly` | ₹349 | ₹349/mo |
+| `edgecipline-pro-3month` | `P3M` (3 months) | Auto-renewing | `3_months` | ₹899 | ₹300/mo · ₹9.99/day |
+| `edgecipline-pro-6month` | `P6M` (6 months) | Auto-renewing | `6_months` | ₹1,499 | ₹250/mo · ₹8.33/day |
 
 For each base plan: **Auto-renewing**, grace period **7 days**, account hold
 **30 days**, resubscribe **on**.
@@ -87,8 +87,15 @@ For each base plan: **Auto-renewing**, grace period **7 days**, account hold
   from the Play Billing library, so what the user sees is always what Google
   charges. The INR figures above are for parity reference when you set them.
 - **Play's service fee (15–30%) is not accounted for by the reference prices.**
-  Matching web pricing exactly means absorbing it. That is a pricing decision,
-  not a code change — set whatever you want in Console and the app follows.
+  Matching web pricing exactly means absorbing it: at 15%, ₹899 nets ~₹764.
+  That is a pricing decision, not a code change — set whatever you want in
+  Console and the app follows.
+- **Changing a price after launch is not the same as setting it.** Google
+  requires an explicit price-change flow: existing subscribers stay on their
+  old price unless you opt them in, and an opt-in increase triggers a mandatory
+  notice period and, in some regions, a re-consent prompt. Nothing in this
+  codebase is affected — the client always renders whatever Play reports for
+  that user — but the migration has to be driven from Play Console.
 - **Offers are not required.** The paywall filters out any offer carrying an
   `offerId` and shows base plans only, so adding a promotional offer later will
   not double-list a tier. Introductory pricing is displayed correctly (the last

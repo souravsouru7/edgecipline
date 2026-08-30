@@ -23,7 +23,7 @@ function pickTone(daysRemaining) {
 }
 
 export default function TrialCountdownBanner({ initial = null, onUpgrade }) {
-  const { trial, planSource, loading } = useTrialStatus({ initial });
+  const { trial, planSource, loading, config } = useTrialStatus({ initial });
 
   const tone = useMemo(
     () => pickTone(trial?.daysRemaining ?? 7),
@@ -122,7 +122,10 @@ export default function TrialCountdownBanner({ initial = null, onUpgrade }) {
           flexShrink: 0,
         }}
       >
-        Upgrade ₹199/mo
+        {/* Server-derived so a price change cannot leave a stale figure on a
+            button. "from" because priceMonthlyInr is the best effective
+            monthly rate (the multi-month plan), not the 1-month price. */}
+        {config?.priceMonthlyInr ? `Upgrade from ₹${config.priceMonthlyInr}/mo` : "Upgrade"}
       </button>
     </div>
   );

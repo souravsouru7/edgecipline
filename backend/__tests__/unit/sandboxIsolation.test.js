@@ -43,6 +43,7 @@ const User = require('../../models/Users');
 const { appConfig } = require('../../config');
 const { createOrder, verifyPayment } = require('../../controllers/paymentController');
 
+const { PLAN_CONFIG } = require('../../services/paymentService');
 const authUser = { _id: '507f1f77bcf86cd799439011' };
 
 const mockRes = () => {
@@ -131,7 +132,7 @@ describe('sandbox isolation — explicit opt-in on a non-production env', () => 
     expect(next).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       sandbox: true,
-      amount: 53700,
+      amount: PLAN_CONFIG['3_months'].amount * 100,
       currency: 'INR',
     }));
   });

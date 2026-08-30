@@ -275,7 +275,11 @@ describe('Phase 6 — client cannot control the amount', () => {
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     expect(Payment.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ amount: 537, currency: 'INR', subscriptionDays: 90 })],
+      [expect.objectContaining({
+        amount: PLAN_AMOUNT_PAISE / 100,
+        currency: 'INR',
+        subscriptionDays: 90,
+      })],
       expect.anything()
     );
   });
