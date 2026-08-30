@@ -35,6 +35,8 @@ const RefreshToken = require("../models/RefreshToken");
 // Needed by collectImagePublicIds as well as the purge table below. Mongoose
 // caches models, so this is the same object the table's inline require returns.
 const SupportMessage = require("../models/SupportMessage");
+// Detached rather than purged; see detachPlaySubscriptions below.
+const PlaySubscription = require("../models/PlaySubscription");
 
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
@@ -52,6 +54,13 @@ const { logger } = require("../utils/logger");
 // Payment, WebhookEvent, CheckoutSession and CouponRedemption are
 // deliberately absent: they hold no personal data
 // beyond the (now dangling) user id and are subject to statutory retention.
+//
+// PlaySubscription is absent for a DIFFERENT and stronger reason: deleting it
+// would be a security hole, not merely a retention question. The row is keyed
+// on a Google Play purchase token, and that unique key is the only thing
+// stopping the same token from later being presented by a different account
+// and looking brand new. Delete the row and a live subscription can be
+// transferred to a stranger. It is detached instead — see detachPlaySubscriptions.
 //
 // Each entry must be the MODEL ITSELF, not the module that holds it. Most model
 // files `module.exports = mongoose.model(...)`, but a few export a bag of named
@@ -170,6 +179,29 @@ async function deleteFirebaseUser(email) {
   }
 }
 
+/**
+ * Sever a deleted user from their Google Play purchases WITHOUT deleting the
+ * rows.
+ *
+ * Erasing the user id is what satisfies the deletion request — nothing
+ * personal survives, and the row is anonymous afterwards. Keeping the row is
+ * what keeps the purchase token spent forever: googlePlayBillingService
+ * refuses to bind a token whose PlaySubscription exists with a null user, so a
+ * device that still holds the purchase cannot re-attach it to a new account.
+ *
+ * Deleting the rows instead would mean a user could delete their account, sign
+ * up again, hit "Restore purchases", and reclaim a subscription that Google
+ * has already stopped billing them for — or, worse, that someone else is now
+ * paying for on a shared device.
+ */
+async function detachPlaySubscriptions(userId) {
+  const result = await PlaySubscription.updateMany(
+    { user: userId },
+    { $set: { user: null } }
+  );
+  return result.modifiedCount || result.nModified || 0;
+}
+
 async function purgeUserDocuments(userId) {
   const deleted = {};
 
@@ -221,6 +253,10 @@ async function deleteAccount(userId) {
   // 4. Purge every user-scoped collection.
   const documentsDeleted = await purgeUserDocuments(userId);
 
+  // 4b. Detach — never delete — Google Play purchases. See the function's
+  //     comment: the row is what keeps the purchase token from being reused.
+  const playSubscriptionsDetached = await detachPlaySubscriptions(userId);
+
   // 5. Remove the account record itself — last, so the operation stays
   //    retryable if any earlier step threw.
   await Users.deleteOne({ _id: userId });
@@ -233,14 +269,15 @@ async function deleteAccount(userId) {
   logger.info("Account deletion completed", {
     userId: String(userId),
     documentsDeleted,
+    playSubscriptionsDetached,
     imagesDestroyed: images.destroyed,
     imagesFailed: images.failed,
     firebaseDeleted: firebase.deleted,
   });
 
-  return { email: user.email, documentsDeleted, images, firebase };
+  return { email: user.email, documentsDeleted, playSubscriptionsDetached, images, firebase };
 }
 
 // USER_OWNED_COLLECTIONS is exported for the coverage guard in the unit tests,
 // which asserts every model referenced here is real and purged on the right field.
-module.exports = { deleteAccount, USER_OWNED_COLLECTIONS };
+module.exports = { deleteAccount, USER_OWNED_COLLECTIONS, detachPlaySubscriptions };

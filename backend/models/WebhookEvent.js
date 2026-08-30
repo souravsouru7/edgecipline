@@ -15,7 +15,11 @@ const webhookEventSchema = new mongoose.Schema(
     },
     provider: {
       type: String,
-      enum: ["razorpay"],
+      // Google Play RTDNs reuse this collection wholesale: the {provider,
+      // eventId} unique index is the replay guard, and the reconciliation and
+      // retention crons are already provider-blind. Nothing here is
+      // Razorpay-specific except the default.
+      enum: ["razorpay", "google_play"],
       default: "razorpay",
       index: true,
     },

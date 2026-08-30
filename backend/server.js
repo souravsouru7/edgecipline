@@ -303,6 +303,22 @@ app.use(
   require("./routes/razorpayWebhookRoutes")
 );
 
+// Google Play real-time developer notifications, delivered by Cloud Pub/Sub.
+// Also mounted on the raw body: authentication here is an OIDC token rather
+// than a body HMAC, so the raw buffer is not strictly required — but keeping
+// both webhooks on the same pre-JSON path means neither can be silently
+// reordered behind express.json() later, and sanitizeInput must not rewrite a
+// payload we hand back to Google's own parser.
+//
+// NOTE the path: /api/payments/webhook/google-play would be swallowed by the
+// Razorpay mount above, which matches that whole prefix.
+app.use(
+  "/api/webhooks/google-play",
+  standardizeResponse,
+  express.raw({ type: "application/json", limit: "1mb" }),
+  require("./routes/googlePlayNotificationRoutes")
+);
+
 app.use(express.json({ limit: "1mb" }));
 
 // Parse cookies — required for httpOnly refresh-token cookie
@@ -393,6 +409,10 @@ app.use("/api/issues", require("./routes/issueReportRoutes"));
 
 // Payment routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
+// Android in-app purchases. Razorpay stays the web processor; Play Billing is
+// mandatory for digital goods inside the Android app. Both feed the same
+// entitlement — see utils/premium.
+app.use("/api/payments/google-play", require("./routes/googlePlayBillingRoutes"));
 app.use("/api/promotions", require("./routes/promotionRoutes"));
 
 // Trial & smart-paywall routes (7-day premium trial)

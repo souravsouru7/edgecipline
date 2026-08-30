@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
         SplashScreen.installSplashScreen(this);
         registerPlugin(ChecklistNotificationPlugin.class);
         registerPlugin(EdgeAuthStoragePlugin.class);
+        registerPlugin(EdgeBillingPlugin.class);
         super.onCreate(savedInstanceState);
         NotificationChannelInitializer.ensureChannels(getApplicationContext());
         enableWebViewCookies();

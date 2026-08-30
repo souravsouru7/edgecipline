@@ -20,8 +20,13 @@ const logLevels = {
 
 winston.addColors(logLevels.colors);
 
+// `token` already catches purchaseToken / linkedPurchaseToken / obfuscated
+// account ids that end in Token — a Google Play purchase token is a bearer
+// credential for a paid subscription, so anything holding one must never reach
+// a log file or Sentry. googlePlayBillingService logs a truncated SHA-256
+// fingerprint instead when it needs to correlate.
 const SENSITIVE_KEY_PATTERN =
-  /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers)/i;
+  /(password|passwd|pass|secret|token|jwt|cookie|authorization|api[-_]?key|private[-_]?key|rawocr|ocr|airaw|airesponse|extractedtext|imageurl|screenshot|headers|obfuscatedaccountid)/i;
 
 const SENSITIVE_VALUE_PATTERN_SOURCE =
   String.raw`(mongodb(?:\+srv)?:\/\/[^\s"]+|cloudinary:\/\/[^\s"]+|https?:\/\/res\.cloudinary\.com\/[^\s"]+|Bearer\s+[A-Za-z0-9._-]+|[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}|eyJ[A-Za-z0-9._-]+|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|[A-Za-z]:[\\/][^\s"']+|\/(?:Users|home|var|etc|srv|app)\/[^\s"']+|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----)`;

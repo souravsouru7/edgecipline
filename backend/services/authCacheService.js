@@ -30,6 +30,11 @@ const CACHE_PROJECTION = [
   "subscriptionStatus",
   "subscriptionPlan",
   "subscriptionExpiry",
+  // Google Play entitlement. Required by utils/premium.isPremium(): omitting
+  // it would flip every Android subscriber back to the free tier on each cache
+  // hit — i.e. paying users hitting the trade limit — and only for the ~300s
+  // the entry lives, which makes it look intermittent rather than broken.
+  "playEntitlementExpiry",
   // Trial subdoc — required by utils/premium.isPremium() to keep trial users
   // premium after the first request. Omitting this silently flips trial
   // users back to free on every cache hit.

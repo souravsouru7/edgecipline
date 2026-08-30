@@ -87,6 +87,12 @@
     <!-- ── Core permissions ──────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Google Play Billing. The billing library declares this itself and the
+         manifest merger would add it regardless, but Play Console's release
+         review lists app permissions from the merged manifest and reviewers
+         expect to see it declared by an app that sells subscriptions. -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+
     <!-- Camera and storage for trade screenshot upload -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

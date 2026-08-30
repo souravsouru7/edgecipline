@@ -13,6 +13,8 @@ const {
   isPremium,
   getTrialState,
   getPlanSource,
+  getBillingProvider,
+  getEffectiveExpiry,
   buildTrialStart,
   TRIAL_DAYS,
   TRIAL_ENABLED,
@@ -67,7 +69,19 @@ exports.getStatus = asyncHandler(async (req, res) => {
     subscription: {
       status: user.subscriptionStatus,
       plan: user.subscriptionPlan,
-      expiresAt: user.subscriptionExpiry || null,
+      // The furthest-out date across every provider. A Google Play subscriber
+      // has no subscriptionExpiry at all — that field is the Razorpay prepaid
+      // ledger — so reading it directly would show them "Active until —".
+      expiresAt: getEffectiveExpiry(user),
+      // Which processor is funding access right now, so the UI can send the
+      // user to the correct place to cancel or update payment. Google requires
+      // that a Play subscription be managed through Play, and pointing an
+      // Android subscriber at a Razorpay flow would be both broken and a
+      // policy problem.
+      provider: getBillingProvider(user),
+      // Kept for any caller that specifically wants the prepaid ledger date
+      // rather than the union.
+      prepaidExpiresAt: user.subscriptionExpiry || null,
     },
     // Derived from PLAN_CONFIG rather than hardcoded — these were still
     // advertising the retired ₹50/₹150 pricing after the tiers changed.

@@ -44,6 +44,12 @@ const INTENTIONALLY_RETAINED = new Set([
   // Checkout + redemptions are financial ledgers, same retention as Payment.
   'CheckoutSession',
   'CouponRedemption',
+  // Google Play purchases are DETACHED (user set to null), not deleted, by
+  // detachPlaySubscriptions. Deleting the row would free the purchase token to
+  // be re-bound by a different account on the same device, transferring a live
+  // subscription to a stranger — so the row has to outlive the account. The
+  // dedicated assertion below covers the detach.
+  'PlaySubscription',
 ]);
 
 /** Model files that hold a ref to the Users collection, and on which field. */
@@ -106,6 +112,17 @@ describe('account deletion covers every user-owned collection', () => {
       expect(purgedOnCorrectField).toBe(true);
     }
   );
+
+  it('detaches PlaySubscription instead of deleting it', () => {
+    // The security property: a purchase token must stay spent forever. If this
+    // ever becomes a deleteMany, a user could delete their account, sign up
+    // again, hit "Restore purchases" and reclaim the subscription.
+    expect(service).toContain('PlaySubscription.updateMany');
+    expect(service).toContain('$set: { user: null }');
+    expect(service).not.toMatch(/PlaySubscription\.deleteMany/);
+    // ...and it must actually be called during deletion, not merely defined.
+    expect(service).toContain('await detachPlaySubscriptions(userId)');
+  });
 
   // The checks above only prove the service mentions the right model file on the
   // right field. They cannot tell whether `require(...)` actually handed back a

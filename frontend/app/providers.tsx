@@ -7,6 +7,7 @@ import { ToastProvider } from "@/features/shared/components/ui/Toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import EnvironmentGuard from "@/components/EnvironmentGuard";
 import PushNotificationBootstrap from "@/components/PushNotificationBootstrap";
+import PlayBillingBootstrap from "@/components/PlayBillingBootstrap";
 import AuthSessionBootstrap from "@/components/AuthSessionBootstrap";
 import RouteTransitionProgress from "@/components/RouteTransitionProgress";
 import AttributionCapture from "@/features/promotions/components/AttributionCapture";
@@ -38,6 +39,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                   <RouteTransitionProgress />
                 </Suspense>
                 <PushNotificationBootstrap />
+                {/* Reconciles Google Play purchases on launch/resume. Renders
+                    nothing, and no-ops entirely off native Android. */}
+                <PlayBillingBootstrap />
                 <Suspense fallback={null}>
                   <AttributionCapture />
                 </Suspense>

@@ -24,7 +24,17 @@ const paymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["razorpay", "manual", "stripe"],
+      // "google_play" is RESERVED and nothing writes it yet. Play subscription
+      // state lives in the PlaySubscription collection instead — see that model
+      // for why a renewing agreement cannot be modelled as an immutable
+      // receipt. No Payment row is written for a Play purchase because
+      // purchases.subscriptionsv2 does not return what the user was charged,
+      // and `amount` is required here: a fabricated figure would corrupt
+      // totalPaid and every revenue screen built on it. Wiring up Google's
+      // Orders API later is what makes this value writable, and the unique
+      // indexes below are already partial-filtered to paymentMethod:"razorpay"
+      // so those rows will not collide.
+      enum: ["razorpay", "manual", "stripe", "google_play"],
       default: "manual"
     },
     transactionId: {

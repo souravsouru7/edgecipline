@@ -122,6 +122,12 @@ dependencies {
 
     // WorkManager — schedules checklist notification jobs (survives reboots)
     implementation "androidx.work:work-runtime:2.9.1"
+
+    // Google Play Billing — Android in-app subscriptions (EdgeBillingPlugin).
+    // Play enforces a MINIMUM Billing Library version for new uploads and it
+    // moves roughly once a year; check the current floor in Play Console before
+    // a release rather than assuming this pin still qualifies.
+    implementation "com.android.billingclient:billing:$playBillingVersion"
 }
 
 apply from: 'capacitor.build.gradle'

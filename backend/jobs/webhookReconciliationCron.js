@@ -9,6 +9,9 @@ const {
   MAX_PROCESSING_ATTEMPTS,
   reprocessStoredWebhookEvent,
 } = require("../services/razorpayWebhookService");
+const {
+  reprocessStoredPlayEvent,
+} = require("../services/googlePlayNotificationService");
 
 const CRON_NAME = "webhookReconciliationCron";
 const LOCK_NAME = "webhook-reconciliation";
@@ -34,26 +37,34 @@ async function findRecoverableEvents(now, batchSize) {
     processingAttempts: { $lt: MAX_PROCESSING_ATTEMPTS },
     createdAt: { $lt: new Date(now.getTime() - MIN_EVENT_AGE_MS) },
   })
-    .select("_id eventId eventType processingAttempts")
+    // `provider` decides which reprocessor an event goes to. Without it every
+    // event was handed to the Razorpay path, which would look at a Google Play
+    // payload, find no `event` field, log "unsupported event skipped" and mark
+    // it processed — silently discarding a lifecycle change instead of
+    // recovering it.
+    .select("_id eventId eventType provider processingAttempts")
     .sort({ createdAt: 1 })
     .limit(batchSize)
     .lean();
 }
 
 /**
- * A permanently-failed webhook means Razorpay may have taken money we never
- * fulfilled. That is not a log line — it needs a human.
+ * A permanently-failed webhook means the provider may have taken money we
+ * never fulfilled — or, for Google Play, that a cancellation or refund never
+ * withdrew access. That is not a log line — it needs a human.
  */
 function alertPermanentFailure(event) {
+  const provider = event.provider === "google_play" ? "google_play" : "razorpay";
   const error = new Error(
-    `Razorpay webhook permanently failed after ${MAX_PROCESSING_ATTEMPTS} attempts: ${event.eventType}`
+    `${provider} webhook permanently failed after ${MAX_PROCESSING_ATTEMPTS} attempts: ${event.eventType}`
   );
   captureOperationalError(error, {
     level: "error",
-    subsystem: "razorpay",
+    subsystem: provider,
     tags: {
       operation: "webhook_reconciliation",
       event_type: event.eventType,
+      provider,
     },
     extra: {
       eventId: event.eventId,
@@ -79,10 +90,12 @@ async function reconcileWebhookEvents(now = new Date()) {
   let skipped = 0;
 
   for (const candidate of candidates) {
-    // Sequential on purpose. These call out to the Razorpay API and write
-    // subscriptions; a burst of parallel retries would both hammer the
+    // Sequential on purpose. These call out to the payment provider's API and
+    // write subscriptions; a burst of parallel retries would both hammer the
     // provider and widen the window for lock contention.
-    const outcome = await reprocessStoredWebhookEvent(candidate.eventId);
+    const outcome = candidate.provider === "google_play"
+      ? await reprocessStoredPlayEvent(candidate.eventId, MAX_PROCESSING_ATTEMPTS)
+      : await reprocessStoredWebhookEvent(candidate.eventId);
 
     if (!outcome) {
       // Claimed by a live delivery or a peer instance between the query and
@@ -98,7 +111,7 @@ async function reconcileWebhookEvents(now = new Date()) {
     stillFailing += 1;
     if (outcome.exhausted) {
       exhausted += 1;
-      alertPermanentFailure(outcome);
+      alertPermanentFailure({ ...outcome, provider: candidate.provider });
     }
   }
 

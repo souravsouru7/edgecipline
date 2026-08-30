@@ -86,6 +86,33 @@ export const verifyPayment = async (data) => {
   return await apiClient.post(`/payments/verify`, data);
 };
 
+// ─── Google Play billing (Android only) ────────────────────────────────────
+// The web app never calls these; the Android app never calls the Razorpay pair
+// above. Both end up at the same entitlement — see GET /trial/status.
+
+/** Product/base-plan ids to query from Play, plus this account's binding id. */
+export const getGooglePlayConfig = async () => {
+  return await apiClient.get(`/payments/google-play/config`);
+};
+
+/**
+ * Exchange a Play purchase token for a verified entitlement.
+ * The token is all the server needs — it re-reads everything else from Google.
+ */
+export const verifyGooglePlayPurchase = async ({ purchaseToken, productId }) => {
+  return await apiClient.post(`/payments/google-play/verify`, { purchaseToken, productId });
+};
+
+/** Re-verify every purchase the device holds. Safe to call repeatedly. */
+export const restoreGooglePlayPurchases = async (purchaseTokens) => {
+  return await apiClient.post(`/payments/google-play/restore`, { purchaseTokens });
+};
+
+/** Renewal date / auto-renew detail for the "Manage subscription" screen. */
+export const getGooglePlaySubscription = async () => {
+  return await apiClient.get(`/payments/google-play/subscription`);
+};
+
 // Trial & smart-paywall APIs
 export const getTrialStatus = async () => {
   return await apiClient.get(`/trial/status`, { skipRateLimitRetry: true });

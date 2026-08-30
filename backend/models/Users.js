@@ -101,6 +101,21 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Google Play entitlement, kept apart from subscriptionExpiry on purpose.
+    // The three fields above are the PREPAID ledger: Razorpay/manual purchases
+    // push subscriptionExpiry out and nothing ever pulls it back. Play is a
+    // renewing agreement whose expiry Google owns and moves in both directions
+    // (renewal, cancellation, hold, revoke). Merging them would let a Play
+    // cancellation eat days a user paid Razorpay for.
+    //
+    // Written ONLY by services/googlePlayBillingService, and only from state
+    // returned by Google's own API. utils/premium.isPremium() takes the union.
+    // Undefined on every pre-existing account, which is why this needs no
+    // migration — `undefined` is simply never in the future.
+    playEntitlementExpiry: {
+      type: Date,
+      default: null,
+    },
     // 7-day premium trial. Layered on top of subscriptionStatus — isPremium()
     // returns true whenever trial.endsAt is in the future, regardless of plan.
     // trial.used prevents a second trial after expiry; admins can extend via
@@ -257,6 +272,16 @@ userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ role: 1, subscriptionStatus: 1, subscriptionExpiry: -1 });
 // M16: Supports expiry-notification cron and subscription-gate queries
 userSchema.index({ subscriptionStatus: 1, subscriptionExpiry: -1 });
+// Play entitlement sweeps + admin "who is on Play" queries. Partial so the
+// overwhelming majority of accounts, which have never bought on Android, stay
+// out of the index entirely.
+userSchema.index(
+  { playEntitlementExpiry: -1 },
+  {
+    name: "play_entitlement",
+    partialFilterExpression: { playEntitlementExpiry: { $type: "date" } },
+  }
+);
 // Trial expiry cron + day-5/6 warning queries — sparse so legacy users
 // without trial data don't bloat the index.
 userSchema.index({ "trial.endsAt": 1 }, { sparse: true });

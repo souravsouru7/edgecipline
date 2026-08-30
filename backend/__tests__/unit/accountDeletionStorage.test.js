@@ -74,6 +74,12 @@ describe("account deletion storage cleanup", () => {
       ])),
     };
     const RefreshToken = makeModel("RefreshToken");
+    // Detached rather than purged, so it needs updateMany rather than the
+    // deleteMany makeModel() provides.
+    const PlaySubscription = {
+      modelName: "PlaySubscription",
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
+    };
     const OCRJob = makeModel("OCRJob");
     // Support attachments are private customer data stored on Cloudinary under
     // a different shape to trade images, so they need their own sweep.
@@ -90,6 +96,7 @@ describe("account deletion storage cleanup", () => {
     jest.doMock("../../models/Trade", () => Trade);
     jest.doMock("../../models/IndianTrade", () => IndianTrade);
     jest.doMock("../../models/RefreshToken", () => RefreshToken);
+    jest.doMock("../../models/PlaySubscription", () => PlaySubscription);
     jest.doMock("../../models/SupportMessage", () => SupportMessage);
     jest.doMock("../../models/OCRJob", () => ({ OCRJob }));
     jest.doMock("../../utils/cloudinaryHelpers", () => ({ destroyImages }));
@@ -108,6 +115,14 @@ describe("account deletion storage cleanup", () => {
     const { deleteAccount } = require("../../services/accountDeletionService");
 
     const result = await deleteAccount(userId);
+
+    // Detached, never deleted — the row is what keeps the purchase token spent.
+    expect(PlaySubscription.updateMany).toHaveBeenCalledWith(
+      { user: userId },
+      { $set: { user: null } }
+    );
+    expect(PlaySubscription.deleteMany).toBeUndefined();
+    expect(result.playSubscriptionsDetached).toBe(2);
 
     expect(Trade.find).toHaveBeenCalledWith({ user: userId });
     expect(IndianTrade.find).toHaveBeenCalledWith({ user: userId });

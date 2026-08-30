@@ -10,7 +10,7 @@ import {
   validateCoupon,
 } from "@/services/api";
 import { validateEnvironment } from "@/config/environment";
-import { canShowPurchaseUI } from "@/config/payments";
+import { canShowRazorpayCheckout } from "@/config/payments";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 import PremiumWelcome from "@/features/premium/components/PremiumWelcome";
 
@@ -124,7 +124,11 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
   // Hard gate. Callers are already guarded, but this is the last line of
   // defence: with payments off there is no purchase surface in the build at
   // all, which is what Apple 3.1.1 and the Play payments policy require.
-  const purchaseAllowed = canShowPurchaseUI();
+  //
+  // Specifically canShowRazorpayCheckout(), NOT the provider-agnostic
+  // canShowPurchaseUI(): that one is now true on Android too (Play Billing),
+  // and this component must never render there.
+  const purchaseAllowed = canShowRazorpayCheckout();
   const active = isOpen && purchaseAllowed;
 
   // Razorpay SDK — loads real SDK when key is set, injects sandbox mock otherwise.

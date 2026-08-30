@@ -346,6 +346,48 @@ const appConfig = {
       readBoolean("ALLOW_SANDBOX_PAYMENTS", false) &&
       (process.env.NODE_ENV || "development") !== "production",
   },
+  // ── Google Play Billing ───────────────────────────────────────────────────
+  // Android subscriptions. Razorpay stays the web processor; Play's own
+  // billing is mandatory for digital goods inside the Android app, so the two
+  // coexist and feed the same entitlement.
+  //
+  // Credentials follow the same PROJECT/CLIENT_EMAIL/PRIVATE_KEY triple as
+  // `firebase` and `googleVision` above rather than a service-account JSON
+  // file: a file has to exist somewhere on disk, which is how key material
+  // ends up baked into an image or committed by accident. These are BACKEND
+  // ONLY — never NEXT_PUBLIC_*, never shipped in the APK. The Android app
+  // never talks to the Play Developer API; it only hands us a purchase token.
+  googlePlay: {
+    // Must equal the APK's applicationId. Verified against the value Google
+    // echoes back, so a token minted against another app cannot be replayed.
+    packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || "com.edgecipline",
+    clientEmail: process.env.GOOGLE_PLAY_CLIENT_EMAIL || "",
+    privateKey: normalizePrivateKey(process.env.GOOGLE_PLAY_PRIVATE_KEY),
+    // Service account for the Pub/Sub push subscription that delivers RTDNs.
+    // Google signs each push with an OIDC token whose email claim must equal
+    // this; without it any host on the internet could POST fake lifecycle
+    // events at the webhook. Required in production.
+    rtdnServiceAccountEmail: process.env.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT || "",
+    // The exact https URL configured as the Pub/Sub push endpoint. Google
+    // includes it as the OIDC `aud` claim; checking it stops a token minted
+    // for some other service from being replayed here.
+    rtdnAudience: process.env.GOOGLE_PLAY_RTDN_AUDIENCE || "",
+    // HMAC key behind the obfuscatedAccountId that binds a Play purchase to an
+    // Edgecipline account. Falls back to the admin JWT secret so a missing var
+    // still salts the hash — same degradation as support.feedbackFingerprintSalt.
+    // APPEND-ONLY: rotating this breaks the identity check for restores of
+    // purchases we have not already bound. See utils/playAccountIdentity.
+    accountSalt: process.env.GOOGLE_PLAY_ACCOUNT_SALT || "",
+    // Master switch. Off by default so the endpoints 503 rather than
+    // half-work until Play Console and the service account are actually set
+    // up. Turning this on with credentials missing fails at boot, not at the
+    // first purchase.
+    enabled: readBoolean("GOOGLE_PLAY_BILLING_ENABLED", false),
+    // Play API calls sit in the request path of a user who has already been
+    // charged, so this is deliberately generous — a timeout here means a
+    // retry, never a lost purchase.
+    apiTimeoutMs: readNumber("GOOGLE_PLAY_API_TIMEOUT_MS", 15000),
+  },
   resend: {
     apiKey: process.env.RESEND_API_KEY || "",
     from: process.env.RESEND_FROM || "Stratedge <noreply@stratedge.live>",
@@ -396,6 +438,54 @@ function assertGoogleVisionConfig() {
   return appConfig.googleVision;
 }
 
+// Fail CLOSED. Every caller of this sits upstream of granting a paid
+// entitlement, so a missing credential must raise rather than be treated as
+// "verification skipped". The message names the exact env vars because the
+// person hitting it is an operator mid-deploy, not a user.
+function assertGooglePlayConfig() {
+  const { packageName, clientEmail, privateKey, enabled } = appConfig.googlePlay;
+
+  if (!enabled) {
+    const error = new Error(
+      "Google Play billing is disabled. Set GOOGLE_PLAY_BILLING_ENABLED=true once " +
+      "the Play Console products and service account are configured."
+    );
+    error.code = "GOOGLE_PLAY_DISABLED";
+    throw error;
+  }
+
+  if (!packageName || !clientEmail || !privateKey) {
+    const error = new Error(
+      "Missing Google Play env vars. Set GOOGLE_PLAY_PACKAGE_NAME, " +
+      "GOOGLE_PLAY_CLIENT_EMAIL, and GOOGLE_PLAY_PRIVATE_KEY."
+    );
+    error.code = "GOOGLE_PLAY_CONFIG_MISSING";
+    throw error;
+  }
+
+  return appConfig.googlePlay;
+}
+
+// The RTDN webhook authenticates by verifying Google's OIDC push token, so
+// these two are as load-bearing as the signing secret is for Razorpay. Checked
+// separately from the API credentials because the webhook can be stood up
+// before or after the purchase path.
+function assertGooglePlayRtdnConfig() {
+  const { rtdnServiceAccountEmail, rtdnAudience } = appConfig.googlePlay;
+
+  if (!rtdnServiceAccountEmail || !rtdnAudience) {
+    const error = new Error(
+      "Missing Google Play RTDN env vars. Set GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT and " +
+      "GOOGLE_PLAY_RTDN_AUDIENCE to the Pub/Sub push subscription's service account " +
+      "and endpoint URL."
+    );
+    error.code = "GOOGLE_PLAY_RTDN_CONFIG_MISSING";
+    throw error;
+  }
+
+  return appConfig.googlePlay;
+}
+
 function getMaskedConfigSnapshot() {
   return {
     env: appConfig.env,
@@ -416,12 +506,24 @@ function getMaskedConfigSnapshot() {
     // that only says "configured: true" hides the one setting that breaks it.
     resendConfigured: Boolean(appConfig.resend.apiKey),
     resendFrom: appConfig.resend.from || "[missing]",
+    // Play billing is the Android revenue path; if it is enabled but the
+    // service account is absent, every purchase fails verification and the
+    // user is charged without being activated. Print enough to spot that at
+    // boot — the package name and the client email, never the private key.
+    googlePlayEnabled: appConfig.googlePlay.enabled,
+    googlePlayPackageName: appConfig.googlePlay.packageName || "[missing]",
+    googlePlayClientEmail: appConfig.googlePlay.clientEmail || "[missing]",
+    googlePlayRtdnConfigured: Boolean(
+      appConfig.googlePlay.rtdnServiceAccountEmail && appConfig.googlePlay.rtdnAudience
+    ),
   };
 }
 
 module.exports = {
   appConfig,
   assertFirebaseAdminConfig,
+  assertGooglePlayConfig,
+  assertGooglePlayRtdnConfig,
   assertGoogleVisionConfig,
   getMaskedConfigSnapshot,
   maskSecret,

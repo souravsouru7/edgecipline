@@ -8,7 +8,22 @@
 // A user counts as premium if ANY of these are true (in priority order):
 //   1. role === "admin"
 //   2. active paid subscription (status=active, plan≠free, expiry in future)
-//   3. inside the 7-day trial window (trial.endsAt in the future)
+//   3. an active Google Play subscription (playEntitlementExpiry in the future)
+//   4. inside the 7-day trial window (trial.endsAt in the future)
+//
+// (2) and (3) are separate fields on purpose. Razorpay sells PREPAID BLOCKS OF
+// DAYS: each purchase pushes subscriptionExpiry further out and nothing ever
+// takes those days back. Google Play sells a RENEWING AGREEMENT whose expiry
+// Google moves — forward on renewal, and effectively backward when a
+// subscription is cancelled, held or revoked. Writing both into one date field
+// would mean a Play cancellation could shorten days a user had already paid
+// Razorpay for, or a Play renewal could resurrect an expired Razorpay plan.
+//
+// Keeping them apart means the Razorpay path below is COMPLETELY UNTOUCHED by
+// this integration — same fields, same cron, same refund maths — and premium is
+// simply the union of the two. Which is also why there is no migration: a
+// legacy user has no playEntitlementExpiry, and `undefined` is not in the
+// future, so they resolve exactly as they did before.
 const { appConfig } = require("../config");
 
 // Retiring the trial is a one-line switch here on purpose: isPremium, the
@@ -27,6 +42,22 @@ function hasActiveSubscription(user, now = Date.now()) {
   return true;
 }
 
+// Google Play entitlement. This field is written ONLY by the Play billing
+// service, and only ever from a state Google itself returned — never from
+// anything the Android client claims. It is a plain future-dated timestamp
+// rather than a status because Play's own lifecycle (grace period, cancelled
+// but not yet expired, on hold) has already been collapsed into "paid through
+// when" by the time it is stored. See constants/googlePlay grantsEntitlement.
+//
+// Deliberately NOT gated on subscriptionStatus: a Play subscriber may have
+// subscriptionStatus "inactive" forever, because that field belongs to the
+// Razorpay ledger and the hourly expiry cron that maintains it.
+function hasActivePlaySubscription(user, now = Date.now()) {
+  const expiry = user?.playEntitlementExpiry;
+  if (!expiry) return false;
+  return new Date(expiry).getTime() > now;
+}
+
 function isTrialActive(user, now = Date.now()) {
   // With trials retired, a stale trial.endsAt left on an old account must not
   // keep granting free access.
@@ -41,8 +72,48 @@ function isPremium(user) {
   if (user.role === "admin") return true;
   const now = Date.now();
   if (hasActiveSubscription(user, now)) return true;
+  if (hasActivePlaySubscription(user, now)) return true;
   if (isTrialActive(user, now)) return true;
   return false;
+}
+
+// The furthest-out date this user is paid through, across every provider.
+// UI reads this rather than subscriptionExpiry so a Play-only subscriber sees
+// their real renewal date instead of a blank "Active until —".
+function getEffectiveExpiry(user) {
+  const candidates = [];
+  if (hasActiveSubscription(user)) {
+    // A grandfathered "active with no expiry" record means unlimited; there is
+    // no date to show, and inventing one would be worse than showing none.
+    if (!user?.subscriptionExpiry) return null;
+    candidates.push(new Date(user.subscriptionExpiry).getTime());
+  }
+  if (hasActivePlaySubscription(user)) {
+    candidates.push(new Date(user.playEntitlementExpiry).getTime());
+  }
+  if (!candidates.length) return null;
+  return new Date(Math.max(...candidates));
+}
+
+// Which processor is currently funding this user's access. Distinct from
+// getPlanSource, which stays on its existing four values so nothing consuming
+// it has to change; this answers the narrower "who do we send them to in order
+// to cancel or update payment", which differs entirely between the two.
+function getBillingProvider(user) {
+  const now = Date.now();
+  const play = hasActivePlaySubscription(user, now);
+  const prepaid = hasActiveSubscription(user, now);
+  if (play && prepaid) {
+    // Both live at once — e.g. a web subscriber who later bought on Android.
+    // Whichever runs longer is the one that governs renewal.
+    return new Date(user.playEntitlementExpiry).getTime() >=
+      new Date(user.subscriptionExpiry || 0).getTime()
+      ? "google_play"
+      : "razorpay";
+  }
+  if (play) return "google_play";
+  if (prepaid) return "razorpay";
+  return null;
 }
 
 // UI-facing trial snapshot. Returns null for users who never had a trial
@@ -82,7 +153,13 @@ function getTrialState(user) {
 function getPlanSource(user) {
   if (!user) return "free";
   if (user.role === "admin") return "admin";
+  // A Play subscription is a subscription. It resolves to the same source
+  // string as a Razorpay one so every existing consumer — the settings badge,
+  // the rescue funnel, analytics — keeps working without learning about
+  // providers. Callers that genuinely need the processor use
+  // getBillingProvider().
   if (hasActiveSubscription(user)) return "subscription";
+  if (hasActivePlaySubscription(user)) return "subscription";
   if (isTrialActive(user)) return "trial";
   return "free";
 }
@@ -94,6 +171,8 @@ function describePlan(user) {
     premium: isPremium(user),
     source:  getPlanSource(user),
     trial:   getTrialState(user),
+    provider: getBillingProvider(user),
+    expiresAt: getEffectiveExpiry(user),
   };
 }
 
@@ -124,6 +203,9 @@ module.exports = {
   describePlan,
   isTrialActive,
   hasActiveSubscription,
+  hasActivePlaySubscription,
+  getEffectiveExpiry,
+  getBillingProvider,
   getTrialState,
   getPlanSource,
   buildTrialStart,
