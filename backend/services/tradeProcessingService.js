@@ -45,6 +45,10 @@ const CONFIDENCE_ZONES = {
 };
 const MAX_OCR_TEXT_LENGTH = 50_000;
 const MAX_AI_RESPONSE_LENGTH = 50_000;
+// Below this the OCR text cannot describe a trade: too little to parse, and
+// handing it to a text model only invites the prompt's worked example back as
+// a fake extraction. Single source of truth for "is this text usable at all".
+const MIN_USABLE_OCR_CHARS = 20;
 // JSON-byte cap on the parsedData payload written to ExtractionLog. Without
 // this a multi-trade page can produce 100K+ doc and bloat BSON storage.
 const MAX_PARSED_DATA_BYTES = 200_000;
@@ -148,7 +152,7 @@ function withTimeout(promise, message, timeoutMs = PROCESSING_TIMEOUT_MS) {
 
 function isWeakOcrText(text) {
   const cleaned = cleanOcrText(text);
-  return !cleaned || cleaned.length < 20;
+  return !cleaned || cleaned.length < MIN_USABLE_OCR_CHARS;
 }
 
 /**
@@ -852,11 +856,13 @@ async function processTradeUpload({
       });
     }
 
-    const cleanedText = cleanOcrText(extractedText);
+    // Not const: the last-resort Tesseract pass below can still recover text
+    // after Gemini Vision fails, and these three describe that text.
+    let cleanedText = cleanOcrText(extractedText);
     await runCancellationCheck(checkCancellation, "before-parsing");
     // Treat as weak if OCR was skipped or produced too little text
-    const weakOcr = ocrSkipped || isWeakOcrText(cleanedText);
-    const broker = detectIntelligentBroker(
+    let weakOcr = ocrSkipped || isWeakOcrText(cleanedText);
+    let broker = detectIntelligentBroker(
       cleanedText,
       detectBrokerPattern(cleanedText, trade.broker || undefined)
     );
@@ -1055,6 +1061,37 @@ async function processTradeUpload({
     }
     }
 
+    // ── Last-resort OCR (Tesseract) ────────────────────────────────────────
+    // runOcrWithRetry skips Tesseract whenever a Gemini key is configured, to
+    // keep it off the latency path. That is right until Gemini Vision fails:
+    // then there is no text, nothing downstream can parse or cross-check, and
+    // the run has no fallback left. Doing it here instead of up front costs
+    // nothing on the happy path and only runs when we would otherwise have
+    // nothing at all.
+    if (!geminiVisionUsed && !cleanedText.trim() && ocrImageBuffer) {
+      try {
+        await runCancellationCheck(checkCancellation, "before-last-resort-ocr");
+        logger.info(`Last-resort Tesseract OCR | tradeId=${tradeId} | Gemini Vision produced nothing`, { tradeId });
+        const lateText = await withTimeout(extractText(ocrImageBuffer), "Tesseract OCR timeout", OCR_TIMEOUT_MS);
+        await runCancellationCheck(checkCancellation, "after-last-resort-ocr");
+        cleanedText = cleanOcrText(lateText);
+        if (cleanedText.trim()) {
+          weakOcr = isWeakOcrText(cleanedText);
+          broker = detectIntelligentBroker(cleanedText, detectBrokerPattern(cleanedText, trade.broker || undefined));
+          logger.info(`Last-resort Tesseract OCR recovered text | tradeId=${tradeId}`, {
+            tradeId,
+            textLength: cleanedText.length,
+            weakOcr,
+            broker,
+          });
+        }
+      } catch (error) {
+        // A cancellation must abort the run, not be logged as an OCR failure.
+        if (error.code === "OCR_JOB_CANCELLED") throw error;
+        logger.warn(`Last-resort Tesseract OCR failed | tradeId=${tradeId}`, { tradeId, error: error.message });
+      }
+    }
+
     // ── OCR-based parsing (runs when Gemini Vision unavailable or failed) ───
     if (!geminiVisionUsed && Object.keys(parsedTrade || {}).length === 0 && parsedTrades.length === 0) {
       if (isEquityIntraday && !weakOcr) {
@@ -1143,12 +1180,27 @@ async function processTradeUpload({
     });
 
     // ── Text AI fallback (only when Gemini Vision failed AND quality is low) ─
+    // Requires real OCR text. The text prompts carry a worked example, and a
+    // model handed nothing to read returns that example as if it were the
+    // answer — which is how a NAS100 screenshot came back as the EURUSD
+    // sample trade. With no text there is nothing to extract, so failing here
+    // is correct: the near-zero confidence gate below turns it into "couldn't
+    // read this screenshot" instead of a fabricated trade.
+    const hasOcrTextToRead = cleanedText.trim().length >= MIN_USABLE_OCR_CHARS;
     const shouldUseTextAi =
       !geminiVisionUsed &&
+      hasOcrTextToRead &&
       (weakOcr ||
         (marketType === "Indian_Market" ? isIndianExtractionWeak({ parsedTrade, parsedTrades }) : false) ||
         !quality.validation.isValid ||
         quality.isLowConfidence);
+
+    if (!geminiVisionUsed && !hasOcrTextToRead) {
+      logger.warn(`Text AI fallback skipped — no OCR text to read | tradeId=${tradeId}`, {
+        tradeId,
+        textLength: cleanedText.trim().length,
+      });
+    }
 
     await runCancellationCheck(checkCancellation, "before-text-ai-decision");
     if (shouldUseTextAi) {
@@ -1157,7 +1209,7 @@ async function processTradeUpload({
         aiData = await runAiWithRetry({
           marketType,
           tradeSubType,
-          text: cleanedText || sourceImage,
+          text: cleanedText,
           includeRawResponse: true,
           brokerHint: broker,
           expectedMultiple: marketType === "Indian_Market" && (isEquityIntraday ? /INTRADAY|POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText) : ((parsedTrades && parsedTrades.length > 1) || /POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText))),
@@ -1189,7 +1241,10 @@ async function processTradeUpload({
             broker
           );
         } else {
-          parsedTrade = mergeGenericAiData(safeParseTrade(cleanedText), aiData);
+          // safeParseTrade returns a { data, error } envelope — merging the
+          // envelope itself dropped every OCR-parsed field on the floor and
+          // left the AI's values unchallenged.
+          parsedTrade = mergeGenericAiData(safeParseTrade(cleanedText).data || {}, aiData);
           parsedTrades = safeParseForexTradesFromOCR(cleanedText);
         }
 

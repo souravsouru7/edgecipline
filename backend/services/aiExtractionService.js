@@ -488,6 +488,41 @@ function toNumberOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// A text model given OCR it cannot use will hand back the prompt's worked
+// example as though it were the answer — a NAS100 screenshot came back as the
+// EURUSD sample trade, complete with its 1.085/1.09 prices. Real extracted
+// values are always readable in the source text, so a result where not one
+// distinctive field appears there was invented and must be discarded.
+function normalizeForCorroboration(text) {
+  return String(text || "").toUpperCase().replace(/[^A-Z0-9.]/g, "");
+}
+
+function numberAppearsIn(value, haystack, haystackDigits) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const printed = Math.abs(value).toString();
+  const digits = printed.replace(/\D/g, "");
+  // Short numbers ("50", "0.3") occur in almost any screenshot and prove nothing.
+  if (digits.length < 3) return false;
+  if (haystack.includes(printed)) return true;
+  // Separator-blind retry so a comma-decimal broker ("18.450,75" for 18450.75)
+  // still corroborates. A run of 3+ specific digits is evidence enough, and
+  // erring toward accepting only restores the old behaviour — a false reject
+  // would break an extraction that actually worked.
+  return haystackDigits.includes(digits);
+}
+
+function isCorroboratedByText(mapped, sourceText) {
+  const haystack = normalizeForCorroboration(sourceText);
+  if (!haystack) return false;
+
+  const pair = String(mapped.pair || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (pair.length >= 3 && haystack.replace(/\./g, "").includes(pair)) return true;
+
+  const haystackDigits = haystack.replace(/\D/g, "");
+  return [mapped.entryPrice, mapped.exitPrice, mapped.profit, mapped.stopLoss, mapped.takeProfit]
+    .some((value) => numberAppearsIn(value, haystack, haystackDigits));
+}
+
 function mapIndianTradePayload(parsed) {
   return {
     pair: parsed.pair && typeof parsed.pair === "string" ? parsed.pair.trim() : null,
@@ -542,6 +577,7 @@ EXTRACTION RULES:
 COMMON OCR ERRORS: "PE"→"P E"/"FE"/"Re", "CE"→"GE"/"OE", ₹→"T"/"F"/"Rs", minus→"="/"~".
 
 Return ALL visible trades in "trades". Set top-level to first/main trade. Use null for missing.
+The example below is illustrative only — its values are NOT your answer. Every value you return must be readable in the OCR text. If the text contains no trade, return every field as null.
 
 OCR text:
 ${ocrSlice}
@@ -597,12 +633,19 @@ EXTRACTION RULES:
 - takeProfit: T/P value.
 - broker: platform name (MetaTrader 4, MetaTrader 5, cTrader, TradingView, etc.)
 
+OUTPUT SHAPE — these values are illustrative only. They are NOT your answer and must never appear in it:
+{"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"broker":"MetaTrader 5"}
+
 Use null for missing fields. Return the best numeric value you can — don't leave numbers as strings.
+Every value you return must be readable in the OCR text below. Never invent a symbol or a price.
+If the text contains no trade, return every field as null.
 
 OCR text:
+"""
 ${String(extractedText).slice(0, 5000)}
+"""
 
-JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPrice":1.09000,"profit":50.00,"stopLoss":1.08000,"takeProfit":1.09500,"broker":"MetaTrader 5"}`;
+Return the JSON object describing the trade in the OCR text above:`;
 
   const data = await callAIForTradeExtraction(prompt);
   const content = data?.choices?.[0]?.message?.content?.trim();
@@ -614,17 +657,28 @@ JSON: {"pair":"EURUSD","type":"BUY","quantity":0.01,"entryPrice":1.08500,"exitPr
     const mapped = {
       pair: parsed.pair && typeof parsed.pair === "string" ? parsed.pair.trim() : null,
       type: parsed.type && typeof parsed.type === "string" ? parsed.type.trim().toUpperCase() : null,
-      quantity: typeof parsed.quantity === "number" ? parsed.quantity : null,
-      entryPrice: typeof parsed.entryPrice === "number" ? parsed.entryPrice : null,
-      exitPrice: typeof parsed.exitPrice === "number" ? parsed.exitPrice : null,
-      profit: typeof parsed.profit === "number" ? parsed.profit : null,
-      stopLoss: typeof parsed.stopLoss === "number" ? parsed.stopLoss : null,
-      takeProfit: typeof parsed.takeProfit === "number" ? parsed.takeProfit : null,
+      // toNumberOrNull, not a strict typeof check: a model that returns
+      // "28922.22" as a string would otherwise null every price, leaving the
+      // result with nothing for the corroboration check below to match on.
+      quantity: toNumberOrNull(parsed.quantity),
+      entryPrice: toNumberOrNull(parsed.entryPrice),
+      exitPrice: toNumberOrNull(parsed.exitPrice),
+      profit: toNumberOrNull(parsed.profit),
+      stopLoss: toNumberOrNull(parsed.stopLoss),
+      takeProfit: toNumberOrNull(parsed.takeProfit),
       broker: parsed.broker && typeof parsed.broker === "string" ? parsed.broker.trim() : null,
-      strikePrice: typeof parsed.strikePrice === "number" ? parsed.strikePrice : null,
+      strikePrice: toNumberOrNull(parsed.strikePrice),
       optionType: parsed.optionType === "PE" || parsed.optionType === "CE" ? parsed.optionType : null,
       underlying: parsed.underlying && typeof parsed.underlying === "string" ? parsed.underlying.trim() : null,
     };
+    if (!isCorroboratedByText(mapped, extractedText)) {
+      logger.warn("[AI extraction] Forex result rejected — no extracted field appears in the OCR text", {
+        pair: mapped.pair,
+        entryPrice: mapped.entryPrice,
+        exitPrice: mapped.exitPrice,
+      });
+      return null;
+    }
     return options.includeRawResponse ? { ...mapped, rawResponse: content } : mapped;
   } catch (err) {
     logger.warn("[AI extraction] Forex JSON parse error", { error: err.message });
@@ -693,6 +747,7 @@ EXTRACTION RULES:
 - broker: app name (Upstox/Zerodha/Angel One/Groww/Dhan/Fyers). null if not found.
 
 Return ALL stock rows in "trades" array (top-level = first trade). Use null for missing fields.
+The example below is illustrative only — its values are NOT your answer. Every value you return must be readable in the OCR text. If the text contains no stock row, return every field as null.
 
 OCR text:
 ${ocrSlice}
