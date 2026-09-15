@@ -1,6 +1,6 @@
-# StratEdge — k6 Performance & Capacity Testing
+# Edgecipline — k6 Performance & Capacity Testing
 
-Load tests for the StratEdge API, kept separate from the Jest unit/integration
+Load tests for the Edgecipline API, kept separate from the Jest unit/integration
 suites in `backend/__tests__/`.
 
 The goal of this suite is not "generate traffic" — it is to answer **how many
@@ -15,7 +15,7 @@ Load tests never touch development or production data.
 
 | Concern | Isolation |
 |---|---|
-| Database | Separate Mongo DB `stratedge_loadtest`. The seed and cleanup scripts **refuse to run** unless the target DB name contains `loadtest`. |
+| Database | Separate Mongo DB `edgecipline_loadtest`. The seed and cleanup scripts **refuse to run** unless the target DB name contains `loadtest`. |
 | Cache / rate limits | Separate Redis keyspace (`redis://127.0.0.1:6379/3`). |
 | API process | Separate instance on port **5001**, so a dev server can keep running on 5000. |
 | Accounts | All seeded users are `k6-loadtest-N@loadtest.invalid`, making cleanup unambiguous. |
@@ -38,7 +38,7 @@ measurement window.
 ### Seed the test data
 
 ```bash
-LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/stratedge_loadtest" \
+LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/edgecipline_loadtest" \
   node tests/performance/scripts/seed-test-data.js --users 250 --trades 120
 ```
 
@@ -55,11 +55,11 @@ which would otherwise dominate the measurement — login is tested separately by
 
 ```bash
 # Production rate limits — measures what real users experience
-LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/stratedge_loadtest" \
+LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/edgecipline_loadtest" \
   node tests/performance/scripts/start-test-server.js
 
 # Relaxed rate limits — measures true server capacity
-LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/stratedge_loadtest" \
+LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/edgecipline_loadtest" \
 LOADTEST_RELAX_RATE_LIMIT=true \
   node tests/performance/scripts/start-test-server.js
 ```
@@ -73,7 +73,7 @@ not be mixed.
 ### Clean up
 
 ```bash
-LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/stratedge_loadtest" \
+LOADTEST_MONGO_URI="mongodb://127.0.0.1:27017/edgecipline_loadtest" \
   node tests/performance/scripts/cleanup-test-data.js          # remove seeded docs
   #                                                --drop      # or drop the whole DB
 ```

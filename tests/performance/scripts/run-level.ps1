@@ -47,10 +47,11 @@ if (-not $NoFlush) {
         # No redis-cli on PATH — use the backend's ioredis instead.
         $flush = @"
 const path=require('path');
-const IORedis=require(path.join('C:/Users/souta/Desktop/new/stratedge/backend/node_modules','ioredis'));
+const IORedis=require(path.join(process.env.EDGECIPLINE_BACKEND_DIR,'node_modules','ioredis'));
 const c=new IORedis('redis://127.0.0.1:6379/3');
 c.flushdb().then(()=>{console.log('Flushed Redis db 3 (cold cache).');return c.quit();}).catch(e=>{console.error(e.message);process.exit(1);});
 "@
+        $env:EDGECIPLINE_BACKEND_DIR = (Resolve-Path (Join-Path $PSScriptRoot "../../../backend")).Path
         $flush | & node -
     }
 }

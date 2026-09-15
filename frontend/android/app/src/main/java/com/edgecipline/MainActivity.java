@@ -44,7 +44,7 @@ public class MainActivity extends BridgeActivity {
 
     /**
      * Ensures the Capacitor WebView accepts and sends cookies for cross-origin
-     * requests (capacitor://localhost → https://api.stratedge.live).
+     * requests (capacitor://localhost → https://api.edgecipline.com).
      * Without this, the httpOnly refresh-token cookie (SameSite=None) is not
      * transmitted on silent refresh POST requests, logging users out on every
      * app kill/reopen.

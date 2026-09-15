@@ -69,7 +69,7 @@ function assertSafeTarget(uri) {
   if (!uri) {
     throw new Error(
       "LOADTEST_MONGO_URI is not set. Refusing to guess a target database.\n" +
-        "  Example: LOADTEST_MONGO_URI=mongodb://127.0.0.1:27017/stratedge_loadtest"
+        "  Example: LOADTEST_MONGO_URI=mongodb://127.0.0.1:27017/edgecipline_loadtest"
     );
   }
   const dbName = uri.replace(/^mongodb(\+srv)?:\/\//, "").split("/")[1]?.split("?")[0];

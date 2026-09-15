@@ -1,5 +1,5 @@
 /**
- * Realistic user journeys, modelled on what the StratEdge frontend actually
+ * Realistic user journeys, modelled on what the Edgecipline frontend actually
  * calls (see frontend/services/*.js and the app/ route tree).
  *
  * Each journey is a sequence with think time between steps — not a hot loop

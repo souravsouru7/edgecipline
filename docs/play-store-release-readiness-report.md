@@ -8,7 +8,7 @@ Status: **NO-GO until Critical items are closed**
 
 | File / area | Risk and impact | Fix / required action |
 | --- | --- | --- |
-| `frontend/config/api.js` | Missing or local API configuration previously fell back to `staging-api.stratedge.live`, allowing a production APK to use staging data. | Fixed. API configuration now has no fallback and is validated at build and startup. |
+| `frontend/config/api.js` | Missing or local API configuration previously fell back to `staging-api.edgecipline.com`, allowing a production APK to use staging data. | Fixed. API configuration now has no fallback and is validated at build and startup. |
 | `frontend/android/gradle.properties` | Release keystore passwords were committed in plaintext and exist in Git history. The local upload/signing key must be treated as compromised. | Fixed in the current tree. Rotate the key and passwords before release; use Play App Signing and a separate upload key. |
 | `frontend/android/app/build/outputs/apk/debug/app-debug.apk` | A debug APK was tracked across multiple commits and could be redistributed or mistaken for a release artifact. | Staged for untracking; local file remains ignored. Purge it from history before making the repository public. |
 | `frontend/android.zip` | Tracked archive contains Gradle state, a debug APK, `local.properties`, `google-services.json`, and the old signing properties. | Staged for untracking; local file remains ignored. Purge it from history. |
@@ -41,7 +41,7 @@ Status: **NO-GO until Critical items are closed**
 
 ## Implemented Controls
 
-- Production API host is allowlisted to `api.stratedge.live`.
+- Production API host is allowlisted to `api.edgecipline.com`.
 - Production API requires HTTPS, standard port 443, and no credentials/query/fragment.
 - Missing, localhost, private, staging, dev, test, QA, and sandbox API hosts fail validation.
 - Production requires complete Firebase public configuration and a `rzp_live_*` Razorpay public key.
@@ -88,7 +88,7 @@ Every collaborator must discard old clones after the history rewrite.
 
 1. Confirm the final application ID before the first Play Console upload.
 2. Rotate the exposed keystore/upload key and store it outside the repository.
-3. Configure `NEXT_PUBLIC_API_URL=https://api.stratedge.live`, production Firebase public values, and `NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_...` in CI.
+3. Configure `NEXT_PUBLIC_API_URL=https://api.edgecipline.com`, production Firebase public values, and `NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_...` in CI.
 4. Configure backend live Razorpay key ID, key secret, and webhook secret in the backend secret manager.
 5. Provide signing values through `EDGE_RELEASE_STORE_FILE`, `EDGE_RELEASE_STORE_PASSWORD`, `EDGE_RELEASE_KEY_ALIAS`, and `EDGE_RELEASE_KEY_PASSWORD`.
 6. Run `npm.cmd run build`, `npx.cmd cap sync android`, then `android\gradlew.bat bundleRelease`.

@@ -2,7 +2,7 @@
  * Boots backend/server.js against ISOLATED infrastructure so load tests never
  * touch development data:
  *
- *   - MongoDB : stratedge_loadtest      (separate database, same local server)
+ *   - MongoDB : edgecipline_loadtest      (separate database, same local server)
  *   - Redis   : db index 3              (separate keyspace — cache + rate limits)
  *   - Port    : 5001                    (dev server can keep running on 5000)
  *
@@ -26,7 +26,7 @@ const BACKEND_DIR = path.join(__dirname, "../../../backend");
 
 const PORT = process.env.LOADTEST_PORT || "5001";
 const MONGO_URI =
-  process.env.LOADTEST_MONGO_URI || "mongodb://127.0.0.1:27017/stratedge_loadtest";
+  process.env.LOADTEST_MONGO_URI || "mongodb://127.0.0.1:27017/edgecipline_loadtest";
 const REDIS_URL = process.env.LOADTEST_REDIS_URL || "redis://127.0.0.1:6379/3";
 const RELAX = String(process.env.LOADTEST_RELAX_RATE_LIMIT || "").toLowerCase() === "true";
 
@@ -80,7 +80,7 @@ if (RELAX) {
 }
 
 console.log("─".repeat(64));
-console.log("  StratEdge API — load-test instance");
+console.log("  Edgecipline API — load-test instance");
 console.log("─".repeat(64));
 console.log(`  Port          : ${PORT}`);
 console.log(`  MongoDB       : ${MONGO_URI}`);

@@ -372,7 +372,7 @@ paths["/api/issues"].post.requestBody = {
 module.exports = {
   openapi: "3.1.0",
   info: {
-    title: "StratEdge API",
+    title: "Edgecipline API",
     version: "1.0.0",
     description: [
       "REST API for trade journaling, analytics, notifications, issue reporting, and administration.",

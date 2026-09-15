@@ -24,7 +24,7 @@ function request() {
   return {
     cookies: { sid: "raw-refresh" },
     headers: {
-      origin: "https://stratedge.live",
+      origin: "https://edgecipline.com",
       "user-agent": "test-agent",
       "x-device-id": "device-1",
       "x-session-id": "session-1",

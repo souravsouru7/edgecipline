@@ -417,7 +417,7 @@ const html = `<!doctype html>
 <body>
   <main class="doc">
     <section class="cover">
-      <div class="brand">Stratedge Product Documentation</div>
+      <div class="brand">Edgecipline Product Documentation</div>
       <h1>Edgecipline</h1>
       <p class="subtitle">AI-powered trading journal, performance analytics system, and psychology coach for disciplined retail traders.</p>
       <div class="meta">

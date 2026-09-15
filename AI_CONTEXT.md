@@ -1,4 +1,4 @@
-# Stratedge / Edgecipline — Full Project Context
+# Edgecipline / Edgecipline — Full Project Context
 
 Share this file with any AI to give it complete understanding of the project.
 Last updated: 2026-04-25
@@ -17,7 +17,7 @@ Supports two completely separate market types:
 
 Beyond logging: analytics, psychology tracking, setup checklists, weekly reports, subscription payments.
 
-Brand name shown to users: **Edgecipline**. Internal codebase name: **Stratedge**.
+Brand name shown to users: **Edgecipline**. Internal codebase name: **Edgecipline**.
 
 ---
 
@@ -59,7 +59,7 @@ Brand name shown to users: **Edgecipline**. Internal codebase name: **Stratedge*
 ## Repository Structure
 
 ```
-stratedge/
+edgecipline/
 ├── backend/
 │   ├── server.js              ← Entry point. Loads dotenv + Sentry FIRST, then wires Express
 │   ├── config/
@@ -576,8 +576,8 @@ ANTHROPIC_API_KEY           Not used (removed — too expensive)
 ## Production Deployment (PM2)
 
 Two processes:
-- `stratedge-api` — Express server (server.js)
-- `stratedge-ocr-worker` — BullMQ worker (workers/ocrWorker.js)
+- `edgecipline-api` — Express server (server.js)
+- `edgecipline-ocr-worker` — BullMQ worker (workers/ocrWorker.js)
 
 In development: OCR worker runs embedded inside the API server process (unless `ENABLE_EMBEDDED_OCR_WORKER=false`).
 

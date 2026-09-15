@@ -4,14 +4,14 @@
 // static export bakes this URL into the JS chunks, so a release AAB/IPA built
 // against staging cannot be repaired after the fact — it ships pointing at
 // staging data.
-const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live"]);
+const PRODUCTION_API_HOSTS = new Set(["api.edgecipline.com"]);
 
 // Escape hatch for internal QA builds that need a production-mode bundle
 // pointed at staging. It is opt-in per build and must never be set in a
 // release pipeline; leaving it unset is what makes the guard above load-
 // bearing. Previously staging sat in PRODUCTION_API_HOSTS permanently, which
 // meant nothing actually enforced "never point a release build here".
-const STAGING_API_HOSTS = new Set(["staging-api.stratedge.live"]);
+const STAGING_API_HOSTS = new Set(["staging-api.edgecipline.com"]);
 const STAGING_API_OPT_IN =
   String(process.env.NEXT_PUBLIC_ALLOW_STAGING_API || "").trim() === "true";
 

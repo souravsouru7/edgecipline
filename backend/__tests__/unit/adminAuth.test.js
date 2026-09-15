@@ -44,7 +44,7 @@ const mockRes = () => {
 const adminDoc = (overrides = {}) => ({
   _id:          '507f1f77bcf86cd799439011',
   name:         'Admin',
-  email:        'admin@stratedge.com',
+  email:        'admin@edgecipline.com',
   password:     'hashed_AdminPass1!',
   role:         'admin',
   authProvider: 'local',
@@ -74,7 +74,7 @@ describe('adminLogin', () => {
     User.findOne.mockReturnValueOnce({ select: jest.fn().mockResolvedValue(admin) });
     bcrypt.compare.mockResolvedValueOnce(true);
 
-    const req  = { body: { email: 'admin@stratedge.com', password: 'AdminPass1!' }, ip: '127.0.0.1', headers: {} };
+    const req  = { body: { email: 'admin@edgecipline.com', password: 'AdminPass1!' }, ip: '127.0.0.1', headers: {} };
     const res  = mockRes();
     const next = jest.fn();
 
@@ -82,7 +82,7 @@ describe('adminLogin', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'admin', email: 'admin@stratedge.com' })
+      expect.objectContaining({ role: 'admin', email: 'admin@edgecipline.com' })
     );
     expect(res.json.mock.calls[0][0]).not.toHaveProperty('token');
     expect(res.cookie).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('adminLogin', () => {
     User.findOne.mockReturnValueOnce({ select: jest.fn().mockResolvedValue(admin) });
     bcrypt.compare.mockResolvedValueOnce(false);
 
-    const req  = { body: { email: 'admin@stratedge.com', password: 'WrongPass1!' }, ip: '127.0.0.1', headers: {} };
+    const req  = { body: { email: 'admin@edgecipline.com', password: 'WrongPass1!' }, ip: '127.0.0.1', headers: {} };
     const res  = mockRes();
     const next = jest.fn();
 
@@ -109,7 +109,7 @@ describe('adminLogin', () => {
     // Even if bcrypt matches, role check should block it
     bcrypt.compare.mockResolvedValueOnce(true);
 
-    const req  = { body: { email: 'user@stratedge.com', password: 'UserPass1!' }, ip: '127.0.0.1', headers: {} };
+    const req  = { body: { email: 'user@edgecipline.com', password: 'UserPass1!' }, ip: '127.0.0.1', headers: {} };
     const res  = mockRes();
     const next = jest.fn();
 
@@ -124,7 +124,7 @@ describe('adminLogin', () => {
     User.findOne.mockReturnValueOnce({ select: jest.fn().mockResolvedValue(googleAdmin) });
     bcrypt.compare.mockResolvedValueOnce(false);
 
-    const req  = { body: { email: 'admin@stratedge.com', password: 'AnyPass1!' }, ip: '127.0.0.1', headers: {} };
+    const req  = { body: { email: 'admin@edgecipline.com', password: 'AnyPass1!' }, ip: '127.0.0.1', headers: {} };
     const res  = mockRes();
     const next = jest.fn();
 
@@ -134,7 +134,7 @@ describe('adminLogin', () => {
   });
 
   test('missing email or password → 400 VALIDATION_ERROR', async () => {
-    const req  = { body: { email: 'admin@stratedge.com' }, ip: '127.0.0.1', headers: {} };
+    const req  = { body: { email: 'admin@edgecipline.com' }, ip: '127.0.0.1', headers: {} };
     const res  = mockRes();
     const next = jest.fn();
 

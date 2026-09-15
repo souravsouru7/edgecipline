@@ -179,8 +179,9 @@ const isAllowedProductionOrigin = (origin) => {
   const normalizedOrigin = normalizeOrigin(origin);
 
   const staticAllowedOrigins = new Set([
-    "https://stratedge.live",
-    "https://www.stratedge.live",
+    "https://app.edgecipline.com",
+    "https://edgecipline.com",
+    "https://www.edgecipline.com",
     "https://stratedge-stageing.vercel.app",
     "https://edgecipline.soutavr5.workers.dev",
   ]);
@@ -189,8 +190,8 @@ const isAllowedProductionOrigin = (origin) => {
     return true;
   }
 
-  // Allow known Stratedge subdomains used for production web/app clients.
-  if (/^https:\/\/([a-z0-9-]+\.)?stratedge\.live$/i.test(normalizedOrigin)) {
+  // Allow known Edgecipline subdomains used for production web/app clients.
+  if (/^https:\/\/([a-z0-9-]+\.)?edgecipline\.com$/i.test(normalizedOrigin)) {
     return true;
   }
 
@@ -356,7 +357,7 @@ app.use(
   },
   swaggerUi.serve,
   swaggerUi.setup(openApiDocument, {
-    customSiteTitle: "StratEdge API",
+    customSiteTitle: "Edgecipline API",
     swaggerOptions: { persistAuthorization: true },
   })
 );
@@ -456,7 +457,7 @@ function getHealthSnapshot() {
     return {
       httpStatus: 503,
       body: {
-        service: "stratedge-api",
+        service: "edgecipline-api",
         env: appConfig.env,
         status: "unhealthy",
         db: "disconnected",
@@ -471,7 +472,7 @@ function getHealthSnapshot() {
   return {
     httpStatus: degraded ? 503 : 200,
     body: {
-      service: "stratedge-api",
+      service: "edgecipline-api",
       env: appConfig.env,
       status: degraded ? "degraded" : "ok",
       db: "connected",

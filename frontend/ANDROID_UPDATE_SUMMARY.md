@@ -37,7 +37,7 @@ npx cap sync android
 
 # 3. Open Android Studio
 npx cap open android
-```ls 'c:\Users\souta\Desktop\new\stratedge\frontend\android\app\build\outputs\apk\debug\'
+```ls 'c:\Users\souta\Desktop\new\edgecipline\frontend\android\app\build\outputs\apk\debug\'
 
 ### Sync Results:
 ✅ Web assets copied from `out/` to `android/app/src/main/assets/public`
@@ -71,7 +71,7 @@ The psychology UI components are already mobile-optimized:
 frontend/android/
 ├── app/
 │   ├── src/main/
-│   │   ├── java/com/stratedge/app/
+│   │   ├── java/com/edgecipline/app/
 │   │   │   └── MainActivity.java (Capacitor bridge activity)
 │   │   ├── res/ (Android resources)
 │   │   └── assets/public/ (Next.js build output - SYNCED)

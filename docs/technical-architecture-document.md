@@ -116,8 +116,8 @@ Recommendation: keep Next.js as a static export while the app is API-driven. If 
 Recommended deployment topology:
 
 - CDN/static host for `frontend/out`.
-- API server as `stratedge-api`.
-- OCR worker as `stratedge-ocr-worker`.
+- API server as `edgecipline-api`.
+- OCR worker as `edgecipline-ocr-worker`.
 - MongoDB Atlas for database.
 - Managed Redis for queue/cache.
 - PM2 or container orchestration for backend processes.
@@ -173,7 +173,7 @@ Recommended deployment topology:
 The current repo already follows this structure. Keep it, but standardize naming and ownership boundaries.
 
 ```text
-stratedge/
+edgecipline/
   backend/
     admin/
       controllers/             Admin business handlers
@@ -1208,7 +1208,7 @@ Important indexes:
 
 ### Improve
 
-- Standardize naming: externally use `Edgecipline`, internally keep `stratedge` if needed.
+- Standardize naming: externally use `Edgecipline`, internally keep `edgecipline` if needed.
 - Move remaining direct DB queries from services/controllers into repositories.
 - Consolidate simple `Notification` and richer `NotificationHistory` over time.
 - Normalize `strategy`, `setup`, and `strategyName` naming across Forex and Indian flows.

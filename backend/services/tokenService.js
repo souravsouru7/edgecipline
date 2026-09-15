@@ -68,7 +68,7 @@ function hashToken(raw) {
 //
 // COOKIE_CROSS_SITE=true forces SameSite=None; Secure=true on the web branch.
 // Required when the browser frontend lives on a different eTLD+1 from the API
-// (e.g. stratedge-stageing.vercel.app calling staging-api.stratedge.live).
+// (e.g. stratedge-stageing.vercel.app calling staging-api.edgecipline.com).
 // Without this, browsers refuse to attach a Strict cookie on the cross-site
 // refresh POST, the server sees no cookie, returns 401, and the user is
 // silently logged out.
@@ -90,7 +90,7 @@ function getWebCookieAttributes() {
 /**
  * @param {boolean} isCapacitor - true when the request originates from the Android
  * Capacitor app (Origin: capacitor://localhost). Capacitor makes cross-site requests
- * from a different origin (capacitor://localhost → https://api.stratedge.live), so
+ * from a different origin (capacitor://localhost → https://api.edgecipline.com), so
  * SameSite=None; Secure=true is REQUIRED regardless of NODE_ENV — without it,
  * Android WebView won't send the cookie and silent token refresh silently fails,
  * logging the user out every time they kill and reopen the app.

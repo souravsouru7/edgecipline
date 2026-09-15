@@ -1,6 +1,6 @@
 const REQUIRED_BASE_ENV = {
   NODE_ENV: "test",
-  MONGO_URI: "mongodb://localhost:27017/stratedge_test",
+  MONGO_URI: "mongodb://localhost:27017/edgecipline_test",
   CLOUD_NAME: "test_cloud",
   CLOUD_API_KEY: "test_cloud_api_key",
   CLOUD_API_SECRET: "test_cloud_api_secret",

@@ -384,13 +384,13 @@ function isSandboxCheckout() {
   <div class="finding p0">
     <div class="f-head"><span class="f-id">P0-4</span><span class="f-title">The release bundle is baked against the staging API</span></div>
     <div class="f-body">
-      <p><code>frontend/.env.local</code> line 1 sets <code>NEXT_PUBLIC_API_URL=https://staging-api.stratedge.live/api</code>.</p>
+      <p><code>frontend/.env.local</code> line 1 sets <code>NEXT_PUBLIC_API_URL=https://staging-api.edgecipline.com/api</code>.</p>
       <p><code>output: "export"</code> compiles that string into the JS chunks — verified present in <code>out/</code>, <code>android/app/src/main/assets/public</code> <b>and</b> <code>ios/App/App/public</code>. <code>npm run android:build</code> reads the same file, so today's release AAB ships pointing at staging.</p>
       <p>The guard meant to catch this has been widened to let it through:</p>
 <pre><span class="cm">// config/environment.js:5</span>
-const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live", <span class="hl">"staging-api.stratedge.live"</span>]);</pre>
+const PRODUCTION_API_HOSTS = new Set(["api.edgecipline.com", <span class="hl">"staging-api.edgecipline.com"</span>]);</pre>
       <p>The comment three lines above literally reads <i>"Never point a release build here"</i> — but nothing enforces it.</p>
-      <div class="fix"><b>Fix →</b> Add a <code>.env.production</code> pinned to <code>api.stratedge.live</code>, and gate the staging host behind a non-production mode so a production build physically cannot resolve it.</div>
+      <div class="fix"><b>Fix →</b> Add a <code>.env.production</code> pinned to <code>api.edgecipline.com</code>, and gate the staging host behind a non-production mode so a production build physically cannot resolve it.</div>
     </div>
   </div>
   <div class="finding p0">

@@ -328,7 +328,7 @@ const appConfig = {
     // with notifications disabled on their phone still needs the reply.
     emailNotificationsEnabled: readBoolean("SUPPORT_EMAIL_NOTIFICATIONS_ENABLED", true),
     // Absolute base for links inside support emails.
-    appBaseUrl: process.env.SUPPORT_APP_BASE_URL || process.env.APP_BASE_URL || "https://stratedge.live",
+    appBaseUrl: process.env.SUPPORT_APP_BASE_URL || process.env.APP_BASE_URL || "https://app.edgecipline.com",
     // Salt for the anonymous article-feedback fingerprint. Falls back to the
     // admin JWT secret so a missing env var degrades to "still salted with
     // something secret" rather than to an unsalted, rainbow-tableable hash of
@@ -342,7 +342,7 @@ const appConfig = {
     secure: readBoolean("SMTP_SECURE", false),
     user: process.env.SMTP_USER || "",
     pass: process.env.SMTP_PASS || "",
-    from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@stratedge.live",
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@edgecipline.com",
   },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID || "",

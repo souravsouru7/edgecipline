@@ -580,7 +580,7 @@ exports.sendRescueEmail = async ({ to, userName, touchpoint, subject, intro, con
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px 24px;background:#FFFFFF;color:#0F1923;">
       <div style="text-align:center;margin-bottom:24px;">
-        <h2 style="color:#0D9E6E;margin:0;letter-spacing:0.04em;">STRATEDGE</h2>
+        <h2 style="color:#0D9E6E;margin:0;letter-spacing:0.04em;">EDGECIPLINE</h2>
       </div>
 
       <p style="font-size:15px;line-height:1.55;margin:0 0 12px;">Hi ${userName || "trader"},</p>
@@ -593,7 +593,7 @@ exports.sendRescueEmail = async ({ to, userName, touchpoint, subject, intro, con
       ${insightBlock}
 
       <div style="text-align:center;margin:28px 0 12px;">
-        <a href="https://stratedge.live/settings"
+        <a href="https://app.edgecipline.com/settings"
            style="background:#0F1923;color:#22C78E;padding:14px 32px;text-decoration:none;border-radius:10px;font-weight:800;font-size:15px;letter-spacing:0.02em;display:inline-block;">
           REACTIVATE PREMIUM
         </a>
@@ -602,8 +602,8 @@ exports.sendRescueEmail = async ({ to, userName, touchpoint, subject, intro, con
 
       <hr style="border:none;border-top:1px solid #E2E8F0;margin:28px 0 16px;" />
       <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">
-        You're receiving this because you have notifications enabled for your Stratedge account.<br />
-        Manage preferences in <a href="https://stratedge.live/settings" style="color:#64748B;">Settings</a>.
+        You're receiving this because you have notifications enabled for your Edgecipline account.<br />
+        Manage preferences in <a href="https://app.edgecipline.com/settings" style="color:#64748B;">Settings</a>.
       </p>
     </div>
   `;
@@ -686,7 +686,7 @@ exports.sendFreeTierEmail = async ({ to, userName, touchpoint, subject, intro, c
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px 24px;background:#FFFFFF;color:#0F1923;">
       <div style="text-align:center;margin-bottom:24px;">
-        <h2 style="color:#0D9E6E;margin:0;letter-spacing:0.04em;">STRATEDGE</h2>
+        <h2 style="color:#0D9E6E;margin:0;letter-spacing:0.04em;">EDGECIPLINE</h2>
       </div>
 
       <p style="font-size:15px;line-height:1.55;margin:0 0 12px;">Hi ${escapeHtml(userName || "trader")},</p>
@@ -704,7 +704,7 @@ exports.sendFreeTierEmail = async ({ to, userName, touchpoint, subject, intro, c
       </ul>
 
       <div style="text-align:center;margin:28px 0 12px;">
-        <a href="https://stratedge.live/settings"
+        <a href="https://app.edgecipline.com/settings"
            style="background:#0F1923;color:#22C78E;padding:14px 32px;text-decoration:none;border-radius:10px;font-weight:800;font-size:15px;letter-spacing:0.02em;display:inline-block;">
           UNLOCK PREMIUM
         </a>
@@ -713,8 +713,8 @@ exports.sendFreeTierEmail = async ({ to, userName, touchpoint, subject, intro, c
 
       <hr style="border:none;border-top:1px solid #E2E8F0;margin:28px 0 16px;" />
       <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0;">
-        You're receiving this because you have notifications enabled for your Stratedge account.<br />
-        Manage preferences in <a href="https://stratedge.live/settings" style="color:#64748B;">Settings</a>.
+        You're receiving this because you have notifications enabled for your Edgecipline account.<br />
+        Manage preferences in <a href="https://app.edgecipline.com/settings" style="color:#64748B;">Settings</a>.
       </p>
     </div>
   `;
@@ -741,18 +741,18 @@ exports.sendRenewalReminder = async (email, userName, expiryDate) => {
 
   const { error, provider } = await deliver({
     to: email,
-    subject: "Your Stratedge Subscription Has Expired",
+    subject: "Your Edgecipline Subscription Has Expired",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-        <h2 style="color: #b8860b; text-align: center;">STRATEDGE</h2>
+        <h2 style="color: #b8860b; text-align: center;">EDGECIPLINE</h2>
         <p>Hello ${userName},</p>
-        <p>Your Stratedge subscription expired on <strong>${formattedDate}</strong>.</p>
+        <p>Your Edgecipline subscription expired on <strong>${formattedDate}</strong>.</p>
         <p>Renew today to keep tracking your performance and accessing AI trade insights.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="https://stratedge.live/settings" style="background-color: #0d9e6e; color: white; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">RENEW NOW</a>
+          <a href="https://app.edgecipline.com/settings" style="background-color: #0d9e6e; color: white; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">RENEW NOW</a>
         </div>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #94a3b8; text-align: center;">&copy; 2026 Stratedge. All rights reserved.</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">&copy; 2026 Edgecipline. All rights reserved.</p>
       </div>
     `,
   });

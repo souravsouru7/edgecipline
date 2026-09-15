@@ -1,4 +1,4 @@
-# Stratedge — Production Audit Issues Tracker
+# Edgecipline — Production Audit Issues Tracker
 
 > Generated: 2026-05-25 | Auditor: Senior Staff Engineer + Security + DevOps
 > **All issues marked [x] — infrastructure items (C11–C14, H17) require DevOps action outside codebase**

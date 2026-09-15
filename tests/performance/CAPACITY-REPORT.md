@@ -1,8 +1,8 @@
-# StratEdge API — Capacity & Performance Report
+# Edgecipline API — Capacity & Performance Report
 
 **Test date:** 2026-08-21
 **Tested by:** performance engineering pass using k6 v2.2.0
-**Scope:** StratEdge backend REST API (`backend/server.js`), Forex journal workload
+**Scope:** Edgecipline backend REST API (`backend/server.js`), Forex journal workload
 
 ---
 
@@ -33,13 +33,13 @@ timeouts rather than failing.
 | RAM | 5.83 GB total (~700 MB free at test start — the host was already under memory pressure) |
 | Node.js | v24.14.1 |
 | API | Single process, port 5001, `NODE_ENV=development` |
-| MongoDB | **Local** `mongodb://127.0.0.1:27017/stratedge_loadtest` |
+| MongoDB | **Local** `mongodb://127.0.0.1:27017/edgecipline_loadtest` |
 | Redis | **Local** `redis://127.0.0.1:6379/3` |
 | k6 | v2.2.0 (windows/amd64) — **co-located on the same host** |
 | Test corpus | 250 users × (120 trades + 4 setups) = **30,000 trades** |
 
 **Isolation.** Tests never touched development data. A dedicated database
-(`stratedge_loadtest`, guarded by a name check that refuses any DB without
+(`edgecipline_loadtest`, guarded by a name check that refuses any DB without
 `loadtest` in it), a dedicated Redis keyspace (db 3), a dedicated API instance
 on port 5001, and accounts confined to `@loadtest.invalid`.
 

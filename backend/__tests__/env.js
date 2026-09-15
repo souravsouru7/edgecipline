@@ -1,7 +1,7 @@
 // Set all required env vars before any module loads.
 // This file runs via jest.config.js setupFiles — before config/index.js requireEnv() executes.
 process.env.NODE_ENV            = 'test';
-process.env.MONGO_URI           = 'mongodb://localhost:27017/stratedge_test';
+process.env.MONGO_URI           = 'mongodb://localhost:27017/edgecipline_test';
 process.env.JWT_SECRET          = 'test-jwt-secret-at-least-32-chars-long!!';
 process.env.ADMIN_JWT_SECRET    = 'test-admin-jwt-secret-distinct-32-chars!!';
 process.env.CLOUD_NAME          = 'test_cloud';

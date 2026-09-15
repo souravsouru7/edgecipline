@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "stratedge-staging",
+      name: "edgecipline-staging",
       script: "./server.js",
       instances: 1,
       autorestart: true,
@@ -23,7 +23,7 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name: "stratedge-staging-worker",
+      name: "edgecipline-staging-worker",
       script: "./workers/ocrWorker.js",
       instances: 1,
       autorestart: true,
@@ -41,7 +41,7 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name: "stratedge-staging-trading-dna-worker",
+      name: "edgecipline-staging-trading-dna-worker",
       script: "./workers/tradingDnaWorker.js",
       instances: 1,
       autorestart: true,

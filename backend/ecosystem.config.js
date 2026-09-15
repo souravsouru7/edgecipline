@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "stratedge-api",
+      name: "edgecipline-api",
       script: "./server.js",
       instances: 1,
       autorestart: true,
@@ -22,7 +22,7 @@ module.exports = {
       retain: 10,
     },
     {
-      name: "stratedge-ocr-worker",
+      name: "edgecipline-ocr-worker",
       script: "./workers/ocrWorker.js",
       instances: 1,
       autorestart: true,
@@ -41,7 +41,7 @@ module.exports = {
       retain: 10,
     },
     {
-      name: "stratedge-trading-dna-worker",
+      name: "edgecipline-trading-dna-worker",
       script: "./workers/tradingDnaWorker.js",
       instances: 1,
       autorestart: true,

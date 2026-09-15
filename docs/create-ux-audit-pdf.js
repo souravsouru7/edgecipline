@@ -1,11 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const out = path.join(__dirname, "stratedge-product-experience-audit.pdf");
+const out = path.join(__dirname, "edgecipline-product-experience-audit.pdf");
 
 const sections = [
   {
-    title: "Stratedge Product Experience Audit",
+    title: "Edgecipline Product Experience Audit",
     body: [
       "Complete frontend, UI, UX, product experience, information architecture, onboarding, discoverability, and premium-product audit.",
       "Prepared from source-level review of dashboard, analytics, OCR import, trade journal, setup templates, pre-trade checklist, discipline analytics, psychology timeline, reports, shared navigation, and Indian-market variants.",
@@ -31,7 +31,7 @@ const sections = [
       "The information architecture is fragmented across analytics subroutes, top-level pages, market-specific duplicates, and dashboard cards.",
       "First-time onboarding is feature-led instead of outcome-led. Users need a guided loop from first trade to first insight.",
       "Visible encoding issues in UI copy and symbols hurt premium trust.",
-      "Brand naming is inconsistent between Stratedge and Edgecipline, which weakens subscription confidence.",
+      "Brand naming is inconsistent between Edgecipline and Edgecipline, which weakens subscription confidence.",
     ],
   },
   {
@@ -118,7 +118,7 @@ const sections = [
   {
     title: "Redesign Strategy",
     body: [
-      "Make the product promise: Stratedge shows what makes you profitable, what leaks money, and what to do before your next trade.",
+      "Make the product promise: Edgecipline shows what makes you profitable, what leaks money, and what to do before your next trade.",
       "Primary navigation should be: Dashboard, Journal, Import, Plan, Intelligence, Reports.",
       "Dashboard should become a command center with today's next action, current edge, biggest leak, discipline status, latest AI coach insight, Log Trade, and Run Checklist.",
       "Intelligence should become the premium heart of the app with tabs for Trading DNA, Psychology Cost, Patterns, Self Awareness, Discipline, Timeline, and AI Coach.",

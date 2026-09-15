@@ -52,16 +52,22 @@ jobs:
           script: |
             set -e
 
-            cd ~/stratedge
-            git config --global --add safe.directory ~/stratedge || true
+            # The checkout on the server was created as ~/stratedge before the
+            # rename; fall back to it until the directory is moved.
+            APP_DIR=~/edgecipline
+            [ -d "$APP_DIR" ] || APP_DIR=~/stratedge
+            cd "$APP_DIR"
+            git config --global --add safe.directory "$APP_DIR" || true
             git fetch origin main
             git reset --hard origin/main
 
-            cd ~/stratedge/backend
+            cd "$APP_DIR/backend"
             npm install
 
-            pm2 delete stratedge-api || true
-            pm2 delete stratedge-ocr-worker || true
+            # Old process names are deleted too so the rename does not leave
+            # a duplicate API bound to the same port.
+            pm2 delete edgecipline-api edgecipline-ocr-worker edgecipline-trading-dna-worker || true
+            pm2 delete stratedge-api stratedge-ocr-worker stratedge-trading-dna-worker || true
             pm2 start ecosystem.config.js || pm2 restart ecosystem.config.js
             pm2 save
 

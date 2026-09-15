@@ -120,7 +120,7 @@ const ADMIN_USER_ID = '507f1f77bcf86cd799439011';
 const adminDoc = (overrides = {}) => ({
   _id:          ADMIN_USER_ID,
   name:         'Admin',
-  email:        'admin@stratedge.com',
+  email:        'admin@edgecipline.com',
   password:     'hashed_AdminPass1!',
   role:         'admin',
   authProvider: 'local',
@@ -156,10 +156,10 @@ describe('POST /api/admin/auth/login', () => {
 
     const res = await request(app)
       .post('/api/admin/auth/login')
-      .send({ email: 'admin@stratedge.com', password: 'AdminPass1!' });
+      .send({ email: 'admin@edgecipline.com', password: 'AdminPass1!' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ role: 'admin', email: 'admin@stratedge.com' });
+    expect(res.body).toMatchObject({ role: 'admin', email: 'admin@edgecipline.com' });
     expect(res.body).not.toHaveProperty('token');
     const cookies = res.headers['set-cookie'] || [];
     expect(cookies.some(c => c.startsWith('admin_sid='))).toBe(true);
@@ -172,7 +172,7 @@ describe('POST /api/admin/auth/login', () => {
 
     const res = await request(app)
       .post('/api/admin/auth/login')
-      .send({ email: 'admin@stratedge.com', password: 'WrongPass1!' });
+      .send({ email: 'admin@edgecipline.com', password: 'WrongPass1!' });
 
     expect(res.status).toBe(401);
     expect(res.body.errorCode).toBe('INVALID_CREDENTIALS');
@@ -207,7 +207,7 @@ describe('POST /api/admin/auth/login', () => {
   test('missing password → 400 VALIDATION_ERROR', async () => {
     const res = await request(app)
       .post('/api/admin/auth/login')
-      .send({ email: 'admin@stratedge.com' });
+      .send({ email: 'admin@edgecipline.com' });
 
     expect(res.status).toBe(400);
     expect(res.body.errorCode).toBe('VALIDATION_ERROR');
@@ -221,13 +221,13 @@ describe('POST /api/admin/auth/login', () => {
       bcrypt.compare.mockResolvedValueOnce(false);
       await request(app)
         .post('/api/admin/auth/login')
-        .send({ email: 'admin@stratedge.com', password: 'bad' });
+        .send({ email: 'admin@edgecipline.com', password: 'bad' });
     }
 
     // 6th attempt should be rate limited
     const res = await request(app)
       .post('/api/admin/auth/login')
-      .send({ email: 'admin@stratedge.com', password: 'bad' });
+      .send({ email: 'admin@edgecipline.com', password: 'bad' });
 
     expect(res.status).toBe(429);
     expect(res.body.errorCode).toBe('RATE_LIMIT_EXCEEDED');

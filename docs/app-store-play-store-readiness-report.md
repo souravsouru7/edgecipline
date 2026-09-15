@@ -101,7 +101,7 @@ There is **no `/pricing` route** — not in `frontend/app/`, and no `out/pricing
 
 [frontend/.env.local:1](frontend/.env.local) →
 ```
-NEXT_PUBLIC_API_URL=https://staging-api.stratedge.live/api
+NEXT_PUBLIC_API_URL=https://staging-api.edgecipline.com/api
 ```
 
 `output: "export"` compiles this string into the JS chunks — verified present in `out/`, `android/app/src/main/assets/public`, **and** `ios/App/App/public`. `npm run android:build` reads this same file, so today's release AAB ships pointing at staging.
@@ -110,12 +110,12 @@ The guard that was supposed to catch this has been widened to let it through:
 
 ```js
 // config/environment.js:5
-const PRODUCTION_API_HOSTS = new Set(["api.stratedge.live", "staging-api.stratedge.live"]);
+const PRODUCTION_API_HOSTS = new Set(["api.edgecipline.com", "staging-api.edgecipline.com"]);
 ```
 
 The comment three lines above literally says *"Never point a release build here"* — but nothing enforces it.
 
-**Fix:** Add a `.env.production` with `api.stratedge.live`, and gate the staging host on a non-production mode so a production build physically cannot resolve it.
+**Fix:** Add a `.env.production` with `api.edgecipline.com`, and gate the staging host on a non-production mode so a production build physically cannot resolve it.
 
 ---
 
