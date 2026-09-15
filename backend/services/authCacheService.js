@@ -47,6 +47,11 @@ const CACHE_PROJECTION = [
   // makes req.user.onboarding permanently undefined, so those checks never
   // see a step as done regardless of what's actually saved in MongoDB.
   "onboarding",
+  // Free-tier funnel bookkeeping (exhaustedMarkets, sheet dismissal). Lets
+  // the quota endpoints skip a no-op backfill write on every poll. Every
+  // write to it in freeTierFunnelService invalidates this cache, and all of
+  // those writes are conditional, so a stale read can only cost a no-op.
+  "freeTier",
   "freeUploadUsed",
   "authProvider",
   "email",

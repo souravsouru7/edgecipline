@@ -36,6 +36,12 @@ const TYPE_CHANNEL = {
   streak_broken:          "edgecipline_coaching",
   evening_reflection:     "edgecipline_coaching",
   mission_update:         "edgecipline_coaching",
+  // Free-tier funnel nudges are insight-flavoured ("there's a pattern in
+  // your trades"), so they share the insights channel rather than coaching.
+  free_tier_d_plus_1:     "edgecipline_insights",
+  free_tier_d_plus_3:     "edgecipline_insights",
+  free_tier_d_plus_7:     "edgecipline_insights",
+  free_tier_d_plus_14:    "edgecipline_insights",
   // Support replies get their own channel so a customer can silence coaching
   // nudges without also silencing the answer to their billing question.
   support_ticket_created:   "edgecipline_support",

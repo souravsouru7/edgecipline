@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { BarChart3, BookOpen, Brain, CheckSquare, FileText, Camera, MessageCircle, Plus, Sparkles, Target } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, Brain, CheckSquare, FileText, Camera, MessageCircle, Plus, Sparkles, Target } from "lucide-react";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
@@ -63,7 +63,7 @@ function QuickAction({ href, icon: Icon, label, sub, accent = "#0D9E6E" }) {
   );
 }
 
-function GrowthPathStep({ step, index }) {
+function GrowthPathStep({ step, index, isLast }) {
   const Icon = step.icon;
 
   return (
@@ -71,6 +71,7 @@ function GrowthPathStep({ step, index }) {
       href={step.href}
       className="growth-path-step"
       style={{
+        position: "relative",
         display: "grid",
         gridTemplateColumns: "38px minmax(0, 1fr) auto",
         alignItems: "center",
@@ -84,6 +85,22 @@ function GrowthPathStep({ step, index }) {
         textDecoration: "none",
       }}
     >
+      {/* Connector to the next step. Sits in the grid gap; the stylesheet
+          turns it into a down-arrow on the last card of each row so the flow
+          reads left-to-right, then wraps, rather than pointing off the edge. */}
+      {!isLast && (
+        <span
+          className="growth-path-next"
+          aria-hidden="true"
+          style={{
+            background: step.done ? step.accent : "#FFFFFF",
+            color: step.done ? "#FFFFFF" : "#94A3B8",
+            borderColor: step.done ? step.accent : "#E2E8F0",
+          }}
+        >
+          <ArrowRight size={12} strokeWidth={2.75} />
+        </span>
+      )}
       <div
         style={{
           width: 38,
@@ -239,12 +256,92 @@ function TradingGrowthPath({ onboarding, stats, routes }) {
             Intelligence
           </Link>
         </div>
-        <div className="growth-path-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
+        <div className="growth-path-grid">
           {steps.map((step, index) => (
-            <GrowthPathStep key={step.title} step={step} index={index} />
+            <GrowthPathStep key={step.title} step={step} index={index} isLast={index === steps.length - 1} />
           ))}
         </div>
       </div>
+      <style>{`
+        /* Fixed column counts (instead of auto-fit) so the stylesheet knows
+           which card ends a row and can point its connector downward. Gap is
+           wide enough for the 22px connector badge to sit between cards. */
+        .growth-path-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 18px 22px;
+        }
+        .growth-path-next {
+          position: absolute;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 1px solid;
+          box-shadow: 0 2px 6px rgba(15, 25, 35, 0.12);
+          /* Single column: every connector points down to the next row. */
+          left: 50%;
+          bottom: -20px;
+          transform: translateX(-50%) rotate(90deg);
+        }
+        .growth-path-step:hover {
+          border-color: rgba(15, 25, 35, 0.18) !important;
+        }
+        @media (min-width: 560px) {
+          .growth-path-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .growth-path-next {
+            left: auto;
+            bottom: auto;
+            right: -22px;
+            top: 50%;
+            transform: translateY(-50%);
+          }
+          .growth-path-step:nth-child(2n) .growth-path-next {
+            right: auto;
+            top: auto;
+            left: 50%;
+            bottom: -20px;
+            transform: translateX(-50%) rotate(90deg);
+          }
+        }
+        @media (min-width: 880px) {
+          .growth-path-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .growth-path-step:nth-child(2n) .growth-path-next {
+            right: -22px;
+            top: 50%;
+            left: auto;
+            bottom: auto;
+            transform: translateY(-50%);
+          }
+          .growth-path-step:nth-child(3n) .growth-path-next {
+            right: auto;
+            top: auto;
+            left: 50%;
+            bottom: -20px;
+            transform: translateX(-50%) rotate(90deg);
+          }
+        }
+        @media (min-width: 1180px) {
+          .growth-path-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+          .growth-path-step:nth-child(3n) .growth-path-next {
+            right: -22px;
+            top: 50%;
+            left: auto;
+            bottom: auto;
+            transform: translateY(-50%);
+          }
+          .growth-path-step:nth-child(4n) .growth-path-next {
+            right: auto;
+            top: auto;
+            left: 50%;
+            bottom: -20px;
+            transform: translateX(-50%) rotate(90deg);
+          }
+        }
+      `}</style>
     </section>
   );
 }

@@ -27,14 +27,28 @@ const rescueDispatchSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    // Which funnel produced this row. The subscription rescue funnel is
+    // anchored on subscriptionExpiry; the free-tier funnel reuses the same
+    // row shape and unique index but anchors `cycleExpiry` on
+    // User.freeTier.lastFreeTradeAt (T0). Touchpoint codes never overlap
+    // between funnels, so the (user, cycleExpiry, touchpoint) index keeps
+    // deduping correctly without the funnel in the key. Defaults to the
+    // rescue funnel so every pre-existing row reads correctly unchanged.
+    funnel: {
+      type: String,
+      enum: ["subscription_rescue", "free_tier"],
+      default: "subscription_rescue",
+      index: true,
+    },
     // Touchpoint code from TOUCHPOINTS table: "d_minus_7", "d_plus_3", etc.
+    // Free-tier codes are prefixed: "free_d_plus_1" … "free_d_plus_14".
     touchpoint: {
       type: String,
       required: true,
     },
     phase: {
       type: String,
-      enum: ["pre_expiry", "expiry", "win_back"],
+      enum: ["pre_expiry", "expiry", "win_back", "free_tier"],
       required: true,
     },
     // Which channels actually got sent — for analytics + retry visibility.

@@ -945,7 +945,9 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
       permanent && appConfig.env !== "production"
         ? {
             operatorHint:
-              "Resend is rejecting password reset emails. If RESEND_FROM uses onboarding@resend.dev, Resend only allows sends to the account owner's test email. Verify your real domain in Resend and set RESEND_FROM to an address on that verified domain.",
+              error?.provider === "smtp"
+                ? "The SMTP relay rejected the login. For Gmail, SMTP_PASS must be an app password (myaccount.google.com/apppasswords), not the account password."
+                : "Resend is rejecting password reset emails. RESEND_FROM must be an address on a domain verified in the Resend account (edgecipline.com is verified, e.g. Edgecipline <noreply@edgecipline.com>); onboarding@resend.dev only delivers to the account owner, and gmail.com can never be verified. Alternatively set SMTP_USER and SMTP_PASS (a Gmail app password) to send through Gmail.",
           }
         : null,
       true

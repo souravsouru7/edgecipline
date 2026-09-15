@@ -141,6 +141,10 @@ function TicketList() {
                 <div className="tl-row-main">
                   <div className="tl-row-top">
                     <TicketCode code={ticket.ticketCode} />
+                    {/* Opened from "Report Issue" inside the app rather than
+                        typed in here — the thread carries the app's captured
+                        context, and the fix lands as a reply. */}
+                    {ticket.channel === "in_app" && <span className="tl-bug">Bug report</span>}
                     <StatusBadge status={ticket.status} label={ticket.statusLabel} />
                   </div>
                   <div className="tl-subject">{ticket.subject}</div>
@@ -306,6 +310,16 @@ function TicketList() {
           flex-wrap: wrap;
           font-size: 11.5px;
           color: var(--color-text-disabled);
+        }
+        .tl-bug {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: rgba(184, 134, 11, 0.12);
+          color: var(--color-gold);
         }
         .tl-msgs {
           display: inline-flex;

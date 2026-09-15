@@ -8,6 +8,7 @@ import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/service
 import { compressImage } from "@/utils/imageCompression";
 import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
+import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { getValidToken } from "@/utils/auth";
@@ -19,13 +20,24 @@ import { getDemoExtraction, INDIAN_DEMO_BROKER } from "@/features/trade/data/dem
 const DEFAULT_SETUP_RULES = [];
 const OCR_STORAGE_KEY_PATTERN = /(ocr|upload.*trade|trade.*upload|extracted|draft)/i;
 // Demo mode replays the pipeline's stages locally so onboarding still shows the
-// flow it promises, without an upload behind it. Offsets are cumulative ms.
+// flow it promises, without an upload behind it. Offsets are cumulative ms and
+// paced like a genuine Vision + Gemini run (upload ~1s, queue ~1.5s, extraction
+// several seconds) so the demo reads as real work rather than an instant fill.
+// Each stage gets a little jitter so back-to-back runs don't look scripted.
 const DEMO_STAGE_TIMELINE = [
-  { stage: "uploading",  atMs: 0 },
-  { stage: "pending",    atMs: 700 },
-  { stage: "processing", atMs: 1500 },
-  { stage: "completed",  atMs: 2400 },
+  { stage: "uploading",  atMs: 0,    jitterMs: 0 },
+  { stage: "pending",    atMs: 1100, jitterMs: 400 },
+  { stage: "processing", atMs: 2600, jitterMs: 600 },
+  { stage: "completed",  atMs: 7200, jitterMs: 1800 },
 ];
+function buildDemoStageSchedule() {
+  let last = 0;
+  return DEMO_STAGE_TIMELINE.map(({ stage, atMs, jitterMs }) => {
+    // Monotonic: jitter must never let a later stage fire before an earlier one.
+    last = Math.max(last + 150, atMs + Math.round(Math.random() * jitterMs));
+    return { stage, atMs: last };
+  });
+}
 const INDIAN_LOT_SIZES = {
   NIFTY: 25,
   BANKNIFTY: 15,
@@ -505,7 +517,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // Demo mode: entered from onboarding for users without their own broker
   // screenshot. We pre-load the bundled sample and run real extraction, but
   // every save path is blocked so a demo trade never reaches the journal.
-  const isDemo = searchParams?.get("demo") === "1";
+  //
+  // `demoExited` flips true the first time the user manually touches the
+  // upload zone (picks their own file, or clears the sample) — see
+  // `handleFileSelect` below. Without it, `?demo=1` stays on the URL for the
+  // rest of the session, so swapping the sample for a real screenshot still
+  // rendered the "DEMO — NOT SAVED" banner/button and blocked the save the
+  // user was actually trying to make.
+  const rawIsDemo = searchParams?.get("demo") === "1";
+  const [demoExited, setDemoExited] = useState(false);
+  const isDemo = rawIsDemo && !demoExited;
 
   // 2. Local UI/Form state
   const [mounted, setMounted]                 = useState(false);
@@ -513,6 +534,21 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [error, setError]                     = useState(null);
   // Non-null while a save is blocked by the free-tier allowance.
   const [limitBlock, setLimitBlock]           = useState(null);
+  // Post-save "you've used your free trades" sheet. While it is up the
+  // journal redirect is parked in `pendingRedirectRef` and fires on close.
+  const [lastFreeTradeSheet, setLastFreeTradeSheet] = useState(null);
+  const pendingRedirectRef = useRef(null);
+
+  // Single place that decides "redirect now, or after the sheet closes".
+  const scheduleRedirect = (res, dest) => {
+    const quota = applyQuotaFromResponse(queryClient, marketType, res);
+    if (res?.showLastFreeTradeSheet && quota) {
+      pendingRedirectRef.current = dest;
+      setLastFreeTradeSheet({ quota });
+      return;
+    }
+    setTimeout(() => router.push(dest), 1200);
+  };
   const [jobId, setJobId]                     = useState("");
   const [uploadedJobId, setUploadedJobId]     = useState(null);
   const [broker, setBroker]                   = useState("AUTO");
@@ -652,23 +688,31 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     setError(null);
     setDemoRunning(true);
 
-    const tid = addToast(
-      `Sample ${isInd ? "Indian" : "Forex"} screenshot loaded. Running demo extraction...`,
-      "loading",
-      Infinity
-    );
+    // Same toast copy and timing as the real pipeline (the "AI processing
+    // started" toast appears once the upload stage hands off to the job) -- the
+    // demo banner and blocked Save button already say nothing is persisted.
+    let tid = addToast("Uploading screenshot...", "loading", Infinity);
     setActiveToastId(tid);
 
-    demoTimersRef.current = DEMO_STAGE_TIMELINE.map(({ stage, atMs }) =>
+    demoTimersRef.current = buildDemoStageSchedule().map(({ stage, atMs }) =>
       setTimeout(() => {
         if (demoRunIdRef.current !== runId) return;
         setVisibleOcrStage((current) => keepProgressMovingForward(current, stage));
+        if (stage === "pending") {
+          removeToast(tid);
+          tid = addToast(
+            `Correct ${isInd ? "Indian" : "Forex"} image uploaded. AI processing started...`,
+            "loading",
+            Infinity
+          );
+          setActiveToastId(tid);
+        }
         if (stage !== "completed") return;
 
         applyProcessedTradeData(getDemoExtraction(marketType));
         removeToast(tid);
         setActiveToastId(null);
-        addToast("Demo trade details extracted — nothing was uploaded or saved.", "success");
+        addToast("Trade details extracted successfully!", "success");
         setDemoRunning(false);
         demoTimersRef.current = [];
       }, atMs)
@@ -817,6 +861,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   };
 
   const handleFileSelect = async (nextFile) => {
+    // Any manual touch of the upload zone — picking a real screenshot, or
+    // clearing the sample — is the user moving on from the guided demo.
+    // Stop treating this session as a demo so extraction and save behave
+    // like a normal upload from here on.
+    if (rawIsDemo) setDemoExited(true);
     uploadSessionRef.current += 1;
     await clearOcrSession({ nextFile, cancelJob: true });
   };
@@ -826,7 +875,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // user still clicks "Extract" themselves, and Save stays blocked (below).
   const demoSampleLoadedRef = useRef(false);
   useEffect(() => {
-    if (!isDemo || !mounted || demoSampleLoadedRef.current) return;
+    if (!rawIsDemo || !mounted || demoSampleLoadedRef.current) return;
     demoSampleLoadedRef.current = true;
     const samplePath = isInd ? "/sample_indianmarket.jpeg" : "/sample.png";
     const sampleName = isInd ? "sample_indianmarket.jpeg" : "sample.png";
@@ -847,7 +896,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemo, mounted, isInd]);
+  }, [rawIsDemo, mounted, isInd]);
 
   // Reconnect to a still-processing job after a hard refresh. The upload
   // itself is fire-and-forget server-side (OCRJob keeps running independent
@@ -1219,7 +1268,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
             const onboardingMode = searchParams?.get("onboarding") === "1";
             const journalRoute = isInd ? "/indian-market/trades" : "/trades";
             const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
-            setTimeout(() => router.push(dest), 1200);
+            scheduleRedirect(res, dest);
+          } else {
+            // Not the last row: still refresh the quota pill from the response.
+            applyQuotaFromResponse(queryClient, marketType, res);
           }
           return updated;
         });
@@ -1234,7 +1286,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         const onboardingMode = searchParams?.get("onboarding") === "1";
         const journalRoute = isInd ? "/indian-market/trades" : "/trades";
         const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
-        setTimeout(() => router.push(dest), 1200);
+        scheduleRedirect(res, dest);
       }
     },
     onError: (err) => {
@@ -1519,6 +1571,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     tradeCount, tradeSubType, setTradeSubType,
     limitBlock,
     dismissLimitBlock: () => setLimitBlock(null),
+    lastFreeTradeSheet,
+    closeLastFreeTradeSheet: () => {
+      setLastFreeTradeSheet(null);
+      const dest = pendingRedirectRef.current;
+      pendingRedirectRef.current = null;
+      if (dest) router.push(dest);
+    },
     savingAll: saveTradeMutation.isPending || isBatchSaving,
     handleUpload,
     clearOcrSession: async () => {
@@ -1651,7 +1710,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         setIsBatchSaving(true);
         const toastId = addToast(`Saving ${batchPayload.length} trades...`, "loading", Infinity);
         try {
-          await createTradesBatch({
+          const batchRes = await createTradesBatch({
             trades: batchPayload,
             ocrJobId: uploadedJobId || jobId || undefined,
           }, marketType);
@@ -1674,7 +1733,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           const onboardingMode = searchParams?.get("onboarding") === "1";
           const journalRoute = isInd ? "/indian-market/trades" : "/trades";
           const dest = onboardingMode ? `${journalRoute}?onboarding=1` : journalRoute;
-          setTimeout(() => router.push(dest), 1200);
+          scheduleRedirect(batchRes, dest);
         } catch (err) {
           removeToast(toastId);
           if (isTradeLimitError(err)) {

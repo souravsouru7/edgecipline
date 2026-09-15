@@ -92,6 +92,7 @@ async function main() {
     await inspectModelIndexes(require("../models/Influencer"));
     await inspectModelIndexes(require("../models/CheckoutSession"));
     await inspectModelIndexes(require("../models/CouponRedemption"));
+    await inspectModelIndexes(require("../models/CouponUserUsage"));
     await inspectModelIndexes(require("../models/AttributionTouch"));
     await explainCoreQueries();
   } finally {

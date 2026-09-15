@@ -6,16 +6,20 @@ const {
   getMyIssue,
 } = require("../controllers/issueReportController");
 const { protect } = require("../middleware/authMiddleware");
-const { uploadIssueReportImages } = require("../middleware/upload.middleware");
+const { uploadSupportAttachments } = require("../middleware/upload.middleware");
 const { issueReportRateLimiter } = require("../middleware/rateLimiter");
 const { validateRequest } = require("../middleware/validateRequest");
 const { issueSchemas } = require("../validation/schemas");
 
+// An issue report opens a support ticket, and its screenshots become that
+// ticket's attachments — so they go up through the SUPPORT uploader (private,
+// `authenticated` delivery) rather than the public one. Field name is
+// "attachments", matching the ticket form.
 router.post(
   "/",
   protect,
   issueReportRateLimiter,
-  uploadIssueReportImages,
+  uploadSupportAttachments,
   validateRequest(issueSchemas.create),
   submitIssue
 );

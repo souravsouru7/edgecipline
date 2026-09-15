@@ -85,7 +85,10 @@ const appConfig = {
       isProduction: (process.env.NODE_ENV || "development") === "production",
     }),
   },
-  mongoUri: normalizeMongoUri(requireEnv("MONGO_URI")),
+  // A local development URI takes precedence when explicitly configured.
+  // This avoids a later MONGO_URI entry (for example an Atlas URI kept for
+  // deployment) silently routing a local backend to production data.
+  mongoUri: normalizeMongoUri(process.env.MONGO_URI_LOCAL || requireEnv("MONGO_URI")),
   mongoDnsServers: readList("MONGO_DNS_SERVERS"),
   jwt: {
     secret: jwtSecrets.left,
@@ -208,6 +211,15 @@ const appConfig = {
     enabled: readBoolean("ENABLE_SUBSCRIPTION_RESCUE_CRON", true),
     schedule: process.env.SUBSCRIPTION_RESCUE_CRON || "15 * * * *",
     batchSize: readNumber("SUBSCRIPTION_RESCUE_BATCH_SIZE", 200),
+  },
+  // Hourly free-tier nudge funnel (D+1/D+3/D+7/D+14 after the last free
+  // trade). Same idempotency story as subscriptionRescue: the RescueDispatch
+  // unique index is the guarantee, the lock is an efficiency win. Offset
+  // from the rescue cron's minute so the two never contend for the queue.
+  freeTierNudge: {
+    enabled: readBoolean("ENABLE_FREE_TIER_NUDGE_CRON", true),
+    schedule: process.env.FREE_TIER_NUDGE_CRON || "35 * * * *",
+    batchSize: readNumber("FREE_TIER_NUDGE_BATCH_SIZE", 200),
   },
   streakProtector: {
     enabled: readBoolean("ENABLE_STREAK_PROTECTOR_CRON", true),
@@ -390,7 +402,29 @@ const appConfig = {
   },
   resend: {
     apiKey: process.env.RESEND_API_KEY || "",
-    from: process.env.RESEND_FROM || "Stratedge <noreply@stratedge.live>",
+    // edgecipline.com is the domain verified in the Resend account (DNS
+    // verified 2026-09-14, region ap-northeast-1). Any other domain — and any
+    // public mailbox domain such as gmail.com, which Resend can never verify —
+    // makes every send fail with 403 "domain is not verified".
+    from: process.env.RESEND_FROM || "Edgecipline <noreply@edgecipline.com>",
+  },
+  email: {
+    // Local testing of password reset without a verified Resend domain: the
+    // email (OTP included) is printed to the backend terminal instead of being
+    // sent. Same opt-in-AND-non-production gate as sandbox payments — a
+    // production box that sets this by mistake must still send real mail,
+    // otherwise every reset code would land in the server log.
+    consoleOnly:
+      readBoolean("EMAIL_CONSOLE_ONLY", false) &&
+      (process.env.NODE_ENV || "development") !== "production",
+    // Where a customer lands when they hit "reply" on a transactional email.
+    // noreply@edgecipline.com is send-only (Resend receiving is disabled on the
+    // domain), so without this every reply to an OTP or ticket email vanishes.
+    replyTo: process.env.EMAIL_REPLY_TO || "edgecipline@gmail.com",
+    // Upper bound on one provider call. The forgot-password request awaits the
+    // send, so a hung Resend/SMTP connection would otherwise pin the user's
+    // request until the HTTP timeout and surface as a generic 5xx.
+    sendTimeoutMs: readNumber("EMAIL_SEND_TIMEOUT_MS", 15000),
   },
   rateLimit: {
     globalWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
@@ -486,6 +520,66 @@ function assertGooglePlayRtdnConfig() {
   return appConfig.googlePlay;
 }
 
+// Mailbox providers whose domains Resend can never verify. RESEND_FROM on one
+// of these is a guaranteed 403 on every send — the single most common way the
+// forgot-password flow has been broken, so it is called out by name at boot.
+const PUBLIC_MAILBOX_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "outlook.com",
+  "hotmail.com", "live.com", "icloud.com", "proton.me", "protonmail.com", "rediffmail.com",
+]);
+
+function senderDomainOf(address) {
+  const match = String(address || "").match(/@([^>\s]+)/);
+  return (match?.[1] || "").toLowerCase();
+}
+
+// Every way the email config can be silently broken, as human sentences for
+// the boot log. Warnings, not throws: support/rescue email is optional, and a
+// misconfigured password reset already tells the user to contact support
+// rather than crashing. Nothing here is a secret.
+function getEmailConfigWarnings() {
+  const warnings = [];
+  const isProduction = appConfig.env === "production";
+  const smtpReady = Boolean(appConfig.smtp.user && appConfig.smtp.pass);
+
+  if (readBoolean("EMAIL_CONSOLE_ONLY", false) && isProduction) {
+    warnings.push("EMAIL_CONSOLE_ONLY=true is ignored in production; emails are sent for real.");
+  }
+  if (appConfig.email.consoleOnly) {
+    warnings.push("EMAIL_CONSOLE_ONLY=true: emails (including OTPs) are printed to this terminal, nothing is sent.");
+  }
+  if ((appConfig.smtp.user && !appConfig.smtp.pass) || (!appConfig.smtp.user && appConfig.smtp.pass)) {
+    warnings.push("SMTP_USER and SMTP_PASS must both be set for SMTP to be used; only one is set, so mail falls back to Resend.");
+  }
+  if (!smtpReady && !appConfig.resend.apiKey && !appConfig.email.consoleOnly) {
+    warnings.push(
+      "No email provider configured (RESEND_API_KEY empty, SMTP_USER/SMTP_PASS empty). " +
+      "Password reset and support emails cannot be sent."
+    );
+  }
+  if (!smtpReady && appConfig.resend.apiKey) {
+    const domain = senderDomainOf(appConfig.resend.from);
+    if (!domain) {
+      warnings.push(`RESEND_FROM="${appConfig.resend.from}" has no @domain; Resend will reject every send.`);
+    } else if (PUBLIC_MAILBOX_DOMAINS.has(domain)) {
+      warnings.push(
+        `RESEND_FROM uses ${domain}, which Resend cannot verify — every send will fail with 403. ` +
+        "Use an address on the verified domain (noreply@edgecipline.com) or set SMTP_USER/SMTP_PASS to send through Gmail."
+      );
+    } else if (domain === "resend.dev") {
+      warnings.push(
+        (isProduction ? "PRODUCTION: " : "") +
+        "RESEND_FROM is the Resend sandbox sender (onboarding@resend.dev), which only delivers to the " +
+        "Resend account owner's inbox. Real users will not receive password resets. Set RESEND_FROM=Edgecipline <noreply@edgecipline.com>."
+      );
+    }
+  }
+  if (!senderDomainOf(appConfig.email.replyTo)) {
+    warnings.push(`EMAIL_REPLY_TO="${appConfig.email.replyTo}" is not an email address; replies to transactional mail will bounce.`);
+  }
+  return warnings;
+}
+
 function getMaskedConfigSnapshot() {
   return {
     env: appConfig.env,
@@ -500,12 +594,20 @@ function getMaskedConfigSnapshot() {
     googleVisionClientEmail: appConfig.googleVision.clientEmail || "[missing]",
     openaiConfigured: Boolean(appConfig.ai.openaiApiKey),
     geminiConfigured: Boolean(appConfig.ai.geminiApiKey),
+    // Password reset lives or dies on these. SMTP (user + pass) takes priority
+    // over Resend in mailService; the Resend sender is printed in full because
+    // its domain has to be verified at resend.com/domains — a boot log that
+    // only says "configured: true" hides the one setting that breaks it.
+    emailProvider: appConfig.email.consoleOnly
+      ? "console (DEV ONLY — nothing is actually sent)"
+      : appConfig.smtp.user && appConfig.smtp.pass
+        ? "smtp"
+        : appConfig.resend.apiKey ? "resend" : "[none]",
     smtpUser: appConfig.smtp.user ? maskSecret(appConfig.smtp.user, 3, 8) : "[missing]",
-    // Password reset lives or dies on these two. The sender is printed in full
-    // because its domain has to be verified at resend.com/domains — a boot log
-    // that only says "configured: true" hides the one setting that breaks it.
     resendConfigured: Boolean(appConfig.resend.apiKey),
     resendFrom: appConfig.resend.from || "[missing]",
+    emailReplyTo: appConfig.email.replyTo || "[missing]",
+    emailWarnings: getEmailConfigWarnings(),
     // Play billing is the Android revenue path; if it is enabled but the
     // service account is absent, every purchase fails verification and the
     // user is charged without being activated. Print enough to spot that at
@@ -525,6 +627,7 @@ module.exports = {
   assertGooglePlayConfig,
   assertGooglePlayRtdnConfig,
   assertGoogleVisionConfig,
+  getEmailConfigWarnings,
   getMaskedConfigSnapshot,
   maskSecret,
 };

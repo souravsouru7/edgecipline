@@ -7,6 +7,7 @@ import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
+import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { MARKETS } from "@/context/MarketContext";
@@ -22,10 +23,54 @@ const getTodayInputValue = () => {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 };
 
+// Indian options: underlying picklist and the lot size each one trades in.
+// Mirrors the constants in app/indian-market/add-trade/page.js so both
+// manual-entry forms compute the same lotSize for the same underlying.
+export const UNDERLYINGS = ["NIFTY", "BANK NIFTY", "FIN NIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX", "Other"];
+export const LOT_SIZES = { "NIFTY": 25, "BANK NIFTY": 15, "FIN NIFTY": 25, "MIDCPNIFTY": 50, "SENSEX": 10, "BANKEX": 15, "Other": 1 };
+
+const INTEGER_NUMBER_FIELDS = new Set(["strikePrice", "quantity", "sharesQty"]);
+const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes", "stopLoss", "takeProfit"]);
+
+export const sanitizeNumericInput = (value, { allowNegative = false, integer = false } = {}) => {
+  const raw = String(value ?? "");
+  let cleaned = raw.replace(/[^\d.-]/g, "");
+
+  if (!allowNegative) {
+    cleaned = cleaned.replace(/-/g, "");
+  } else {
+    const isNegative = cleaned.startsWith("-");
+    cleaned = cleaned.replace(/-/g, "");
+    if (isNegative) cleaned = `-${cleaned}`;
+  }
+
+  if (integer) {
+    return cleaned.replace(/\./g, "");
+  }
+
+  const sign = cleaned.startsWith("-") ? "-" : "";
+  const unsigned = sign ? cleaned.slice(1) : cleaned;
+  const [firstPart, ...rest] = unsigned.split(".");
+  return `${sign}${firstPart}${rest.length ? `.${rest.join("")}` : ""}`;
+};
+
+export const blockInvalidNumberKeys = (e) => {
+  const fieldName = e.currentTarget?.name;
+  const isIntegerField = INTEGER_NUMBER_FIELDS.has(fieldName);
+  const allowsNegative = fieldName === "profit";
+  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
+  if (!allowsNegative && e.key === "-") e.preventDefault();
+  if (isIntegerField && e.key === ".") e.preventDefault();
+};
+
 /**
  * useAddTrade
  * Encapsulates setup loading, screenshot uploading, and form submission logic using TanStack Query.
  * Integrated with useToast for clear user feedback.
+ *
+ * Field set and validation are shared across Forex and Indian Market so
+ * manual entry looks and behaves the same for both — the Indian branch
+ * (tradeSubType EQUITY/OPTION) mirrors app/indian-market/add-trade/page.js.
  */
 export function useAddTrade(marketType, isIndianMarket) {
   const router = useRouter();
@@ -51,16 +96,26 @@ export function useAddTrade(marketType, isIndianMarket) {
     tradeDate: getTodayInputValue(),
     session: "",
     notes: "",
+    setup: "",
     riskRewardRatio: "",
     riskRewardCustom: "",
     screenshot: "",
     tradeImages: [],
-    // Indian Market Fields
-    segment: "Equity",
-    instrumentType: "EQUITY",
-    quantity: "",
+    // Indian Market Fields — options
+    underlying: "NIFTY",
+    underlyingOther: "",
     strikePrice: "",
+    optionType: "CE",
+    quantity: "",
     expiryDate: "",
+    // Indian Market Fields — intraday stocks (EQUITY)
+    stockSymbol: "",
+    exchange: "NSE",
+    sharesQty: "",
+    sector: "",
+    // Indian Market Fields — shared
+    segment: "F&O",
+    instrumentType: "OPTION",
     tradeType: "INTRADAY",
     brokerage: "",
     sttTaxes: "",
@@ -72,14 +127,25 @@ export function useAddTrade(marketType, isIndianMarket) {
     emotionalTags: [],
     mistakeTag: "",
     lesson: "",
+    wouldRetake: "",
     tradeQuality: "",
   });
+
+  // Indian Market only: toggles the Options vs Intraday Stocks (EQUITY) field
+  // set, same as app/indian-market/add-trade/page.js. Ignored for Forex.
+  const [tradeSubType, setTradeSubType] = useState(
+    searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
+  );
+  const isEquity = isIndianMarket && tradeSubType === "EQUITY";
 
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [setupRules, setSetupRules] = useState([]);
   const [mounted, setMounted] = useState(false);
   const submitLockRef = useRef(false);
+
+  const getUnderlyingLabel = () => (trade.underlying === "Other" ? trade.underlyingOther : trade.underlying);
+  const getLotSize = () => LOT_SIZES[trade.underlying] || 1;
 
   // 1. Fetch Setups Strategy via useQuery
   const { data: strategies = [], isLoading: setupsLoading } = useQuery({
@@ -102,25 +168,38 @@ export function useAddTrade(marketType, isIndianMarket) {
 
   // Non-null while a create is blocked by the free-tier allowance.
   const [limitBlock, setLimitBlock] = useState(null);
+  // Non-null while the post-save "you've used your free trades" sheet is up.
+  // The redirect below waits for it to close so the sheet is not unmounted
+  // mid-read by the navigation.
+  const [lastFreeTradeSheet, setLastFreeTradeSheet] = useState(null);
+
+  const goAfterSave = () => {
+    const isInd = marketType === MARKETS.INDIAN_MARKET;
+    if (onboardingMode) {
+      router.push(isInd ? "/indian-market/trades?onboarding=1" : "/trades?onboarding=1");
+      return;
+    }
+    router.push(isInd ? "/indian-market/dashboard" : "/dashboard");
+  };
 
   // 2. Submit Trade via useMutation
   const createTradeMutation = useMutation({
     mutationFn: (data) => createTrade(data, marketType),
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidateTradeDependentQueries(queryClient);
+      // The create response carries the post-save allowance, so the quota
+      // pill flips without a second request.
+      const quota = applyQuotaFromResponse(queryClient, marketType, res);
 
       addToast("Trade created and synced successfully!", "success");
 
       markOnboardingStep("tradeAdded", true).catch(() => {});
 
-      setTimeout(() => {
-        const isInd = marketType === MARKETS.INDIAN_MARKET;
-        if (onboardingMode) {
-          router.push(isInd ? "/indian-market/trades?onboarding=1" : "/trades?onboarding=1");
-          return;
-        }
-        router.push(isInd ? "/indian-market/dashboard" : "/dashboard");
-      }, 1000);
+      if (res?.showLastFreeTradeSheet && quota) {
+        setLastFreeTradeSheet({ quota });
+        return;
+      }
+      setTimeout(goAfterSave, 1000);
     },
     onError: (err) => {
       // Hitting the free allowance is not a form error — a toast would scroll
@@ -178,7 +257,13 @@ export function useAddTrade(marketType, isIndianMarket) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setTrade(prev => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (INTEGER_NUMBER_FIELDS.has(name)) {
+      nextValue = sanitizeNumericInput(value, { integer: true });
+    } else if (DECIMAL_NUMBER_FIELDS.has(name)) {
+      nextValue = sanitizeNumericInput(value, { allowNegative: name === "profit" });
+    }
+    setTrade(prev => ({ ...prev, [name]: nextValue }));
   };
 
   const handleStrategyChange = (e) => {
@@ -218,49 +303,181 @@ export function useAddTrade(marketType, isIndianMarket) {
   const addSetupRule = () => setSetupRules(p => [...p, { id: Date.now(), label: "", followed: false }]);
   const clearSetupRules = () => setSetupRules(p => p.map(r => ({ ...r, followed: false })));
 
+  // parseNumericField preserves 0 — unlike `parseFloat(x) || undefined` which
+  // silently drops legitimate zero values (e.g. breakeven P&L).
+  const parseNumericField = (val) => {
+    const n = parseFloat(val);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  // Validation and payload shape mirror app/indian-market/add-trade/page.js
+  // so manual entry requires and stores the same information regardless of
+  // which page the user lands on for a given market.
   const handleSubmit = (e, { accountCreatedDate, tradeOverrides = {} } = {}) => {
     if (e) e.preventDefault();
     if (submitLockRef.current || createTradeMutation.isPending) {
       return;
     }
-    if (!trade.pair) {
-      addToast(`Please enter a ${isIndianMarket ? "Symbol" : "Pair"}`, "info");
+
+    const showValidation = (message) => addToast(message, "info");
+
+    if (isIndianMarket) {
+      if (isEquity) {
+        if (!trade.stockSymbol?.trim()) {
+          showValidation("Enter stock symbol (e.g. RELIANCE).");
+          return;
+        }
+        const sq = String(trade.sharesQty).trim();
+        if (!sq || isNaN(parseFloat(sq)) || parseFloat(sq) <= 0) {
+          showValidation("Enter shares quantity.");
+          return;
+        }
+      } else {
+        const underlyingLabel = getUnderlyingLabel();
+        if (!underlyingLabel?.trim()) {
+          showValidation("Select or enter underlying (e.g. NIFTY).");
+          return;
+        }
+        const strike = trade.strikePrice?.trim();
+        if (!strike || isNaN(parseFloat(strike))) {
+          showValidation("Enter strike price.");
+          return;
+        }
+        const qty = trade.quantity?.trim();
+        if (!qty || isNaN(parseFloat(qty)) || parseFloat(qty) <= 0) {
+          showValidation("Enter quantity (lots).");
+          return;
+        }
+      }
+    } else if (!trade.pair) {
+      showValidation("Please enter a Pair");
+      return;
+    }
+
+    const pnl = String(trade.profit).trim();
+    if (pnl === "" || isNaN(parseFloat(pnl))) {
+      showValidation("Enter profit or loss.");
+      return;
+    }
+    const ep = String(trade.entryPrice).trim();
+    if (!ep || isNaN(parseFloat(ep)) || parseFloat(ep) <= 0) {
+      showValidation(isEquity ? "Enter avg buy price." : "Enter entry price.");
+      return;
+    }
+    const xp = String(trade.exitPrice).trim();
+    if (!xp || isNaN(parseFloat(xp)) || parseFloat(xp) <= 0) {
+      showValidation(isEquity ? "Enter avg sell price." : "Enter exit price.");
       return;
     }
     if (!trade.tradeDate) {
-      addToast("Please select a trade date", "info");
+      showValidation("Please select a trade date");
       return;
     }
     if (accountCreatedDate && trade.tradeDate < accountCreatedDate) {
-      addToast(`Trade date cannot be before your account creation date (${accountCreatedDate})`, "info");
+      showValidation(`Trade date cannot be before your account creation date (${accountCreatedDate})`);
+      return;
+    }
+    if (trade.tradeDate > getTodayInputValue()) {
+      showValidation("Trade date cannot be in the future.");
+      return;
+    }
+    if (!trade.riskRewardRatio) {
+      showValidation("Select planned risk : reward ratio.");
+      return;
+    }
+    if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
+      showValidation("Enter your custom risk : reward ratio.");
+      return;
+    }
+    if (!trade.mood) {
+      showValidation("Select how you're feeling.");
+      return;
+    }
+    if (!trade.confidence) {
+      showValidation("Select your confidence level.");
+      return;
+    }
+    if (!trade.emotionalTags || trade.emotionalTags.length === 0) {
+      showValidation("Select at least one emotional tag.");
       return;
     }
 
-    // parseNumericField preserves 0 — unlike `parseFloat(x) || undefined`
-    // which silently drops legitimate zero values (e.g. breakeven P&L).
-    const parseNumericField = (val) => {
-      const n = parseFloat(val);
-      return Number.isFinite(n) ? n : undefined;
-    };
-
-    const tradeData = {
-      ...trade,
+    const sharedFields = {
       type: trade.type.toUpperCase(),
+      profit: parseNumericField(trade.profit),
       entryPrice: parseNumericField(trade.entryPrice),
-      exitPrice:  parseNumericField(trade.exitPrice),
-      stopLoss:   parseNumericField(trade.stopLoss),
+      exitPrice: parseNumericField(trade.exitPrice),
+      stopLoss: parseNumericField(trade.stopLoss),
       takeProfit: parseNumericField(trade.takeProfit),
-      profit:     parseNumericField(trade.profit),
-      lotSize: !isIndianMarket ? parseNumericField(trade.lotSize) : undefined,
-      quantity: isIndianMarket ? parseNumericField(trade.quantity) : undefined,
-      strategy: trade.strategy === "Custom" ? trade.strategyCustom : trade.strategy,
+      strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
+      setup: trade.setup || undefined,
       tradeDate: trade.tradeDate,
       riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
       riskRewardCustom: trade.riskRewardCustom?.trim() || "",
-      // Page-level overrides (e.g. tradeImages after async upload) win over
-      // the in-state snapshot to bypass setState's async closure issue.
-      ...tradeOverrides,
+      entryBasis: trade.entryBasis || "Plan",
+      entryBasisCustom: trade.entryBasis === "Custom" ? trade.entryBasisCustom : "",
+      notes: trade.notes || undefined,
+      mistakeTag: trade.mistakeTag || undefined,
+      lesson: trade.lesson || undefined,
+      mood: trade.mood ?? undefined,
+      confidence: trade.confidence || undefined,
+      emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
+      wouldRetake: trade.wouldRetake || undefined,
+      tradeQuality: trade.tradeQuality || undefined,
+      screenshot: trade.screenshot || "",
+      tradeImages: trade.tradeImages || [],
     };
+
+    let tradeData;
+    if (isIndianMarket) {
+      if (isEquity) {
+        const symbol = trade.stockSymbol.trim().toUpperCase();
+        tradeData = {
+          ...sharedFields,
+          pair: symbol,
+          stockSymbol: symbol,
+          exchange: trade.exchange || "NSE",
+          sharesQty: parseFloat(trade.sharesQty),
+          sector: trade.sector || undefined,
+          instrumentType: "EQUITY",
+          segment: "EQUITY",
+          tradeType: "INTRADAY",
+          brokerage: trade.brokerage ? parseFloat(trade.brokerage) : undefined,
+          sttTaxes: trade.sttTaxes ? parseFloat(trade.sttTaxes) : undefined,
+        };
+      } else {
+        const underlyingLabel = getUnderlyingLabel();
+        const strike = trade.strikePrice.trim();
+        const qty = trade.quantity.trim();
+        tradeData = {
+          ...sharedFields,
+          pair: `${underlyingLabel.trim()} ${strike} ${trade.optionType}`,
+          underlying: underlyingLabel.trim(),
+          strikePrice: parseFloat(strike),
+          optionType: trade.optionType,
+          segment: "F&O",
+          instrumentType: "OPTION",
+          tradeType: trade.tradeType || "INTRADAY",
+          quantity: parseFloat(qty),
+          lotSize: getLotSize(),
+          expiryDate: trade.expiryDate || undefined,
+          brokerage: trade.brokerage ? parseFloat(trade.brokerage) : undefined,
+          sttTaxes: trade.sttTaxes ? parseFloat(trade.sttTaxes) : undefined,
+        };
+      }
+    } else {
+      tradeData = {
+        ...sharedFields,
+        pair: trade.pair,
+        lotSize: parseNumericField(trade.lotSize),
+        commission: trade.commission ? parseFloat(trade.commission) : undefined,
+        swap: trade.swap ? parseFloat(trade.swap) : undefined,
+      };
+    }
+
+    // Page-level overrides (e.g. tradeImages after async upload) win over
+    // the in-state snapshot to bypass setState's async closure issue.
+    tradeData = { ...tradeData, ...tradeOverrides };
 
     const activeRules = setupRules.filter(r => r.label?.trim());
     tradeData.setupRules = activeRules.map(r => ({ label: r.label.trim(), followed: r.followed }));
@@ -277,5 +494,12 @@ export function useAddTrade(marketType, isIndianMarket) {
     isSaving: createTradeMutation.isPending,
     limitBlock,
     dismissLimitBlock: () => setLimitBlock(null),
+    lastFreeTradeSheet,
+    closeLastFreeTradeSheet: () => {
+      setLastFreeTradeSheet(null);
+      goAfterSave();
+    },
+    tradeSubType, setTradeSubType, isEquity,
+    getUnderlyingLabel, getLotSize,
   };
 }

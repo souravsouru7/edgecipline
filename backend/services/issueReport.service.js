@@ -1,17 +1,60 @@
 const crypto = require("crypto");
 const IssueReport = require("../models/IssueReport");
-const User = require("../models/Users");
+const SupportTicket = require("../models/SupportTicket");
 const ApiError = require("../utils/ApiError");
-const adminPushService = require("./adminPushService");
 const { enqueueNotificationDelivery } = require("../queues/smartNotificationQueue");
 const { logger } = require("../utils/logger");
-const cloudinary = require("../config/cloudinary");
 const { buildPagination } = require("../utils/apiResponse");
+const { destroySupportAttachments } = require("../utils/supportAttachments");
+const { UNRESOLVED_STATUSES, LIMITS } = require("../constants/support");
+const supportTicketService = require("./supportTicket.service");
 
 const ALLOWED_CATEGORIES = new Set(IssueReport.ISSUE_CATEGORIES);
 const ALLOWED_MARKETS = new Set(IssueReport.MARKET_TYPES);
 const ALLOWED_PLATFORMS = new Set(IssueReport.PLATFORMS);
 const ALLOWED_STATUSES = new Set(IssueReport.ISSUE_STATUSES);
+
+// An issue report is a support ticket with structured telemetry attached. The
+// ticket is what the customer sees and what the support queue works; the
+// IssueReport row keeps the OCR snapshot, device info and fix version that a
+// conversation thread has no place for. Every report therefore maps onto one
+// of the support categories the queue already routes on.
+const SUPPORT_CATEGORY_FOR_ISSUE = {
+  OCR_EXTRACTION: "trade_import",
+  IMAGE_UPLOAD: "trade_import",
+  TRADE_SAVE: "trading_journal",
+  JOURNAL: "trading_journal",
+  SETUP: "trading_journal",
+  NOTIFICATION: "technical_issue",
+  LOGIN: "account_profile",
+  PERFORMANCE: "technical_issue",
+  CRASH: "technical_issue",
+  OTHER: "other",
+};
+
+const ISSUE_LABELS = {
+  OCR_EXTRACTION: "OCR extraction",
+  IMAGE_UPLOAD: "Image upload",
+  TRADE_SAVE: "Trade save",
+  JOURNAL: "Journal",
+  SETUP: "Setup",
+  NOTIFICATION: "Notification",
+  LOGIN: "Login",
+  PERFORMANCE: "Performance",
+  CRASH: "Crash",
+  OTHER: "Other",
+};
+
+// A crash or a lockout is costing the customer the product right now; a
+// cosmetic journal bug is not.
+const HIGH_PRIORITY_ISSUES = new Set(["CRASH", "LOGIN"]);
+
+function ticketTagsForIssue(issueCategory) {
+  const tags = ["bug"];
+  if (issueCategory === "OCR_EXTRACTION") tags.push("ocr_failure");
+  if (issueCategory === "LOGIN") tags.push("cannot_login");
+  return tags;
+}
 
 function generateIssueCode() {
   // 6-char base36 random suffix → ISS-XXXXXX
@@ -64,37 +107,119 @@ function sanitizeDeviceInfo(info) {
   return Object.keys(clean).length ? clean : null;
 }
 
-async function destroyUploadedScreenshots(images) {
-  if (!Array.isArray(images) || !images.length) return;
-  await Promise.all(
-    images.map(async (img) => {
-      if (!img?.publicId) return;
-      try {
-        await cloudinary.uploader.destroy(img.publicId, { resource_type: "image" });
-      } catch (error) {
-        logger.warn("[IssueReport] failed to destroy screenshot", {
-          publicId: img.publicId,
-          error: error.message,
-        });
-      }
-    })
-  );
+function parseJsonField(raw) {
+  if (typeof raw !== "string") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
-async function createIssue({ user, body, uploadedImages = [] }) {
+// ─── Ticket shaping ──────────────────────────────────────────────────────────
+
+/** The values an agent needs at a glance, as "Label value" pairs. */
+function describeOcrValues(snapshot) {
+  if (!snapshot) return "";
+  // The user's corrected values are the truth; the raw extraction is what
+  // went wrong. Prefer the former for the summary line, fall back to the flat
+  // shape older clients send.
+  const values =
+    (snapshot.correctedValues && !Array.isArray(snapshot.correctedValues) && snapshot.correctedValues) ||
+    (snapshot.extractedValues && !Array.isArray(snapshot.extractedValues) && snapshot.extractedValues) ||
+    snapshot;
+
+  const pairs = [
+    ["Symbol", values.symbol || values.pair || values.stockSymbol],
+    ["Entry", values.entry ?? values.entryPrice],
+    ["Exit", values.exit ?? values.exitPrice],
+    ["Stop loss", values.stopLoss],
+    ["Take profit", values.takeProfit],
+    ["Qty", values.quantity ?? values.sharesQty ?? values.lotSize],
+    ["P/L", values.profit ?? values.pnl],
+    ["Date", values.date || values.tradeDate],
+  ].filter(([, v]) => v !== undefined && v !== null && v !== "");
+
+  const parts = pairs.map(([label, v]) => `${label} ${String(v).slice(0, 40)}`);
+  if (snapshot.broker) parts.push(`Broker ${snapshot.broker}`);
+  if (Number.isFinite(snapshot.extractionConfidence)) {
+    parts.push(`Confidence ${snapshot.extractionConfidence}/100`);
+  }
+  return parts.join(" · ");
+}
+
+function primarySymbol(snapshot) {
+  if (!snapshot) return "";
+  const source = [snapshot.correctedValues, snapshot.extractedValues, snapshot].find(
+    (v) => v && typeof v === "object" && !Array.isArray(v)
+  );
+  const symbol = source && (source.symbol || source.pair || source.stockSymbol);
+  return typeof symbol === "string" ? symbol.trim().slice(0, 30) : "";
+}
+
+function buildTicketSubject({ issueCategory, description, ocrSnapshot }) {
+  const label = ISSUE_LABELS[issueCategory] || "App";
+  const symbol = primarySymbol(ocrSnapshot);
+  let subject;
+  if (symbol) {
+    subject = `${label} problem — ${symbol}`;
+  } else {
+    const firstLine = description.split(/\r?\n/).find((line) => line.trim()) || "";
+    const snippet = firstLine.trim().slice(0, 70);
+    subject = snippet ? `${label} problem: ${snippet}` : `${label} problem`;
+  }
+  return subject.slice(0, LIMITS.subjectMax);
+}
+
+function buildTicketBody({ description, issueCategory, marketType, platform, appVersion, module, ocrSnapshot }) {
+  const meta = [
+    `Reported from the app · ${ISSUE_LABELS[issueCategory] || issueCategory}`,
+    marketType && marketType !== "Unknown" ? marketType.replace(/_/g, " ") : null,
+    platform && platform !== "unknown" ? `${platform}${appVersion ? ` v${appVersion}` : ""}` : null,
+    module ? `screen: ${module}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const lines = [description, "", "—", meta];
+  const ocrLine = describeOcrValues(ocrSnapshot);
+  if (ocrLine) lines.push(`Extracted values: ${ocrLine}`);
+
+  // Description is capped at 4000 and the footer is a few hundred characters,
+  // so this never approaches the 10 000 message limit — the slice is a guard,
+  // not a path that runs.
+  return lines.join("\n").slice(0, LIMITS.messageMax);
+}
+
+// ─── Create ──────────────────────────────────────────────────────────────────
+
+/**
+ * Open a support ticket for the report and record the telemetry against it.
+ *
+ * Ordering matters. The ticket goes first because supportTicket.service owns
+ * every guard around the uploads — the tickets-disabled switch, the per-user
+ * open-ticket cap, idempotent retries — and destroys the attachments itself on
+ * each of those paths. Creating the IssueReport first would leave an orphaned
+ * telemetry row pointing at nothing whenever one of those guards fires.
+ *
+ * If the ticket succeeds and the telemetry row then fails, the ticket is kept:
+ * the customer has a conversation with their screenshots in it, which is the
+ * part that must not be lost. The gap is logged for reconciliation.
+ */
+async function createIssue({ user, body, uploadedImages = [], requestId = "" }) {
   const issueCategory = String(body.issueCategory || "").trim().toUpperCase();
   if (!ALLOWED_CATEGORIES.has(issueCategory)) {
-    await destroyUploadedScreenshots(uploadedImages);
+    await destroySupportAttachments(uploadedImages);
     throw new ApiError(400, "Invalid issueCategory", "VALIDATION_ERROR");
   }
 
   const description = String(body.description || "").trim();
   if (description.length < 5) {
-    await destroyUploadedScreenshots(uploadedImages);
+    await destroySupportAttachments(uploadedImages);
     throw new ApiError(400, "Description must be at least 5 characters", "VALIDATION_ERROR");
   }
   if (description.length > 4000) {
-    await destroyUploadedScreenshots(uploadedImages);
+    await destroySupportAttachments(uploadedImages);
     throw new ApiError(400, "Description exceeds 4000 character limit", "VALIDATION_ERROR");
   }
 
@@ -102,107 +227,115 @@ async function createIssue({ user, body, uploadedImages = [] }) {
   const platform = ALLOWED_PLATFORMS.has(body.platform) ? body.platform : "unknown";
   const module = typeof body.module === "string" ? body.module.slice(0, 100) : "";
   const appVersion = typeof body.appVersion === "string" ? body.appVersion.slice(0, 30) : "";
+  const submissionId =
+    body.submissionId && typeof body.submissionId === "string" ? body.submissionId.slice(0, 100) : null;
 
-  let ocrSnapshot = null;
-  if (issueCategory === "OCR_EXTRACTION") {
-    let raw = body.ocrDataSnapshot;
-    if (typeof raw === "string") {
-      try {
-        raw = JSON.parse(raw);
-      } catch {
-        raw = null;
-      }
-    }
-    ocrSnapshot = sanitizeOcrSnapshot(raw);
-  }
+  const ocrSnapshot =
+    issueCategory === "OCR_EXTRACTION" ? sanitizeOcrSnapshot(parseJsonField(body.ocrDataSnapshot)) : null;
+  const deviceInfo = sanitizeDeviceInfo(parseJsonField(body.deviceInfo));
 
-  let deviceInfo = body.deviceInfo;
-  if (typeof deviceInfo === "string") {
-    try {
-      deviceInfo = JSON.parse(deviceInfo);
-    } catch {
-      deviceInfo = null;
-    }
-  }
-  deviceInfo = sanitizeDeviceInfo(deviceInfo);
-
-  const screenshots = uploadedImages.map((img) => ({
-    url: img.imageUrl,
-    publicId: img.publicId || "",
-    bytes: img.bytes || 0,
-  }));
-
-  // Idempotency: if client supplies a unique submissionId, retry-safe
-  if (body.submissionId && typeof body.submissionId === "string") {
-    const existing = await IssueReport.findOne({
-      user: user._id,
-      "timeline.note": `submissionId:${body.submissionId}`,
-    })
-      .select("_id issueCode status createdAt")
-      .lean();
-    if (existing) {
-      await destroyUploadedScreenshots(uploadedImages);
-      return existing;
-    }
-  }
-
-  // Generate a unique issueCode and insert in one step. The exists()+create()
-  // pattern races under concurrency (two requests can each see "not exists"
-  // then both insert the same code). Catch 11000 duplicate-key and retry.
-  // Requires a unique index on IssueReport.issueCode.
-  let issue;
-  const MAX_CODE_ATTEMPTS = 5;
-  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
-    const candidate = generateIssueCode();
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      issue = await IssueReport.create({
-        issueCode: candidate,
-        user: user._id,
-        email: user.email || "",
-        marketType,
-        module,
-        issueCategory,
+  // Throws on: tickets disabled (503), open-ticket cap (429), storage errors.
+  // Attachments are destroyed inside on every failure path. A retried submit
+  // with the same submissionId returns the original ticket (deduped: true).
+  const { ticket, deduped } = await supportTicketService.createTicket({
+    user,
+    body: {
+      subject: buildTicketSubject({ issueCategory, description, ocrSnapshot }),
+      description: buildTicketBody({
         description,
-        screenshots,
-        tradeId: body.tradeId || null,
-        ocrDataSnapshot: ocrSnapshot,
-        appVersion,
+        issueCategory,
+        marketType,
         platform,
-        deviceInfo,
-        status: "OPEN",
-        timeline: [
-          {
-            status: "OPEN",
-            at: new Date(),
-            note: body.submissionId ? `submissionId:${body.submissionId}` : "",
-          },
-        ],
-      });
-      break;
-    } catch (error) {
-      const isDup = error?.code === 11000 && /issueCode/.test(error?.message || "");
-      if (!isDup) {
-        await destroyUploadedScreenshots(uploadedImages);
-        throw error;
+        appVersion,
+        module,
+        ocrSnapshot,
+      }),
+      category: SUPPORT_CATEGORY_FOR_ISSUE[issueCategory] || "other",
+      subcategory: ISSUE_LABELS[issueCategory] || "",
+      priority: HIGH_PRIORITY_ISSUES.has(issueCategory) ? "high" : "normal",
+      platform,
+      appVersion,
+      marketType,
+      clientRequestId: submissionId,
+    },
+    uploadedImages,
+    requestId,
+    channel: "in_app",
+    tags: ticketTagsForIssue(issueCategory),
+  });
+
+  // A deduped ticket normally already has its telemetry row. It may not, if
+  // the first attempt died between the two writes — in which case this
+  // request completes the pair rather than reporting a phantom success.
+  if (deduped) {
+    const existing = await IssueReport.findOne({ linkedTicket: ticket._id }).lean();
+    if (existing) return { issue: existing, ticket, deduped: true };
+  }
+
+  let issue = null;
+  const MAX_CODE_ATTEMPTS = 5;
+  try {
+    for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        issue = await IssueReport.create({
+          issueCode: generateIssueCode(),
+          user: user._id,
+          email: user.email || "",
+          marketType,
+          module,
+          issueCategory,
+          description,
+          // Screenshots are private support attachments on the ticket's first
+          // message, served only through the authorised attachment endpoint.
+          screenshots: [],
+          tradeId: body.tradeId || null,
+          linkedTicket: ticket._id,
+          ocrDataSnapshot: ocrSnapshot,
+          appVersion,
+          platform,
+          deviceInfo,
+          status: "OPEN",
+          timeline: [
+            {
+              status: "OPEN",
+              at: new Date(),
+              note: submissionId ? `submissionId:${submissionId}` : "",
+            },
+          ],
+        });
+        break;
+      } catch (error) {
+        const isDup = error?.code === 11000 && /issueCode/.test(error?.message || "");
+        if (!isDup) throw error;
       }
-      // else: collision on issueCode — pick a new one and retry.
     }
+  } catch (error) {
+    logger.error("[IssueReport] ticket created but telemetry row failed", {
+      ticketCode: ticket.ticketCode,
+      userId: String(user._id),
+      error: error.message,
+    });
   }
+
   if (!issue) {
-    await destroyUploadedScreenshots(uploadedImages);
-    throw new ApiError(500, "Could not allocate issue code", "INTERNAL_ERROR");
+    return { issue: null, ticket, deduped };
   }
 
-  // Fire-and-forget admin push — never block the user's response on it.
-  adminPushService
-    .sendNewIssueAlert(issue.toObject(), { name: user.name, email: user.email })
-    .catch((err) =>
-      logger.warn("[IssueReport] admin push alert failed", { issueCode, error: err.message })
-    );
+  await SupportTicket.updateOne({ _id: ticket._id }, { $set: { linkedIssue: issue._id } }).catch((error) =>
+    logger.warn("[IssueReport] failed to back-link ticket to issue", {
+      ticketCode: ticket.ticketCode,
+      issueCode: issue.issueCode,
+      error: error.message,
+    })
+  );
 
-  return issue;
+  return { issue: issue.toObject(), ticket, deduped };
 }
+
+// ─── Reads ───────────────────────────────────────────────────────────────────
+
+const LINKED_TICKET_FIELDS = "ticketCode status";
 
 async function listUserIssues(userId, query = {}) {
   const page = Number(query.page) || 1;
@@ -213,7 +346,8 @@ async function listUserIssues(userId, query = {}) {
 
   const [items, total] = await Promise.all([
     IssueReport.find(filter)
-      .select("issueCode marketType module issueCategory description status createdAt updatedAt fixedAt fixedVersion screenshots")
+      .select("issueCode marketType module issueCategory description status createdAt updatedAt fixedAt fixedVersion screenshots linkedTicket")
+      .populate("linkedTicket", LINKED_TICKET_FIELDS)
       .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -227,7 +361,9 @@ async function listUserIssues(userId, query = {}) {
 }
 
 async function getUserIssue(userId, issueId) {
-  const issue = await IssueReport.findOne({ _id: issueId, user: userId }).lean();
+  const issue = await IssueReport.findOne({ _id: issueId, user: userId })
+    .populate("linkedTicket", LINKED_TICKET_FIELDS)
+    .lean();
   if (!issue) throw new ApiError(404, "Issue not found", "NOT_FOUND");
   return issue;
 }
@@ -248,6 +384,7 @@ async function listAllIssues(query = {}) {
   const [items, total] = await Promise.all([
     IssueReport.find(filter)
       .populate("user", "name email role")
+      .populate("linkedTicket", LINKED_TICKET_FIELDS)
       .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -261,12 +398,86 @@ async function listAllIssues(query = {}) {
 }
 
 async function getIssueForAdmin(issueId) {
-  const issue = await IssueReport.findById(issueId).populate("user", "name email role").lean();
+  const issue = await IssueReport.findById(issueId)
+    .populate("user", "name email role")
+    .populate("linkedTicket", LINKED_TICKET_FIELDS)
+    .lean();
   if (!issue) throw new ApiError(404, "Issue not found", "NOT_FOUND");
   return issue;
 }
 
-async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, note }) {
+// ─── Status ──────────────────────────────────────────────────────────────────
+
+/**
+ * Mirror an engineering status change onto the customer's ticket.
+ *
+ * The customer is reading the ticket, not the issue tracker, so a fix marked
+ * here has to reach them there. Only two transitions are mirrored:
+ *   INVESTIGATING → ticket moves open → in_progress (a signal, nothing more)
+ *   FIXED         → a public reply with the fix summary, then resolved
+ * CLOSED is deliberately NOT mirrored. An engineer closing a report as
+ * "duplicate" or "cannot reproduce" must not yank an open conversation away
+ * from a customer mid-thread; the agent working the ticket closes it.
+ *
+ * Best-effort throughout: the issue update has already been saved, and a
+ * ticket-side failure must not turn it into an error.
+ */
+async function syncLinkedTicket({ issue, prevStatus, staffUser }) {
+  if (!issue.linkedTicket || !staffUser?._id) return;
+
+  const ticket = await SupportTicket.findById(issue.linkedTicket).select("status ticketCode").lean();
+  if (!ticket) return;
+
+  const ticketId = String(ticket._id);
+  const actorRole = staffUser.role === "admin" ? "admin" : "agent";
+
+  if (issue.status === "INVESTIGATING" && prevStatus !== "INVESTIGATING" && ticket.status === "open") {
+    await supportTicketService.changeStatus({
+      staffUser,
+      actorRole,
+      ticketId,
+      status: "in_progress",
+      requestId: `issue:${issue.issueCode}`,
+    });
+    return;
+  }
+
+  if (issue.status === "FIXED" && prevStatus !== "FIXED") {
+    const fixLine = `The bug behind this ticket has been fixed${
+      issue.fixedVersion ? ` in v${issue.fixedVersion}` : ""
+    }.`;
+    const body = [
+      fixLine,
+      issue.fixSummary ? `\n${issue.fixSummary}` : null,
+      "\nIf you're still seeing the problem, reply here and we'll take another look.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    await supportTicketService.replyAsAgent({
+      staffUser,
+      actorRole,
+      ticketId,
+      body,
+      requestId: `issue:${issue.issueCode}`,
+    });
+
+    // Re-read: the reply may have moved open → in_progress.
+    const fresh = await SupportTicket.findById(ticketId).select("status").lean();
+    if (fresh && UNRESOLVED_STATUSES.includes(fresh.status)) {
+      await supportTicketService.changeStatus({
+        staffUser,
+        actorRole,
+        ticketId,
+        status: "resolved",
+        resolutionSummary: issue.fixSummary || fixLine,
+        requestId: `issue:${issue.issueCode}`,
+      });
+    }
+  }
+}
+
+async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, note, staffUser = null }) {
   if (!ALLOWED_STATUSES.has(status)) {
     throw new ApiError(400, "Invalid status", "VALIDATION_ERROR");
   }
@@ -287,8 +498,23 @@ async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, no
 
   await issue.save();
 
-  // Notify reporter when transitioning to FIXED — once.
-  if (status === "FIXED" && prevStatus !== "FIXED" && !issue.fixNotificationSent) {
+  if (issue.linkedTicket) {
+    try {
+      await syncLinkedTicket({ issue, prevStatus, staffUser });
+    } catch (error) {
+      logger.warn("[IssueReport] failed to mirror status onto linked ticket", {
+        issueCode: issue.issueCode,
+        ticketId: String(issue.linkedTicket),
+        status,
+        error: error.message,
+      });
+    }
+  }
+
+  // Legacy path for reports that predate the ticket link. A linked report's
+  // customer is told through the ticket (reply + resolution notifications);
+  // a second "issue fixed" push on top of those would be noise.
+  if (!issue.linkedTicket && status === "FIXED" && prevStatus !== "FIXED" && !issue.fixNotificationSent) {
     try {
       await enqueueNotificationDelivery({ userId: issue.user, notification: {
         type: "issue_fixed",
@@ -303,7 +529,7 @@ async function updateIssueStatus(issueId, { status, fixSummary, fixedVersion, no
           issueCode: issue.issueCode,
           fixedVersion: issue.fixedVersion || "",
         },
-        deepLink: `/issues/${issue._id.toString()}`,
+        deepLink: `/issues/detail?id=${issue._id.toString()}`,
         sourceType: "issue_report",
         sourceId: issue._id,
         dedupeKey: `issue_fixed:${issue._id.toString()}`,
@@ -358,4 +584,5 @@ module.exports = {
   getIssueForAdmin,
   updateIssueStatus,
   getAnalyticsSummary,
+  SUPPORT_CATEGORY_FOR_ISSUE,
 };

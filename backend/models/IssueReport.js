@@ -78,6 +78,17 @@ const issueReportSchema = new mongoose.Schema(
 
     tradeId: { type: mongoose.Schema.Types.ObjectId, default: null },
 
+    // The support conversation opened for this report. The issue is the
+    // telemetry record (OCR snapshot, device, fix version); the ticket is where
+    // the customer and the support team actually talk, and where screenshots
+    // live as private attachments. Null only on reports created before the
+    // two systems were joined.
+    linkedTicket: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SupportTicket",
+      default: null,
+    },
+
     ocrDataSnapshot: {
       type: mongoose.Schema.Types.Mixed,
       default: null,

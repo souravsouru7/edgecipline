@@ -1,13 +1,40 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, Upload, AlertCircle, CheckCircle2, Loader2, Trash2, WifiOff } from "lucide-react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { X, Upload, AlertCircle, CheckCircle2, Loader2, Trash2, WifiOff, LifeBuoy } from "lucide-react";
 import { submitIssueReport, ISSUE_CATEGORIES } from "@/services/issueApi";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import FocusTrap from "@/features/shared/components/FocusTrap";
+import { useSupportConfig, SUPPORT_KEY } from "@/features/support/hooks/useSupport";
 
-const MAX_SCREENSHOTS = 8;
+// Fallback only — the live cap comes from GET /support/config, because the
+// screenshots become support-ticket attachments and the server enforces the
+// ticket limit, not a limit of this form's own.
+const DEFAULT_MAX_SCREENSHOTS = 5;
 const MAX_DESCRIPTION = 4000;
+
+// Same palette as the rest of the app (frontend/app/globals.css) and the
+// Support ticket UI — this modal used to run its own dark-navy/blue theme,
+// which read as a different, bolted-on product the moment it opened on top
+// of a light screen.
+const theme = {
+  bg: "#F0EEE9",
+  card: "#FFFFFF",
+  text: "#0F1923",
+  textSecondary: "#4A5568",
+  textMuted: "#64748B",
+  textDisabled: "#94A3B8",
+  border: "#E2E8F0",
+  primary: "#0D9E6E",
+  primaryLight: "#22C78E",
+  primaryBg: "rgba(13,158,110,0.08)",
+  error: "#D63B3B",
+  errorBg: "rgba(214,59,59,0.06)",
+  errorBorder: "rgba(214,59,59,0.3)",
+};
+const fontFamily = "'Plus Jakarta Sans', system-ui, sans-serif";
 
 function isOffline() {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -42,11 +69,20 @@ export default function IssueReportModal({
   onSubmitted,
 }) {
   const { addToast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: supportConfig } = useSupportConfig();
+  const MAX_SCREENSHOTS = Number(supportConfig?.limits?.maxAttachments) || DEFAULT_MAX_SCREENSHOTS;
+  const ticketsEnabled = supportConfig?.ticketsEnabled !== false;
+
   const [category, setCategory] = useState(defaultCategory);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(null); // { issueCode }
+  // { ticketId, ticketCode, issueCode } — the ticket is what the user tracks.
+  const [success, setSuccess] = useState(null);
+  // A server refusal the user can act on (e.g. too many open tickets), kept
+  // in the dialog rather than a toast so the "view my tickets" link stays.
+  const [blocked, setBlocked] = useState(null);
   const [offline, setOffline] = useState(false);
   const [dragging, setDragging] = useState(false);
   const submissionIdRef = useRef(null);
@@ -59,6 +95,7 @@ export default function IssueReportModal({
       setDescription("");
       setFiles([]);
       setSuccess(null);
+      setBlocked(null);
       setOffline(isOffline());
       submissionIdRef.current = genSubmissionId();
     }
@@ -103,7 +140,7 @@ export default function IssueReportModal({
         return combined;
       });
     },
-    [addToast]
+    [addToast, MAX_SCREENSHOTS]
   );
 
   // Track how many files were in the picker before it closed (Android permission detection)
@@ -157,7 +194,7 @@ export default function IssueReportModal({
       const dropped = Array.from(e.dataTransfer?.files || []);
       mergeFiles(dropped);
     },
-    [submitting, files.length, mergeFiles]
+    [submitting, files.length, mergeFiles, MAX_SCREENSHOTS]
   );
 
   const removeFile = useCallback((idx) => {
@@ -182,6 +219,7 @@ export default function IssueReportModal({
       return;
     }
     setSubmitting(true);
+    setBlocked(null);
     try {
       const resp = await submitIssueReport({
         issueCategory: category,
@@ -194,27 +232,59 @@ export default function IssueReportModal({
         submissionId: submissionIdRef.current,
       });
       const issue = resp?.issue || resp;
-      setSuccess({ issueCode: issue?.issueCode || "" });
-      addToast(`Issue submitted • ${issue?.issueCode || ""}`, "success", 4000);
+      const ticket = issue?.ticket || null;
+      setSuccess({
+        ticketId: ticket?.id || "",
+        ticketCode: ticket?.ticketCode || "",
+        issueCode: issue?.issueCode || "",
+      });
+      // The ticket now exists in Help & Support; make the list reflect it
+      // without waiting for a refetch.
+      queryClient.invalidateQueries({ queryKey: [...SUPPORT_KEY, "my-tickets"] });
+      addToast(`Reported • ${ticket?.ticketCode || issue?.issueCode || ""}`, "success", 4000);
       onSubmitted?.(issue);
     } catch (error) {
-      const status = error?.response?.status;
-      let msg;
+      const status = error?.status;
+      const errorCode = error?.data?.errorCode;
+      const serverMessage = error?.data?.message || error?.message;
+
       if (!navigator.onLine) {
-        msg = "You went offline during upload. Your report was not saved — please reconnect and try again.";
+        addToast(
+          "You went offline during upload. Your report was not saved — please reconnect and try again.",
+          "error",
+          6000
+        );
       } else if (status === 401 || status === 403) {
-        msg = "Your session expired. Please log in again and resubmit.";
+        addToast("Your session expired. Please log in again and resubmit.", "error", 6000);
+      } else if (errorCode === "SUPPORT_TOO_MANY_OPEN_TICKETS") {
+        // The support cap, not a rate limit. The user already has open
+        // conversations — the useful answer is a way to get to them.
+        setBlocked({
+          title: "You already have open tickets",
+          body:
+            serverMessage ||
+            "Please continue on one of your existing tickets, or wait for a reply before opening another.",
+          link: { href: "/support/tickets", label: "View my tickets" },
+        });
+      } else if (errorCode === "SUPPORT_TICKETS_DISABLED" || status === 503) {
+        setBlocked({
+          title: "Reporting is paused right now",
+          body:
+            serverMessage ||
+            "Ticket creation is temporarily unavailable. Please reach us on WhatsApp or by email.",
+          link: { href: "/support", label: "Contact options" },
+        });
       } else if (status === 429) {
-        msg = "Too many reports submitted. Please wait a while before trying again.";
+        addToast("Too many reports submitted. Please wait a while before trying again.", "error", 6000);
       } else if (status === 413) {
-        msg = "Screenshots are too large even after compression. Try reducing the number of images.";
+        addToast(
+          "Screenshots are too large even after compression. Try reducing the number of images.",
+          "error",
+          6000
+        );
       } else {
-        msg =
-          error?.response?.data?.message ||
-          error?.message ||
-          "Could not submit issue. Please try again.";
+        addToast(serverMessage || "Could not submit issue. Please try again.", "error", 6000);
       }
-      addToast(msg, "error", 6000);
       // submissionId is intentionally preserved in ref so a retry will be idempotent
     } finally {
       setSubmitting(false);
@@ -232,6 +302,7 @@ export default function IssueReportModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        padding: 20,
       }}
     >
       <div
@@ -239,43 +310,67 @@ export default function IssueReportModal({
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(2, 6, 16, 0.78)",
+          background: "rgba(10, 15, 20, 0.78)",
         }}
       />
       <FocusTrap>
       <div
         role="dialog"
         aria-modal="true"
+        aria-label="Report an issue"
         style={{
           position: "relative",
           width: "min(560px, calc(100vw - 32px))",
           maxHeight: "calc(100vh - 48px)",
           overflowY: "auto",
-          background: "linear-gradient(180deg, #0f172a 0%, #0b1224 100%)",
-          color: "#e6edf7",
-          borderRadius: 16,
-          border: "1px solid rgba(120, 140, 180, 0.22)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-          padding: 20,
+          WebkitOverflowScrolling: "touch",
+          background: theme.card,
+          color: theme.text,
+          borderRadius: 24,
+          border: "1px solid rgba(226, 232, 240, 0.8)",
+          boxShadow: "0 40px 100px -20px rgba(0,0,0,0.35)",
+          padding: 24,
+          fontFamily,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertCircle size={20} color="#60a5fa" />
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Report Issue</h2>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: theme.primaryBg, color: theme.primary,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>
+              <AlertCircle size={19} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: theme.text, letterSpacing: "-0.01em" }}>
+                Report Issue
+              </h2>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: theme.textMuted }}>
+                Opens a support ticket — track it under Help &amp; Support.
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
             disabled={submitting}
             aria-label="Close"
             style={{
-              background: "transparent",
+              background: "#F1F5F9",
               border: "none",
-              color: "#94a3b8",
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: theme.textMuted,
               cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.5 : 1,
+              flexShrink: 0,
             }}
           >
-            <X size={20} />
+            <X size={16} />
           </button>
         </div>
 
@@ -285,13 +380,14 @@ export default function IssueReportModal({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "rgba(239, 68, 68, 0.10)",
-              border: "1px solid rgba(239, 68, 68, 0.40)",
-              color: "#fca5a5",
-              padding: "9px 12px",
-              borderRadius: 8,
+              background: theme.errorBg,
+              border: `1px solid ${theme.errorBorder}`,
+              color: theme.error,
+              padding: "10px 12px",
+              borderRadius: 10,
               fontSize: 13,
-              marginBottom: 12,
+              fontWeight: 600,
+              marginBottom: 14,
             }}
           >
             <WifiOff size={15} />
@@ -301,32 +397,143 @@ export default function IssueReportModal({
 
         {success ? (
           <div style={{ textAlign: "center", padding: "18px 8px 6px" }}>
-            <CheckCircle2 size={48} color="#22c55e" style={{ margin: "0 auto 12px" }} />
-            <h3 style={{ margin: "0 0 6px", fontSize: 16 }}>Thanks — we got it.</h3>
-            <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
-              Issue ID: <strong style={{ color: "#cbd5e1" }}>{success.issueCode}</strong>
+            <div style={{
+              width: 64, height: 64, borderRadius: "50%", margin: "0 auto 14px",
+              background: theme.primaryBg, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <CheckCircle2 size={34} color={theme.primary} />
+            </div>
+            <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 800, color: theme.text }}>Thanks — we got it.</h3>
+            {success.ticketCode && (
+              <p style={{ color: theme.textMuted, fontSize: 13, margin: 0 }}>
+                Support ticket{" "}
+                <strong style={{ color: theme.text, fontFamily: "'JetBrains Mono',monospace" }}>{success.ticketCode}</strong>
+              </p>
+            )}
+            <p style={{ color: theme.textMuted, fontSize: 13, margin: "10px 0 20px", lineHeight: 1.55 }}>
+              The support team will reply on your ticket under Help &amp; Support, and you&apos;ll be
+              notified when there&apos;s an update.
             </p>
-            <p style={{ color: "#94a3b8", fontSize: 13, margin: "10px 0 18px" }}>
-              We&apos;ll notify you when this is fixed.
-            </p>
-            <button
-              onClick={onClose}
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              {success.ticketId && (
+                <Link
+                  href={`/support/tickets/detail?id=${encodeURIComponent(success.ticketId)}&created=1`}
+                  onClick={onClose}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.text})`,
+                    color: "#FFFFFF",
+                    textDecoration: "none",
+                    padding: "12px 22px",
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: 800,
+                    fontFamily,
+                  }}
+                >
+                  <LifeBuoy size={15} />
+                  View ticket
+                </Link>
+              )}
+              <button
+                onClick={onClose}
+                style={{
+                  background: theme.card,
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.border}`,
+                  padding: "12px 22px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  fontFamily,
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : blocked ? (
+          <div style={{ padding: "8px 4px 4px" }}>
+            <div
               style={{
-                background: "#1e293b",
-                color: "#e6edf7",
-                border: "1px solid rgba(120, 140, 180, 0.3)",
-                padding: "9px 22px",
-                borderRadius: 10,
-                cursor: "pointer",
-                fontSize: 14,
+                background: "rgba(184,134,11,0.08)",
+                border: "1px solid rgba(184,134,11,0.3)",
+                borderRadius: 14,
+                padding: "16px 18px",
+                marginBottom: 16,
               }}
             >
-              Close
-            </button>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#B45309" }}>{blocked.title}</p>
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: theme.textSecondary, lineHeight: 1.55 }}>
+                {blocked.body}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setBlocked(null)}
+                style={{
+                  background: theme.card,
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.border}`,
+                  padding: "12px 20px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  fontFamily,
+                }}
+              >
+                Back
+              </button>
+              {blocked.link && (
+                <Link
+                  href={blocked.link.href}
+                  onClick={onClose}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.text})`,
+                    color: "#FFFFFF",
+                    textDecoration: "none",
+                    padding: "12px 22px",
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: 800,
+                    fontFamily,
+                  }}
+                >
+                  {blocked.link.label}
+                </Link>
+              )}
+            </div>
           </div>
         ) : (
           <>
-            <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+            {!ticketsEnabled && (
+              <div
+                style={{
+                  background: "rgba(184,134,11,0.08)",
+                  border: "1px solid rgba(184,134,11,0.3)",
+                  color: "#B45309",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 14,
+                  lineHeight: 1.5,
+                }}
+              >
+                Reporting is paused right now. You can still{" "}
+                <Link href="/support" onClick={onClose} style={{ color: "#B45309", fontWeight: 800 }}>
+                  reach the team directly
+                </Link>
+                .
+              </div>
+            )}
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.textDisabled, marginBottom: 6 }}>
               Issue Category
             </label>
             <select
@@ -335,13 +542,14 @@ export default function IssueReportModal({
               disabled={submitting}
               style={{
                 width: "100%",
-                padding: "9px 12px",
-                background: "#0b1224",
-                color: "#e6edf7",
-                border: "1px solid rgba(120, 140, 180, 0.25)",
-                borderRadius: 8,
-                marginBottom: 14,
+                padding: "12px 14px",
+                background: theme.card,
+                color: theme.text,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 10,
+                marginBottom: 16,
                 fontSize: 14,
+                fontFamily,
               }}
             >
               {ISSUE_CATEGORIES.map((c) => (
@@ -351,8 +559,8 @@ export default function IssueReportModal({
               ))}
             </select>
 
-            <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-              Description *
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.textDisabled, marginBottom: 6 }}>
+              Description <span style={{ color: theme.error }}>*</span>
             </label>
             <textarea
               value={description}
@@ -362,22 +570,22 @@ export default function IssueReportModal({
               disabled={submitting}
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                background: "#0b1224",
-                color: "#e6edf7",
-                border: "1px solid rgba(120, 140, 180, 0.25)",
-                borderRadius: 8,
+                padding: "12px 14px",
+                background: theme.card,
+                color: theme.text,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 10,
                 fontSize: 14,
-                fontFamily: "inherit",
+                fontFamily,
                 resize: "vertical",
                 marginBottom: 4,
               }}
             />
-            <div style={{ fontSize: 11, color: "#64748b", textAlign: "right", marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: theme.textDisabled, textAlign: "right", marginBottom: 16 }}>
               {description.length} / {MAX_DESCRIPTION}
             </div>
 
-            <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.textDisabled, marginBottom: 6 }}>
               Screenshots (optional, up to {MAX_SCREENSHOTS})
             </label>
             <input
@@ -409,29 +617,28 @@ export default function IssueReportModal({
                 justifyContent: "center",
                 gap: 6,
                 width: "100%",
-                padding: "14px 12px",
-                background: dragging
-                  ? "rgba(96, 165, 250, 0.12)"
-                  : "transparent",
-                color: files.length >= MAX_SCREENSHOTS ? "#475569" : "#60a5fa",
+                padding: "20px 12px",
+                background: dragging ? theme.primaryBg : "#FAFAFA",
+                color: files.length >= MAX_SCREENSHOTS ? theme.textDisabled : theme.primary,
                 border: dragging
-                  ? "2px dashed rgba(96, 165, 250, 0.85)"
-                  : "1px dashed rgba(96, 165, 250, 0.5)",
-                borderRadius: 8,
+                  ? `2px dashed ${theme.primary}`
+                  : `2px dashed ${theme.border}`,
+                borderRadius: 14,
                 cursor: submitting || files.length >= MAX_SCREENSHOTS ? "not-allowed" : "pointer",
                 fontSize: 13,
-                marginBottom: previews.length ? 10 : 14,
+                fontWeight: 700,
+                marginBottom: previews.length ? 10 : 16,
                 transition: "background 120ms, border-color 120ms",
               }}
             >
-              <Upload size={16} />
+              <Upload size={18} />
               {files.length >= MAX_SCREENSHOTS
                 ? "Max screenshots reached"
                 : dragging
                 ? "Drop here"
                 : "Add screenshots or drag & drop"}
               {files.length < MAX_SCREENSHOTS && (
-                <span style={{ fontSize: 11, color: "#64748b" }}>
+                <span style={{ fontSize: 11, color: theme.textDisabled, fontWeight: 500 }}>
                   JPG · PNG · WEBP · up to {MAX_SCREENSHOTS}
                 </span>
               )}
@@ -443,7 +650,7 @@ export default function IssueReportModal({
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
                   gap: 8,
-                  marginBottom: 14,
+                  marginBottom: 16,
                 }}
               >
                 {previews.map((p, idx) => (
@@ -452,9 +659,9 @@ export default function IssueReportModal({
                     style={{
                       position: "relative",
                       aspectRatio: "1 / 1",
-                      borderRadius: 6,
+                      borderRadius: 10,
                       overflow: "hidden",
-                      border: "1px solid rgba(120, 140, 180, 0.25)",
+                      border: `1px solid ${theme.border}`,
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -472,12 +679,13 @@ export default function IssueReportModal({
                         position: "absolute",
                         top: 4,
                         right: 4,
-                        background: "rgba(15, 23, 42, 0.85)",
+                        background: "rgba(15, 25, 35, 0.75)",
                         border: "none",
-                        borderRadius: 4,
-                        padding: 3,
+                        borderRadius: 6,
+                        padding: 4,
                         cursor: submitting ? "not-allowed" : "pointer",
-                        color: "#fca5a5",
+                        color: "#FFFFFF",
+                        display: "flex",
                       }}
                     >
                       <Trash2 size={12} />
@@ -492,35 +700,38 @@ export default function IssueReportModal({
                 onClick={onClose}
                 disabled={submitting}
                 style={{
-                  background: "transparent",
-                  color: "#94a3b8",
-                  border: "1px solid rgba(120, 140, 180, 0.25)",
-                  padding: "9px 16px",
-                  borderRadius: 10,
+                  background: theme.card,
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.border}`,
+                  padding: "12px 20px",
+                  borderRadius: 12,
                   cursor: submitting ? "not-allowed" : "pointer",
                   fontSize: 14,
+                  fontWeight: 700,
+                  fontFamily,
                 }}
               >
                 Cancel
               </button>
               <button
                 onClick={onSubmit}
-                disabled={submitting || offline}
+                disabled={submitting || offline || !ticketsEnabled}
                 style={{
-                  background: submitting || offline
-                    ? "#1e3a8a"
-                    : "linear-gradient(135deg, #2563eb, #1d4ed8)",
-                  color: "white",
+                  background: submitting || offline || !ticketsEnabled
+                    ? theme.textDisabled
+                    : `linear-gradient(135deg, ${theme.primary}, ${theme.text})`,
+                  color: "#FFFFFF",
                   border: "none",
-                  padding: "9px 22px",
-                  borderRadius: 10,
-                  cursor: submitting || offline ? (submitting ? "wait" : "not-allowed") : "pointer",
+                  padding: "12px 26px",
+                  borderRadius: 12,
+                  cursor: submitting || offline || !ticketsEnabled ? (submitting ? "wait" : "not-allowed") : "pointer",
                   fontSize: 14,
-                  fontWeight: 600,
+                  fontWeight: 800,
+                  fontFamily,
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  minWidth: 130,
+                  minWidth: 140,
                   justifyContent: "center",
                 }}
               >

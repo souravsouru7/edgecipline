@@ -4,6 +4,15 @@ import React from "react";
 import { Info } from "lucide-react";
 import IssueReporterButton from "./IssueReporterButton";
 
+const theme = {
+  text: "#0F1923",
+  textMuted: "#64748B",
+  border: "#E2E8F0",
+  primary: "#0D9E6E",
+  gold: "#B8860B",
+  error: "#D63B3B",
+};
+
 /**
  * Displayed inside upload-trade pages after OCR extraction. Reminds the user
  * to verify the extracted values before saving and gives them a one-tap path
@@ -40,20 +49,26 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
   return (
     <div
       style={{
-        background: "linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(34, 197, 94, 0.06))",
-        border: "1px solid rgba(96, 165, 250, 0.30)",
+        background: "#F8FAFC",
+        border: `1px solid ${theme.border}`,
         borderRadius: 12,
         padding: "14px 16px",
         marginBottom: 16,
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-        <Info size={18} color="#60a5fa" style={{ flexShrink: 0, marginTop: 2 }} />
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: "rgba(13,158,110,0.1)", color: theme.primary,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Info size={16} />
+        </div>
         <div>
-          <div style={{ fontWeight: 600, color: "#e6edf7", fontSize: 14, marginBottom: 2 }}>
+          <div style={{ fontWeight: 700, color: theme.text, fontSize: 14, marginBottom: 2 }}>
             Please verify the extracted values before saving.
           </div>
-          <div style={{ color: "#94a3b8", fontSize: 12 }}>
+          <div style={{ color: theme.textMuted, fontSize: 12 }}>
             OCR may occasionally make mistakes — quickly check the fields below.
           </div>
         </div>
@@ -72,32 +87,32 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
             <div
               key={label}
               style={{
-                background: "rgba(15, 23, 42, 0.65)",
-                border: "1px solid rgba(120, 140, 180, 0.22)",
+                background: "#FFFFFF",
+                border: `1px solid ${theme.border}`,
                 borderRadius: 6,
                 padding: "4px 9px",
                 fontSize: 12,
-                color: "#cbd5e1",
+                color: theme.text,
               }}
             >
-              <span style={{ color: "#94a3b8", marginRight: 4 }}>{label}:</span>
-              <strong style={{ color: "#e6edf7" }}>{String(value)}</strong>
+              <span style={{ color: theme.textMuted, marginRight: 4 }}>{label}:</span>
+              <strong style={{ color: theme.text }}>{String(value)}</strong>
             </div>
           ))}
         </div>
       )}
 
       {confidence && (
-        <div style={{ marginBottom: 12, padding: "9px 10px", borderRadius: 8, background: "rgba(15, 23, 42, 0.55)", color: "#cbd5e1", fontSize: 12 }}>
+        <div style={{ marginBottom: 12, padding: "9px 10px", borderRadius: 8, background: "#FFFFFF", border: `1px solid ${theme.border}`, color: theme.text, fontSize: 12 }}>
           <strong>{confidence.score}/100 - {decisionLabel}</strong>
-          {insights?.brokerType && <span> | Broker: {insights.brokerType}</span>}
+          {insights?.brokerType && <span> · Broker: {insights.brokerType}</span>}
           {insights?.imageQuality?.issues?.length > 0 && (
-            <div style={{ marginTop: 5, color: "#f59e0b" }}>
+            <div style={{ marginTop: 5, color: theme.gold }}>
               Image checks: {insights.imageQuality.issues.join(", ").replaceAll("_", " ")}
             </div>
           )}
           {confidence.logic?.some((item) => item.failures?.length || item.warnings?.length) && (
-            <div style={{ marginTop: 5, color: "#f59e0b" }}>
+            <div style={{ marginTop: 5, color: theme.gold }}>
               Trade logic requires manual verification before saving.
             </div>
           )}
@@ -113,7 +128,7 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontSize: 12, color: "#94a3b8" }}>
+        <span style={{ fontSize: 12, color: theme.textMuted }}>
           Found an issue with the extracted data?
         </span>
         <IssueReporterButton

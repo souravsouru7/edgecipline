@@ -50,6 +50,12 @@ const tradeSchema = new mongoose.Schema(
 
     strategy: { type: String, maxlength: 100 },
 
+    // Free-text setup/pattern description (e.g. "Breakout above 1.0950").
+    // Distinct from `strategy`, which names a saved, reusable setup — mirrors
+    // the equivalent `setup` field on IndianTrade so manual entry can offer
+    // the same field for both markets.
+    setup: { type: String, default: "", maxlength: 200 },
+
     session: String,
 
     tradeDate: {

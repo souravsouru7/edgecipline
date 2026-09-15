@@ -3,18 +3,24 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { Camera } from "lucide-react";
 import { createTrade } from "@/services/tradeApi";
 import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
+import LastFreeTradeSheet from "@/features/trade/components/LastFreeTradeSheet";
+import TradeQuotaPill from "@/features/trade/components/TradeQuotaPill";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
+import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { MARKETS } from "@/context/MarketContext";
 import { markOnboardingStep } from "@/services/api";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { fetchSetups } from "@/services/setupApi";
+import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
+import { Spinner } from "@/features/shared";
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -22,7 +28,7 @@ const getTodayInputValue = () => {
 };
 
 const INTEGER_NUMBER_FIELDS = new Set(["strikePrice", "quantity", "sharesQty"]);
-const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes"]);
+const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes", "stopLoss", "takeProfit"]);
 
 const blockInvalidNumberKeys = (e) => {
   const fieldName = e.currentTarget?.name;
@@ -91,6 +97,8 @@ function IndianOptionsAddTradeContent() {
     profit: "",
     entryPrice: "",
     exitPrice: "",
+    stopLoss: "",
+    takeProfit: "",
     tradeType: "INTRADAY",
     strategy: "",
     strategyCustom: "",
@@ -115,11 +123,25 @@ function IndianOptionsAddTradeContent() {
     stockSymbol: "",
     exchange: "NSE",
     sharesQty: "",
-    sector: ""
+    sector: "",
+    screenshot: "",
   });
+  const [screenshotPreview, setScreenshotPreview] = useState(null);
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   // Non-null while a save is blocked by the free-tier allowance.
   const [limitBlock, setLimitBlock] = useState(null);
+  // Post-save "you've used your free trades" sheet; navigation waits for it.
+  const [lastFreeTradeSheet, setLastFreeTradeSheet] = useState(null);
+
+  const goAfterSave = () => {
+    if (onboardingMode) {
+      router.push("/indian-market/trades?onboarding=1");
+    } else {
+      router.push("/indian-market/dashboard");
+    }
+  };
   const evidenceRef = useRef(null);
   const [committingEvidence, setCommittingEvidence] = useState(false);
   const isEquity = tradeSubType === "EQUITY";
@@ -176,6 +198,30 @@ function IndianOptionsAddTradeContent() {
     setTrade((prev) => ({ ...prev, [name]: nextValue }));
   };
 
+  // Single primary screenshot — same upload flow as app/add-trade/page.js's
+  // Screenshot dropzone, kept separate from the multi-image Trade Evidence
+  // section below.
+  const handleScreenshotChange = async (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setScreenshotPreview(reader.result);
+    reader.readAsDataURL(file);
+
+    setUploadingScreenshot(true);
+    addToast("Uploading screenshot...", "loading");
+
+    try {
+      const data = await uploadTradeScreenshot(file);
+      setTrade(prev => ({ ...prev, screenshot: data.screenshotUrl || data.imageUrl || data.url }));
+      addToast("Screenshot uploaded!", "success");
+    } catch (err) {
+      console.error("Upload error:", err);
+      addToast("Failed to upload screenshot. Limits or network error.", "error");
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
   const handleStrategyChange = (e) => {
     const value = e.target.value;
     setTrade(prev => ({ ...prev, strategy: value }));
@@ -205,7 +251,7 @@ function IndianOptionsAddTradeContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submitLockRef.current || loading) {
+    if (submitLockRef.current || loading || uploadingScreenshot) {
       return;
     }
     const showValidation = (message) => {
@@ -293,6 +339,8 @@ function IndianOptionsAddTradeContent() {
       profit: parseFloat(pnl),
       entryPrice: trade.entryPrice ? parseFloat(trade.entryPrice) : undefined,
       exitPrice: trade.exitPrice ? parseFloat(trade.exitPrice) : undefined,
+      stopLoss: trade.stopLoss ? parseFloat(trade.stopLoss) : undefined,
+      takeProfit: trade.takeProfit ? parseFloat(trade.takeProfit) : undefined,
       tradeType: trade.tradeType || "INTRADAY",
       strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
       tradeDate: trade.tradeDate,
@@ -367,6 +415,7 @@ function IndianOptionsAddTradeContent() {
       setCommittingEvidence(false);
     }
     tradeData.tradeImages = finalImages;
+    tradeData.screenshot = trade.screenshot || "";
 
     submitLockRef.current = true;
     setLoading(true);
@@ -374,12 +423,13 @@ function IndianOptionsAddTradeContent() {
       const result = await createTrade(tradeData, MARKETS.INDIAN_MARKET);
       if (result?._id) {
         invalidateTradeDependentQueries(queryClient);
+        const quota = applyQuotaFromResponse(queryClient, MARKETS.INDIAN_MARKET, result);
         addToast("Trade saved to your trade log!", "success");
         markOnboardingStep("tradeAdded", true).catch(() => {});
-        if (onboardingMode) {
-          router.push("/indian-market/trades?onboarding=1");
+        if (result.showLastFreeTradeSheet && quota) {
+          setLastFreeTradeSheet({ quota });
         } else {
-          router.push("/indian-market/dashboard");
+          goAfterSave();
         }
       } else {
         throw new Error(result?.message || "Failed to save");
@@ -409,13 +459,25 @@ function IndianOptionsAddTradeContent() {
         onClose={() => setLimitBlock(null)}
       />
 
+      <LastFreeTradeSheet
+        open={Boolean(lastFreeTradeSheet)}
+        quota={lastFreeTradeSheet?.quota}
+        onClose={() => {
+          setLastFreeTradeSheet(null);
+          goAfterSave();
+        }}
+      />
+
       <main style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px" }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: theme.secondary }}>
           Log New <span style={{ color: '#1B5E20' }}>{isEquity ? "Stock Trade" : "Options Trade"}</span>
         </h1>
-        <p style={{ fontSize: 12, color: theme.muted, marginBottom: 32, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
+        <p style={{ fontSize: 12, color: theme.muted, marginBottom: 12, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
           {isEquity ? "NSE / BSE EQUITY INTRADAY" : "NSE / BSE F&O MARKET ENTRY"}
         </p>
+        <div style={{ marginBottom: 24 }}>
+          <TradeQuotaPill marketType={MARKETS.INDIAN_MARKET} />
+        </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
@@ -548,6 +610,17 @@ function IndianOptionsAddTradeContent() {
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>{isEquity ? "Avg sell price (₹)" : "Exit premium (₹)"}</label>
                 <input name="exitPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2510" : "e.g. 120"} value={trade.exitPrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Stop Loss</label>
+                <input name="stopLoss" type="number" step="0.01" value={trade.stopLoss} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Take Profit</label>
+                <input name="takeProfit" type="number" step="0.01" value={trade.takeProfit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
             </div>
 
@@ -763,6 +836,38 @@ function IndianOptionsAddTradeContent() {
               <div style={{ fontSize: 10, color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
             </div>
 
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Screenshot</label>
+              <input type="file" ref={fileInputRef} accept="image/*" onChange={e => handleScreenshotChange(e.target.files[0])} style={{ display: "none" }} />
+              <div
+                onClick={() => !(loading || uploadingScreenshot) && fileInputRef.current.click()}
+                style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: (loading || uploadingScreenshot) ? "not-allowed" : "pointer", background: "#fafafa", transition: "all 0.2s" }}
+                onMouseEnter={e => !(loading || uploadingScreenshot) && (e.currentTarget.style.borderColor = theme.primary)}
+                onMouseLeave={e => !(loading || uploadingScreenshot) && (e.currentTarget.style.borderColor = theme.border)}
+              >
+                {screenshotPreview ? (
+                  <div style={{ position: "relative" }}>
+                    <img src={screenshotPreview} alt="Preview" style={{ maxHeight: 300, width: "100%", objectFit: "contain", margin: "0 auto", borderRadius: 12 }} />
+                    {uploadingScreenshot && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 12 }}>
+                        <Spinner size="40px" color={theme.primary} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: theme.bg, display: "flex", alignItems: "center", justifyContent: "center", color: theme.muted }}>
+                      <Camera size={28} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: theme.secondary }}>Upload Screenshot</div>
+                      <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>Drag &amp; drop or click to browse</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <TradeEvidenceSection
               ref={evidenceRef}
               value={trade.tradeImages || []}
@@ -932,7 +1037,7 @@ function IndianOptionsAddTradeContent() {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} style={{
+          <button type="submit" disabled={loading || uploadingScreenshot} style={{
             padding: "14px 24px",
             borderRadius: 12,
             border: "none",

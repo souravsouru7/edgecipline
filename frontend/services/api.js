@@ -131,7 +131,17 @@ export const recordTrialEvent = async (event, properties = {}) => {
   }
 };
 
-// Subscription rescue funnel
+// Free-tier funnel: persists "Maybe later" on the post-save sheet so no other
+// device shows it again. Best-effort — the sheet is already closed locally.
+export const dismissLastFreeTradeSheet = async () => {
+  try {
+    return await apiClient.post(`/trial/free-tier/sheet-dismissed`, {});
+  } catch {
+    return null;
+  }
+};
+
+// Subscription rescue funnel (also serves the free-tier nudge banner)
 export const getRescueBanner = async () => {
   return await apiClient.get(`/rescue/banner`);
 };

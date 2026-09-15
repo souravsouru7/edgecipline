@@ -4,6 +4,14 @@ import React, { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import IssueReportModal from "./IssueReportModal";
 
+const theme = {
+  text: "#0F1923",
+  textSecondary: "#4A5568",
+  border: "#E2E8F0",
+  primary: "#0D9E6E",
+  primaryBg: "rgba(13,158,110,0.08)",
+};
+
 /**
  * Inline "Report Issue" / "Need Help?" trigger button.
  * Pass the same context props (category, market, module, OCR snapshot) as
@@ -34,6 +42,7 @@ export default function IssueReporterButton({
     cursor: "pointer",
     fontSize: 13,
     borderRadius: 8,
+    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     transition: "background 120ms ease, border-color 120ms ease",
   };
 
@@ -41,29 +50,31 @@ export default function IssueReporterButton({
   if (variant === "primary") {
     style = {
       ...baseStyle,
-      background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-      color: "white",
+      background: `linear-gradient(135deg, ${theme.primary}, ${theme.text})`,
+      color: "#FFFFFF",
       border: "none",
-      padding: "9px 16px",
-      fontWeight: 600,
+      padding: "10px 18px",
+      fontWeight: 800,
     };
   } else if (variant === "subtle") {
     style = {
       ...baseStyle,
       background: "transparent",
-      color: "#60a5fa",
+      color: theme.primary,
       border: "none",
       padding: "4px 6px",
       textDecoration: "underline",
       textUnderlineOffset: 2,
+      fontWeight: 700,
     };
   } else {
     style = {
       ...baseStyle,
-      background: "rgba(96, 165, 250, 0.10)",
-      color: "#93c5fd",
-      border: "1px solid rgba(96, 165, 250, 0.35)",
-      padding: "7px 12px",
+      background: theme.primaryBg,
+      color: theme.primary,
+      border: `1px solid rgba(13,158,110,0.3)`,
+      padding: "8px 14px",
+      fontWeight: 700,
     };
   }
 

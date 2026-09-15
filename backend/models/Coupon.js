@@ -54,6 +54,10 @@ const couponSchema = new mongoose.Schema(
     excludeActiveSubscribers: { type: Boolean, default: false },
     newPurchaseOnly: { type: Boolean, default: false },
     redemptionCount: { type: Number, default: 0, min: 0 },
+    // Capacity held by open checkouts that have not been paid yet. The limit
+    // is enforced against redemptionCount + reservedCount, atomically, so two
+    // buyers cannot both pass the check before either has paid.
+    reservedCount: { type: Number, default: 0, min: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
   { timestamps: true }

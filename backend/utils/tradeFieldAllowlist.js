@@ -13,6 +13,7 @@ const FOREX_EDITABLE_FIELDS = Object.freeze([
   "swap",
   "balance",
   "strategy",
+  "setup",
   "session",
   "tradeDate",
   "notes",

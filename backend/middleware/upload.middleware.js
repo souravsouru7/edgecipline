@@ -487,7 +487,6 @@ const uploadSetupReferenceImages = createMultiUploadMiddleware({
 });
 
 const MAX_TRADE_EVIDENCE_IMAGES = 20;
-const MAX_ISSUE_REPORT_IMAGES = 8;
 
 const uploadTradeEvidenceImages = createMultiUploadMiddleware({
   fieldName: "tradeImages",
@@ -496,19 +495,13 @@ const uploadTradeEvidenceImages = createMultiUploadMiddleware({
   fileSizeBytes: 5 * 1024 * 1024,
 });
 
-const uploadIssueReportImages = createMultiUploadMiddleware({
-  fieldName: "screenshots",
-  maxCount: MAX_ISSUE_REPORT_IMAGES,
-  folderName: "issue-reports",
-  fileSizeBytes: 3 * 1024 * 1024,
-  optional: true,
-});
-
 // Support attachments are the one upload path in this app that stores another
 // person's private data — invoices, account screenshots, error dialogs. They
 // go up as `authenticated`, so the public delivery path 404s and the only way
 // to read one is a URL signed after an ownership check. See
 // utils/supportAttachments and GET /api/support/attachments/:messageId/:index.
+// Issue reports (POST /api/issues) share this uploader: their screenshots
+// become the opening message's attachments on the ticket the report opens.
 const uploadSupportAttachments = createMultiUploadMiddleware({
   fieldName: "attachments",
   maxCount: appConfig.support.maxAttachmentsPerMessage,
@@ -526,7 +519,5 @@ module.exports = {
   uploadSetupReferenceImages,
   uploadTradeEvidenceImages,
   uploadTradeImage,
-  uploadIssueReportImages,
   uploadSupportAttachments,
-  MAX_ISSUE_REPORT_IMAGES,
 };

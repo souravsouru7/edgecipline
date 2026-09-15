@@ -78,6 +78,7 @@ const { startSessionReminderCron } = require("./jobs/sessionReminderCron");
 const { startMorningMentorCron } = require("./jobs/morningMentorCron");
 const { startSubscriptionExpiryCron } = require("./jobs/subscriptionExpiryCron");
 const { startSubscriptionRescueCron } = require("./jobs/subscriptionRescueCron");
+const { startFreeTierNudgeCron } = require("./jobs/freeTierNudgeCron");
 const { startWebhookReconciliationCron } = require("./jobs/webhookReconciliationCron");
 const { startWebhookRetentionCron } = require("./jobs/webhookRetentionCron");
 const { startStreakProtectorCron } = require("./jobs/streakProtectorCron");
@@ -118,6 +119,21 @@ if (enableSmartWorker && process.env.DISABLE_EMBEDDED_SMART_NOTIFICATION_WORKER 
   });
 }
 
+// Every way email can be silently broken (sandbox sender in production, a
+// gmail.com RESEND_FROM, half-set SMTP creds) is a warning here rather than a
+// 403 discovered by the first user who forgets their password.
+{
+  const { getEmailConfigWarnings } = require("./config");
+  const { getProvider, getFromAddress, getReplyTo } = require("./services/mailService");
+  const emailWarnings = getEmailConfigWarnings();
+  logger.info("[Email] Transport configuration", {
+    provider: getProvider() || "[none]",
+    from: getFromAddress() || "[missing]",
+    replyTo: getReplyTo() || "[missing]",
+  });
+  for (const warning of emailWarnings) logger.warn(`[Email] ${warning}`);
+}
+
 logger.info("[Timezone] Server timezone configuration", {
   timezoneOffsetHours: appConfig.timezoneOffsetHours,
   currentUtc: new Date().toISOString(),
@@ -131,6 +147,7 @@ startSessionReminderCron();
 startMorningMentorCron();
 startSubscriptionExpiryCron();
 startSubscriptionRescueCron();
+startFreeTierNudgeCron();
 startWebhookReconciliationCron();
 startWebhookRetentionCron();
 startStreakProtectorCron();

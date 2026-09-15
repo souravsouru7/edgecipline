@@ -62,27 +62,42 @@ async function countLifetimeTrades({ userId, market, session } = {}) {
 
 // UI-facing snapshot so the client can show "1 of 2 free trades left" and open
 // the paywall before the user fills in a whole form only to be rejected.
-async function getQuota({ user, market } = {}) {
+// `exhausted` is derived here once so every surface (quota endpoint, create
+// responses, the 402 body) agrees on what "no free trades left" means.
+// Pass `session` to read the count inside a transaction that just inserted.
+async function getQuota({ user, market, session } = {}) {
   const resolved = normaliseMarket(market);
   if (!user?._id) {
     throw new ApiError(401, "Authentication required", "AUTH_REQUIRED");
   }
   if (!LIMIT_ENFORCED || isPremium(user)) {
-    return { market: resolved, premium: true, limit: null, used: 0, remaining: null };
+    return { market: resolved, premium: true, limit: null, used: 0, remaining: null, exhausted: false };
   }
-  const used = await countLifetimeTrades({ userId: user._id, market: resolved });
+  const used = await countLifetimeTrades({ userId: user._id, market: resolved, session });
+  const remaining = Math.max(0, FREE_TRADE_LIMIT - used);
   return {
     market: resolved,
     premium: false,
     limit: FREE_TRADE_LIMIT,
     used,
-    remaining: Math.max(0, FREE_TRADE_LIMIT - used),
+    remaining,
+    exhausted: remaining === 0,
   };
 }
 
 // Throws unless `count` more trades fit inside the caller's remaining free
 // allowance. Pass the surrounding `session` on batch paths so the count is
 // read inside the same transaction as the insert.
+//
+// Known race (documented, not fixed here): two requests from the same free
+// account that both read `used = 1` before either inserts will both pass,
+// leaving the user at 3 trades. A transaction does not close it — MongoDB's
+// snapshot isolation lets both inserts commit — and the only real fix is an
+// atomic per-market counter with a filtered $inc, as coachQuotaService does.
+// That would be a second source of truth beside the lifetime count this gate
+// is built on, so it is deliberately left for a dedicated change. The
+// exposure is one extra free trade for a user racing their own double-tap;
+// the funnel stamp below is idempotent either way.
 async function assertCanCreateTrades({ user, market, count = 1, session } = {}) {
   const resolved = normaliseMarket(market);
   if (!user?._id) {
@@ -102,6 +117,13 @@ async function assertCanCreateTrades({ user, market, count = 1, session } = {}) 
   const remaining = Math.max(0, FREE_TRADE_LIMIT - used);
 
   if (requested > remaining) {
+    // Funnel bookkeeping: remember the first refusal. Lazy require because the
+    // funnel service depends on this module. Fire-and-forget — the 402 below
+    // must not wait on, or be hidden by, a bookkeeping write.
+    require("./freeTierFunnelService")
+      .recordBlocked({ user, market: resolved })
+      .catch((err) => logger.warn("FREE_TIER_BLOCKED_STAMP_FAILED", { error: err?.message }));
+
     // 402 rather than 403: this is "payment required", and it is the same
     // status the coach quota uses, so the client's paywall handling already
     // keys off it.
@@ -112,7 +134,7 @@ async function assertCanCreateTrades({ user, market, count = 1, session } = {}) 
         : `Only ${remaining} free ${resolved === INDIAN ? "Indian market" : "Forex"} trade${remaining === 1 ? "" : "s"} left — this import needs ${requested}. Upgrade to add them all.`,
       "TRADE_LIMIT_REACHED",
       {
-        quota: { market: resolved, premium: false, limit: FREE_TRADE_LIMIT, used, remaining },
+        quota: { market: resolved, premium: false, limit: FREE_TRADE_LIMIT, used, remaining, exhausted: remaining === 0 },
         requested,
       }
     );

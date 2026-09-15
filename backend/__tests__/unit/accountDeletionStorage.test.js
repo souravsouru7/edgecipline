@@ -28,6 +28,7 @@ describe("account deletion storage cleanup", () => {
       "ChecklistTracking",
       "CoachConversation",
       "CoachMessage",
+      "CouponUserUsage",
       "DailyDisciplineEntry",
       "DailyReflection",
       "DeviceToken",

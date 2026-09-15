@@ -76,6 +76,8 @@ const USER_OWNED_COLLECTIONS = [
   ["user",   require("../models/ChecklistTracking")],
   ["user",   require("../models/CoachConversation")],
   ["user",   require("../models/CoachMessage")],
+  // Derived per-user coupon counter; the retained ledger is CouponRedemption.
+  ["user",   require("../models/CouponUserUsage")],
   ["user",   require("../models/DailyDisciplineEntry")],
   ["user",   require("../models/DailyReflection")],
   ["user",   require("../models/DeviceToken")],

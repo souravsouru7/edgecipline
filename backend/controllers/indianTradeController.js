@@ -9,6 +9,8 @@ const onboardingService = require("../services/onboardingService");
 const { handleStreakEvents } = require("../services/streakNotification.service");
 const tradeLifecycleService = require("../services/tradeLifecycle.service");
 const tradeQuotaService = require("../services/tradeQuotaService");
+const freeTierFunnelService = require("../services/freeTierFunnelService");
+const { withQuota } = require("../utils/tradeQuotaResponse");
 
 // insertMany({ordered:true}) on a mid-batch failure (only reachable via the
 // standalone-Mongo fallback below -- the transactional path is all-or-
@@ -366,6 +368,12 @@ exports.getTradeQuota = asyncHandler(async (req, res) => {
     user: req.user,
     market: tradeQuotaService.INDIAN,
   });
+  // Lazy T0 stamp for accounts exhausted before the funnel shipped.
+  await freeTierFunnelService.backfillExhaustedState({
+    user: req.user,
+    market: tradeQuotaService.INDIAN,
+    quota,
+  });
   res.json({ quota });
 });
 
@@ -420,7 +428,13 @@ exports.createTrade = asyncHandler(async (req, res) => {
     });
   }
 
-  res.status(201).json(trade);
+  // Post-insert allowance snapshot for the client, and the funnel's T0 stamp
+  // when this was the last free Indian trade.
+  const funnel = await freeTierFunnelService.recordTradesCreated({
+    user: req.user,
+    market: tradeQuotaService.INDIAN,
+  });
+  res.status(201).json(withQuota(trade, funnel));
 });
 
 exports.createTradesBatch = asyncHandler(async (req, res) => {
@@ -463,6 +477,10 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   // Standalone MongoDB (local dev) does not support transactions — falls back
   // to direct inserts when the session rejects the transaction start.
   let createdTrades;
+  // Allowance snapshot + free-tier T0 stamp. Inside the transaction the count
+  // sees the rows just inserted and the User stamp rolls back with them; on
+  // the standalone fallback it runs right after the insert instead.
+  let funnel = null;
   const session = await mongoose.startSession();
   try {
     try {
@@ -475,6 +493,11 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
             session,
           });
         }
+        funnel = await freeTierFunnelService.recordTradesCreated({
+          user: req.user,
+          market: tradeQuotaService.INDIAN,
+          session,
+        });
       });
     } catch (txErr) {
       const isStandaloneError =
@@ -490,6 +513,10 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
           collection: "indian",
         });
       }
+      funnel = await freeTierFunnelService.recordTradesCreated({
+        user: req.user,
+        market: tradeQuotaService.INDIAN,
+      });
     }
   } catch (err) {
     // Trade creation failed after the claim above succeeded -- release it
@@ -537,11 +564,11 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
     logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
   }
 
-  res.status(201).json({
+  res.status(201).json(withQuota({
     success: true,
     count: createdTrades.length,
     trades: createdTrades,
-  });
+  }, funnel));
 });
 
 // Cursor pagination on (effectiveTradeDate DESC, _id DESC).

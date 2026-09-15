@@ -13,6 +13,7 @@ import { validateEnvironment } from "@/config/environment";
 import { canShowRazorpayCheckout } from "@/config/payments";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 import PremiumWelcome from "@/features/premium/components/PremiumWelcome";
+import RecentTradeCards, { LockedInsightTeaser } from "@/features/trade/components/RecentTradeCards";
 
 let razorpayCheckoutPromise = null;
 
@@ -188,15 +189,25 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
         variant,
         trialEnded: Boolean(ctx?.trialEnded),
       });
+      if (variant === "trade-limit") {
+        recordTrialEvent("free_nudge_cta_clicked", {
+          surface: "trade_limit_paywall",
+          provider: "razorpay",
+          teaser: ctx?.teaserInsight?.code || null,
+        });
+      }
 
       const environment = validateEnvironment();
       const isSandbox = isSandboxCheckout();
       const RazorpayCheckout = await loadRazorpayCheckout();
 
+      // Send the code the server actually quoted, never the raw input: the
+      // field may have been edited since Apply, and the price on the button
+      // is the quoted one.
       const order = await createPaymentOrder(
         selectedPlan?.planType,
         appliedQuote?.code && appliedQuote.planType === selectedPlan?.planType
-          ? couponInput
+          ? appliedQuote.code
           : undefined
       );
       const options = {
@@ -310,6 +321,12 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
     .map((t) => ({ ...t, payload: formatTile(t.key, ctx?.metrics) }))
     .filter((t) => t.payload !== null);
 
+  // Trade-limit variant: the user's own live trades + the locked read on
+  // them replace the metric grid, which is mostly empty for a two-trade
+  // account. Falls back to the grid when no live trades came back.
+  const recentTrades = Array.isArray(ctx?.recentTrades) ? ctx.recentTrades : [];
+  const personalised = variant === "trade-limit" && recentTrades.length > 0;
+
   return (
     <div
       style={{
@@ -329,6 +346,13 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
             borderRadius: 28,
             width: "100%",
             maxWidth: 520,
+            // A short viewport (landscape phone, a small/split desktop
+            // window) can't fit headline + metrics + plans + coupon + CTA
+            // without this — the dialog used to just run off the bottom of
+            // the screen with no way to scroll down to the pay button.
+            maxHeight: "min(680px, calc(100vh - 40px))",
+            display: "flex",
+            flexDirection: "column",
             border: "1px solid rgba(226, 232, 240, 0.8)",
             boxShadow: "0 40px 100px -20px rgba(0,0,0,0.35)",
             position: "relative",
@@ -355,7 +379,9 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
             </svg>
           </button>
 
-          <div style={{ padding: "40px 32px 32px" }}>
+          {/* Scrolls independently of the close button above, which stays
+              pinned to the dialog's corner regardless of scroll position. */}
+          <div style={{ padding: "40px 32px 32px", overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
             <div style={{
               display: "inline-block",
               padding: "6px 12px",
@@ -368,7 +394,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
               textTransform: "uppercase",
               marginBottom: 16,
             }}>
-              {ctx?.trialEnded ? "Trial Ended" : "Keep your edge"}
+              {ctx?.trialEnded ? "Trial Ended" : variant === "trade-limit" ? "Free plan limit" : "Keep your edge"}
             </div>
 
             <h2 style={{
@@ -391,9 +417,15 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
               {subheadline}
             </p>
 
-            {/* Personalized metric grid */}
+            {/* Personalized metric grid — or the user's own trades on the
+                trade-limit path */}
             {ctxLoading ? (
               <MetricsSkeleton />
+            ) : personalised ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                <RecentTradeCards trades={recentTrades} compact />
+                <LockedInsightTeaser teaser={ctx?.teaserInsight} compact />
+              </div>
             ) : tiles.length > 0 ? (
               <div style={{
                 display: "grid",
@@ -509,7 +541,13 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
               <input
                 type="text"
                 value={couponInput}
-                onChange={(e) => setCouponInput(e.target.value)}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  // Editing the field invalidates the applied quote so the
+                  // button price cannot drift from what will be charged.
+                  setAppliedQuote(null);
+                  setCouponError("");
+                }}
                 placeholder="Have a code?"
                 autoCapitalize="characters"
                 aria-label="Promotion code"

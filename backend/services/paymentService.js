@@ -14,6 +14,8 @@ const { isTrialActive } = require("../utils/premium");
 const { quoteCheckout, publicQuote } = require("./promotionQuote.service");
 const {
   promoNotes,
+  reserveCouponCapacity,
+  releaseCouponCapacity,
   persistCheckoutSession,
   markCheckoutPaid,
   recordRedemption,
@@ -313,7 +315,9 @@ async function fetchAndValidateRazorpayPayment({ orderId, paymentId, expectedUse
       actualAmount: payment.amount,
     });
   }
-  if (order.amount !== plan.amount * 100) {
+  // A coupon order is expected to differ from the catalogue price; only a
+  // non-discounted order at an old price is the signal this warning exists for.
+  if (!notes.couponId && order.amount !== plan.amount * 100) {
     logger.warn("PAYMENT_SUPERSEDED_PRICE_HONOURED", {
       planType: plan.planType,
       orderAmount: order.amount,
@@ -356,6 +360,16 @@ async function createRazorpayOrder({ userId, planType = "3_months", couponCode }
   const payer = await loadPayer(userId);
   const quote = await quoteCheckout({ user: payer, plan, couponCode });
 
+  // Hold coupon capacity BEFORE the Razorpay order exists: the quote above is
+  // read-only and any number of buyers can pass it at once. The hold is
+  // released if the order cannot be created or persisted, and on expiry or
+  // supersede of the checkout session.
+  const reserved = quote.coupon
+    ? await reserveCouponCapacity({ coupon: quote.coupon, userId })
+    : false;
+  const releaseHold = (reason) =>
+    reserved ? releaseCouponCapacity({ coupon: quote.coupon, userId, reason }) : Promise.resolve();
+
   const razorpay = getRazorpayClient();
   let order;
   try {
@@ -376,6 +390,7 @@ async function createRazorpayOrder({ userId, planType = "3_months", couponCode }
       },
     });
   } catch (error) {
+    await releaseHold("razorpay_order_failed");
     captureOperationalError(error, {
       subsystem: "razorpay",
       tags: { operation: "create_order", plan_type: plan.planType },
@@ -385,10 +400,11 @@ async function createRazorpayOrder({ userId, planType = "3_months", couponCode }
   }
 
   if (!order) {
+    await releaseHold("razorpay_order_missing");
     throw new ApiError(500, "Failed to create payment order", "PAYMENT_ORDER_FAILED");
   }
 
-  await persistCheckoutSession({
+  const checkout = await persistCheckoutSession({
     user: userId,
     razorpayOrderId: order.id,
     planType: plan.planType,
@@ -403,6 +419,14 @@ async function createRazorpayOrder({ userId, planType = "3_months", couponCode }
     status: "open",
     expiresAt: new Date(Date.now() + CHECKOUT_SESSION_TTL_MS),
   });
+
+  // A discounted order whose hold is not attached to a session could never be
+  // released or converted; fail closed rather than hand out an untracked
+  // discount. Orders without a coupon keep the old best-effort behaviour.
+  if (reserved && !checkout) {
+    await releaseHold("checkout_persist_failed");
+    throw new ApiError(503, "Could not apply the code right now. Please try again.", "COUPON_RESERVATION_UNAVAILABLE");
+  }
 
   return { ...order, planType: plan.planType, quote: publicQuote(quote) };
 }

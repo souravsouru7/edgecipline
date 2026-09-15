@@ -130,6 +130,29 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date
     },
+    // Free-tier conversion funnel state. Written ONLY by
+    // services/freeTierFunnelService — every write there is a conditional,
+    // idempotent update so a retried request or a stale auth-cache read can
+    // never move a timestamp that has already been set.
+    //
+    // `lastFreeTradeAt` is T0 for the nudge funnel: the moment the user's
+    // first market ran out of free trades. It is set once and never moved,
+    // even when the second market runs out later — moving it would restart
+    // the D+1/D+3/D+7/D+14 sequence. The lifetime trade count in
+    // tradeQuotaService stays the authority on whether a market is exhausted;
+    // this is purely funnel bookkeeping.
+    freeTier: {
+      lastFreeTradeAt:  { type: Date, default: null },
+      exhaustedMarkets: { type: [String], default: [], enum: ["Forex", "Indian_Market"] },
+      // First time a create was refused with 402 TRADE_LIMIT_REACHED.
+      firstBlockedAt:   { type: Date, default: null },
+      // Reserved for the first-purchase offer (not issued yet). Present so
+      // that adding the offer later is a service change, not a migration.
+      offerCouponId:    { type: mongoose.Schema.Types.ObjectId, ref: "Coupon", default: null },
+      // The post-save "you've used your free trades" sheet is shown once per
+      // account, not once per device, so the dismissal lives here.
+      lastFreeTradeSheetDismissedAt: { type: Date, default: null },
+    },
     freeUploadUsed: {
       type: Boolean,
       default: false
@@ -285,6 +308,15 @@ userSchema.index(
 // Trial expiry cron + day-5/6 warning queries — sparse so legacy users
 // without trial data don't bloat the index.
 userSchema.index({ "trial.endsAt": 1 }, { sparse: true });
+// Free-tier nudge cron window scans. Partial so only accounts that have
+// actually run out of free trades are in the index.
+userSchema.index(
+  { "freeTier.lastFreeTradeAt": 1 },
+  {
+    name: "free_tier_funnel",
+    partialFilterExpression: { "freeTier.lastFreeTradeAt": { $type: "date" } },
+  }
+);
 // `sparse` and `partialFilterExpression` can't be combined -- MongoDB
 // rejects the index outright, so it silently never got created (Mongoose's
 // background ensureIndexes() only logs the failure, it doesn't crash).

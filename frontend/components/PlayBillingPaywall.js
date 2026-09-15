@@ -18,6 +18,7 @@ import {
   onPurchaseUpdated,
 } from "@/plugins/EdgeBillingPlugin";
 import FocusTrap from "@/features/shared/components/FocusTrap";
+import RecentTradeCards, { LockedInsightTeaser } from "@/features/trade/components/RecentTradeCards";
 import PremiumWelcome from "@/features/premium/components/PremiumWelcome";
 
 // The Android paywall. Google Play Billing only — this component contains no
@@ -317,6 +318,13 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
       setPhase(PHASE.PURCHASING);
       setError("");
       recordTrialEvent("paywall_cta_clicked", { variant, provider: "google_play" });
+      if (variant === "trade-limit") {
+        recordTrialEvent("free_nudge_cta_clicked", {
+          surface: "trade_limit_paywall",
+          provider: "google_play",
+          teaser: ctx?.teaserInsight?.code || null,
+        });
+      }
 
       await startPurchase({
         productId: selectedOffer.productId,
@@ -332,7 +340,7 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
       setPhase(PHASE.ERROR);
       setError(err?.message || "Couldn't open Google Play. Please try again.");
     }
-  }, [selectedOffer, config, phase, variant]);
+  }, [selectedOffer, config, phase, variant, ctx]);
 
   const handleClose = useCallback(() => {
     recordTrialEvent("paywall_dismissed", { variant, provider: "google_play" });
@@ -386,6 +394,13 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
             borderRadius: 28,
             width: "100%",
             maxWidth: 520,
+            // A short viewport (landscape phone, a small/split window) can't
+            // fit headline + metrics + plans + CTA without this — the dialog
+            // used to run off the bottom of the screen with no way to scroll
+            // down to the purchase button.
+            maxHeight: "min(680px, calc(100vh - 40px))",
+            display: "flex",
+            flexDirection: "column",
             border: "1px solid rgba(226, 232, 240, 0.8)",
             boxShadow: "0 40px 100px -20px rgba(0,0,0,0.35)",
             position: "relative",
@@ -422,7 +437,9 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
             </svg>
           </button>
 
-          <div style={{ padding: "40px 32px 32px" }}>
+          {/* Scrolls independently of the close button above, which stays
+              pinned to the dialog's corner regardless of scroll position. */}
+          <div style={{ padding: "40px 32px 32px", overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
             <div
               style={{
                 display: "inline-block",
@@ -437,7 +454,7 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
                 marginBottom: 16,
               }}
             >
-              Keep your edge
+              {variant === "trade-limit" ? "Free plan limit" : "Keep your edge"}
             </div>
 
             <h2
@@ -455,6 +472,15 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
             <p style={{ fontSize: 14, color: "#64748B", lineHeight: 1.55, marginTop: 10, marginBottom: 24 }}>
               {subheadline}
             </p>
+
+            {/* Trade-limit path: the user's own live trades + the locked
+                read on them. No prices here — Play supplies those below. */}
+            {variant === "trade-limit" && Array.isArray(ctx?.recentTrades) && ctx.recentTrades.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                <RecentTradeCards trades={ctx.recentTrades} compact />
+                <LockedInsightTeaser teaser={ctx?.teaserInsight} compact />
+              </div>
+            )}
 
             {phase === PHASE.LOADING && <PaywallSkeleton />}
 

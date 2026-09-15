@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import AdminHeader from "@/components/AdminHeader";
 import { adminGetIssue, adminUpdateIssueStatus, ISSUE_CATEGORIES } from "@/services/issueApi";
@@ -33,11 +34,14 @@ function Inner() {
     setError("");
     try {
       const resp = await adminGetIssue(id);
-      setIssue(resp?.issue || null);
-      setFixSummary(resp?.issue?.fixSummary || "");
-      setFixedVersion(resp?.issue?.fixedVersion || "");
+      // apiClient already unwraps the { success, data } envelope, so the
+      // response IS the issue. Tolerate a wrapped shape too.
+      const loaded = resp?.issue || (resp?._id ? resp : null);
+      setIssue(loaded);
+      setFixSummary(loaded?.fixSummary || "");
+      setFixedVersion(loaded?.fixedVersion || "");
     } catch (e) {
-      setError(e?.response?.data?.message || e?.message || "Could not load issue.");
+      setError(e?.data?.message || e?.message || "Could not load issue.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +64,7 @@ function Inner() {
       setNote("");
       await refresh();
     } catch (e) {
-      setError(e?.response?.data?.message || e?.message || "Update failed.");
+      setError(e?.data?.message || e?.message || "Update failed.");
     } finally {
       setSavingStatus(null);
     }
@@ -117,6 +121,60 @@ function Inner() {
               <div style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>
                 Reported: {new Date(issue.createdAt).toLocaleString()} · Module: {issue.module || "—"} · App v{issue.appVersion || "?"}
               </div>
+            </div>
+
+            {/* The customer-facing side of this report. Replies, screenshots
+                and the resolution the customer actually sees all live on the
+                ticket; this page is the engineering record. */}
+            <div
+              style={{
+                background: issue.linkedTicket ? "rgba(13,158,110,0.06)" : "#fff",
+                border: `1px solid ${issue.linkedTicket ? "rgba(13,158,110,0.3)" : "#e2e8f0"}`,
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              {issue.linkedTicket ? (
+                <>
+                  <div style={{ fontSize: 13, color: "#0f172a" }}>
+                    Support ticket{" "}
+                    <strong style={{ fontFamily: "monospace" }}>{issue.linkedTicket.ticketCode}</strong>
+                    <span style={{ color: "#64748b" }}>
+                      {" "}· {String(issue.linkedTicket.status || "").replace(/_/g, " ")}
+                    </span>
+                    <div style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>
+                      Screenshots and the conversation with the customer are on the ticket. Marking this
+                      report <strong>Fixed</strong> posts the fix summary there and resolves it.
+                    </div>
+                  </div>
+                  <Link
+                    href={`/admin/support/detail?id=${issue.linkedTicket._id}`}
+                    style={{
+                      background: "#0D9E6E",
+                      color: "#fff",
+                      textDecoration: "none",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      padding: "9px 14px",
+                      borderRadius: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Open ticket →
+                  </Link>
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Legacy report — filed before issue reports opened support tickets. There is no
+                  conversation thread for it; the customer is notified through the fix notification only.
+                </div>
+              )}
             </div>
 
             {issue.ocrDataSnapshot && (

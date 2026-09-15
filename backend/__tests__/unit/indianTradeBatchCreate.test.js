@@ -1,6 +1,12 @@
 jest.mock("../../models/IndianTrade", () => ({
-  // The free-trade gate counts existing entries before every create.
-  countDocuments: jest.fn().mockResolvedValue(0),
+  // The free-trade gate counts existing entries before every create, and the
+  // post-insert quota snapshot re-counts inside the batch transaction, so the
+  // mock must look like a real Query: awaitable AND `.session()`-able.
+  countDocuments: jest.fn(() => {
+    const query = Promise.resolve(0);
+    query.session = jest.fn().mockResolvedValue(0);
+    return query;
+  }),
   insertMany: jest.fn(),
   find: jest.fn(),
   findOneAndUpdate: jest.fn(),

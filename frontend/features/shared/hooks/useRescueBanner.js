@@ -10,8 +10,9 @@ import { getRescueBanner, recordRescueEvent } from "@/services/api";
 //   banner = { touchpoint, headline, body, ctaLabel, ctaDeepLink,
 //              metricLabel, metricValue, tone, phase }
 //
-// Polls every 5 minutes — copy is anchored to subscriptionExpiry which only
-// shifts once per renewal, so we don't need to be aggressive. Re-fetches on
+// Polls every 5 minutes — copy is anchored to subscriptionExpiry (rescue) or
+// freeTier.lastFreeTradeAt (free tier), both of which move at most once per
+// cycle, so we don't need to be aggressive. Re-fetches on
 // tab focus so a user who paid in another tab sees the banner disappear.
 const POLL_MS = 5 * 60 * 1000;
 
@@ -30,7 +31,9 @@ export function useRescueBanner() {
       // an impression count without spamming events on every re-render.
       if (banner && banner.touchpoint !== lastViewedTouchpoint.current) {
         lastViewedTouchpoint.current = banner.touchpoint;
-        recordRescueEvent("rescue_banner_viewed", banner.touchpoint, {
+        const isFreeTier = banner.funnel === "free_tier";
+        recordRescueEvent(isFreeTier ? "free_nudge_viewed" : "rescue_banner_viewed", banner.touchpoint, {
+          funnel: isFreeTier ? "free_tier" : "subscription_rescue",
           phase: banner.phase,
           tone: banner.tone,
         });

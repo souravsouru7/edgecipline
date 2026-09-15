@@ -6,6 +6,10 @@ const COUPON_STATUSES = ["active", "disabled"];
 const DISCOUNT_TYPES = ["percent", "fixed"];
 const CHECKOUT_SESSION_STATUSES = ["open", "paid", "expired", "superseded"];
 const REDEMPTION_STATUSES = ["applied", "reversed"];
+// Lifecycle of the coupon capacity a checkout holds: none (no coupon),
+// reserved (held while the order is payable), redeemed (payment captured),
+// released (expired / superseded / failed — capacity returned).
+const COUPON_RESERVATION_STATES = ["none", "reserved", "redeemed", "released"];
 const INFLUENCER_STATUSES = ["active", "inactive"];
 const ORDERABLE_PLAN_TYPES = ["monthly", "3_months", "6_months"];
 
@@ -42,6 +46,7 @@ module.exports = {
   DISCOUNT_TYPES,
   CHECKOUT_SESSION_STATUSES,
   REDEMPTION_STATUSES,
+  COUPON_RESERVATION_STATES,
   INFLUENCER_STATUSES,
   ORDERABLE_PLAN_TYPES,
   PUBLIC_COUPON_ERROR,

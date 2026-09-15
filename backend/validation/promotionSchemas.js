@@ -17,6 +17,45 @@ const optionalDate = z.preprocess(
     .optional()
 );
 
+// JSON bodies carry real numbers; coercion turned `true` into 1 and "20"
+// into 20, which hid client bugs. Strict numbers only.
+const money = z.number().finite();
+const positiveMoney = money.positive();
+const countLimit = z.number().int().min(1);
+
+// Fixed discounts are whole rupees: a fractional value was accepted but then
+// rounded at quote time (₹0.01 was never usable, ₹0.5 became ₹1).
+function discountValueMatchesType(data, ctx) {
+  if (data.discountType === "fixed" && data.discountValue != null && !Number.isInteger(data.discountValue)) {
+    ctx.addIssue({ code: "custom", path: ["discountValue"], message: "Fixed discounts must be whole rupees" });
+  }
+}
+
+// A window that ends before it starts can never be valid; reject it at the
+// door rather than storing a coupon or campaign nobody can ever use.
+function windowIsOrdered(startKey, endKey) {
+  return (data, ctx) => {
+    const start = data[startKey];
+    const end = data[endKey];
+    if (start && end && Date.parse(start) >= Date.parse(end)) {
+      ctx.addIssue({ code: "custom", path: [endKey], message: `${endKey} must be after ${startKey}` });
+    }
+  };
+}
+
+// On update, an empty string or null means "clear this date"; only an absent
+// key leaves it untouched. (On create, empty and absent are the same thing.)
+const clearableDate = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z
+    .string()
+    .trim()
+    .min(1)
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Must be a valid date")
+    .nullable()
+    .optional()
+);
+
 const campaignType = z.enum(["influencer", "festival", "general", "new_user", "other"]);
 const campaignStatus = z.enum(["draft", "active", "paused", "ended"]);
 const couponStatus = z.enum(["active", "disabled"]);
@@ -112,7 +151,7 @@ const adminPromotionSchemas = {
       endsAt: optionalDate,
       influencerId: optionalObjectId,
       notes: z.preprocess(emptyToUndefined, z.string().max(4000).optional()),
-    }),
+    }).superRefine(windowIsOrdered("startsAt", "endsAt")),
     query: emptyQuery,
     params: emptyQuery,
   }),
@@ -122,11 +161,11 @@ const adminPromotionSchemas = {
       slug: z.preprocess(emptyToUndefined, z.string().trim().max(80).optional()),
       type: campaignType.optional(),
       status: campaignStatus.optional(),
-      startsAt: optionalDate,
-      endsAt: optionalDate,
+      startsAt: clearableDate,
+      endsAt: clearableDate,
       influencerId: optionalObjectId,
       notes: z.preprocess(emptyToUndefined, z.string().max(4000).optional()),
-    }),
+    }).superRefine(windowIsOrdered("startsAt", "endsAt")),
     query: emptyQuery,
     params: z.object({ id: objectId }),
   }),
@@ -135,18 +174,20 @@ const adminPromotionSchemas = {
       code: z.string().trim().min(1).max(32),
       campaignId: objectId,
       discountType: discountType,
-      discountValue: z.coerce.number().positive(),
+      discountValue: positiveMoney,
       startsAt: optionalDate,
       expiresAt: optionalDate,
       status: couponStatus.optional(),
-      maxRedemptions: z.coerce.number().int().min(1).optional(),
-      maxPerUser: z.coerce.number().int().min(1).optional(),
-      minAmount: z.coerce.number().min(0).optional(),
+      maxRedemptions: z.preprocess(emptyToUndefined, countLimit.optional()),
+      maxPerUser: z.preprocess(emptyToUndefined, countLimit.optional()),
+      minAmount: z.preprocess(emptyToUndefined, money.min(0).optional()),
       applicablePlanTypes: z.array(planType).optional(),
       firstTimePayerOnly: z.boolean().optional(),
       excludeActiveSubscribers: z.boolean().optional(),
       newPurchaseOnly: z.boolean().optional(),
-    }),
+    })
+      .superRefine(discountValueMatchesType)
+      .superRefine(windowIsOrdered("startsAt", "expiresAt")),
     query: emptyQuery,
     params: emptyQuery,
   }),
@@ -155,18 +196,20 @@ const adminPromotionSchemas = {
       code: z.string().trim().min(1).max(32).optional(),
       campaignId: optionalObjectId,
       discountType: discountType.optional(),
-      discountValue: z.coerce.number().positive().optional(),
-      startsAt: optionalDate,
-      expiresAt: optionalDate,
+      discountValue: positiveMoney.optional(),
+      startsAt: clearableDate,
+      expiresAt: clearableDate,
       status: couponStatus.optional(),
-      maxRedemptions: z.coerce.number().int().min(1).nullable().optional(),
-      maxPerUser: z.coerce.number().int().min(1).optional(),
-      minAmount: z.coerce.number().min(0).optional(),
+      maxRedemptions: z.preprocess((v) => (v === "" ? null : v), countLimit.nullable().optional()),
+      maxPerUser: z.preprocess(emptyToUndefined, countLimit.optional()),
+      minAmount: z.preprocess(emptyToUndefined, money.min(0).optional()),
       applicablePlanTypes: z.array(planType).optional(),
       firstTimePayerOnly: z.boolean().optional(),
       excludeActiveSubscribers: z.boolean().optional(),
       newPurchaseOnly: z.boolean().optional(),
-    }),
+    })
+      .superRefine(discountValueMatchesType)
+      .superRefine(windowIsOrdered("startsAt", "expiresAt")),
     query: emptyQuery,
     params: z.object({ id: objectId }),
   }),

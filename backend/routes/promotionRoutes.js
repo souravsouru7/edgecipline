@@ -7,7 +7,6 @@ const { validateRequest } = require("../middleware/validateRequest");
 const {
   couponValidateRateLimiter,
   promotionTouchRateLimiter,
-  paymentRateLimiter,
 } = require("../middleware/rateLimiter");
 const { userPromotionSchemas } = require("../validation/promotionSchemas");
 const {
@@ -31,11 +30,14 @@ router.post(
   recordTouch
 );
 
+// Validation is read-only and has its own limiter. It must NOT share the
+// `payment` bucket with /payments/order and /payments/verify: a buyer who
+// tried a few codes would otherwise have their post-payment verify call
+// rejected with 429 after the money was captured.
 router.post(
   "/coupons/validate",
   protect,
   couponValidateRateLimiter,
-  paymentRateLimiter,
   validateRequest(userPromotionSchemas.validateCoupon),
   validateCoupon
 );

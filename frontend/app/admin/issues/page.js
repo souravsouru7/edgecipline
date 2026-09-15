@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminHeader from "@/components/AdminHeader";
 import {
@@ -186,8 +187,30 @@ export default function AdminIssuesPage() {
                   <div style={{ color: "#1e293b", fontSize: 13, lineHeight: 1.5, marginBottom: 6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                     {iss.description}
                   </div>
-                  <div style={{ color: "#64748b", fontSize: 11 }}>
-                    {iss.user?.name || iss.email || "Unknown"} · {new Date(iss.createdAt).toLocaleString()}
+                  <div style={{ color: "#64748b", fontSize: 11, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span>
+                      {iss.user?.name || iss.email || "Unknown"} · {new Date(iss.createdAt).toLocaleString()}
+                    </span>
+                    {iss.linkedTicket?.ticketCode ? (
+                      <Link
+                        href={`/admin/support/detail?id=${iss.linkedTicket._id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          fontFamily: "monospace",
+                          fontWeight: 700,
+                          color: "#0D9E6E",
+                          background: "rgba(13,158,110,0.08)",
+                          border: "1px solid rgba(13,158,110,0.25)",
+                          borderRadius: 999,
+                          padding: "2px 8px",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Ticket {iss.linkedTicket.ticketCode} · {iss.linkedTicket.status.replace(/_/g, " ")}
+                      </Link>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>no support ticket (legacy report)</span>
+                    )}
                   </div>
                 </div>
                 <span

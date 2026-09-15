@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Moon, Sparkles, ChevronRight } from "lucide-react";
+import { Moon, Sparkles, ChevronRight, ChevronDown, HelpCircle } from "lucide-react";
 import ReflectionScoreRing from "./ReflectionScoreRing";
 import ReflectionSheet from "./ReflectionSheet";
 import AskCoachButton from "@/features/coach-chat/components/AskCoachButton";
@@ -18,6 +18,22 @@ import AskCoachButton from "@/features/coach-chat/components/AskCoachButton";
 // Parent passes `data` straight from the dashboard snapshot's `reflection`
 // field, so this component never fetches — the dashboard query is the source
 // of truth, and the sheet mutates that cache on submit.
+const GUIDE_DISMISSED_KEY = "edgecipline:reflection-guide-dismissed";
+
+function readGuideDismissed() {
+  try { return window.localStorage.getItem(GUIDE_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+
+function writeGuideDismissed(value) {
+  try { window.localStorage.setItem(GUIDE_DISMISSED_KEY, value ? "1" : "0"); } catch { /* storage unavailable */ }
+}
+
+// localStorage never notifies within the same tab, and the user's own toggle
+// is tracked in state, so the subscription is a no-op. The server snapshot is
+// always `false` so SSR and the first client render agree.
+const noopSubscribe = () => () => {};
+const readGuideDismissedOnServer = () => false;
+
 export default function ReflectionCard({ data, loading }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -34,6 +50,18 @@ export default function ReflectionCard({ data, loading }) {
     !today?.completed &&
     !today?.skipped &&
     (!weekly || (weekly.submittedDays || 0) === 0);
+
+  // The guide opens itself for first-timers (nobody knew what the card was
+  // for) and stays reachable behind a toggle once the habit has started.
+  // `guideChoice` is null until the user toggles, so the auto-open follows the
+  // snapshot as it loads.
+  const [guideChoice, setGuideChoice] = useState(null);
+  const guideDismissed = useSyncExternalStore(noopSubscribe, readGuideDismissed, readGuideDismissedOnServer);
+  const guideOpen = guideChoice ?? (!loading && isFirstTime && !guideDismissed);
+  const toggleGuide = () => {
+    writeGuideDismissed(guideOpen);
+    setGuideChoice(!guideOpen);
+  };
 
   const ctaLabel =
     today?.completed ? "Update reflection" :
@@ -67,13 +95,26 @@ export default function ReflectionCard({ data, loading }) {
                 Morning prepares · Evening reflects
               </div>
             </div>
-            <Link
-              href="/reflection"
-              style={{ fontSize: 11, fontWeight: 800, color: "#8B5CF6", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 2, whiteSpace: "nowrap" }}
-            >
-              History <ChevronRight size={12} />
-            </Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={toggleGuide}
+                aria-expanded={guideOpen}
+                aria-controls="reflection-guide"
+                style={{ fontSize: 11, fontWeight: 800, color: "#64748B", background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+              >
+                <HelpCircle size={12} /> How it works <ChevronDown size={12} style={{ transform: guideOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
+              <Link
+                href="/reflection"
+                style={{ fontSize: 11, fontWeight: 800, color: "#8B5CF6", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 2, whiteSpace: "nowrap" }}
+              >
+                History <ChevronRight size={12} />
+              </Link>
+            </div>
           </div>
+
+          {guideOpen && <ReflectionGuide onStart={() => setSheetOpen(true)} />}
 
           {loading ? (
             <div style={{ height: 86, borderRadius: 10, background: "#F1F5F9" }} />
@@ -167,6 +208,74 @@ export default function ReflectionCard({ data, loading }) {
 
       <ReflectionSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
+  );
+}
+
+// Three-step walkthrough of the daily loop. Copy mirrors what ReflectionSheet
+// actually asks and how reflectionService weights the weekly score, so the
+// guide never promises something the feature doesn't do.
+const GUIDE_STEPS = [
+  {
+    n: "1",
+    title: "Trade your day as usual",
+    body: "Log trades like normal — or sit out. Either way counts. The card tracks how many trades are waiting for review.",
+    accent: "#2563EB",
+  },
+  {
+    n: "2",
+    title: "Close the day in 30 seconds",
+    body: "In the evening tap the green button and answer 5 quick taps: followed your plan? · how did it feel? · confidence · would you repeat it? · one thing to improve tomorrow.",
+    accent: "#0D9E6E",
+  },
+  {
+    n: "3",
+    title: "Do it 7 days, get a score + a coach",
+    body: "Each day builds the weekly score (plan adherence 40%, would-repeat 20%, mood & confidence 20%, showing up 20%). The AI coach reads your answers with your trades and tells you what to fix tomorrow.",
+    accent: "#8B5CF6",
+  },
+];
+
+function ReflectionGuide({ onStart }) {
+  return (
+    <div
+      id="reflection-guide"
+      style={{
+        marginBottom: 14,
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: "#F8FAFC",
+        border: "1px solid #E2E8F0",
+      }}
+    >
+      <div style={{ fontSize: 10, color: "#64748B", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
+        How to use this in your trading journey
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+        {GUIDE_STEPS.map((step) => (
+          <div key={step.n} style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 7, background: `${step.accent}18`, color: step.accent, fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {step.n}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923", marginBottom: 2 }}>{step.title}</div>
+              <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.55 }}>{step.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px dashed #E2E8F0" }}>
+        <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.5 }}>
+          Tip: honesty beats a high score. Logging &ldquo;broke the plan&rdquo; is what lets the coach catch the pattern. Skipping a quiet day is fine — it won&rsquo;t drag you down like a broken plan does.
+        </div>
+        <button
+          type="button"
+          onClick={onStart}
+          style={{ fontSize: 11, fontWeight: 800, color: "#0D9E6E", background: "none", border: "1px solid #0D9E6E55", borderRadius: 8, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          Start now →
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -5,9 +5,16 @@ import { useRescueBanner } from "@/features/shared/hooks/useRescueBanner";
 import { recordRescueEvent } from "@/services/api";
 import { canShowPurchaseUI } from "@/config/payments";
 
-// Subscription Rescue Funnel banner. Rendered below the TrialCountdownBanner
-// in the app shell; auto-hides when the user has nothing to rescue (healthy
-// sub, never-paid free user, admin, or trial-only premium).
+// Funnel banner. Rendered below the TrialCountdownBanner in the app shell and
+// fed by GET /rescue/banner, which serves two funnels in priority order:
+//
+//   subscription_rescue — expiring / lapsed paid users (the original)
+//   free_tier           — never-paid users who used their free trades
+//
+// The server never returns both; `banner.funnel` says which one this is so
+// the analytics beacons and the aria label stay accurate. Auto-hides when
+// there is nothing to show (healthy sub, free user with trades left, admin,
+// trial-only premium, or a funnel that has run its course).
 //
 // Tone styling:
 //   celebrate / we_miss_you      → calm green
@@ -27,6 +34,16 @@ const TONE_STYLES = {
   last_call:     { bg: "linear-gradient(90deg,#F1F5F9 0%,#E2E8F0 100%)", accent: "#475569", text: "#1E293B", icon: "✉️" },
 };
 
+// Event names per funnel. Both go through the same allowlisted endpoint.
+const EVENTS = {
+  subscription_rescue: { cta: "rescue_banner_cta_clicked", dismiss: "rescue_banner_dismissed" },
+  free_tier:           { cta: "free_nudge_cta_clicked",    dismiss: "free_nudge_dismissed" },
+};
+
+export function bannerFunnel(banner) {
+  return banner?.funnel === "free_tier" ? "free_tier" : "subscription_rescue";
+}
+
 export default function RescueBanner({ onUpgrade }) {
   const { banner, loading } = useRescueBanner();
   const tone = useMemo(
@@ -34,13 +51,18 @@ export default function RescueBanner({ onUpgrade }) {
     [banner?.tone]
   );
 
-  // The rescue funnel exists only to recover a lapsed subscription; with no
-  // checkout available it has nowhere to send the user.
+  // Both funnels exist only to lead to a purchase; with no checkout available
+  // they have nowhere to send the user.
   if (!canShowPurchaseUI()) return null;
   if (loading || !banner) return null;
 
+  const funnel = bannerFunnel(banner);
+  const events = EVENTS[funnel];
+
   const handleCta = () => {
-    recordRescueEvent("rescue_banner_cta_clicked", banner.touchpoint, {
+    recordRescueEvent(events.cta, banner.touchpoint, {
+      funnel,
+      surface: "banner",
       phase: banner.phase,
       tone: banner.tone,
     });
@@ -48,7 +70,8 @@ export default function RescueBanner({ onUpgrade }) {
   };
 
   const handleDismiss = () => {
-    recordRescueEvent("rescue_banner_dismissed", banner.touchpoint, {
+    recordRescueEvent(events.dismiss, banner.touchpoint, {
+      funnel,
       phase: banner.phase,
     });
     // No client-side hide — server decides whether to keep showing on next
@@ -59,7 +82,7 @@ export default function RescueBanner({ onUpgrade }) {
   return (
     <div
       role="region"
-      aria-label="Subscription renewal"
+      aria-label={funnel === "free_tier" ? "Free plan upgrade" : "Subscription renewal"}
       style={{
         background: tone.bg,
         color: tone.text,

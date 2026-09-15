@@ -7,6 +7,9 @@ const Campaign = require("../models/Campaign");
 const Influencer = require("../models/Influencer");
 const Payment = require("../models/Payment");
 const CouponRedemption = require("../models/CouponRedemption");
+const CouponUserUsage = require("../models/CouponUserUsage");
+const CheckoutSession = require("../models/CheckoutSession");
+const { sweepExpiredReservations } = require("./promotionFulfillment.service");
 const {
   PUBLIC_COUPON_ERROR,
   MIN_PAYABLE_RUPEES,
@@ -70,17 +73,56 @@ async function isFirstTimePayer(user) {
   }
 }
 
-async function userRedemptionCount(couponId, userId) {
+// Completed redemptions plus capacity currently held by this user's open
+// checkouts. The counter is what reservation enforces atomically; the
+// redemption count is kept as a floor for records that predate the counter.
+//
+// `ownHolds` — capacity this same user is holding through still-open
+// checkouts — is excluded: a new order supersedes those sessions and releases
+// the holds before reserving again, so they are re-takeable by this caller.
+async function userRedemptionCount(couponId, userId, ownHolds = 0) {
   if (mongoose.connection.readyState !== 1) return 0;
   try {
-    return await CouponRedemption.countDocuments({
+    const [applied, usage] = await Promise.all([
+      CouponRedemption.countDocuments({ coupon: couponId, user: userId, status: "applied" }),
+      CouponUserUsage.findOne({ coupon: couponId, user: userId }).select("usedCount").lean(),
+    ]);
+    return Math.max(applied, (Number(usage?.usedCount) || 0) - ownHolds);
+  } catch {
+    return 0;
+  }
+}
+
+// Holds this user has on the coupon through open, unexpired checkouts.
+async function ownOpenHolds(couponId, userId, now) {
+  if (!userId || mongoose.connection.readyState !== 1) return 0;
+  try {
+    return await CheckoutSession.countDocuments({
       coupon: couponId,
       user: userId,
-      status: "applied",
+      status: "open",
+      couponReservation: "reserved",
+      expiresAt: { $gte: now },
     });
   } catch {
     return 0;
   }
+}
+
+// Capacity already spoken for: paid redemptions plus holds from open
+// checkouts, less this caller's own re-takeable holds. Expired holds are
+// released first so an abandoned checkout can never make a coupon look
+// exhausted.
+async function committedCount(coupon, ownHolds = 0) {
+  let reserved = Number(coupon.reservedCount) || 0;
+  if (reserved > 0 && mongoose.connection.readyState === 1) {
+    try {
+      reserved = Math.max(0, reserved - (await sweepExpiredReservations(coupon._id)));
+    } catch {
+      // Sweep is best-effort here; reservation re-sweeps before it commits.
+    }
+  }
+  return (Number(coupon.redemptionCount) || 0) + Math.max(0, reserved - ownHolds);
 }
 
 /**
@@ -139,12 +181,15 @@ async function quoteCheckout({ user, plan, couponCode, now = new Date() }) {
     throw couponInvalid();
   }
 
-  if (coupon.maxRedemptions && Number(coupon.redemptionCount) >= coupon.maxRedemptions) {
+  const heldByCaller =
+    coupon.maxRedemptions || coupon.maxPerUser ? await ownOpenHolds(coupon._id, user?._id, now) : 0;
+
+  if (coupon.maxRedemptions && (await committedCount(coupon, heldByCaller)) >= coupon.maxRedemptions) {
     throw couponInvalid();
   }
 
   if (user?._id && coupon.maxPerUser) {
-    const used = await userRedemptionCount(coupon._id, user._id);
+    const used = await userRedemptionCount(coupon._id, user._id, heldByCaller);
     if (used >= coupon.maxPerUser) throw couponInvalid();
   }
 

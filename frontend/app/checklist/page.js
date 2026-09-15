@@ -699,38 +699,53 @@ export default function PreTradeChecklistPage() {
               alignItems: "center",
               justifyContent: "center",
               padding: "24px",
+              // A tall portrait screenshot (the common case for a chart
+              // reference image) plus the close button could exceed a short
+              // viewport (split-screen Android, landscape phone) with no way
+              // to reach whatever got pushed past the edge. Scrolling is the
+              // fallback; the button itself is pinned below so it never
+              // depends on scroll position anyway.
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
+            {/* Fixed to the viewport, not to the image column below, so it
+                stays reachable regardless of how tall the reference image is
+                or how short the screen is. */}
+            <button
+              type="button"
+              onClick={closePreviewImage}
+              aria-label="Close preview"
+              style={{
+                position: "fixed",
+                top: "max(16px, env(safe-area-inset-top))",
+                right: "max(16px, env(safe-area-inset-right))",
+                zIndex: 1010,
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.25)",
+                background: "rgba(15,25,35,0.85)",
+                color: "#FFFFFF",
+                cursor: "pointer",
+                fontSize: 18,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              x
+            </button>
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
                 position: "relative",
                 maxWidth: "min(1100px, 96vw)",
-                maxHeight: "90vh",
                 width: "100%",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
+                margin: "auto",
               }}
             >
-              <button
-                type="button"
-                onClick={closePreviewImage}
-                style={{
-                  alignSelf: "flex-end",
-                  width: 38,
-                  height: 38,
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.25)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#FFFFFF",
-                  cursor: "pointer",
-                  fontSize: 18,
-                  fontWeight: 700,
-                }}
-              >
-                x
-              </button>
               <div className="checklist-preview-frame">
                 {!previewImageLoaded && (
                   <div className="checklist-preview-loading">
@@ -744,7 +759,7 @@ export default function PreTradeChecklistPage() {
                   onError={() => setPreviewImageLoaded(true)}
                   style={{
                     width: "100%",
-                    maxHeight: "calc(90vh - 56px)",
+                    maxHeight: "80vh",
                     objectFit: "contain",
                     borderRadius: 18,
                     background: "#FFFFFF",

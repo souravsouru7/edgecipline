@@ -246,12 +246,140 @@ function StaffMessage({ message }) {
   );
 }
 
+// The OCR snapshot stores the raw extraction and the values the user corrected
+// to. Side by side, the diff IS the bug report — an agent can see exactly which
+// field the pipeline got wrong without opening the screenshot.
+const OCR_FIELDS = [
+  ["Symbol", (v) => v.symbol || v.pair || v.stockSymbol],
+  ["Entry", (v) => v.entry ?? v.entryPrice],
+  ["Exit", (v) => v.exit ?? v.exitPrice],
+  ["Stop loss", (v) => v.stopLoss],
+  ["Take profit", (v) => v.takeProfit],
+  ["Qty", (v) => v.quantity ?? v.sharesQty ?? v.lotSize],
+  ["P/L", (v) => v.profit ?? v.pnl],
+  ["Type", (v) => v.tradeType || v.type],
+  ["Date", (v) => v.date || v.tradeDate],
+];
+
+function present(value) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function OcrSnapshotTable({ snapshot }) {
+  if (!snapshot) return null;
+  const extracted =
+    snapshot.extractedValues && !Array.isArray(snapshot.extractedValues) ? snapshot.extractedValues : null;
+  const corrected =
+    snapshot.correctedValues && !Array.isArray(snapshot.correctedValues) ? snapshot.correctedValues : null;
+  // Older clients sent one flat object; treat it as the extraction.
+  const left = extracted || (!corrected ? snapshot : null);
+  const right = corrected;
+
+  const rows = OCR_FIELDS.map(([label, pick]) => ({
+    label,
+    from: left ? pick(left) : undefined,
+    to: right ? pick(right) : undefined,
+  })).filter((row) => present(row.from) || present(row.to));
+
+  if (!rows.length) return null;
+
+  return (
+    <table className="cx-ocr">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Extracted</th>
+          {right && <th>Corrected</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => {
+          const changed = right && present(row.to) && String(row.from ?? "") !== String(row.to);
+          return (
+            <tr key={row.label} className={changed ? "cx-ocr-changed" : undefined}>
+              <td className="cx-ocr-label">{row.label}</td>
+              <td>{present(row.from) ? String(row.from) : "—"}</td>
+              {right && <td>{present(row.to) ? String(row.to) : "—"}</td>}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 function ContextPanel({ context, canSeeBilling }) {
   if (!context) return null;
-  const { account, plan, ticketCounts, recentTickets, issueReports, billing } = context;
+  const { account, plan, ticketCounts, recentTickets, issueReports, linkedIssue, billing } = context;
 
   return (
     <aside className="cx" aria-label="Customer context">
+      {/* First, because when it exists it is the single most useful thing on
+          the page: what the app captured at the moment the customer hit
+          "Report". Everything below is background. */}
+      {linkedIssue && (
+        <section className="cx-block cx-block-issue">
+          <h2 className="cx-h">
+            <Bug size={12} aria-hidden="true" /> Bug report
+          </h2>
+          <div className="cx-issue-head">
+            <Link href={`/admin/issues/detail?id=${linkedIssue.id}`} className="cx-issue-code">
+              {linkedIssue.issueCode}
+            </Link>
+            <span className={`cx-issue-status cx-issue-status-${String(linkedIssue.status).toLowerCase()}`}>
+              {linkedIssue.status}
+            </span>
+          </div>
+          <dl className="cx-dl">
+            <dt>Category</dt>
+            <dd>{String(linkedIssue.category || "").replace(/_/g, " ").toLowerCase()}</dd>
+            <dt>Screen</dt>
+            <dd>{linkedIssue.module || "—"}</dd>
+            <dt>Platform</dt>
+            <dd>
+              {linkedIssue.platform}
+              {linkedIssue.appVersion ? ` v${linkedIssue.appVersion}` : ""}
+            </dd>
+            <dt>Market</dt>
+            <dd>{String(linkedIssue.marketType || "Unknown").replace(/_/g, " ")}</dd>
+            {linkedIssue.deviceInfo?.screen && (
+              <>
+                <dt>Screen size</dt>
+                <dd>{linkedIssue.deviceInfo.screen}</dd>
+              </>
+            )}
+            {linkedIssue.deviceInfo?.timezone && (
+              <>
+                <dt>Timezone</dt>
+                <dd>{linkedIssue.deviceInfo.timezone}</dd>
+              </>
+            )}
+          </dl>
+          {linkedIssue.ocrDataSnapshot && (
+            <>
+              <div className="cx-ocr-title">
+                OCR values
+                {Number.isFinite(linkedIssue.ocrDataSnapshot.extractionConfidence) && (
+                  <span> · confidence {linkedIssue.ocrDataSnapshot.extractionConfidence}/100</span>
+                )}
+                {linkedIssue.ocrDataSnapshot.broker && <span> · {linkedIssue.ocrDataSnapshot.broker}</span>}
+              </div>
+              <OcrSnapshotTable snapshot={linkedIssue.ocrDataSnapshot} />
+            </>
+          )}
+          {linkedIssue.fixSummary && (
+            <p className="cx-issue-fix">
+              <strong>Fix{linkedIssue.fixedVersion ? ` (v${linkedIssue.fixedVersion})` : ""}:</strong>{" "}
+              {linkedIssue.fixSummary}
+            </p>
+          )}
+          <p className="cx-muted">
+            Engineering status is set on the bug report; marking it Fixed posts the summary here and
+            resolves this ticket.
+          </p>
+        </section>
+      )}
+
       <section className="cx-block">
         <h2 className="cx-h">Customer</h2>
         <div className="cx-name">{account.name || "—"}</div>
@@ -348,15 +476,15 @@ function ContextPanel({ context, canSeeBilling }) {
         </section>
       )}
 
-      {issueReports?.length > 0 && (
+      {issueReports?.filter((issue) => issue.id !== linkedIssue?.id).length > 0 && (
         <section className="cx-block">
           <h2 className="cx-h">
-            <Bug size={12} aria-hidden="true" /> Bug reports
+            <Bug size={12} aria-hidden="true" /> Other bug reports
           </h2>
           <ul className="cx-list">
-            {issueReports.map((issue) => (
+            {issueReports.filter((issue) => issue.id !== linkedIssue?.id).map((issue) => (
               <li key={issue.id}>
-                <Link href={`/admin/issues`} className="cx-link">
+                <Link href={`/admin/issues/detail?id=${issue.id}`} className="cx-link">
                   <span className="cx-link-code">{issue.issueCode}</span>
                   <span className="cx-link-subject">
                     {issue.category.replace(/_/g, " ").toLowerCase()} · {issue.status.toLowerCase()}
@@ -379,6 +507,98 @@ function ContextPanel({ context, canSeeBilling }) {
           border-radius: 12px;
           border: 1px solid #e2e8f0;
           background: #fff;
+        }
+        .cx-block-issue {
+          border-color: rgba(13, 158, 110, 0.35);
+          background: rgba(13, 158, 110, 0.04);
+        }
+        .cx-issue-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .cx-issue-code {
+          font-family: var(--font-jetbrains-mono);
+          font-weight: 800;
+          font-size: 13px;
+          color: #0d9e6e;
+          text-decoration: none;
+        }
+        .cx-issue-code:hover {
+          text-decoration: underline;
+        }
+        .cx-issue-status {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: #f1f5f9;
+          color: #64748b;
+        }
+        .cx-issue-status-investigating {
+          background: rgba(37, 99, 235, 0.1);
+          color: #2563eb;
+        }
+        .cx-issue-status-fixed {
+          background: rgba(13, 158, 110, 0.12);
+          color: #0d9e6e;
+        }
+        .cx-ocr-title {
+          margin: 12px 0 6px;
+          font-size: 10.5px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: #94a3b8;
+        }
+        .cx-ocr {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11.5px;
+          font-family: var(--font-jetbrains-mono);
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .cx-ocr th {
+          text-align: left;
+          font-size: 10px;
+          font-weight: 700;
+          color: #94a3b8;
+          padding: 5px 8px;
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .cx-ocr td {
+          padding: 5px 8px;
+          color: #0f1923;
+          border-bottom: 1px solid #f1f5f9;
+          word-break: break-all;
+        }
+        .cx-ocr tr:last-child td {
+          border-bottom: none;
+        }
+        .cx-ocr-label {
+          color: #64748b !important;
+          font-family: var(--font-plus-jakarta-sans);
+          font-weight: 600;
+        }
+        .cx-ocr-changed td {
+          background: rgba(184, 134, 11, 0.08);
+        }
+        .cx-ocr-changed td:last-child {
+          color: #b45309;
+          font-weight: 700;
+        }
+        .cx-issue-fix {
+          margin: 10px 0 0;
+          font-size: 12px;
+          color: #0f1923;
+          line-height: 1.5;
         }
         .cx-h {
           display: flex;

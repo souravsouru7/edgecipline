@@ -27,6 +27,8 @@ const {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
   TICKET_TAGS,
+  TICKET_CHANNELS,
+  MAX_TAGS_PER_TICKET,
   UNRESOLVED_STATUSES,
   ACTIVE_STATUSES,
   canTransition,
@@ -141,7 +143,20 @@ async function findDuplicateCandidates(userId, category) {
     .lean();
 }
 
-async function createTicket({ user, body, uploadedImages = [], requestId = "" }) {
+/**
+ * `channel` and `tags` are not read from `body`: the public route must never
+ * let a customer stamp their own ticket as escalated or as an inbound email.
+ * They exist for internal callers — the issue reporter opens tickets as
+ * "in_app" with a "bug" tag so the queue can tell a bug report from a question.
+ */
+async function createTicket({
+  user,
+  body,
+  uploadedImages = [],
+  requestId = "",
+  channel = "portal",
+  tags = [],
+}) {
   if (!appConfig.support.ticketsEnabled) {
     await destroySupportAttachments(messageService.mapUploadsToAttachments(uploadedImages));
     throw new ApiError(
@@ -214,7 +229,8 @@ async function createTicket({ user, body, uploadedImages = [], requestId = "" })
         subcategory: String(body.subcategory || "").slice(0, 100),
         priority,
         status: "open",
-        channel: "portal",
+        channel: TICKET_CHANNELS.includes(channel) ? channel : "portal",
+        tags: (tags || []).filter((tag) => TICKET_TAGS.includes(tag)).slice(0, MAX_TAGS_PER_TICKET),
         source: {
           platform: String(body.platform || "unknown").slice(0, 20),
           appVersion: String(body.appVersion || "").slice(0, 30),
@@ -675,7 +691,7 @@ async function getUserContext(ticketId, staffUser) {
   const userId = toObjectId(ticket.user);
   const canSeeBilling = hasCapability(staffUser, SUPPORT_CAPABILITIES.VIEW_BILLING);
 
-  const [account, ticketCounts, recentTickets, issueReports, lastPayment] = await Promise.all([
+  const [account, ticketCounts, recentTickets, issueReports, lastPayment, linkedIssue] = await Promise.all([
     User.findById(userId)
       .select("name email role accountStatus createdAt subscriptionStatus subscriptionPlan subscriptionExpiry preferredMarket tradingStyle lastLogin trial")
       .lean(),
@@ -699,6 +715,16 @@ async function getUserContext(ticketId, staffUser) {
           .sort({ createdAt: -1 })
           .lean()
       : Promise.resolve(null),
+    // The structured bug report behind THIS ticket, if it was opened from the
+    // in-app issue reporter. Scoped to the ticket owner so a stale or forged
+    // linkedIssue id can never surface another customer's telemetry.
+    ticket.linkedIssue
+      ? IssueReport.findOne({ _id: ticket.linkedIssue, user: userId })
+          .select(
+            "issueCode issueCategory status module platform appVersion marketType ocrDataSnapshot deviceInfo tradeId fixSummary fixedVersion fixedAt createdAt"
+          )
+          .lean()
+      : Promise.resolve(null),
   ]);
 
   // The account may have been deleted mid-investigation. The ticket still
@@ -711,6 +737,7 @@ async function getUserContext(ticketId, staffUser) {
       ticketCounts: {},
       recentTickets: [],
       issueReports: [],
+      linkedIssue: null,
       billing: null,
     };
   }
@@ -748,6 +775,25 @@ async function getUserContext(ticketId, staffUser) {
       status: i.status,
       createdAt: i.createdAt,
     })),
+    linkedIssue: linkedIssue
+      ? {
+          id: String(linkedIssue._id),
+          issueCode: linkedIssue.issueCode,
+          category: linkedIssue.issueCategory,
+          status: linkedIssue.status,
+          module: linkedIssue.module || "",
+          platform: linkedIssue.platform || "unknown",
+          appVersion: linkedIssue.appVersion || "",
+          marketType: linkedIssue.marketType || "Unknown",
+          tradeId: linkedIssue.tradeId ? String(linkedIssue.tradeId) : null,
+          ocrDataSnapshot: linkedIssue.ocrDataSnapshot || null,
+          deviceInfo: linkedIssue.deviceInfo || null,
+          fixSummary: linkedIssue.fixSummary || "",
+          fixedVersion: linkedIssue.fixedVersion || "",
+          fixedAt: linkedIssue.fixedAt || null,
+          createdAt: linkedIssue.createdAt,
+        }
+      : null,
     billing: canSeeBilling
       ? {
           visible: true,

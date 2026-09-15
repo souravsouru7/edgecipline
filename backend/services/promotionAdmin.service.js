@@ -94,10 +94,28 @@ async function updateCampaign(id, body) {
   if (CAMPAIGN_STATUSES.includes(body.status)) campaign.status = body.status;
   if (body.startsAt !== undefined) campaign.startsAt = body.startsAt || null;
   if (body.endsAt !== undefined) campaign.endsAt = body.endsAt || null;
+  assertWindowOrdered(campaign.startsAt, campaign.endsAt, "End date");
   if (body.influencerId !== undefined) campaign.influencer = objectIdOrNull(body.influencerId);
   if (body.notes != null) campaign.notes = body.notes;
-  await campaign.save();
+  try {
+    await campaign.save();
+  } catch (error) {
+    if (error?.code === 11000) throw new ApiError(409, "Campaign slug already exists", "DUPLICATE_RESOURCE");
+    throw error;
+  }
   return campaign;
+}
+
+// Display form of a code: what the admin typed, minus control characters and
+// runs of whitespace (a tab or newline pasted into the field was stored as-is).
+function displayCode(value) {
+  return String(value || "").replace(/[\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function assertWindowOrdered(startsAt, endsAt, endLabel) {
+  if (startsAt && endsAt && new Date(startsAt) >= new Date(endsAt)) {
+    throw new ApiError(400, `${endLabel} must be after the start date`, "VALIDATION_ERROR");
+  }
 }
 
 function assertCouponRules(body) {
@@ -126,7 +144,7 @@ async function createCoupon(body, adminId) {
   try {
     return await Coupon.create({
       codeNormalized,
-      codeDisplay: String(body.code).trim(),
+      codeDisplay: displayCode(body.code),
       campaign: campaign._id,
       discountType: body.discountType,
       discountValue: Number(body.discountValue),
@@ -159,7 +177,7 @@ async function updateCoupon(id, body) {
   }
   if (body.code) {
     coupon.codeNormalized = normalizeCouponCode(body.code);
-    coupon.codeDisplay = String(body.code).trim();
+    coupon.codeDisplay = displayCode(body.code);
   }
   if (body.discountType || body.discountValue != null) {
     assertCouponRules({
@@ -172,6 +190,7 @@ async function updateCoupon(id, body) {
   if (body.discountValue != null) coupon.discountValue = Number(body.discountValue);
   if (body.startsAt !== undefined) coupon.startsAt = body.startsAt || null;
   if (body.expiresAt !== undefined) coupon.expiresAt = body.expiresAt || null;
+  assertWindowOrdered(coupon.startsAt, coupon.expiresAt, "Expiry");
   if (COUPON_STATUSES.includes(body.status)) coupon.status = body.status;
   if (body.maxRedemptions !== undefined) coupon.maxRedemptions = body.maxRedemptions || null;
   if (body.maxPerUser != null) coupon.maxPerUser = body.maxPerUser;
@@ -187,7 +206,12 @@ async function updateCoupon(id, body) {
     if (!campaign) throw new ApiError(404, "Campaign not found", "NOT_FOUND");
     coupon.campaign = campaign._id;
   }
-  await coupon.save();
+  try {
+    await coupon.save();
+  } catch (error) {
+    if (error?.code === 11000) throw new ApiError(409, "Coupon code already exists", "DUPLICATE_RESOURCE");
+    throw error;
+  }
   return coupon;
 }
 

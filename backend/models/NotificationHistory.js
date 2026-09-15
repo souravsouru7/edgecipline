@@ -40,6 +40,12 @@ const NotificationHistorySchema = new mongoose.Schema(
         "winback_d_plus_3",
         "winback_d_plus_7",
         "winback_d_plus_14",
+        // Free-tier conversion funnel — same one-type-per-touchpoint rule,
+        // anchored on User.freeTier.lastFreeTradeAt instead of expiry.
+        "free_tier_d_plus_1",
+        "free_tier_d_plus_3",
+        "free_tier_d_plus_7",
+        "free_tier_d_plus_14",
         // Customer support. One type per event so NotificationPreference can
         // gate the whole group and analytics can separate customer-facing
         // updates from the staff fan-out without string matching.

@@ -3,12 +3,18 @@
 const ApiError = require("../utils/ApiError");
 
 async function cleanupRejectedUploads(uploadedImages) {
-  const publicIds = (uploadedImages || []).map((image) => image?.publicId).filter(Boolean);
-  if (publicIds.length === 0) return;
+  const images = (uploadedImages || []).filter((image) => image?.publicId);
+  if (images.length === 0) return;
   const cloudinary = require("../config/cloudinary");
   await Promise.allSettled(
-    publicIds.map((publicId) =>
-      cloudinary.uploader.destroy(publicId, { resource_type: "image" })
+    images.map((image) =>
+      // Support attachments are stored as `authenticated`; a destroy that
+      // omits the type targets the `upload` namespace and silently no-ops,
+      // leaving the rejected file on Cloudinary forever.
+      cloudinary.uploader.destroy(image.publicId, {
+        resource_type: "image",
+        type: image.deliveryType || "upload",
+      })
     )
   );
 }

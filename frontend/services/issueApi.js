@@ -49,6 +49,11 @@ function buildDeviceInfo() {
 /**
  * Submit an issue report. Screenshots are compressed client-side
  * (1280px / q=0.75 / JPEG) before upload to keep payload small.
+ *
+ * The server opens a support ticket for every report and returns it as
+ * `ticket` — that is the record the user tracks, under Help & Support. The
+ * screenshots become that ticket's private attachments, so they are sent
+ * under the ticket form's field name.
  */
 export const submitIssueReport = async ({
   issueCategory,
@@ -74,7 +79,7 @@ export const submitIssueReport = async ({
   if (ocrDataSnapshot) formData.append("ocrDataSnapshot", JSON.stringify(ocrDataSnapshot));
   if (tradeId) formData.append("tradeId", tradeId);
   if (submissionId) formData.append("submissionId", submissionId);
-  compressed.forEach((f) => formData.append("screenshots", f));
+  compressed.forEach((f) => formData.append("attachments", f));
 
   return await apiClient.post("/issues", formData, {
     timeout: 120000,

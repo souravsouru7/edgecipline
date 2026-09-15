@@ -3,19 +3,28 @@ const issueReportService = require("../services/issueReport.service");
 const { paginated, success } = require("../utils/apiResponse");
 
 exports.submitIssue = asyncHandler(async (req, res) => {
-  const issue = await issueReportService.createIssue({
+  const { issue, ticket, deduped } = await issueReportService.createIssue({
     user: req.user,
     body: req.body,
     uploadedImages: req.uploadedImages || [],
+    requestId: req.requestId,
   });
   success(res, {
-    _id: issue._id,
-    issueCode: issue.issueCode,
-    status: issue.status,
-    createdAt: issue.createdAt,
+    // `issue` can be null in the rare case the ticket was written but the
+    // telemetry row was not. The ticket is the customer-facing record either
+    // way, so the client keys its success screen on that.
+    _id: issue?._id || null,
+    issueCode: issue?.issueCode || null,
+    status: issue?.status || null,
+    createdAt: issue?.createdAt || ticket.createdAt,
+    ticket: {
+      id: String(ticket._id),
+      ticketCode: ticket.ticketCode,
+      status: ticket.status,
+    },
   }, {
-    statusCode: 201,
-    message: "Issue submitted successfully",
+    statusCode: deduped ? 200 : 201,
+    message: deduped ? "This report was already submitted" : "Issue submitted successfully",
   });
 });
 
@@ -46,6 +55,7 @@ exports.adminUpdateIssueStatus = asyncHandler(async (req, res) => {
     fixSummary,
     fixedVersion,
     note,
+    staffUser: req.user,
   });
   success(res, issue, { message: "Issue updated" });
 });

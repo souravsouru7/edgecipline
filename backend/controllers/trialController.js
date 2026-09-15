@@ -8,6 +8,7 @@ const IndianTrade = require("../models/IndianTrade");
 const NotificationHistory = require("../models/NotificationHistory");
 const { listOrderablePlans } = require("../services/paymentService");
 const tradeQuotaService = require("../services/tradeQuotaService");
+const freeTierFunnelService = require("../services/freeTierFunnelService");
 const WeeklyReport = require("../models/WeeklyReport");
 const {
   isPremium,
@@ -108,6 +109,9 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
     bestSetupAgg,
     aiInsightsCount,
     weeklyReportsCount,
+    freeTierContext,
+    forexQuota,
+    indianQuota,
   ] = await Promise.all([
     Trade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
     IndianTrade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
@@ -132,6 +136,21 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
       type: { $in: ["ai_insight", "coach_insight", "weekly_insight", "tradingDNA", "selfAwareness"] },
     }).catch(() => 0),
     WeeklyReport.countDocuments({ user: userId }).catch(() => 0),
+    // Live trades + rule-based teaser for the personalised trade-limit copy.
+    // Never throws — a failed query degrades to generic copy, not a 500.
+    freeTierFunnelService.buildFreeTierContext(req.user).catch((err) => {
+      logger.warn("[trial] free-tier context failed", { userId: String(userId), error: err?.message });
+      return null;
+    }),
+    tradeQuotaService.getQuota({ user: req.user, market: tradeQuotaService.FOREX }).catch(() => null),
+    tradeQuotaService.getQuota({ user: req.user, market: tradeQuotaService.INDIAN }).catch(() => null),
+  ]);
+
+  // Lazy T0 stamp for accounts exhausted before the funnel shipped. Both
+  // markets are checked because the paywall is not market-scoped.
+  await Promise.all([
+    freeTierFunnelService.backfillExhaustedState({ user: req.user, market: tradeQuotaService.FOREX, quota: forexQuota }),
+    freeTierFunnelService.backfillExhaustedState({ user: req.user, market: tradeQuotaService.INDIAN, quota: indianQuota }),
   ]);
 
   const tradesLogged = forexTradeCount + indianTradeCount;
@@ -168,7 +187,15 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
   // Copy depends on how the user reached the paywall. With trials retired
   // that is always "you filled your free trade allowance", never "your trial
   // ended" — naming a trial nobody was given reads as a bug to the user.
+  //
+  // The free-trade copy is market-aware and counts only LIVE trades: a user
+  // who deleted one of their two free Forex trades still has an exhausted
+  // allowance, but must not be told "you've logged your 2 free Forex trades".
   const freeTradeLimit = tradeQuotaService.FREE_TRADE_LIMIT;
+  const exhaustedMarkets = [forexQuota, indianQuota]
+    .filter((q) => q && !q.premium && q.exhausted)
+    .map((q) => q.market);
+  const liveTrades = freeTierContext?.recentTrades || [];
   let headline;
   let subheadline;
   if (TRIAL_ENABLED && trial?.used && !trial?.active) {
@@ -176,6 +203,22 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
     subheadline = tradesLogged > 0
       ? `You've already built ${tradesLogged} trades of evidence. Keep the momentum going.`
       : "Start logging trades and unlock pattern-level insights about your edge.";
+  } else if (exhaustedMarkets.length > 0) {
+    const label = exhaustedMarkets.length === 1
+      ? freeTierFunnelService.marketLabel(exhaustedMarkets[0])
+      : null;
+    const liveInMarket = label
+      ? liveTrades.filter((t) => t.market === exhaustedMarkets[0]).length
+      : liveTrades.length;
+    if (label && liveInMarket >= freeTradeLimit) {
+      headline = `You've logged your ${freeTradeLimit} free ${label} trades.`;
+    } else if (label) {
+      headline = `You've used your free ${label} trades.`;
+    } else {
+      headline = "You've used your free trades in both markets.";
+    }
+    subheadline = freeTierContext?.teaserInsight?.text
+      || "Upgrade to keep logging and unlock the full picture.";
   } else if (tradesLogged > 0) {
     headline = "You've used your free trades";
     subheadline = `You've logged ${tradesLogged} trades. Upgrade to keep logging and unlock the full picture.`;
@@ -209,7 +252,29 @@ exports.getPaywallContext = asyncHandler(async (req, res) => {
       planType: defaultPlan.planType,
     },
     trialEnded: Boolean(trial?.used && !trial?.active),
+    // Free-tier personalisation. `recentTrades` are the user's own live
+    // trades (display fields only), `teaserInsight` is the locked rule-based
+    // line, and `offer` stays null until the first-purchase offer ships.
+    recentTrades: liveTrades,
+    teaserInsight: freeTierContext?.teaserInsight || freeTierFunnelService.buildTeaserInsight([]),
+    freeTier: {
+      limit: freeTradeLimit,
+      exhaustedMarkets,
+      quotas: {
+        [tradeQuotaService.FOREX]: forexQuota,
+        [tradeQuotaService.INDIAN]: indianQuota,
+      },
+    },
+    offer: null,
   });
+});
+
+// POST /api/trial/free-tier/sheet-dismissed
+// Persists the "Maybe later" on the post-save free-trade sheet so another
+// device does not show it again. Idempotent; suppresses only the sheet.
+exports.dismissLastFreeTradeSheet = asyncHandler(async (req, res) => {
+  const result = await freeTierFunnelService.dismissLastFreeTradeSheet(req.user._id);
+  res.json({ ok: true, ...result });
 });
 
 // POST /api/trial/event
@@ -220,6 +285,11 @@ const CLIENT_EVENT_ALLOWLIST = new Set([
   "paywall_dismissed",
   "trial_banner_clicked",
   "trial_extension_requested",
+  // Free-tier funnel: the post-save sheet and the personalised trade-limit
+  // paywall both beacon their CTA here with a `surface` property.
+  "free_nudge_cta_clicked",
+  "free_sheet_viewed",
+  "free_sheet_dismissed",
 ]);
 
 exports.recordEvent = asyncHandler(async (req, res) => {

@@ -375,6 +375,7 @@ function SupportConsole() {
                     <td>
                       <div className="cs-code">
                         <TicketCode code={ticket.ticketCode} />
+                        {ticket.channel === "in_app" && <span className="cs-bug">Bug report</span>}
                       </div>
                       <div className="cs-subject">{ticket.subject}</div>
                     </td>
@@ -626,6 +627,20 @@ function SupportConsole() {
         }
         .cs-code {
           margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .cs-bug {
+          font-size: 9.5px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          padding: 2px 7px;
+          border-radius: 999px;
+          background: rgba(184, 134, 11, 0.12);
+          color: #b8860b;
         }
         .cs-subject {
           font-size: 13px;

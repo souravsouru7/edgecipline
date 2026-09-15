@@ -9,6 +9,8 @@ import CandlestickBackground from "@/features/shared/components/CandlestickBackg
 import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
+import LastFreeTradeSheet    from "@/features/trade/components/LastFreeTradeSheet";
+import TradeQuotaPill        from "@/features/trade/components/TradeQuotaPill";
 import { useClock }          from "@/features/shared/hooks/useClock";
 import FileUploadZone        from "@/features/trade/components/FileUploadZone";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
@@ -129,8 +131,9 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
       subtitle={isEquityMode ? "DROP YOUR STOCK TRADE SCREENSHOT" : isInd ? "DROP YOUR OPTIONS TRADE SCREENSHOT" : "AI-POWERED SCREENSHOT EXTRACTION"}
       delay={0.05}
     >
-      {/* Step indicator */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18 }}>
+      {/* Step indicator + free-tier allowance for THIS market */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {steps.map((s, i) => (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {i > 0 && <div style={{ width: 22, height: 2, background: steps[i].done ? "#0D9E6E" : "#E2E8F0", borderRadius: 2 }} />}
@@ -143,6 +146,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
             </div>
           </div>
         ))}
+      </div>
+      <TradeQuotaPill marketType={isInd ? "Indian_Market" : "Forex"} />
       </div>
 
       {/* Options / Stocks toggle — Indian market only */}
@@ -599,7 +604,7 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
   );
 }
 
-function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCreatedDate = "", todayInputMax = "", accuracyAcknowledged = false, registerEvidenceRef = null }) {
+function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCreatedDate = "", todayInputMax = "", accuracyAcknowledged = false, onAccuracyChange = null, registerEvidenceRef = null }) {
   const isMulti = tradeIdx !== null;
   const trade   = isMulti ? state.trades[tradeIdx] : state.trade;
   const onChange = isMulti
@@ -972,6 +977,12 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         )}
       </SectionCard>
 
+      {/* Accuracy disclaimer sits right above the save button (single-trade path;
+          the multi-trade path renders it once above "Save all"). */}
+      {!saved && !isMulti && onAccuracyChange && (
+        <AccuracyDisclaimer isInd={isInd} checked={accuracyAcknowledged} onChange={onAccuracyChange} />
+      )}
+
       {/* Save button — in demo mode the sample can't be saved; the button
           becomes an inert "demo" affordance that surfaces the not-saved notice. */}
       {!saved && state.isDemo && (
@@ -1025,15 +1036,10 @@ function UploadTradeContent() {
   const visibleTradeCount = trades.length > 1 ? trades.length : tradeCount;
   const [accuracyAcknowledged, setAccuracyAcknowledged] = useState(false);
   const parseProfitValue = (value) => parseFloat(String(value || 0).replace(/,/g, "")) || 0;
-  // Demo replays these stages locally — nothing leaves the browser — so it gets
-  // its own copy rather than claiming to upload and queue work server-side.
-  const extractionStepMap = isDemo ? {
-    uploading: { label: "Loading sample screenshot", hint: "Reading the bundled demo image", progress: 25 },
-    cancelling: { label: "Cancelling demo", hint: "Clearing the sample extraction", progress: 10 },
-    pending: { label: "Preparing sample extraction", hint: "No upload — the demo runs on your device", progress: 45 },
-    processing: { label: "Reading sample trade details", hint: "Filling the form from bundled sample data", progress: 75 },
-    completed: { label: "Demo extraction completed", hint: "Nothing was uploaded or stored", progress: 100 },
-  } : {
+  // Demo replays these same stages locally from bundled fixtures (see
+  // runDemoExtraction) and deliberately shows the real pipeline's labels so
+  // the walkthrough looks exactly like extracting a user's own screenshot.
+  const extractionStepMap = {
     uploading: { label: "Uploading screenshot", hint: "Securely sending image to server", progress: 25 },
     cancelling: { label: "Cancelling upload", hint: "Stopping OCR and cleaning up resources", progress: 10 },
     pending: { label: "Queued for extraction", hint: "Preparing OCR and AI pipeline", progress: 45 },
@@ -1139,6 +1145,12 @@ function UploadTradeContent() {
         quota={state.limitBlock?.quota}
         requested={state.limitBlock?.requested}
         onClose={state.dismissLimitBlock}
+      />
+
+      <LastFreeTradeSheet
+        open={Boolean(state.lastFreeTradeSheet)}
+        quota={state.lastFreeTradeSheet?.quota}
+        onClose={state.closeLastFreeTradeSheet}
       />
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -1311,14 +1323,6 @@ function UploadTradeContent() {
           )}
 
           {!loading && visibleTradeCount > 0 && (
-            <AccuracyDisclaimer
-              isInd={isInd}
-              checked={accuracyAcknowledged}
-              onChange={setAccuracyAcknowledged}
-            />
-          )}
-
-          {!loading && visibleTradeCount > 0 && (
             <SectionCard
               accentColor={totalPnl >= 0 ? "#0D9E6E" : "#D63B3B"}
               title="Overall P&L"
@@ -1385,7 +1389,10 @@ function UploadTradeContent() {
                 return <TradeFormCard key={rowKey} state={state} tradeIdx={i} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} accuracyAcknowledged={accuracyAcknowledged} registerEvidenceRef={registerEvidenceRef} />;
               })}
 
-              {/* Save all */}
+              {/* Accuracy disclaimer + Save all */}
+              {savedTrades.some(s => !s) && (
+                <AccuracyDisclaimer isInd={isInd} checked={accuracyAcknowledged} onChange={setAccuracyAcknowledged} />
+              )}
               {savedTrades.some(s => !s) && isDemo && (
                 <button
                   onClick={handleSaveAll}
@@ -1407,7 +1414,7 @@ function UploadTradeContent() {
           )}
 
           {/* ── Single trade path ─────────────────────────────────────────── */}
-          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} accuracyAcknowledged={accuracyAcknowledged} />}
+          {trade && trades.length <= 1 && <TradeFormCard state={state} psychologyRef={psychologyRef} accountCreatedDate={accountCreatedDate} todayInputMax={todayInputMax} accuracyAcknowledged={accuracyAcknowledged} onAccuracyChange={setAccuracyAcknowledged} />}
 
           {/* No extraction yet */}
           {!loading && !trade && trades.length === 0 && (

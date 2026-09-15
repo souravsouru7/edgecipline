@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, X, FileText, ChevronRight, LifeBuoy } from "lucide-react";
 import SupportShell from "@/features/support/components/SupportShell";
 import ContactChannels from "@/features/support/components/ContactChannels";
+import IssueReporterButton from "@/features/issues/IssueReporterButton";
 import {
   LoadingBlock,
   ErrorBlock,
@@ -133,9 +134,20 @@ function HelpCenter() {
       eyebrow="SUPPORT"
       actions={
         signedIn ? (
-          <Link href="/support/tickets" className="hc-mine">
-            My tickets
-          </Link>
+          <>
+            {/* The same reporter the OCR review screen uses. Wherever a
+                problem is reported from, it lands in the ticket list below
+                this button — one queue, one place to track it. */}
+            <IssueReporterButton
+              label="Report a problem"
+              variant="inline"
+              defaultModule="support-home"
+              style={{ fontSize: 12.5, padding: "8px 12px", whiteSpace: "nowrap" }}
+            />
+            <Link href="/support/tickets" className="hc-mine">
+              My tickets
+            </Link>
+          </>
         ) : null
       }
     >

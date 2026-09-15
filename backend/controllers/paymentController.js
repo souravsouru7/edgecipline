@@ -105,6 +105,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
     const { quoteCheckout, publicQuote } = require("../services/promotionQuote.service");
     const {
       persistCheckoutSession,
+      reserveCouponCapacity,
+      releaseCouponCapacity,
     } = require("../services/promotionFulfillment.service");
     const { CHECKOUT_SESSION_TTL_MS } = require("../constants/promotions");
 
@@ -113,8 +115,12 @@ exports.createOrder = asyncHandler(async (req, res) => {
       plan,
       couponCode,
     });
+    // Same hold-before-order rule as the real path (see createRazorpayOrder).
+    const reserved = quote.coupon
+      ? await reserveCouponCapacity({ coupon: quote.coupon, userId: req.user._id })
+      : false;
     const orderId = `sandbox_order_${crypto.randomBytes(8).toString("hex")}`;
-    await persistCheckoutSession({
+    const checkout = await persistCheckoutSession({
       user: req.user._id,
       razorpayOrderId: orderId,
       planType: plan.planType,
@@ -129,6 +135,10 @@ exports.createOrder = asyncHandler(async (req, res) => {
       status: "open",
       expiresAt: new Date(Date.now() + CHECKOUT_SESSION_TTL_MS),
     });
+    if (reserved && !checkout) {
+      await releaseCouponCapacity({ coupon: quote.coupon, userId: req.user._id, reason: "checkout_persist_failed" });
+      throw new ApiError(503, "Could not apply the code right now. Please try again.", "COUPON_RESERVATION_UNAVAILABLE");
+    }
     return res.json({
       id: orderId,
       amount: quote.payablePaise,
