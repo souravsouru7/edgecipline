@@ -250,7 +250,7 @@ export default function PreTradeChecklistPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  fontSize: 10,
+                  fontSize: "var(--fs-2xs)",
                   fontFamily: "'JetBrains Mono',monospace",
                   letterSpacing: "0.08em",
                   fontWeight: 700,
@@ -272,7 +272,7 @@ export default function PreTradeChecklistPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  fontSize: 10,
+                  fontSize: "var(--fs-2xs)",
                   fontFamily: "'JetBrains Mono',monospace",
                   letterSpacing: "0.08em",
                   fontWeight: 700,
@@ -392,7 +392,7 @@ export default function PreTradeChecklistPage() {
                       <div style={{ fontSize: 14, fontWeight: 700, color: "#0F1923", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.name || "Unnamed Strategy"}
                       </div>
-                      <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", marginTop: 3 }}>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", marginTop: 3 }}>
                         {totalRulesForCard} RULE{totalRulesForCard !== 1 ? "S" : ""}
                         {isExpanded && totalRulesForCard > 0 ? ` - ${checkedCount}/${totalRulesForCard} CHECKED` : ""}
                       </div>
@@ -425,7 +425,7 @@ export default function PreTradeChecklistPage() {
                         {/* Reset button */}
                         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
                           <button onClick={clearAll} style={{
-                            fontSize: 9, fontFamily: "'JetBrains Mono',monospace",
+                            fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace",
                             letterSpacing: "0.08em", padding: "5px 10px",
                             borderRadius: 999, border: "1px solid #E2E8F0",
                             background: "#F8FAFC", color: "#64748B", cursor: "pointer",
@@ -452,7 +452,7 @@ export default function PreTradeChecklistPage() {
                               ))}
                             </div>
                             <div>
-                              <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>
                                 SETUP REFERENCES
                               </div>
                               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
@@ -463,7 +463,7 @@ export default function PreTradeChecklistPage() {
                               </div>
                             </div>
                             <div style={{ padding: "12px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#FFFFFF" }}>
-                              <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>
                                 VISUAL MATCH CHECK
                               </div>
                               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
@@ -551,7 +551,7 @@ export default function PreTradeChecklistPage() {
                             padding: "14px 16px", marginBottom: 14,
                           }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                              <div style={{ fontSize: 9, letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
                                 SETUP CONFIDENCE
                               </div>
                               <div style={{ fontSize: 22, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace", color: lc.color }}>
@@ -851,7 +851,7 @@ export default function PreTradeChecklistPage() {
           padding: 8px;
           color: #D63B3B;
           background: #FEF2F2;
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           font-family: 'JetBrains Mono', monospace;
           font-weight: 700;
           text-align: center;

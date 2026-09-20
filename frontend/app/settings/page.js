@@ -106,7 +106,7 @@ function StatCard({ label, value, sub, accent }) {
         {value}
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.secondary, marginTop: 2 }}>{label}</div>
-      {sub && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -299,7 +299,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 20 }}>
 
           {/* Account Info */}
           <div

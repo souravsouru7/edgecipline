@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, CheckCircle2, Circle } from "lucide-react";
-import { getMyIssue, ISSUE_CATEGORIES } from "@/services/issueApi";
+import { getMyIssue, categoryLabel } from "@/services/issueApi";
 import PageHeader from "@/features/shared/components/PageHeader";
 
 const theme = {
@@ -27,10 +27,6 @@ const STATUS_LABEL = {
   FIXED: "Fixed",
   CLOSED: "Closed",
 };
-
-function categoryLabel(value) {
-  return ISSUE_CATEGORIES.find((c) => c.value === value)?.label || value;
-}
 
 function formatDate(iso) {
   if (!iso) return "";

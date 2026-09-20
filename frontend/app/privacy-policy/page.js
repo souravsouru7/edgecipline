@@ -112,7 +112,7 @@ export default function PrivacyPolicyPage() {
               PRIVACY POLICY
             </div>
             <div style={{
-              fontSize: 9, color: "#22C78E", letterSpacing: "0.15em",
+              fontSize: "var(--fs-2xs)", color: "#22C78E", letterSpacing: "0.15em",
               fontFamily: "'JetBrains Mono'", fontWeight: 700
             }}>
               EDGECIPLINE
@@ -142,7 +142,7 @@ export default function PrivacyPolicyPage() {
           background: "rgba(34,199,142,0.08)", border: "1px solid rgba(34,199,142,0.2)",
           borderRadius: 100, padding: "6px 16px", marginBottom: 20,
         }}>
-          <span style={{ fontSize: 10, color: "#22C78E", fontFamily: "'JetBrains Mono'", fontWeight: 700, letterSpacing: "0.12em" }}>
+          <span style={{ fontSize: "var(--fs-2xs)", color: "#22C78E", fontFamily: "'JetBrains Mono'", fontWeight: 700, letterSpacing: "0.12em" }}>
             LEGAL DOCUMENT
           </span>
         </div>
@@ -179,7 +179,7 @@ export default function PrivacyPolicyPage() {
           marginBottom: 56,
         }}>
           <div style={{
-            fontSize: 10, fontWeight: 800, color: "#22C78E",
+            fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#22C78E",
             letterSpacing: "0.15em", fontFamily: "'JetBrains Mono'", marginBottom: 16
           }}>
             TABLE OF CONTENTS
@@ -197,7 +197,7 @@ export default function PrivacyPolicyPage() {
                 <span style={{
                   width: 20, height: 20, background: "rgba(34,199,142,0.1)",
                   borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 10, color: "#22C78E", fontFamily: "'JetBrains Mono'", flexShrink: 0
+                  fontSize: "var(--fs-2xs)", color: "#22C78E", fontFamily: "'JetBrains Mono'", flexShrink: 0
                 }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>

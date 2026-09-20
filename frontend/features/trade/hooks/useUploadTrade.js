@@ -11,8 +11,8 @@ import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/featu
 import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
-import { getValidToken } from "@/utils/auth";
-import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
+import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import { markOnboardingStep } from "@/services/api";
 import { getDemoExtraction, INDIAN_DEMO_BROKER } from "@/features/trade/data/demoExtractionFixtures.mjs";
@@ -107,11 +107,6 @@ function clearActiveUploadJob() {
   }
 }
 
-const getTodayInputValue = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-};
-
 // Stable per-row id for multi-trade extraction results. React must key the
 // trades.map on this — not the array index — because each row now owns real
 // local component state (pending evidence files in TradeEvidenceSection).
@@ -120,23 +115,6 @@ const getTodayInputValue = () => {
 // unsaved evidence/upload state onto the wrong trade.
 let rowIdCounter = 0;
 const genRowId = () => `row_${Date.now()}_${rowIdCounter++}`;
-
-const normalizeDateForInput = (value) => {
-  if (!value) return "";
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value.getTime() - value.getTimezoneOffset() * 60000)
-      .toISOString()
-      .split("T")[0];
-  }
-  const raw = String(value).trim();
-  if (!raw) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-    .toISOString()
-    .split("T")[0];
-};
 
 
 
@@ -529,7 +507,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const isDemo = rawIsDemo && !demoExited;
 
   // 2. Local UI/Form state
-  const [mounted, setMounted]                 = useState(false);
+  const { ready: mounted }                    = useRequireAuth();
   const [file, setFile]                       = useState(null);
   const [error, setError]                     = useState(null);
   // Non-null while a save is blocked by the free-tier allowance.
@@ -604,43 +582,6 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   useEffect(() => {
     savedRef.current = saved;
   }, [saved]);
-
-  // 3. Authenticity check
-  useEffect(() => {
-    let cancelled = false;
-
-    const checkAuth = async () => {
-      if (getValidToken()) {
-        if (!cancelled) setMounted(true);
-        return;
-      }
-
-      let token = null;
-      try {
-        token = await silentRefresh();
-      } catch (err) {
-        if (isAuthRefreshTransientError(err)) {
-          console.warn("[Auth] OCR upload preserved session after transient refresh failure", {
-            at: new Date().toISOString(),
-            status: err.status || 0,
-          });
-          if (!cancelled) setMounted(true);
-          return;
-        }
-        throw err;
-      }
-      if (cancelled) return;
-
-      if (token) {
-        setMounted(true);
-      } else {
-        router.replace("/login");
-      }
-    };
-
-    checkAuth();
-    return () => { cancelled = true; };
-  }, [router]);
 
   // 4. Setups Query
   const { strategies, setupsLoading } = useSetups(marketType);
@@ -877,7 +818,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   useEffect(() => {
     if (!rawIsDemo || !mounted || demoSampleLoadedRef.current) return;
     demoSampleLoadedRef.current = true;
-    const samplePath = isInd ? "/sample_indianmarket.jpeg" : "/sample.png";
+    const samplePath = isInd ? "/sample_indianmarket.jpeg" : "/sample.webp";
     const sampleName = isInd ? "sample_indianmarket.jpeg" : "sample.png";
     (async () => {
       try {

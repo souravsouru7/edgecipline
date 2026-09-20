@@ -47,7 +47,7 @@ export default function WelcomeStep() {
                 background: "rgba(34,199,142,0.08)",
                 border: "1px solid rgba(34,199,142,0.18)",
                 color: "#CBD5E1",
-                fontSize: 10.5,
+                fontSize: "var(--fs-2xs)",
                 fontWeight: 800,
               }}
             >
@@ -82,7 +82,7 @@ export default function WelcomeStep() {
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 10,
+              fontSize: "var(--fs-2xs)",
               fontWeight: 900,
               fontFamily: "'JetBrains Mono', monospace",
             }}

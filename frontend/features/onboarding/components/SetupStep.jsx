@@ -10,7 +10,7 @@ import { getOnboardingUploadPath } from "@/features/onboarding/utils/onboardingM
 // sends users straight from market selection to setup creation.
 export default function SetupStep({ selectedStyle, customising, custom, onCustomToggle, onCustomChange, market }) {
   const seed = selectedStyle?.seedSetup;
-  const samplePath = market === "Indian_Market" ? "/sample_indianmarket.jpeg" : "/sample.png";
+  const samplePath = market === "Indian_Market" ? "/sample_indianmarket.jpeg" : "/sample.webp";
   const demoPath = getOnboardingUploadPath(market, { demo: true });
   if (!seed) {
     return <div style={{ color: "#94A3B8", fontSize: 12 }}>Loading your starter setup...</div>;
@@ -24,7 +24,7 @@ export default function SetupStep({ selectedStyle, customising, custom, onCustom
         border: "1px solid rgba(34,199,142,0.18)",
         marginBottom: 12,
       }}>
-        <div style={{ fontSize: 10, color: "#22C78E", letterSpacing: "0.1em", fontWeight: 800, marginBottom: 6, textTransform: "uppercase" }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: "#22C78E", letterSpacing: "0.1em", fontWeight: 800, marginBottom: 6, textTransform: "uppercase" }}>
           Starter setup
         </div>
         <div style={{ fontSize: 14, fontWeight: 800, color: "#F1F5F9", marginBottom: 8 }}>
@@ -105,7 +105,7 @@ export default function SetupStep({ selectedStyle, customising, custom, onCustom
           />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 10, color: "#38BDF8", letterSpacing: "0.1em", fontWeight: 800, marginBottom: 4, textTransform: "uppercase" }}>
+          <div style={{ fontSize: "var(--fs-2xs)", color: "#38BDF8", letterSpacing: "0.1em", fontWeight: 800, marginBottom: 4, textTransform: "uppercase" }}>
             Example demo
           </div>
           <div style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.5, marginBottom: 8 }}>

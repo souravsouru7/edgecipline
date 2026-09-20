@@ -24,6 +24,17 @@ const NotificationHistorySchema = new mongoose.Schema(
         "morning_mentor",
         "weekly_ai_insight",
         "weekly_report_reminder",
+        // Streak protection (streakNotification.service) — milestone on
+        // 3/7/14/30/60/100/180/365, at-risk from the evening cron, broken when
+        // a ≥7-day streak ends. These were sent for months without being in
+        // this enum, so every one failed validation before reaching FCM.
+        "streak_milestone",
+        "streak_at_risk",
+        "streak_broken",
+        // Evening reflection nudge (reflectionReminderCron).
+        "evening_reflection",
+        // Mission lifecycle (missionNotificationService).
+        "mission_update",
         "ocr_completed",
         "ocr_failed",
         "issue_fixed",
@@ -80,6 +91,7 @@ const NotificationHistorySchema = new mongoose.Schema(
         "issue_report",
         "streak",
         "support_ticket",
+        "mission",
       ],
       default: "system",
     },

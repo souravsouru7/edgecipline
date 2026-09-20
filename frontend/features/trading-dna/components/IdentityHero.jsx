@@ -48,7 +48,7 @@ export default function IdentityHero({ identity, sample, generatedAt }) {
       <div style={{ position: "relative" }}>
         <div
           style={{
-            fontSize: 9,
+            fontSize: "var(--fs-2xs)",
             fontWeight: 800,
             color: accent,
             letterSpacing: "0.18em",
@@ -106,7 +106,7 @@ export default function IdentityHero({ identity, sample, generatedAt }) {
             display: "flex",
             gap: 18,
             flexWrap: "wrap",
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             color: "#64748B",
             letterSpacing: "0.05em",
           }}

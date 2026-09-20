@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, createContext, useContext, useCallback, useMemo, memo } from "react";
+import * as haptics from "@/utils/haptics";
 import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-react";
 
 const ToastContext = createContext();
@@ -22,6 +23,7 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const addToast = useCallback((message, type = "info", duration = 5000) => {
+    if (type === "error") void haptics.warning();
     const id = `${Date.now()}-${nextToastIdRef.current++}`;
     let timerId = id;
     setToasts((prev) => {
@@ -58,8 +60,9 @@ export const ToastProvider = ({ children }) => {
       <style jsx>{`
         .toast-container {
           position: fixed;
-          bottom: 24px;
-          right: 24px;
+          /* Clear the gesture bar and, on phones, the 64px bottom nav. */
+          bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+          right: calc(24px + env(safe-area-inset-right, 0px));
           display: flex;
           flex-direction: column;
           gap: 12px;
@@ -69,8 +72,8 @@ export const ToastProvider = ({ children }) => {
         }
         @media (max-width: 640px) {
           .toast-container {
-            bottom: 16px;
-            right: 16px;
+            bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+            right: calc(16px + env(safe-area-inset-right, 0px));
             width: calc(100% - 32px);
           }
         }

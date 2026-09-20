@@ -79,7 +79,7 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
           </div>
           <button
             onClick={e => { e.stopPropagation(); onClear(); }}
-            style={{ padding: "6px 16px", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "0.1em", color: "#D63B3B", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer", transition: "all 0.2s" }}
+            style={{ padding: "6px 16px", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "0.1em", color: "#D63B3B", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer", transition: "all 0.2s" }}
             onMouseEnter={e => e.currentTarget.style.background = "#FEE2E2"}
             onMouseLeave={e => e.currentTarget.style.background = "#FEF2F2"}
           >
@@ -99,7 +99,7 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
           <div style={{ fontSize: 12, color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 12 }}>or click to browse</div>
           <div style={{ display: "inline-flex", gap: 6 }}>
             {["PNG", "JPG", "JPEG", "WEBP"].map(f => (
-              <span key={f} style={{ fontSize: 9, color: "#B8860B", background: "rgba(184,134,11,0.08)", border: "1px solid rgba(184,134,11,0.2)", borderRadius: 4, padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{f}</span>
+              <span key={f} style={{ fontSize: "var(--fs-2xs)", color: "#B8860B", background: "rgba(184,134,11,0.08)", border: "1px solid rgba(184,134,11,0.2)", borderRadius: 4, padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{f}</span>
             ))}
           </div>
         </>

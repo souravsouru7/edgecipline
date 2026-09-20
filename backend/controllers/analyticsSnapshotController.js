@@ -2,6 +2,7 @@
 "use strict";
 
 const asyncHandler = require("../utils/asyncHandler");
+const { toNum, fixed } = require("../utils/numbers");
 const ApiError = require("../utils/ApiError");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 const { generateCoachFeed } = require("../utils/aiCoachFeed");
@@ -11,12 +12,6 @@ const { getTradePnLBreakdown } = require("../utils/metricEngine");
 const ALLOWED_FOREX_MARKETS = new Set(["Forex", "Crypto", "Commodities", "Indices", "Stocks"]);
 const ALLOWED_INDIAN_INSTRUMENTS = new Set(["OPTION", "EQUITY"]);
 
-const toNum = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-};
-
-const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
 
 const fixedOrNull = (value, digits = 2) => {
   if (value == null || value === "") return null;

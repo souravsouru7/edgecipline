@@ -13,9 +13,9 @@ test("demo screenshots are bundled assets, never remote storage URLs", () => {
   }
 });
 
-test("forex demo yields the single USDCHF position from sample.png", () => {
+test("forex demo yields the single USDCHF position from sample.webp", () => {
   const payload = getDemoExtraction("Forex");
-  assert.equal(payload.imageUrl, "/sample.png");
+  assert.equal(payload.imageUrl, "/sample.webp");
   assert.equal(payload.detectedMarket, "Forex");
   assert.equal(payload.parsedData.parsedTrades.length, 0);
 
@@ -57,8 +57,8 @@ test("indian demo yields both closed Upstox positions from the sample", () => {
 });
 
 test("unknown market falls back to the forex fixture", () => {
-  assert.equal(getDemoExtraction(undefined).imageUrl, "/sample.png");
-  assert.equal(getDemoExtraction("Nonsense").imageUrl, "/sample.png");
+  assert.equal(getDemoExtraction(undefined).imageUrl, "/sample.webp");
+  assert.equal(getDemoExtraction("Nonsense").imageUrl, "/sample.webp");
 });
 
 // applyProcessedTradeData feeds these straight into React state and a demo can

@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { markOnboardingStep } from "@/services/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
-import { getTrades, deleteTrade } from "@/services/tradeApi";
+import { getTradesPage, deleteTrade } from "@/services/tradeApi";
+import LoadMoreSentinel from "@/features/shared/components/LoadMoreSentinel";
 import Link from "next/link";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
+import TickerTape, { INDIAN_TICKERS } from "@/features/shared/components/TickerTape";
 import OnboardingCompleteDialog from "@/features/onboarding/components/OnboardingCompleteDialog";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
@@ -47,30 +49,6 @@ const isEquityTrade = (trade) => {
     /\b(CE|PE|CALL|PUT|FUT)\b/.test(pair)
   );
 };
-
-// Section
-const TICKERS = [
-  { sym: "NIFTY CE", val: "+2.1%", bull: true }, { sym: "NIFTY PE", val: "-1.4%", bull: false },
-  { sym: "BANK NIFTY CE", val: "+1.8%", bull: true }, { sym: "BANK NIFTY PE", val: "+0.6%", bull: true },
-  { sym: "FIN NIFTY CE", val: "-0.3%", bull: false }, { sym: "MIDCPNIFTY PE", val: "+1.2%", bull: true },
-  { sym: "NIFTY CE", val: "+2.1%", bull: true }, { sym: "SENSEX CE", val: "+0.9%", bull: true },
-];
-function TickerTape() {
-  const items = [...TICKERS, ...TICKERS];
-  return (
-    <div style={{ overflow: "hidden", background: C.ink, borderBottom: `3px solid ${C.bull}`, padding: "7px 0", whiteSpace: "nowrap" }}>
-      <div style={{ display: "inline-flex", gap: 48, animation: "ticker 36s linear infinite" }}>
-        {items.map((t, i) => (
-          <span key={i} style={{ fontSize: 11, fontFamily: C.mono, letterSpacing: "0.04em" }}>
-            <span style={{ color: "rgba(255,255,255,0.55)", marginRight: 6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#6EE7B7" : "#FCA5A5" }}>{t.bull ? "▲" : "▼"} {t.val}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Section
 function StatBar({ trades }) {
   const performance = calculatePerformanceMetrics(trades);
@@ -96,7 +74,7 @@ function StatBar({ trades }) {
           padding: "14px 16px", textAlign: "center",
           boxShadow: "0 1px 6px rgba(15,25,35,0.04)",
         }}>
-          <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono, letterSpacing: "0.06em", marginBottom: 4 }}>{s.label}</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono, letterSpacing: "0.06em", marginBottom: 4 }}>{s.label}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: s.color || C.ink, fontFamily: C.mono }}>{s.value}</div>
         </div>
       ))}
@@ -194,7 +172,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
                 <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, fontFamily: C.mono, letterSpacing: "-0.01em", lineHeight: 1.2 }}>
                   {equityTrade ? (trade.stockSymbol || trade.pair) : (trade.pair || `${trade.underlying} ${trade.strikePrice} ${optType}`)}
                 </div>
-                <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono }}>
                   {fmtTradeDateLine(trade)}
                   {equityTrade && trade.sector ? ` - ${trade.sector}` : ""}
                 </div>
@@ -209,13 +187,13 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             </div>
             {equityTrade ? (
               trade.sharesQty > 0 && (
-                <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono }}>
                   {trade.sharesQty} shares - {trade.exchange || "NSE"}
                 </div>
               )
             ) : (
               lots > 0 && (
-                <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono }}>
                   {lots}L x {lotSize}
                 </div>
               )
@@ -227,7 +205,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
           {/* Direction */}
           <span style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
+            fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
             color: isLong ? C.bull : C.bear,
             background: isLong ? `${C.bull}15` : `${C.bear}15`,
             border: `1px solid ${isLong ? C.bull : C.bear}40`,
@@ -239,7 +217,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* CE/PE badge (options) or EQUITY badge (stock) */}
           {equityTrade ? (
             <span style={{
-              fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
+              fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
               color: C.blue, background: `${C.blue}10`,
               border: `1px solid ${C.blue}30`, borderRadius: 5, padding: "3px 8px",
             }}>
@@ -247,7 +225,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             </span>
           ) : (
             <span style={{
-              fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
+              fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.1em", fontFamily: C.mono,
               color: optType === "CE" ? C.bull : C.bear,
               background: optType === "CE" ? `${C.bull}10` : `${C.bear}10`,
               border: `1px solid ${optType === "CE" ? C.bull : C.bear}30`,
@@ -260,7 +238,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* Trade type */}
           {trade.tradeType && (
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", fontFamily: C.mono,
+              fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em", fontFamily: C.mono,
               color: C.muted, background: C.bg, border: `1px solid ${C.border}`,
               borderRadius: 5, padding: "3px 8px",
             }}>
@@ -271,7 +249,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* Entry Basis */}
           {trade.entryBasis && (
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", fontFamily: C.mono,
+              fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em", fontFamily: C.mono,
               color: entryBasisColor, background: `${entryBasisColor}10`,
               border: `1px solid ${entryBasisColor}30`,
               borderRadius: 5, padding: "3px 8px",
@@ -283,7 +261,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
           {/* R:R */}
           {rrLabel && (
             <span style={{
-              fontSize: 9, fontWeight: 700, fontFamily: C.mono, color: C.gold,
+              fontSize: "var(--fs-2xs)", fontWeight: 700, fontFamily: C.mono, color: C.gold,
               background: `${C.gold}10`, border: `1px solid ${C.gold}30`,
               borderRadius: 5, padding: "3px 8px",
             }}>
@@ -304,7 +282,7 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
             { label: "Strike", val: trade.strikePrice != null ? `₹${Number(trade.strikePrice).toLocaleString("en-IN")}` : "-" },
           ]).map(p => (
             <div key={p.label} style={{ background: C.bg, borderRadius: 7, padding: "7px 10px" }}>
-              <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, marginBottom: 2 }}>{p.label}</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono, marginBottom: 2 }}>{p.label}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, fontFamily: C.mono }}>{p.val}</div>
             </div>
           ))}
@@ -314,8 +292,8 @@ function TradeCard({ trade, onDelete, style: extraStyle }) {
         {trade.setupScore != null && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 9, color: C.muted, fontFamily: C.mono }}>SETUP SCORE</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: trade.setupScore >= 70 ? C.bull : trade.setupScore >= 40 ? C.gold : C.bear, fontFamily: C.mono }}>
+              <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: C.mono }}>SETUP SCORE</span>
+              <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: trade.setupScore >= 70 ? C.bull : trade.setupScore >= 40 ? C.gold : C.bear, fontFamily: C.mono }}>
                 {trade.setupScore}%
               </span>
             </div>
@@ -538,10 +516,28 @@ export default function IndianTradesPage() {
     fetchTrades();
   }, [ready, period]);
 
+  // Paged: the API returns 50 per page; more pages are appended on demand.
+  const [pageInfo, setPageInfo] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const fetchTrades = async () => {
     setLoading(true);
-    try { setTrades(await getTrades(MARKETS.INDIAN_MARKET, { period })); }
-    finally { setLoading(false); }
+    try {
+      const { items, pagination } = await getTradesPage(MARKETS.INDIAN_MARKET, { period });
+      setTrades(items);
+      setPageInfo(pagination);
+    } finally { setLoading(false); }
+  };
+  const loadMore = async () => {
+    if (!pageInfo?.hasNextPage || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { items, pagination } = await getTradesPage(MARKETS.INDIAN_MARKET, { period, after: pageInfo.next });
+      setTrades((prev) => {
+        const seen = new Set(prev.map((t) => t._id));
+        return [...prev, ...items.filter((t) => !seen.has(t._id))];
+      });
+      setPageInfo(pagination);
+    } finally { setLoadingMore(false); }
   };
 
   const handleDeleteConfirm = async () => {
@@ -594,7 +590,7 @@ export default function IndianTradesPage() {
 
       <IndianMarketHeader />
 
-      <TickerTape />
+      <TickerTape tickers={INDIAN_TICKERS} duration={36} symbolColor="rgba(255,255,255,0.55)" bullColor="#6EE7B7" bearColor="#FCA5A5" />
 
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
@@ -612,7 +608,7 @@ export default function IndianTradesPage() {
               fontSize: 18, fontWeight: 900,
             }}>OK</div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
+              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
                 ACTIVATION COMPLETE - YOUR TRADE LOG
               </div>
               <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
@@ -686,7 +682,7 @@ export default function IndianTradesPage() {
         ) : (
           <>
             <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, marginBottom: 14 }}>
-              Showing {filtered.length} of {trades.length} trades - {period.toUpperCase()} window
+              Showing {filtered.length} of {pageInfo?.total ?? trades.length} trades - {period.toUpperCase()} window
             </div>
             <div className="trade-grid" style={{ display: "grid", gap: 14 }}>
               {filtered.map((trade, idx) => (
@@ -703,6 +699,7 @@ export default function IndianTradesPage() {
                 />
               ))}
             </div>
+            <LoadMoreSentinel hasMore={Boolean(pageInfo?.hasNextPage)} loading={loadingMore} onLoadMore={loadMore} loaded={trades.length} total={pageInfo?.total} />
           </>
         )}
       </main>
@@ -721,7 +718,6 @@ export default function IndianTradesPage() {
       )}
 
       <style>{`
-        @keyframes ticker    { from{transform:translateX(0)} to{transform:translateX(-50%)} }
         @keyframes fadeUp    { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin      { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes tradeExit { 0%{opacity:1;transform:translateX(0)} 100%{opacity:0;transform:translateX(40px)} }

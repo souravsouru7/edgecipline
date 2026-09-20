@@ -118,7 +118,7 @@ function createProcessor() {
           deepLink: job.data.marketType === "Indian_Market"
             ? "/indian-market/upload-trade"
             : "/upload-trade",
-          data: { ocrJobId: String(ocrJobId), screen: "upload-trade" },
+          data: { ocrJobId: String(ocrJobId), screen: "upload-trade", marketType: job.data.marketType || "Forex" },
           sourceType: "ocr_job",
           sourceId: String(ocrJobId),
           dedupeKey: `ocr-completed:${ocrJobId}`,
@@ -151,7 +151,7 @@ function createProcessor() {
               deepLink: job.data.marketType === "Indian_Market"
                 ? "/indian-market/upload-trade"
                 : "/upload-trade",
-              data: { ocrJobId: String(ocrJobId), screen: "upload-trade" },
+              data: { ocrJobId: String(ocrJobId), screen: "upload-trade", marketType: job.data.marketType || "Forex" },
               sourceType: "ocr_job",
               sourceId: String(ocrJobId),
               dedupeKey: `ocr-failed:${ocrJobId}`,

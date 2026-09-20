@@ -46,11 +46,11 @@ function TradeCard({ trade, onDelete, idx, isDeleting }) {
           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, color: "#0F1923", fontWeight: 700, marginBottom: 4 }}>
             {trade.pair}
           </div>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#94A3B8", marginBottom: 6 }}>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "var(--fs-2xs)", color: "#94A3B8", marginBottom: 6 }}>
             {tradeDate.toLocaleDateString()} - {tradeDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </div>
           <span style={{
-            fontSize: 8,
+            fontSize: "var(--fs-2xs)",
             letterSpacing: "0.12em",
             color: direction.color,
             background: direction.background,
@@ -67,7 +67,7 @@ function TradeCard({ trade, onDelete, idx, isDeleting }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94A3B8", marginBottom: 12, fontFamily: "'JetBrains Mono',monospace" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--fs-2xs)", color: "#94A3B8", marginBottom: 12, fontFamily: "'JetBrains Mono',monospace" }}>
         <span>BASIS: <span style={{ color: entryBasisColor, fontWeight: 700 }}>
           {entryBasis}
         </span></span>
@@ -76,11 +76,11 @@ function TradeCard({ trade, onDelete, idx, isDeleting }) {
       <div style={{ display: "flex", gap: 8 }}>
         <Link
           href={`/trades/view?id=${trade._id}`}
-          style={{ flex: 1, textAlign: "center", fontSize: 9, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", border: "1px solid rgba(13,158,110,0.3)", background: "rgba(13,158,110,0.05)", borderRadius: 4, padding: "8px", textDecoration: "none" }}
+          style={{ flex: 1, textAlign: "center", fontSize: "var(--fs-2xs)", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", border: "1px solid rgba(13,158,110,0.3)", background: "rgba(13,158,110,0.05)", borderRadius: 4, padding: "8px", textDecoration: "none" }}
         >VIEW -&gt;</Link>
         <button
           onClick={handleDelete}
-          style={{ flex: 1, fontSize: 9, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", color: "#D63B3B", border: "1px solid rgba(214,59,59,0.3)", background: "rgba(214,59,59,0.05)", borderRadius: 4, padding: "8px", cursor: "pointer" }}
+          style={{ flex: 1, fontSize: "var(--fs-2xs)", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", color: "#D63B3B", border: "1px solid rgba(214,59,59,0.3)", background: "rgba(214,59,59,0.05)", borderRadius: 4, padding: "8px", cursor: "pointer" }}
         >DELETE</button>
       </div>
     </div>

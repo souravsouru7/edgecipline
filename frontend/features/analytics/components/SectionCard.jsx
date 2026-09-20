@@ -16,7 +16,7 @@ export default function SectionCard({ title, subtitle, children, delay = 0, acce
       <div style={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, ${accentColor}22)` }} />
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colors.border}` }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: colors.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 10, color: colors.muted, marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted, marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>{subtitle}</div>}
       </div>
       <div style={{ padding: "16px 20px" }}>{children}</div>
     </div>

@@ -66,20 +66,29 @@ video {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(244, 242, 238, 0.92);
+  background: rgba(244, 242, 238, 0.96);
   border-bottom: 1px solid rgba(226, 232, 240, 0.85);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 
 .sticky-footer {
   position: sticky;
   bottom: 0;
   z-index: 100;
-  background: rgba(244, 242, 238, 0.92);
+  background: rgba(244, 242, 238, 0.96);
   border-top: 1px solid rgba(226, 232, 240, 0.85);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Frosted glass is kept for platforms whose compositor handles it (iOS,
+   desktop). On the Android WebView a backdrop-filter over a scrolling list
+   is repainted every frame and is the classic cause of 40fps scrolling, so
+   html[data-platform="android"] (set in Providers) opts out. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  html:not([data-platform="android"]) .sticky-header,
+  html:not([data-platform="android"]) .sticky-footer {
+    background: rgba(244, 242, 238, 0.92);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
 }
 
 .loading-placeholder {
@@ -207,9 +216,14 @@ img.lazy.loaded {
     font-size: 13px;
   }
 
-  [role="dialog"],
-  [style*="position: fixed"],
-  [style*="position:*fixed"] {
+  /* Only real sheets/dialogs are height-constrained scroll containers.
+     Never target fixed elements generically: the bottom nav, toasts, the
+     brand opener and the route progress bar are all position:fixed and
+     must not become scroll containers. */
+  .sheet,
+  .dialog,
+  .modal,
+  .bottom-sheet {
     max-height: min(90dvh, 720px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -240,6 +254,48 @@ img.lazy.loaded {
     margin-left: auto;
     margin-right: auto;
   }
+}
+
+/* The Android WebView repaints every backdrop-filtered region on each
+   scrolled frame — the classic 40fps cause. Every blurred surface in the app
+   already carries a >= 60% opaque background, so dropping the blur there
+   costs nothing visually and buys smooth scrolling on mid-range phones. */
+html[data-platform="android"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* While the soft keyboard is up (utils/keyboardBehaviour sets this
+   attribute) the bottom nav would cover the lowest field on short screens. */
+html[data-keyboard-open] .mobile-bottom-nav,
+html[data-keyboard-open] .mobile-bottom-nav-spacer {
+  display: none !important;
+}
+
+/* Forms: full width with safe gutters on phones, capped and centred on
+   tablets/desktop so inputs do not stretch across a 1000px row. */
+.form-page {
+  width: 100%;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  box-sizing: border-box;
+}
+
+/* Responsive stat/field grids. Two-up on phones, collapses to one column
+   under ~340px, expands on tablets. Use instead of hard-coded "1fr 1fr". */
+.grid-2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.grid-3 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+
+/* Route change: subtle shared-axis entrance (components/PageTransition). */
+.page-enter {
+  animation: pageEnter 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateX(6px); }
+  to   { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

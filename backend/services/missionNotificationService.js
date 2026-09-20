@@ -63,6 +63,9 @@ async function sendMissionNotification(userId, assignment, eventType) {
       title,
       body,
       dedupeKey,
+      sourceType: "mission",
+      sourceId: assignment._id,
+      deepLink: "/missions",
       data: {
         missionId: String(assignment._id),
         eventType,

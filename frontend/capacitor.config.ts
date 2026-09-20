@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize } from '@capacitor/keyboard';
 
 const config: CapacitorConfig = {
   appId: 'com.edgecipline',
@@ -17,6 +18,13 @@ const config: CapacitorConfig = {
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    // Pair with android:windowSoftInputMode="adjustResize" in the manifest:
+    // the WebView body shrinks when the keyboard opens, so 100dvh layouts and
+    // the bottom nav move out of the way instead of the page being panned.
+    Keyboard: {
+      resize: KeyboardResize.Body,
+      resizeOnFullScreen: true,
     },
   },
 };

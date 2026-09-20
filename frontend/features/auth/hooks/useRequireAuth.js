@@ -14,18 +14,27 @@ import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient
  * refresh first. If the httpOnly refresh cookie is still valid the user stays
  * on the current page. Only if refresh also fails do we redirect to /login.
  *
- * Returns { ready: boolean } — render nothing (or a loader) while ready===false.
+ * Returns { ready, authenticated }:
+ *   ready         — the check has finished; render nothing (or a loader) until then.
+ *   authenticated — a valid access token is in hand. False only in the one case
+ *                   where ready is true without a token: a transient refresh
+ *                   failure, where the session is kept but data fetching should
+ *                   wait for the next successful refresh.
  */
 export function useRequireAuth() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const check = async () => {
       if (getValidToken()) {
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setAuthenticated(true);
+          setReady(true);
+        }
         return;
       }
 
@@ -46,6 +55,7 @@ export function useRequireAuth() {
       if (cancelled) return;
 
       if (newToken) {
+        setAuthenticated(true);
         setReady(true);
       } else {
         // Save intended destination so login can redirect back after auth
@@ -63,5 +73,5 @@ export function useRequireAuth() {
     return () => { cancelled = true; };
   }, [router]);
 
-  return { ready };
+  return { ready, authenticated };
 }

@@ -8,6 +8,7 @@ import {
   useSkipReflection,
   useTodayReflection,
 } from "@/features/reflections/hooks/useReflection";
+import BottomSheet from "@/features/shared/components/BottomSheet";
 
 // One mounted form for any of three entry points:
 //   - Dashboard card "Start reflection"
@@ -117,7 +118,7 @@ function Slider({ label, value, onChange, levels, accent }) {
             >
               {level.emoji && <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>{level.emoji}</span>}
               <span style={{
-                fontSize: 9.5,
+                fontSize: "var(--fs-2xs)",
                 fontWeight: active ? 800 : 600,
                 lineHeight: 1.15,
                 textAlign: "center",
@@ -214,37 +215,16 @@ export default function ReflectionSheet({ open, onClose }) {
   const isBusy = submit.isPending || skip.isPending;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="End of day reflection"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1100,
-        background: "rgba(15, 25, 35, 0.55)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        padding: 0,
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose?.();
-      }}
+    <BottomSheet
+      onClose={onClose}
+      label="End of day reflection"
+      height="auto"
+      maxHeight="92%"
+      maxWidth={540}
+      padding={22}
+      scrollable
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 540,
-          background: "#FFFFFF",
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          boxShadow: "0 -16px 40px rgba(15,25,35,0.18)",
-          maxHeight: "92vh",
-          overflowY: "auto",
-          padding: "20px 22px 28px",
-        }}
-      >
+      <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>
@@ -259,11 +239,14 @@ export default function ReflectionSheet({ open, onClose }) {
             onClick={onClose}
             aria-label="Close reflection"
             style={{
-              background: "transparent", border: "none", padding: 6, borderRadius: 8,
-              cursor: "pointer", color: "#64748B",
+              width: 40, height: 40, borderRadius: 12, border: "none",
+              background: "#F1F5F9", color: "#0F1923", cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              touchAction: "manipulation", WebkitTapHighlightColor: "transparent",
+              flexShrink: 0,
             }}
           >
-            <X size={20} />
+            <X size={18} strokeWidth={2.4} />
           </button>
         </div>
 
@@ -364,7 +347,7 @@ export default function ReflectionSheet({ open, onClose }) {
                   background: "#FFFFFF",
                 }}
               />
-              <div style={{ textAlign: "right", marginTop: 2, fontSize: 10, color: "#94A3B8" }}>
+              <div style={{ textAlign: "right", marginTop: 2, fontSize: "var(--fs-2xs)", color: "#94A3B8" }}>
                 {improvement.length}/280
               </div>
             </section>
@@ -441,6 +424,6 @@ export default function ReflectionSheet({ open, onClose }) {
           }
         `}</style>
       </div>
-    </div>
+    </BottomSheet>
   );
 }

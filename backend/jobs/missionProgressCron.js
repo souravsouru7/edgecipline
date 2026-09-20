@@ -50,7 +50,7 @@ async function buildDayData(userId, dayKey) {
   const [forexTrades, indianTrades, disciplineEntries] = await Promise.all([
     Trade.find({
       user: userId,
-      deleted: { $ne: true },
+      deletedAt: null,
       $or: [
         { tradeDate: { $gte: dayStart, $lte: dayEnd } },
         { createdAt: { $gte: dayStart, $lte: dayEnd } },
@@ -58,7 +58,7 @@ async function buildDayData(userId, dayKey) {
     }).select("profit notes stopLoss riskPercent").lean(),
     IndianTrade.find({
       user: userId,
-      deleted: { $ne: true },
+      deletedAt: null,
       $or: [
         { tradeDate: { $gte: dayStart, $lte: dayEnd } },
         { createdAt: { $gte: dayStart, $lte: dayEnd } },

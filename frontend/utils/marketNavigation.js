@@ -1,152 +1,42 @@
-import { MARKETS } from '@/context/MarketContext';
-import { API_URL } from '@/config/api';
+import { MARKETS } from "@/context/MarketContext";
 
 /**
- * Get dashboard URL based on current market
+ * Market-aware routes. Indian Market pages live under /indian-market; Forex
+ * pages are at the root. Keep every "which URL for this market" decision here
+ * so the two trees cannot drift.
  */
-export const getDashboardUrl = (market) => {
-  return market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/dashboard' 
-    : '/dashboard';
-};
+const marketRoot = (market) => (market === MARKETS.INDIAN_MARKET ? "/indian-market" : "");
 
-/**
- * Get add trade URL based on current market
- */
-export const getAddTradeUrl = (market) => {
-  return market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/add' 
-    : '/add-trade';
-};
+export const getDashboardUrl = (market) => `${marketRoot(market)}/dashboard`;
+export const getAddTradeUrl = (market) => `${marketRoot(market)}/add-trade`;
+export const getUploadTradeUrl = (market) => `${marketRoot(market)}/upload-trade`;
+export const getAnalyticsUrl = (market) => `${marketRoot(market)}/analytics`;
+export const getTradesUrl = (market) => `${marketRoot(market)}/trades`;
+export const getSetupsUrl = (market) => `${marketRoot(market)}/setups`;
+export const getEditTradeUrl = (id, market) => `${getTradesUrl(market)}/edit?id=${id}`;
+export const getTradeDetailUrl = (id, market) => `${getTradesUrl(market)}/view?id=${id}`;
 
-/**
- * Get analytics URL based on current market
- */
-export const getAnalyticsUrl = (market) => {
-  return market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/analytics' 
-    : '/analytics';
-};
-
-/**
- * Get trades journal URL based on current market
- */
-export const getTradesUrl = (market) => {
-  return market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/trades' 
-    : '/trades';
-};
-
-/**
- * Get edit trade URL based on current market
- */
-export const getEditTradeUrl = (id, market) => {
-  const basePath = market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/trades' 
-    : '/trades';
-  return `${basePath}/${id}/edit`;
-};
-
-/**
- * Get trade detail URL based on current market
- */
-export const getTradeDetailUrl = (id, market) => {
-  const basePath = market === MARKETS.INDIAN_MARKET 
-    ? '/indian-market/trades' 
-    : '/trades';
-  return `${basePath}/${id}`;
-};
-
-/**
- * Navigate to appropriate page based on current market
- * Usage: router.push(getMarketPath('dashboard', currentMarket))
- */
-export const getMarketPath = (page, market) => {
-  const routes = {
-    dashboard: getDashboardUrl(market),
-    'add-trade': getAddTradeUrl(market),
-    analytics: getAnalyticsUrl(market),
-    trades: getTradesUrl(market),
-  };
-  return routes[page] || '/dashboard';
-};
+// First-run flow: after picking a market the user is sent to build their
+// first setup, with the flag that tells the setups page to run its tour.
+export const getOnboardingSetupsUrl = (market) => `${getSetupsUrl(market)}?onboarding=1`;
 
 /**
  * Check if current path is for Indian Market
  */
-export const isIndianMarketPath = (pathname) => {
-  return pathname?.startsWith('/indian-market');
-};
+export const isIndianMarketPath = (pathname) => Boolean(pathname?.startsWith("/indian-market"));
 
 /**
- * Convert a Forex path to Indian Market path
+ * Convert a Forex path to its Indian Market equivalent
  */
 export const toIndianMarketPath = (pathname) => {
-  if (!pathname || pathname.startsWith('/indian-market')) {
-    return pathname;
-  }
-  
-  // Map common paths
-  const mapping = {
-    '/dashboard': '/indian-market/dashboard',
-    '/trades': '/indian-market/trades',
-    '/add-trade': '/indian-market/add',
-    '/analytics': '/indian-market/analytics',
-  };
-  
-  return mapping[pathname] || `/indian-market${pathname}`;
+  if (!pathname || pathname.startsWith("/indian-market")) return pathname;
+  return `/indian-market${pathname}`;
 };
 
 /**
- * Convert an Indian Market path to Forex path
+ * Convert an Indian Market path to its Forex equivalent
  */
 export const toForexPath = (pathname) => {
-  if (!pathname || !pathname.startsWith('/indian-market')) {
-    return pathname;
-  }
-  
-  return pathname.replace('/indian-market', '') || '/dashboard';
-};
-
-/**
- * Get base API URL based on market
- */
-export const getApiBaseUrl = (market) => {
-  const BASE_URL = API_URL;
-  
-  return market === MARKETS.INDIAN_MARKET
-    ? `${BASE_URL}/indian`
-    : BASE_URL;
-};
-
-/**
- * Get full API endpoint for trades
- */
-export const getTradesApiUrl = (market, endpoint = '') => {
-  const base = getApiBaseUrl(market);
-  return `${base}/trades${endpoint}`;
-};
-
-/**
- * Get full API endpoint for analytics
- */
-export const getAnalyticsApiUrl = (market, endpoint = '') => {
-  const base = getApiBaseUrl(market);
-  return `${base}/analytics${endpoint}`;
-};
-
-export default {
-  getDashboardUrl,
-  getAddTradeUrl,
-  getAnalyticsUrl,
-  getTradesUrl,
-  getEditTradeUrl,
-  getTradeDetailUrl,
-  getMarketPath,
-  isIndianMarketPath,
-  toIndianMarketPath,
-  toForexPath,
-  getApiBaseUrl,
-  getTradesApiUrl,
-  getAnalyticsApiUrl
+  if (!pathname || !pathname.startsWith("/indian-market")) return pathname;
+  return pathname.replace("/indian-market", "") || "/dashboard";
 };

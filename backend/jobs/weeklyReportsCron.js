@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const { appConfig } = require("../config");
 const userRepository = require("../repositories/user.repository");
 const notificationService = require("../services/notificationService");
+const { resolveActiveMarketsForUsers } = require("../services/userMarketService");
 const { logger } = require("../utils/logger");
 const { runCronWithMetrics } = require("../utils/cronMetrics");
 const { withCronLock, isoWeekKey } = require("../utils/distributedLock");
@@ -29,11 +30,23 @@ function getWeeklyReminderKey(date = new Date()) {
   return start.toISOString().slice(0, 10);
 }
 
-// Sends both market reminders for a single user. Per-market errors are caught
-// individually so one failure does not poison the other reminder for that user.
-async function sendRemindersForUser(user, weekKey) {
+// Sends a reminder for each market the user is actually active in. Per-market
+// errors are caught individually so one failure does not poison the other
+// reminder for that user. A user with no market signal gets nothing (logged).
+async function sendRemindersForUser(user, weekKey, activeMarkets = new Set(MARKET_TYPES)) {
+  const markets = MARKET_TYPES.filter((marketType) => activeMarkets.has(marketType));
+  if (!markets.length) {
+    logger.info("WEEKLY_REMINDER_DECISION", {
+      notificationType: "weekly_report_reminder",
+      userId: user._id?.toString?.(),
+      weekKey,
+      eligible: false,
+      reason: "MARKET_NOT_ENABLED",
+    });
+    return;
+  }
   const results = await Promise.allSettled(
-    MARKET_TYPES.map((marketType) =>
+    markets.map((marketType) =>
       notificationService.notifyUser(user._id, {
         type: "weekly_report_reminder",
         title: "Weekly review is ready",
@@ -54,14 +67,15 @@ async function sendRemindersForUser(user, weekKey) {
   if (failed.length > 0) {
     // Throw so the metrics layer counts this user as a failure. Log the
     // per-market detail so we can see WHICH market failed.
-    failed.forEach((r, idx) => {
+    results.forEach((r, idx) => {
+      if (r.status !== "rejected") return;
       logger.error(`[${CRON_NAME}] market reminder failed`, {
         userId: user._id?.toString?.(),
-        marketType: MARKET_TYPES[idx],
+        marketType: markets[idx],
         error: r.reason?.message,
       });
     });
-    const err = new Error(`weekly reminder failed for ${failed.length}/${MARKET_TYPES.length} markets`);
+    const err = new Error(`weekly reminder failed for ${failed.length}/${markets.length} markets`);
     err.failedMarkets = failed.length;
     throw err;
   }
@@ -83,8 +97,10 @@ async function runWeeklyReportsJob() {
       { name: LOCK_NAME, lockSuffix, ttlSeconds: LOCK_TTL_SECONDS },
       async () => {
         let users;
+        let marketsByUser;
         try {
-          users = await userRepository.findUsersForWeeklyReports();
+          users = await userRepository.findUsersForSessionReminders();
+          marketsByUser = await resolveActiveMarketsForUsers(users);
         } catch (error) {
           logger.error(`[${CRON_NAME}] failed to fetch users`, {
             error: error.message,
@@ -105,7 +121,7 @@ async function runWeeklyReportsJob() {
           name:        CRON_NAME,
           items:       users,
           concurrency,
-          work:        (user) => sendRemindersForUser(user, weekKey),
+          work:        (user) => sendRemindersForUser(user, weekKey, marketsByUser.get(String(user._id)) || new Set()),
         });
       }
     );
@@ -144,4 +160,4 @@ function startWeeklyReportsCron() {
   logger.info(`[${CRON_NAME}] scheduled`, { schedule, concurrency: resolveConcurrency() });
 }
 
-module.exports = { startWeeklyReportsCron, runWeeklyReportsJob };
+module.exports = { startWeeklyReportsCron, runWeeklyReportsJob, sendRemindersForUser };

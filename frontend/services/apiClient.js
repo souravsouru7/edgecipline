@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { captureApiFailure } from '@/utils/monitoring';
 import { API_URL } from '@/config/api';
+import { createOfflineError, isOnline } from '@/utils/networkStatus';
 import {
   clearAuthToken,
   getAuthDiagnostics,
@@ -163,6 +164,12 @@ function applyNativeClientHeaders(config = {}) {
 }
 
 apiClient.interceptors.request.use((config) => {
+  // Offline: fail fast with a typed error instead of holding the caller for
+  // the 10s timeout. React Query keeps showing cached data and pauses
+  // refetches via onlineManager until connectivity returns.
+  if (!isOnline() && config?.allowOffline !== true) {
+    return Promise.reject(createOfflineError());
+  }
   const withHeaders = applyNativeClientHeaders(config);
   // Per-path timeout override — see SLOW_AUTH_PATHS. Only widens the budget for
   // sign-in; every other endpoint keeps the 10s default.
@@ -430,15 +437,19 @@ apiClient.interceptors.request.use(
 // Response interceptor
 // ---------------------------------------------------------------------------
 apiClient.interceptors.response.use(
-  // Unwrap response.data so callers receive the payload directly
-  (response) => unwrapApiEnvelope(response.data),
+  // Unwrap response.data so callers receive the payload directly. A request
+  // may opt out with `{ rawEnvelope: true }` when it needs the envelope's
+  // `pagination` block alongside `data` (paged lists).
+  (response) => (response.config?.rawEnvelope ? response.data : unwrapApiEnvelope(response.data)),
 
   async (error) => {
     const config = error.config;
 
     if (!error.response) {
+      if (error?.isOffline) return Promise.reject(error);
       captureApiFailure(error);
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+      if (!isTimeout && !isOnline()) return Promise.reject(createOfflineError());
       return Promise.reject(
         new Error(isTimeout ? 'Request timed out. Please try again.' : 'Network error. Please check your connection.')
       );

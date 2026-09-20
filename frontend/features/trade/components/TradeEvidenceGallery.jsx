@@ -76,13 +76,13 @@ export default function TradeEvidenceGallery({
       <style>{`
         .teg-root { margin-top: 12px; }
         .teg-title {
-          font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+          font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.1em;
           color: #64748B; font-family: 'JetBrains Mono', monospace;
           margin-bottom: 8px;
           display: flex; align-items: center; justify-content: space-between;
         }
         .teg-count {
-          font-size: 10px; color: #94A3B8;
+          font-size: var(--fs-2xs); color: #94A3B8;
           font-family: 'JetBrains Mono', monospace;
         }
         .teg-grid {
@@ -104,7 +104,7 @@ export default function TradeEvidenceGallery({
         .teg-thumb-idx {
           position: absolute; bottom: 4px; right: 4px;
           background: rgba(15,25,35,0.75); color: #FFFFFF;
-          font-size: 10px; font-weight: 700;
+          font-size: var(--fs-2xs); font-weight: 700;
           padding: 2px 6px; border-radius: 4px;
           font-family: 'JetBrains Mono', monospace;
         }

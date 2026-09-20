@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { genId } from "@/utils/genId";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
@@ -49,10 +50,6 @@ const STARTER_TEMPLATES = [
     ],
   },
 ];
-
-function genId() {
-  return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
 
 function SetupStrategiesContent() {
   const router = useRouter();
@@ -372,7 +369,7 @@ function SetupStrategiesContent() {
         .sp-back-btn { flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E8ECF0; background: #F8FAFB; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
         .sp-back-btn:hover { background: #EEF1F4; }
         .sp-title { font-size: 15px; font-weight: 700; color: #0F1923; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sp-market-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; background: #EEF9F4; border: 1px solid #C6EEE0; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #0D9E6E; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+        .sp-market-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; background: #EEF9F4; border: 1px solid #C6EEE0; font-size: var(--fs-2xs); font-family: 'JetBrains Mono', monospace; color: #0D9E6E; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
         .sp-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .sp-btn-dashboard { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #E8ECF0; background: #F8FAFB; color: #4A5568; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
         .sp-btn-dashboard:hover { background: #EEF1F4; }
@@ -388,12 +385,12 @@ function SetupStrategiesContent() {
         .sp-helper-title { font-size: 13px; font-weight: 800; color: #0F1923; margin-bottom: 4px; }
         .sp-helper-body { font-size: 12px; color: #64748B; line-height: 1.6; margin-bottom: 12px; }
         .sp-onboarding-panel { margin-bottom: 16px; padding: 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(34,199,142,0.10), rgba(14,165,233,0.05)); border: 1px solid rgba(13,158,110,0.28); box-shadow: 0 2px 10px rgba(15,25,35,0.04); }
-        .sp-onboarding-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; }
+        .sp-onboarding-kicker { font-size: var(--fs-2xs); font-weight: 800; letter-spacing: 0.12em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; }
         .sp-onboarding-title { font-size: 15px; font-weight: 800; color: #0F1923; margin-bottom: 5px; }
         .sp-onboarding-copy { font-size: 12px; color: #475569; line-height: 1.6; margin-bottom: 12px; max-width: 620px; }
         .sp-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
         .sp-flow-step { padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.72); border: 1px solid rgba(13,158,110,0.16); }
-        .sp-flow-num { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 3px; }
+        .sp-flow-num { font-size: var(--fs-2xs); font-weight: 800; letter-spacing: 0.1em; color: #0D9E6E; font-family: 'JetBrains Mono', monospace; margin-bottom: 3px; }
         .sp-flow-label { font-size: 12px; font-weight: 800; color: #0F1923; margin-bottom: 3px; }
         .sp-flow-desc { font-size: 11px; color: #64748B; line-height: 1.45; }
         .sp-template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -401,7 +398,7 @@ function SetupStrategiesContent() {
         .sp-template-card:hover { border-color: #0D9E6E; background: #EEF9F4; }
         .sp-template-name { font-size: 12px; font-weight: 800; color: #0F1923; margin-bottom: 5px; }
         .sp-template-desc { font-size: 11px; color: #64748B; line-height: 1.45; margin-bottom: 10px; }
-        .sp-template-action { font-size: 10px; font-weight: 800; color: #0D9E6E; letter-spacing: 0.08em; text-transform: uppercase; }
+        .sp-template-action { font-size: var(--fs-2xs); font-weight: 800; color: #0D9E6E; letter-spacing: 0.08em; text-transform: uppercase; }
         .sp-btn-add-strategy { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 10px; border: 1.5px dashed #0D9E6E; background: transparent; color: #0D9E6E; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: background 0.15s; }
         .sp-btn-add-strategy:hover { background: #EEF9F4; }
         .sp-card { background: #FFFFFF; border-radius: 14px; border: 1px solid #E8ECF0; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(15,25,35,0.05); }
@@ -410,24 +407,24 @@ function SetupStrategiesContent() {
         .sp-chevron { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #F1F4F8; display: flex; align-items: center; justify-content: center; }
         .sp-chevron.open { transform: rotate(180deg); }
         .sp-card-name-wrap { flex: 1; min-width: 0; }
-        .sp-field-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: 0.08em; color: #A0AEC0; margin-bottom: 5px; }
+        .sp-field-label { font-size: var(--fs-2xs); font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: 0.08em; color: #A0AEC0; margin-bottom: 5px; }
         .sp-name-input { width: 100%; border: 1px solid #E8ECF0; border-radius: 8px; padding: 8px 11px; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; color: #0F1923; background: #F8FAFB; outline: none; transition: border-color 0.15s, background 0.15s; }
         .sp-name-input:focus { border-color: #0D9E6E; background: #FFFFFF; }
         .sp-rules-badge { flex-shrink: 0; padding: 4px 10px; border-radius: 20px; background: #F1F4F8; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #64748B; white-space: nowrap; }
         .sp-images-section { padding: 12px 16px; border-bottom: 1px solid #F1F4F8; }
         .sp-images-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .sp-images-count { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #94A3B8; }
+        .sp-images-count { font-size: var(--fs-2xs); font-family: 'JetBrains Mono', monospace; color: #94A3B8; }
         .sp-images-grid { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
         .sp-img-card { position: relative; flex-shrink: 0; }
         .sp-img-card img { width: 88px; height: 68px; object-fit: cover; border-radius: 10px; display: block; }
         .sp-img-card--uploaded img { border: 1px solid #E8ECF0; }
         .sp-img-card--pending img { border: 2px dashed #0D9E6E; }
-        .sp-img-remove { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #FFFFFF; background: #EF4444; color: #FFFFFF; font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 2; }
+        .sp-img-remove { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #FFFFFF; background: #EF4444; color: #FFFFFF; font-size: var(--fs-2xs); cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 2; }
         .sp-img-move-row { position: absolute; bottom: 4px; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; }
         .sp-img-move-btn { width: 20px; height: 18px; border-radius: 4px; border: none; background: rgba(15,25,35,0.58); color: #FFFFFF; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
         .sp-img-move-btn:hover { background: rgba(13,158,110,0.85); }
-        .sp-img-new-badge { position: absolute; top: 4px; left: 4px; background: #0D9E6E; color: #FFFFFF; font-size: 8px; font-weight: 800; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
-        .sp-img-add-btn { width: 88px; height: 68px; border-radius: 10px; border: 1.5px dashed #CBD5E0; background: #F8FAFB; color: #64748B; font-size: 10px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; transition: border-color 0.15s, background 0.15s; flex-shrink: 0; }
+        .sp-img-new-badge { position: absolute; top: 4px; left: 4px; background: #0D9E6E; color: #FFFFFF; font-size: var(--fs-2xs); font-weight: 800; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
+        .sp-img-add-btn { width: 88px; height: 68px; border-radius: 10px; border: 1.5px dashed #CBD5E0; background: #F8FAFB; color: #64748B; font-size: var(--fs-2xs); font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; transition: border-color 0.15s, background 0.15s; flex-shrink: 0; }
         .sp-img-add-btn:hover { border-color: #0D9E6E; background: #EEF9F4; color: #0D9E6E; }
         .sp-img-pending-hint { font-size: 11px; color: #0D9E6E; margin-top: 6px; font-weight: 500; }
         .sp-img-empty-hint { font-size: 11px; color: #A0AEC0; margin-top: 4px; }
@@ -439,7 +436,7 @@ function SetupStrategiesContent() {
         .sp-btn-delete-setup:hover { background: #FEE2E2; }
         .sp-rule-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid #F1F4F8; background: #FAFBFC; margin-bottom: 6px; transition: border-color 0.15s; }
         .sp-rule-row:focus-within { border-color: #0D9E6E; background: #FFFFFF; }
-        .sp-rule-num { width: 22px; height: 22px; border-radius: 6px; background: #E8ECF0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #64748B; flex-shrink: 0; }
+        .sp-rule-num { width: 22px; height: 22px; border-radius: 6px; background: #E8ECF0; display: flex; align-items: center; justify-content: center; font-size: var(--fs-2xs); font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #64748B; flex-shrink: 0; }
         .sp-rule-input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; font-family: 'Inter', sans-serif; color: #0F1923; min-width: 0; }
         .sp-rule-input::placeholder { color: #CBD5E0; }
         .sp-rule-del { width: 24px; height: 24px; border-radius: 6px; border: 1px solid #FECACA; background: #FEF2F2; color: #DC2626; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; line-height: 1; }
@@ -469,7 +466,7 @@ function SetupStrategiesContent() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>Setup / Strategies</span>
           {getMarketLabel() && (
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "#0D9E6E", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.2)", padding: "3px 8px", borderRadius: 20 }}>
+            <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em", color: "#0D9E6E", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.2)", padding: "3px 8px", borderRadius: 20 }}>
               {getMarketLabel()}
             </span>
           )}

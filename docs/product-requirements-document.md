@@ -1,6 +1,6 @@
 # Edgecipline Product Requirements Document
 
-Last updated: 2026-06-13
+Last updated: 2026-09-18
 
 ## 1. Product Summary
 
@@ -138,264 +138,242 @@ Core value drivers:
 
 ## 7. Core Features
 
-### Must-Have For MVP
-
-#### Authentication And Account Setup
-
-Users must be able to register, log in, reset password, log in with Google, accept terms, and maintain a secure authenticated session.
-
-Requirements:
-
-- Email/password signup and login.
-- Google login.
-- Forgot password and reset password.
-- Terms acceptance gate.
-- Secure JWT session handling.
-- User profile with subscription status.
-
-Success criteria:
-
-- A new user can create an account and reach the dashboard without manual support.
-- Protected pages redirect unauthenticated users to login.
-
-#### Market Mode Selection
-
-Users must be able to work in either Forex mode or Indian Market mode, with separate routes, models, analytics, and UI expectations.
-
-Requirements:
-
-- Global market toggle.
-- Forex trade journal and analytics.
-- Indian market trade journal and analytics.
-- Indian mode supports options and intraday stocks.
-- Currency and field labels adapt to market type.
-
-Success criteria:
-
-- A user's Forex trades do not pollute Indian market analytics.
-- Indian options fields such as strike price, option type, expiry, and broker are captured.
-
-#### Screenshot Trade Upload
-
-Users must be able to upload broker screenshots and have the system extract trade data into editable trade entries.
-
-Requirements:
-
-- Upload image file.
-- Confirm screenshot before extraction.
-- Select broker when needed for Indian market extraction.
-- Async OCR/AI processing.
-- Processing status states: uploading, queued, processing, completed, failed.
-- Reject non-trade images.
-- Support single-trade and multi-trade extraction.
-- Store extraction confidence and review state.
-- Allow user to review/edit extracted data before saving.
-
-Success criteria:
-
-- User can upload a valid screenshot, review extracted fields, and save to journal.
-- Invalid screenshots produce helpful error guidance.
-- Extraction failure does not create misleading completed journal entries.
-
-#### Manual Trade Entry
-
-Users must be able to log a trade manually when screenshot extraction is not available or not desired.
-
-Requirements:
-
-- Create trade without screenshot.
-- Capture pair/instrument, type, quantity/lot size, entry, exit, P&L, date, strategy, session, notes.
-- Capture Indian market-specific fields.
-- Capture psychology and setup checklist fields.
-
-Success criteria:
-
-- Users can maintain a journal even if AI extraction fails.
-
-#### Trade Journal
-
-Users must be able to view, filter, edit, and delete logged trades.
-
-Requirements:
-
-- Trade list page.
-- Trade detail page.
-- Edit trade page.
-- Delete trade.
-- Paginated and filterable API.
-- Separate Forex and Indian trade views.
-
-Success criteria:
-
-- Users can correct AI extraction mistakes after saving.
-- Analytics update after trade create, update, or delete.
-
-#### Dashboard
-
-Users must have a clear home base showing current trading state and next actions.
-
-Requirements:
-
-- Total trades.
-- Win rate.
-- Net P&L.
-- Current streak.
-- Equity curve.
-- Today's intelligence summary.
-- AI coach snapshot.
-- Quick actions: log trade, upload screenshot, run checklist, generate/open report.
-- Onboarding welcome guide.
-
-Success criteria:
-
-- A returning user can understand their current status in under 30 seconds.
-
-#### Analytics Overview
-
-Users must be able to see performance analytics based on journal data.
-
-Requirements:
-
-- Summary stats.
-- Weekly P&L.
-- Best/worst instruments or pairs.
-- Strategy performance.
-- Session/time behavior.
-- Risk-reward distribution.
-- Calendar P&L.
-- Drawdown view.
-- Separate Indian market analytics.
-
-Success criteria:
-
-- Users can identify at least one profitable condition and one weak condition from their journal.
-
-#### Psychology And Discipline Tracking
-
-Users must be able to attach behavioral context to trades and receive analytics from it.
-
-Requirements:
-
-- Entry basis: plan, emotion, impulsive, custom.
-- Mood rating.
-- Confidence level.
-- Emotional tags such as FOMO, revenge, fear, greed, calm, focused, rushed.
-- Mistake tags.
-- Lesson field.
-- Would-retake review.
-- Discipline score.
-- Psychology analytics.
-- Psychology cost calculator.
-- Self-awareness score.
-- Repeated mistakes page.
-- Discipline trend.
-- Revenge and tilt detection.
-
-Success criteria:
-
-- Users can see how psychological states and mistakes affect P&L.
-
-#### Setup Strategies And Checklists
-
-Users must be able to define trading setups and check whether a trade followed the setup rules.
-
-Requirements:
-
-- Create setup strategy.
-- Add editable setup rules.
-- Attach setup checklist to a trade.
-- Calculate setup score.
-- Save checklist tracking history.
-- Show checklist in upload and manual trade flows.
-
-Success criteria:
-
-- Users can measure plan adherence over time.
-
-#### AI Insights And Coaching
-
-Users should receive summarized, plain-language insights when enough data exists.
-
-Requirements:
-
-- AI-generated or rule-generated insights.
-- AI coach feed.
-- Trading DNA engine.
-- Pattern detection.
-- Actionable recommendation language.
-- Unlock states when data is insufficient.
-
-Success criteria:
-
-- Insights explain what happened, why it matters, and what to do next.
-- The product avoids generic advice when there is not enough data.
-
-#### Weekly Reports
-
-Users must be able to review weekly performance.
-
-Requirements:
-
-- Generate weekly report from trade history.
-- Store weekly reports.
-- View reports in app.
-- Email reports when email configuration is available.
-- Include performance, discipline, and improvement highlights.
-
-Success criteria:
-
-- Users have a repeatable weekly review loop.
-
-#### Subscription And Payment
-
-Users must be able to experience limited free value and pay to continue using premium capabilities.
-
-Requirements:
-
-- Free plan with limited screenshot upload usage.
-- Monthly and yearly subscription support.
-- Razorpay order creation and verification.
-- Subscription status and expiry on user profile.
-- Admin ability to manually activate subscriptions.
-
-Success criteria:
-
-- Free users understand when and why they need to subscribe.
-- Paid users can continue uploading without manual intervention.
-
-#### Admin Console
-
-Internal operators must be able to manage users, trades, payments, notifications, feedback, and platform health.
-
-Requirements:
-
-- Separate admin login.
-- User management.
-- Subscription management.
-- Trade review.
-- Payment history.
-- Platform analytics.
-- Feedback review.
-- Notification management.
-
-Success criteria:
-
-- Founder/operator can support early users without database access.
-
-### Nice-To-Have For Version 1 Or Shortly After
-
-- Push notification reminders.
-- Morning mentor notifications.
-- More granular broker templates.
-- More advanced setup image references.
-- Community or mentor dashboards.
-- Export to CSV/PDF.
-- Calendar-based weekly review builder.
-- In-app subscription upgrade prompts with plan comparison.
-- More polished mobile bottom navigation.
-- AI-generated next-week checklist.
-- Advanced benchmark comparisons across user cohorts.
-- Trading plan document builder.
+This section lists every feature in Edgecipline in simple language. Each table tells you what the feature does and whether it is available on the Web app, the Mobile app, or both.
+
+How to read the tables:
+
+- **Web** = the browser app (desktop or mobile browser).
+- **Mobile** = the Android app from Google Play (built with Capacitor). An iOS build is prepared but not published yet.
+- **Yes** = available. **No** = not available on that platform. **Native** = works using the phone's own system features.
+
+### 7.1 Where The App Runs
+
+| Platform | Status | Notes |
+|---|---|---|
+| Web app | Live | Full feature set. Payments through Razorpay. |
+| Android app | Live on Google Play | Same features as web plus phone-only extras (push notifications, native checklist reminders, Google Play billing). |
+| iOS app | Prepared, not published | Capacitor iOS project exists. Not in the App Store yet. |
+
+### 7.2 Account And Onboarding
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Register with email | Create an account with email and password. | Yes | Yes |
+| Verify OTP | A one-time code is sent to your email to confirm it is really you. | Yes | Yes |
+| Login | Sign in with your email and password. | Yes | Yes |
+| Google login | Sign in with one tap using your Google account. | Yes | Yes |
+| Forgot / reset password | Get a reset link by email and set a new password. | Yes | Yes |
+| Accept terms | You must accept Terms and Privacy Policy before using the app. | Yes | Yes |
+| Onboarding questions | Short questions about your trading style, market, and goals. Used to personalise coaching. | Yes | Yes |
+| Profile page | See your name, email, plan, subscription expiry, and trade limits. | Yes | Yes |
+| Settings page | Change preferences such as notifications and market mode. | Yes | Yes |
+| Delete account | Permanently remove your account and all your data from inside the app. | Yes | Yes |
+| Secure session | Your login stays safe using secure tokens. On the phone, tokens are stored in encrypted device storage. | Yes | Yes (Native) |
+| Terms and Privacy pages | Public pages you can read anytime. | Yes | Yes |
+
+### 7.3 Market Modes
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Forex mode | Journal, analytics, setups, and dashboard for Forex trading. | Yes | Yes |
+| Indian Market mode | Journal, analytics, setups, and dashboard for Indian stocks and options. | Yes | Yes |
+| Market switch | One toggle to move between Forex and Indian mode. Each market keeps its own data. | Yes | Yes |
+| Indian-specific fields | Strike price, option type (CE/PE), expiry date, broker, quantity, and lot details. | Yes | Yes |
+| Currency and labels | Money, symbols, and field names change to match the market you are in. | Yes | Yes |
+
+### 7.4 Logging A Trade
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Upload screenshot | Upload a broker screenshot and the app reads the trade details for you using OCR and AI. | Yes | Yes |
+| Confirm before extraction | You see the picture first and confirm it is a trade screenshot. | Yes | Yes |
+| Choose broker | For Indian market, pick your broker so the AI reads the screenshot correctly. | Yes | Yes |
+| Processing status | Clear states: uploading, queued, processing, completed, failed. | Yes | Yes |
+| Reject non-trade images | If the picture is not a trade, the app tells you and does not save junk. | Yes | Yes |
+| Multi-trade extraction | One screenshot with several trades creates several journal entries. | Yes | Yes |
+| Review before save | Check and correct the extracted data before it goes into your journal. | Yes | Yes |
+| Confidence score | The app shows how sure it is about the extracted data. | Yes | Yes |
+| Manual add trade | Type a trade in yourself when there is no screenshot. | Yes | Yes |
+| Trade fields | Pair or instrument, buy/sell, size, entry, exit, stop loss, take profit, P&L, date, session, strategy, notes, risk:reward. | Yes | Yes |
+| Psychology fields | Entry basis (plan, emotion, impulsive), mood, confidence, emotion tags, mistake tag, lesson, would-retake. | Yes | Yes |
+| Setup checklist in form | Pick a saved setup and tick which rules you followed. The app computes a setup score. | Yes | Yes |
+| Free trade limit | Free users can log 2 trades per market. After that the app asks you to subscribe. | Yes | Yes |
+
+### 7.5 Trade Journal
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Trade list | See all your trades in a list, newest first. | Yes | Yes |
+| Filters and search | Filter by date, pair, result, strategy, session, and more. | Yes | Yes |
+| Trade detail page | Open one trade and see every field, the screenshot, psychology, and checklist. | Yes | Yes |
+| Edit trade | Fix any mistake after saving. | Yes | Yes |
+| Delete trade | Remove a trade. Analytics update right away. | Yes | Yes |
+| Trade status badge | Shows if the trade is still processing, completed, or needs review. | Yes | Yes |
+| Separate journals | Forex and Indian trades are kept in separate lists. | Yes | Yes |
+
+### 7.6 Setups And Checklists
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Create setups | Save your trading strategies (up to 50 per market) with a name. | Yes | Yes |
+| Setup rules | Add up to 20 rules to each setup. This becomes your pre-trade checklist. | Yes | Yes |
+| Reference images | Attach example chart images to each setup. | Yes | Yes |
+| Setup score | For every trade, the app shows what percent of rules you followed. | Yes | Yes |
+| Checklist page | A daily pre-trade checklist you tick before the market opens. | Yes | Yes |
+| Psychology checklist | Quick mindset check (calm, focused, tired, etc.) before trading. | Yes | Yes |
+| Checklist reminder | Get a reminder at your chosen time to complete the checklist. | Yes | Yes (Native alarm) |
+| Checklist history | The app stores every checklist you complete so you can see your habit over time. | Yes | Yes |
+| Safe history | Editing or deleting a setup never changes old trades. Each trade keeps a copy of the rules it was scored on. | Yes | Yes |
+
+### 7.7 Dashboard
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Key numbers | Total trades, win rate, net P&L, and current streak at a glance. | Yes | Yes |
+| Equity curve | A chart of how your account has grown or dropped over time. | Yes | Yes |
+| Today's intelligence | A short summary of what your data says today. | Yes | Yes |
+| AI coach snapshot | The latest coaching message based on your real trades. | Yes | Yes |
+| Quick actions | One-tap buttons: log trade, upload screenshot, run checklist, open report. | Yes | Yes |
+| Welcome guide | Step-by-step guide for new users on their first visit. | Yes | Yes |
+| Rescue banner | If your plan is expiring or expired, a friendly banner shows how to continue. | Yes | Yes |
+| Indian dashboard | A separate dashboard for Indian market mode. | Yes | Yes |
+
+### 7.8 Analytics
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Analytics overview | Summary of wins, losses, profit, average trade, and more. | Yes | Yes |
+| Weekly P&L | Profit and loss week by week. | Yes | Yes |
+| Best and worst pairs | Which instruments make or lose you money. | Yes | Yes |
+| Strategy league | Ranks your strategies by trades, win rate, and profit. | Yes | Yes |
+| Session and time analysis | Which sessions and hours you trade best. | Yes | Yes |
+| Risk:reward breakdown | How your risk:reward choices affect results. | Yes | Yes |
+| Calendar P&L | A calendar showing green and red days. | Yes | Yes |
+| Drawdown view | How deep your losing periods went. | Yes | Yes |
+| Indian analytics | The same analytics built for Indian stocks and options. | Yes | Yes |
+| Fast loading | Analytics are cached so pages open quickly. | Yes | Yes |
+
+### 7.9 Psychology And Discipline
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Psychology analytics | How mood, confidence, and emotions affect your results. | Yes | Yes |
+| Psychology cost | Shows how much money FOMO, revenge, fear, and greed have cost you. | Yes | Yes |
+| Self-awareness score | Measures how honestly and completely you record your psychology. | Yes | Yes |
+| Repeated mistakes | Lists the mistakes you make most often and what they cost. | Yes | Yes |
+| Pattern detection | Finds patterns such as losing after a win, overtrading, or tilt. | Yes | Yes |
+| Discipline page | Your daily discipline entries and discipline score. | Yes | Yes |
+| Discipline analytics | Trend of your discipline over weeks. | Yes | Yes |
+| Revenge and tilt detection | Warns when your trades look like revenge trading. | Yes | Yes |
+| Psychology timeline | A day-by-day story of your mindset and results. | Yes | Yes |
+| Streaks page | Journal streaks, discipline streaks, and best streaks. | Yes | Yes |
+
+### 7.10 Intelligence Hub And AI Coaching
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Intelligence hub | One place with five questions: What makes me money? What costs me money? What should I improve? What should I do now? How am I evolving? | Yes | Yes |
+| Trading DNA | Your trading identity: strengths, weaknesses, best setup, best session, risk style. | Yes | Yes |
+| Share Trading DNA | Create a shareable card of your Trading DNA. | Yes | Yes |
+| AI insights | Plain-English insights generated from your journal. | Yes | Yes |
+| AI coach chat | Ask the coach questions about your trading. It answers using your real data. | Yes | Yes |
+| AI coach feed | A running feed of coaching cues and next actions. | Yes | Yes |
+| Rule follow-through | Tracks whether you act on the coach's advice. | Yes | Yes |
+| Mindset evolution | Shows how your mindset scores change across review cycles. | Yes | Yes |
+| Locked states | When there is not enough data, the app says so instead of guessing. | Yes | Yes |
+| Indian intelligence modules | Six modules for Indian mode: Trading DNA, Patterns, Risk Patterns, Psychology Cost, Self-Awareness, AI Coach. | Yes | Yes |
+
+### 7.11 Missions
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Missions page | Pick goals to work on. The app tracks progress automatically from your trades. | Yes | Yes |
+| Risk missions | 1% Risk Discipline, Stop Loss on Every Trade, Protect Your Daily Limit, Risk:Reward Discipline. | Yes | Yes |
+| Psychology missions | No Revenge Trades (14 and 30 days), No FOMO Trades, Calm Mindset, High Confidence Only, Psychology Complete. | Yes | Yes |
+| Plan missions | Checklist Every Trade, Rule Adherence Streak, Follow Your Plan, A+ Setups Only, Avoid Low-Confidence Setups, Plan-Consistent Month. | Yes | Yes |
+| Journal missions | 14-Day and 30-Day Journal Streak, Daily Reflection Streak, Lesson in Every Loss, 4 Weekly Reviews. | Yes | Yes |
+| Mission progress | A progress bar and status for each active mission. | Yes | Yes |
+| AI mission suggestions | The app recommends which mission fits your current weakness. | Yes | Yes |
+
+### 7.12 Reflection And Reviews
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Daily reflection | Write a short end-of-day note. The app keeps a streak. | Yes | Yes |
+| Weekly reports | A report every week with performance, discipline, and what to improve. | Yes | Yes |
+| Weekly report email | The weekly report is also sent to your email. | Yes | Yes |
+| Report history | All past weekly reports are stored in the app. | Yes | Yes |
+| Morning mentor | A short morning message to set your focus for the day. | Yes | Yes |
+
+### 7.13 Notifications
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Notifications page | In-app inbox of all messages the app sent you. | Yes | Yes |
+| Push notifications | Alerts on your phone even when the app is closed. | No | Yes (Native) |
+| Smart notifications | Sent only when useful, for example after a losing streak or a missed journal day. | Yes | Yes |
+| Quiet hours | No notifications during the hours you choose. | Yes | Yes |
+| Checklist reminders | Reminder at your chosen time. On Android this works even after phone restart. | Yes | Yes (Native) |
+| Notification preferences | Turn each type of notification on or off. | Yes | Yes |
+
+### 7.14 Subscription And Payments
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Free plan | 2 trades per market for free, with full analytics on those trades. | Yes | Yes |
+| Paid plans | 1 month INR 349, 3 months INR 899, 6 months INR 1499. Unlimited trades and all features. | Yes | Yes |
+| Razorpay checkout | Pay by UPI, card, or net banking on the web. | Yes | No |
+| Google Play billing | Pay through Google Play inside the Android app (store rules require this). | No | Yes (Native) |
+| Plan status | Your plan and expiry date are shown on the profile page. | Yes | Yes |
+| Expiry handling | When the plan ends, you keep your data but return to the free limit. | Yes | Yes |
+| Subscription rescue | Friendly reminders before and after expiry with an easy way to continue. | Yes | Yes |
+| Promotions and referral links | Short links (edgecipline.com/r/...) that track where users came from and apply offers. | Yes | Yes |
+| Manual activation | Admin can activate a plan by hand if a payment needs help. | Yes | Yes |
+
+### 7.15 Support And Feedback
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Support center | Help page with contact options and articles. | Yes | Yes |
+| Help articles | Guides that answer common questions. | Yes | Yes |
+| Support tickets | Create a ticket, see replies, and track its status. | Yes | Yes |
+| AI support assistant | Instant answers from a helper trained on the help articles. | Yes | Yes |
+| WhatsApp contact | Tap to chat with the team on WhatsApp. | Yes | Yes |
+| Report an issue | Report a bug with screenshots and see the status of your report. | Yes | Yes |
+| Feedback | Send suggestions or ratings from inside the app. | Yes | Yes |
+
+### 7.16 Admin Console (Internal, Web Only)
+
+| Feature | What it does | Web | Mobile |
+|---|---|---|---|
+| Admin login | Separate secure login for the team. | Yes | No |
+| Admin dashboard | Users, trades, revenue, and platform health at a glance. | Yes | No |
+| User management | Search users, see their plan, activate or extend subscriptions. | Yes | No |
+| Expired users | List of users whose plan has ended, for follow-up. | Yes | No |
+| Trade review | Look at any user's trades to help with support. | Yes | No |
+| Payments | All Razorpay and Google Play payments with status. | Yes | No |
+| Promotions | Create and manage promo codes and referral campaigns. | Yes | No |
+| Feedback review | Read and manage user feedback. | Yes | No |
+| Issue reports | Review bug reports and update their status. | Yes | No |
+| Support tickets and articles | Reply to tickets and write help articles. | Yes | No |
+| Notification management | Send and analyse notifications. | Yes | No |
+| Mission management | Add or edit mission templates. | Yes | No |
+| Monitoring | Cache health, notification analytics, and system metrics. | Yes | No |
+
+### 7.17 Nice-To-Have For Version 1 Or Shortly After
+
+| Feature | What it would do |
+|---|---|
+| iOS App Store release | Publish the prepared iOS build. |
+| More broker templates | Better extraction for more brokers. |
+| Export to CSV or PDF | Download your journal. |
+| Calendar-based weekly review builder | Build reviews from the calendar view. |
+| Plan comparison screen | Side-by-side plan features before paying. |
+| AI next-week checklist | The coach writes your checklist for next week. |
+| Cohort benchmarks | Compare yourself with similar traders. |
+| Trading plan document builder | Write and store your full trading plan. |
+| Community or mentor dashboards | Let a mentor view a student's journal. |
+| More advanced setup image references | Annotate and compare setup images. |
 
 ## 8. User Flow From Start To Finish
 

@@ -6,21 +6,12 @@ import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import {
   getAnalyticsSnapshot
 } from "@/services/analyticsApi";
-import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  AreaChart,
-  Area
-} from "recharts";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import { MARKETS } from "@/context/MarketContext";
 import CalendarPnL from "@/features/analytics/components/CalendarPnL";
 import PatternInsightsCard from "@/features/analytics/components/PatternInsightsCard";
+import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 
 const theme = {
   bull: "#0D9E6E",
@@ -66,14 +57,14 @@ function StatCard({ label, value, sub, color, delay = 0, tooltip }) {
         overflow: "visible"
       }}
     >
-      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, letterSpacing: "0.12em", marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, letterSpacing: "0.12em", marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
         {label}
         {tooltip && (
-          <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
+          <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
         )}
       </div>
       <div style={{ fontSize: 28, fontWeight: 700, color, letterSpacing: "-0.02em", fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 10, color: theme.muted, marginTop: 6, fontWeight: 500, letterSpacing: "0.04em" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 6, fontWeight: 500, letterSpacing: "0.04em" }}>{sub}</div>}
       {tooltip && showTip && (
         <div style={{
           position: "absolute",
@@ -113,14 +104,14 @@ function SmallStat({ label, value, color, sub, tooltip }) {
       onMouseLeave={() => setShowTip(false)}
       style={{ flex: "1 1 140px", background: theme.card, borderRadius: 12, border: `1px solid ${theme.border}`, padding: "14px 16px", position: "relative", cursor: "default" }}
     >
-      <div style={{ fontSize: 9, fontWeight: 700, color: theme.muted, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
         {label}
-        {tooltip && <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>}
+        {tooltip && <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>}
       </div>
       <div style={{ fontSize: 18, fontWeight: 900, color, letterSpacing: "-0.01em" }}>{value}</div>
-      {sub && <div style={{ fontSize: 10, color: theme.muted, marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 4 }}>{sub}</div>}
       {tooltip && showTip && (
-        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: 10, padding: "8px 12px", borderRadius: 8, width: 200, zIndex: 200, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: "var(--fs-2xs)", padding: "8px 12px", borderRadius: 8, width: 200, zIndex: 200, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
           {tooltip}
         </div>
       )}
@@ -134,11 +125,11 @@ function TipCell({ label, value, color, tip }) {
     <div onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)} style={{ position: "relative", cursor: "default" }}>
       <div style={{ color: theme.muted, fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
         {label}
-        <span style={{ width: 11, height: 11, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
+        <span style={{ width: 11, height: 11, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
       </div>
       <div style={{ fontWeight: 700, color: color || "inherit", fontSize: 12 }}>{value}</div>
       {tip && show && (
-        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: 10, padding: "8px 12px", borderRadius: 8, width: 200, zIndex: 300, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: "var(--fs-2xs)", padding: "8px 12px", borderRadius: 8, width: 200, zIndex: 300, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
           {tip}
           <div style={{ position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)", width: 10, height: 10, background: "#0F1923", clipPath: "polygon(0 0, 100% 0, 50% 100%)" }} />
         </div>
@@ -153,7 +144,7 @@ function HoverBox({ tip, style, children }) {
     <div onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)} style={{ position: "relative", ...style }}>
       {children}
       {tip && show && (
-        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: 10, padding: "8px 12px", borderRadius: 8, width: 210, zIndex: 300, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#0F1923", color: "#E2E8F0", fontSize: "var(--fs-2xs)", padding: "8px 12px", borderRadius: 8, width: 210, zIndex: 300, lineHeight: 1.6, pointerEvents: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
           {tip}
           <div style={{ position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)", width: 10, height: 10, background: "#0F1923", clipPath: "polygon(0 0, 100% 0, 50% 100%)" }} />
         </div>
@@ -358,7 +349,7 @@ function ListItem({ label, value, color = theme.primary, sub }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${theme.border}` }}>
       <div style={{ maxWidth: "70%" }}>
         <div style={{ fontSize: 12, color: theme.secondary, fontWeight: 600 }}>{label}</div>
-        {sub && <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>{sub}</div>}
       </div>
       <div style={{ fontSize: 13, fontWeight: 900, color, fontFamily: "'JetBrains Mono',monospace" }}>{value}</div>
     </div>
@@ -610,8 +601,9 @@ export default function IndianAnalyticsPage() {
               </div>
 
               <div style={{ position: "relative", height: 350, width: "100%", marginTop: 10 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.breakdown?.[timeFilter] || []} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
+                <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                  <R.AreaChart data={data.breakdown?.[timeFilter] || []} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={theme.bull} stopOpacity={0.4} />
@@ -626,8 +618,8 @@ export default function IndianAnalyticsPage() {
                         <stop offset="95%" stopColor={theme.bear} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#E2E8F0" strokeOpacity={0.4} />
-                    <XAxis
+                    <R.CartesianGrid strokeDasharray="0" vertical={false} stroke="#E2E8F0" strokeOpacity={0.4} />
+                    <R.XAxis
                       dataKey={timeFilter === "daily" ? "date" : timeFilter === "weekly" ? "week" : "month"}
                       fontSize={11}
                       fontWeight={600}
@@ -637,7 +629,7 @@ export default function IndianAnalyticsPage() {
                       tick={{ fill: theme.muted }}
                       tickFormatter={(val) => (timeFilter === "daily" ? val.split("-").slice(2).join("/") : val)}
                     />
-                    <YAxis 
+                    <R.YAxis 
                       fontSize={11} 
                       fontWeight={600} 
                       tickLine={false} 
@@ -645,7 +637,7 @@ export default function IndianAnalyticsPage() {
                       tick={{ fill: theme.muted }}
                       tickFormatter={(val) => `₹${Math.abs(val) >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`} 
                     />
-                    <Tooltip
+                    <R.Tooltip
                       cursor={{ stroke: theme.primary, strokeWidth: 1, strokeDasharray: '6 6', opacity: 0.3 }}
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
@@ -665,18 +657,18 @@ export default function IndianAnalyticsPage() {
                                 gap: 4
                               }}
                             >
-                              <div style={{ fontSize: 10, color: theme.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
                               <div style={{ fontSize: 22, fontWeight: 900, color: val >= 0 ? theme.bull : theme.bear }}>
                                 {val >= 0 ? "+" : "-"}₹{Math.abs(val).toLocaleString("en-IN")}
                               </div>
-                              <div style={{ fontSize: 9, color: theme.muted, fontStyle: "italic" }}>Model-verified performance</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, fontStyle: "italic" }}>Model-verified performance</div>
                             </div>
                           );
                         }
                         return null;
                       }}
                     />
-                    <ReferenceLine y={0} stroke={theme.border} strokeWidth={2} strokeDasharray="4 4" />
+                    <R.ReferenceLine y={0} stroke={theme.border} strokeWidth={2} strokeDasharray="4 4" />
                     {(() => {
                       const chartData = data.breakdown?.[timeFilter] || [];
                       const totalPeriodProfit = chartData.reduce((sum, d) => sum + (d.profit || 0), 0);
@@ -684,7 +676,7 @@ export default function IndianAnalyticsPage() {
                       const lineColor = isPositive ? theme.bull : theme.bear;
                       const fillId = isPositive ? "colorProfit" : "colorNegProfit";
                       return (
-                        <Area
+                        <R.Area
                           type="monotone"
                           dataKey="profit"
                           stroke={lineColor}
@@ -702,8 +694,9 @@ export default function IndianAnalyticsPage() {
                         />
                       );
                     })()}
-                  </AreaChart>
-                </ResponsiveContainer>
+                  </R.AreaChart>
+                </R.ResponsiveContainer>
+)}</LazyRecharts>
               </div>
             </div>
 
@@ -715,8 +708,9 @@ export default function IndianAnalyticsPage() {
                   <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>Running cumulative P&L from your first trade to the latest — shows the health of your account growth.</div>
                 </div>
                 <div style={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.drawdown.equityCurve.map((p, i) => ({ i: i + 1, balance: parseFloat(p.balance) }))} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                  <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                    <R.AreaChart data={data.drawdown.equityCurve.map((p, i) => ({ i: i + 1, balance: parseFloat(p.balance) }))} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="eqPos" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={theme.bull} stopOpacity={0.35} />
@@ -727,17 +721,17 @@ export default function IndianAnalyticsPage() {
                           <stop offset="95%" stopColor={theme.bear} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="0" vertical={false} stroke="#E2E8F0" strokeOpacity={0.4} />
-                      <XAxis dataKey="i" hide />
-                      <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: theme.muted }} tickFormatter={v => `₹${Math.abs(v) >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`} />
-                      <ReferenceLine y={0} stroke={theme.border} strokeWidth={2} strokeDasharray="4 4" />
-                      <Tooltip
+                      <R.CartesianGrid strokeDasharray="0" vertical={false} stroke="#E2E8F0" strokeOpacity={0.4} />
+                      <R.XAxis dataKey="i" hide />
+                      <R.YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: theme.muted }} tickFormatter={v => `₹${Math.abs(v) >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`} />
+                      <R.ReferenceLine y={0} stroke={theme.border} strokeWidth={2} strokeDasharray="4 4" />
+                      <R.Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const val = payload[0].value;
                             return (
                               <div style={{ background: "#0F1923", color: "#fff", padding: "10px 14px", borderRadius: 10, fontSize: 12 }}>
-                                <div style={{ fontSize: 10, color: "#94A3B8", marginBottom: 4 }}>Cumulative P&L</div>
+                                <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginBottom: 4 }}>Cumulative P&L</div>
                                 <div style={{ fontWeight: 900, color: val >= 0 ? theme.bull : theme.bear }}>{val >= 0 ? "+" : "-"}₹{Math.abs(val).toLocaleString("en-IN")}</div>
                               </div>
                             );
@@ -745,9 +739,10 @@ export default function IndianAnalyticsPage() {
                           return null;
                         }}
                       />
-                      <Area type="monotone" dataKey="balance" stroke={parseFloat(data.drawdown.equityCurve[data.drawdown.equityCurve.length - 1]?.balance) >= 0 ? theme.bull : theme.bear} strokeWidth={2.5} fill={parseFloat(data.drawdown.equityCurve[data.drawdown.equityCurve.length - 1]?.balance) >= 0 ? "url(#eqPos)" : "url(#eqNeg)"} connectNulls activeDot={{ r: 5, fill: theme.bull, stroke: "#fff", strokeWidth: 2 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                      <R.Area type="monotone" dataKey="balance" stroke={parseFloat(data.drawdown.equityCurve[data.drawdown.equityCurve.length - 1]?.balance) >= 0 ? theme.bull : theme.bear} strokeWidth={2.5} fill={parseFloat(data.drawdown.equityCurve[data.drawdown.equityCurve.length - 1]?.balance) >= 0 ? "url(#eqPos)" : "url(#eqNeg)"} connectNulls activeDot={{ r: 5, fill: theme.bull, stroke: "#fff", strokeWidth: 2 }} />
+                    </R.AreaChart>
+                  </R.ResponsiveContainer>
+)}</LazyRecharts>
                 </div>
               </div>
             )}
@@ -767,7 +762,7 @@ export default function IndianAnalyticsPage() {
                 <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>
                   Based on your options trades (planned and realized).
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, fontSize: 12 }}>
                   <TipCell label="Average R:R" value={`1:${data.rr?.avgRR || "0.0"}`} tip="Your planned risk-to-reward ratio. 1:2 means you risk ₹1 to make ₹2. Higher is better — ideally ≥ 1:1.5 for options." />
                   <TipCell label="Realized R:R" value={`1:${data.rr?.actualRR || "0.0"}`} tip="What your R:R actually turned out to be after closing trades. Compare with Average R:R to see if you're hitting your planned targets." />
                   <TipCell label="Expectancy" value={`${data.rr?.expectancy || "0.00"} R / trade`} tip="Expected average profit per trade in R units. Formula: (Win Rate × Avg Win) − (Loss Rate × Avg Loss). Positive = edge in the market." />
@@ -794,7 +789,7 @@ export default function IndianAnalyticsPage() {
                 <div style={{ fontSize: 11, color: theme.muted, marginBottom: 12 }}>
                   How deep your options P&L dipped from peak.
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, fontSize: 12 }}>
                   <TipCell label="Max Drawdown" value={`${currency}${parseFloat(data.drawdown?.maxDrawdown || 0).toFixed(2)}${data.drawdown?.maxDrawdownPercent == null ? "" : ` (${data.drawdown.maxDrawdownPercent}%)`}`} color={theme.bear} tip="The largest peak-to-trough drop in your P&L. E.g., peak ₹10k → drop to ₹7k = 30% drawdown. Keep this manageable to stay in the game." />
                   <TipCell label="Current Drawdown" value={`${currency}${parseFloat(data.drawdown?.currentDrawdown || 0).toFixed(2)} (${data.drawdown?.currentDrawdownPercent || "0.0"}%)`} color={theme.bear} tip="How far you are below your all-time equity peak right now. If zero, you're at a new high. Any positive value means you're in an active drawdown." />
                   <TipCell label="Recovery Factor" value={data.drawdown?.recoveryFactor || "0.00"} tip="Net profit divided by max drawdown. E.g., ₹5k profit with ₹2k max drawdown = 2.5. Higher = you earn more relative to the risk you absorbed." />
@@ -899,15 +894,15 @@ export default function IndianAnalyticsPage() {
                       Best-performing day/hour/session from your NIFTY / BANKNIFTY trade log.
                     </div>
                   </div>
-                  <div style={{ background: `${theme.bull}14`, border: `1px solid ${theme.bull}44`, color: theme.primary, fontSize: 10, fontWeight: 900, padding: "6px 10px", borderRadius: 999 }}>
+                  <div style={{ background: `${theme.bull}14`, border: `1px solid ${theme.bull}44`, color: theme.primary, fontSize: "var(--fs-2xs)", fontWeight: 900, padding: "6px 10px", borderRadius: 999 }}>
                     {data.time?.bestHour?.hour != null ? `${data.time.bestHour.hour}:00` : "—"} Peak Hour
                   </div>
                 </div>
 
                 {data.time ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
                     <HoverBox tip="The weekday (Mon–Fri) where your average profit and win rate is highest. Focus more trades on this day to maximise your edge." style={{ background: "#F8FAFC", border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, minHeight: 106 }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Day</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Day</div>
                       <div style={{ fontSize: 18, fontWeight: 900, color: theme.primary, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
                         {data.time.bestDay?.name || "—"}
                       </div>
@@ -921,7 +916,7 @@ export default function IndianAnalyticsPage() {
                     </HoverBox>
 
                     <HoverBox tip="The hour (IST, 24h) where your profit and win rate is highest. E.g., '10h' = trades entered 10:00–10:59 IST performed best. Concentrate entries in this window." style={{ background: "#F8FAFC", border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, minHeight: 106 }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Hour</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Hour</div>
                       <div style={{ fontSize: 18, fontWeight: 900, color: theme.primary, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
                         {data.time.bestHour?.hour != null ? `${data.time.bestHour.hour}h` : "—"}
                       </div>
@@ -935,7 +930,7 @@ export default function IndianAnalyticsPage() {
                     </HoverBox>
 
                     <HoverBox tip="Market session (Opening 9:15–10:30 / Midday 10:30–13:00 / Closing 13:00–15:30) where you performed best. Identifies your strongest time window." style={{ background: "#F8FAFC", border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, minHeight: 106 }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Session</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Best Session</div>
                       <div style={{ fontSize: 18, fontWeight: 900, color: theme.primary, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
                         {data.time.bestSession?.name || "—"}
                       </div>
@@ -948,7 +943,7 @@ export default function IndianAnalyticsPage() {
                     </HoverBox>
 
                     <HoverBox tip="The weekday where your average profit is lowest or most negative. Consider reducing size or skipping trades on this day entirely." style={{ background: `${theme.bear}08`, border: `1px solid ${theme.bear}44`, borderRadius: 12, padding: 12, minHeight: 106 }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Worst Day</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: theme.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Worst Day</div>
                       <div style={{ fontSize: 18, fontWeight: 900, color: theme.bear, fontFamily: "'JetBrains Mono',monospace", marginTop: 6 }}>
                         {data.time.worstDay?.name || "—"}
                       </div>
@@ -982,10 +977,10 @@ export default function IndianAnalyticsPage() {
                       const color = profit >= 0 ? theme.bull : theme.bear;
                       return (
                         <div key={s.strategy} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${theme.border}` }}>
-                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : theme.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 900, color: i < 3 ? "#fff" : theme.muted, flexShrink: 0 }}>#{i + 1}</div>
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : theme.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: i < 3 ? "#fff" : theme.muted, flexShrink: 0 }}>#{i + 1}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.strategy}</div>
-                            <div style={{ fontSize: 10, color: theme.muted }}>{s.trades} trades · {s.winRate}% WR</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>{s.trades} trades · {s.winRate}% WR</div>
                           </div>
                           <div style={{ fontSize: 12, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>
                             {profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toLocaleString("en-IN")}
@@ -1010,7 +1005,7 @@ export default function IndianAnalyticsPage() {
                             <span style={{ fontSize: 12, fontWeight: 700 }}>{s.session}</span>
                             <span style={{ fontSize: 12, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toLocaleString("en-IN")}</span>
                           </div>
-                          <div style={{ fontSize: 10, color: theme.muted }}>{s.trades} trades · {s.winRate}% WR · avg ₹{parseFloat(s.avgProfit).toFixed(0)}</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>{s.trades} trades · {s.winRate}% WR · avg ₹{parseFloat(s.avgProfit).toFixed(0)}</div>
                         </div>
                       );
                     })}
@@ -1029,8 +1024,8 @@ export default function IndianAnalyticsPage() {
                         return (
                           <div key={w.week}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                              <span style={{ fontSize: 10, color: theme.muted, fontFamily: "'JetBrains Mono',monospace" }}>{w.week}</span>
-                              <span style={{ fontSize: 10, fontWeight: 800, color }}>{pct}%</span>
+                              <span style={{ fontSize: "var(--fs-2xs)", color: theme.muted, fontFamily: "'JetBrains Mono',monospace" }}>{w.week}</span>
+                              <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color }}>{pct}%</span>
                             </div>
                             <div style={{ height: 5, background: "#F0EEE9", borderRadius: 3 }}>
                               <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width 0.5s ease" }} />
@@ -1071,24 +1066,24 @@ export default function IndianAnalyticsPage() {
                 <div title="Total winning P&L divided by total losing P&L. Profit Factor > 1 = system earns more than it loses. ≥ 1.5 is solid; ≥ 2.0 is excellent for options.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>PROFIT FACTOR</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: theme.gold }}>{data.perf?.profitFactor || "0.00"}</div>
-                  <div style={{ fontSize: 10, color: theme.muted }}>Gross Profit / Gross Loss</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>Gross Profit / Gross Loss</div>
                 </div>
                 <div title="Your longest back-to-back winning run and back-to-back losing run. High loss streaks signal risk management or strategy issues to investigate.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>MAX STREAKS</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>
                     <span style={{ color: theme.bull }}>{data.perf?.maxWinStreak || 0} Wins</span> / <span style={{ color: theme.bear }}>{data.perf?.maxLossStreak || 0} Losses</span>
                   </div>
-                  <div style={{ fontSize: 10, color: theme.muted }}>Consecutive wins vs losses</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>Consecutive wins vs losses</div>
                 </div>
                 <div title="The single most profitable trade in your trade log. Useful to know if your overall profit is driven by one lucky trade or spread across many.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>LARGEST WIN</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.bull }}>₹{parseFloat(data.perf?.largestWin || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 10, color: theme.muted }}>Single best trade</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>Single best trade</div>
                 </div>
                 <div title="The single most damaging trade in your trade log. If this is much larger than your average loss, it suggests you didn't respect your stop loss on that trade.">
                   <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4 }}>LARGEST LOSS</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.bear }}>₹{parseFloat(data.perf?.largestLoss || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: 10, color: theme.muted }}>Single worst trade</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>Single worst trade</div>
                 </div>
               </div>
             </div>
@@ -1117,7 +1112,7 @@ export default function IndianAnalyticsPage() {
                               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                                 <span style={{ fontSize: 11, fontWeight: 700 }}>{d.name}</span>
                                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                  <span style={{ fontSize: 10, color: theme.muted }}>{d.total}T · {wr}%WR</span>
+                                  <span style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>{d.total}T · {wr}%WR</span>
                                   <span style={{ fontSize: 11, fontWeight: 800, color, fontFamily: "'JetBrains Mono',monospace" }}>{profit >= 0 ? "+" : "-"}₹{Math.abs(profit).toFixed(0)}</span>
                                 </div>
                               </div>
@@ -1146,7 +1141,7 @@ export default function IndianAnalyticsPage() {
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${theme.border}` }}>
                               {["Month", "Trades", "W/L", "Win%", "P&L"].map(h => (
-                                <th key={h} style={{ padding: "4px 6px", textAlign: h === "P&L" ? "right" : "left", fontWeight: 700, color: theme.muted, fontSize: 10, letterSpacing: "0.06em" }}>{h}</th>
+                                <th key={h} style={{ padding: "4px 6px", textAlign: h === "P&L" ? "right" : "left", fontWeight: 700, color: theme.muted, fontSize: "var(--fs-2xs)", letterSpacing: "0.06em" }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1272,22 +1267,22 @@ export default function IndianAnalyticsPage() {
                   {/* After Big Win */}
                   {data.ai.psychologicalPatterns.afterBigWin?.trades > 0 && (
                     <div style={{ flex: "1 1 180px", background: `${theme.bull}08`, border: `1px solid ${theme.bull}44`, borderRadius: 12, padding: 16 }} title="Tracks how you perform on the trade immediately following one of your largest winning trades. Overconfidence often leads to worse next-trade results.">
-                      <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>AFTER BIG WIN</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>AFTER BIG WIN</div>
                       <div style={{ display: "flex", gap: 16 }}>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit) >= 0 ? theme.bull : theme.bear }}>
                             {parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit) >= 0 ? "+" : "-"}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigWin.avgProfit)).toFixed(0)}
                           </div>
-                          <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigWin.winRate) >= 50 ? theme.bull : theme.bear }}>
                             {data.ai.psychologicalPatterns.afterBigWin.winRate}%
                           </div>
-                          <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>win rate ({data.ai.psychologicalPatterns.afterBigWin.trades} trades)</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>win rate ({data.ai.psychologicalPatterns.afterBigWin.trades} trades)</div>
                         </div>
                       </div>
-                      <div style={{ marginTop: 10, fontSize: 10, color: theme.muted, lineHeight: 1.5 }}>
+                      <div style={{ marginTop: 10, fontSize: "var(--fs-2xs)", color: theme.muted, lineHeight: 1.5 }}>
                         {parseFloat(data.ai.psychologicalPatterns.afterBigWin.winRate) < 45
                           ? "! You tend to overtrade or oversize after a big win. Take a breath."
                           : "✓ Good — you stay disciplined after strong wins."}
@@ -1298,22 +1293,22 @@ export default function IndianAnalyticsPage() {
                   {/* After Big Loss */}
                   {data.ai.psychologicalPatterns.afterBigLoss?.trades > 0 && (
                     <div style={{ flex: "1 1 180px", background: `${theme.bear}08`, border: `1px solid ${theme.bear}44`, borderRadius: 12, padding: 16 }} title="Tracks how you perform immediately after one of your biggest losses. Fear or revenge can heavily distort next-trade decisions.">
-                      <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>AFTER BIG LOSS</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>AFTER BIG LOSS</div>
                       <div style={{ display: "flex", gap: 16 }}>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit) >= 0 ? theme.bull : theme.bear }}>
                             {parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit) >= 0 ? "+" : "-"}₹{Math.abs(parseFloat(data.ai.psychologicalPatterns.afterBigLoss.avgProfit)).toFixed(0)}
                           </div>
-                          <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>avg P&L next trade</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 900, color: parseFloat(data.ai.psychologicalPatterns.afterBigLoss.winRate) >= 50 ? theme.bull : theme.bear }}>
                             {data.ai.psychologicalPatterns.afterBigLoss.winRate}%
                           </div>
-                          <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>win rate ({data.ai.psychologicalPatterns.afterBigLoss.trades} trades)</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>win rate ({data.ai.psychologicalPatterns.afterBigLoss.trades} trades)</div>
                         </div>
                       </div>
-                      <div style={{ marginTop: 10, fontSize: 10, color: theme.muted, lineHeight: 1.5 }}>
+                      <div style={{ marginTop: 10, fontSize: "var(--fs-2xs)", color: theme.muted, lineHeight: 1.5 }}>
                         {parseFloat(data.ai.psychologicalPatterns.afterBigLoss.winRate) < 45
                           ? "! You likely revenge trade after big losses. Consider stopping for the day."
                           : "✓ You stay composed after losses — strong mental resilience."}
@@ -1323,22 +1318,22 @@ export default function IndianAnalyticsPage() {
 
                   {/* Tilt Days */}
                   <div style={{ flex: "1 1 180px", background: data.ai.psychologicalPatterns.tiltDays?.length > 0 ? `${theme.bear}08` : `${theme.bull}08`, border: `1px solid ${data.ai.psychologicalPatterns.tiltDays?.length > 0 ? theme.bear + "44" : theme.bull + "44"}`, borderRadius: 12, padding: 16 }} title="A tilt day is detected when you had 3+ consecutive losses AND kept increasing position size — a classic emotional spiral. Each tilt day logged shows the date, streak length, and total loss.">
-                    <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>TILT DAYS DETECTED</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: theme.muted, letterSpacing: "0.08em", marginBottom: 8 }}>TILT DAYS DETECTED</div>
                     {data.ai.psychologicalPatterns.tiltDays?.length > 0 ? (
                       <>
                         <div style={{ fontSize: 28, fontWeight: 900, color: theme.bear, marginBottom: 4 }}>{data.ai.psychologicalPatterns.tiltDays.length}</div>
-                        <div style={{ fontSize: 10, color: theme.muted, marginBottom: 10 }}>days with emotional spiraling detected</div>
+                        <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginBottom: 10 }}>days with emotional spiraling detected</div>
                         {data.ai.psychologicalPatterns.tiltDays.slice(-3).map((td, i) => (
-                          <div key={i} style={{ fontSize: 10, color: theme.muted, padding: "4px 0", borderTop: `1px solid ${theme.border}` }}>
+                          <div key={i} style={{ fontSize: "var(--fs-2xs)", color: theme.muted, padding: "4px 0", borderTop: `1px solid ${theme.border}` }}>
                             {td.day} · {td.streakLength} losses · ₹{Math.abs(parseFloat(td.totalLoss)).toFixed(0)} lost
                           </div>
                         ))}
-                        <div style={{ marginTop: 8, fontSize: 10, color: theme.bear, fontWeight: 700 }}>Rule: Stop trading after 3 consecutive losses.</div>
+                        <div style={{ marginTop: 8, fontSize: "var(--fs-2xs)", color: theme.bear, fontWeight: 700 }}>Rule: Stop trading after 3 consecutive losses.</div>
                       </>
                     ) : (
                       <>
                         <div style={{ fontSize: 28, fontWeight: 900, color: theme.bull, marginBottom: 4 }}>0</div>
-                        <div style={{ fontSize: 10, color: theme.muted }}>No emotional spiraling detected — great discipline.</div>
+                        <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted }}>No emotional spiraling detected — great discipline.</div>
                       </>
                     )}
                   </div>
@@ -1546,7 +1541,7 @@ export default function IndianAnalyticsPage() {
                     });
                     return psychInsights.length > 0 ? (
                       <div style={{ marginTop: 20 }}>
-                        <div style={{ fontSize: 10, color: "#8B5CF6", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>
+                        <div style={{ fontSize: "var(--fs-2xs)", color: "#8B5CF6", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>
                           PSYCHOLOGY INSIGHTS — WHAT TO DO WITH THIS DATA
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
@@ -1585,19 +1580,19 @@ export default function IndianAnalyticsPage() {
                             </div>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 800, color: theme.secondary }}>{m.tag}</div>
-                              <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>{m.count} occurrence{m.count !== 1 ? "s" : ""} · avg ₹{Math.abs(m.avgPnl).toFixed(2)} {m.avgPnl < 0 ? "lost" : "made"} per trade</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>{m.count} occurrence{m.count !== 1 ? "s" : ""} · avg ₹{Math.abs(m.avgPnl).toFixed(2)} {m.avgPnl < 0 ? "lost" : "made"} per trade</div>
                             </div>
                           </div>
                           <div style={{ textAlign: "right", flexShrink: 0 }}>
                             <div style={{ fontSize: 15, fontWeight: 900, color: m.totalPnl < 0 ? theme.bear : theme.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                               {m.totalPnl < 0 ? "-" : "+"}₹{Math.abs(m.totalPnl).toFixed(2)}
                             </div>
-                            <div style={{ fontSize: 9, color: theme.muted, marginTop: 2 }}>total cost</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>total cost</div>
                           </div>
                         </div>
                         {m.lessons?.length > 0 && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${rankColor}20` }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
                             <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>&quot;{m.lessons[0]}&quot;</div>
                           </div>
                         )}
@@ -1627,13 +1622,13 @@ export default function IndianAnalyticsPage() {
                       const trendColor = trend === "▲" ? theme.bull : trend === "▼" ? theme.bear : theme.muted;
                       return (
                         <div key={w.week} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: isLatest ? theme.secondary : theme.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: isLatest ? theme.secondary : theme.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
                           <div style={{ flex: 1, height: 6, background: theme.bg, borderRadius: 99, overflow: "hidden" }}>
                             <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: barColor, borderRadius: 99 }} />
                           </div>
-                          <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
-                          <div style={{ fontSize: 9, color: trendColor, width: 12 }}>{trend}</div>
-                          <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? theme.bull : theme.bear, width: 60, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}₹{Math.abs(w.pnl).toFixed(0)}</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: trendColor, width: 12 }}>{trend}</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? theme.bull : theme.bear, width: 60, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}₹{Math.abs(w.pnl).toFixed(0)}</div>
                         </div>
                       );
                     })}
@@ -1658,7 +1653,7 @@ export default function IndianAnalyticsPage() {
                   {/* Revenge */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
                       <div style={{ fontSize: 22, fontWeight: 900, color: (data.ai.behaviorDiscipline?.revengeTradesCount || 0) > 0 ? theme.bear : theme.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                         {data.ai.behaviorDiscipline?.revengeTradesCount || 0}
                       </div>
@@ -1673,14 +1668,14 @@ export default function IndianAnalyticsPage() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           {(data.ai.behaviorDiscipline.revengeTrades || []).slice(-3).map((t, i) => (
-                            <div key={i} style={{ fontSize: 10, color: theme.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
+                            <div key={i} style={{ fontSize: "var(--fs-2xs)", color: theme.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
                               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{t.pair}</span>
                               <span>{new Date(t.createdAt).toLocaleDateString("en-IN")}</span>
                               <span style={{ color: theme.bear, fontWeight: 700 }}>₹{Math.abs(t.prevProfit || 0).toFixed(0)} trigger</span>
                             </div>
                           ))}
                         </div>
-                        <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: theme.bear }}>Rule: After a loss, wait 15 min before the next trade.</div>
+                        <div style={{ marginTop: 8, fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.bear }}>Rule: After a loss, wait 15 min before the next trade.</div>
                       </>
                     ) : (
                       <div style={{ fontSize: 11, color: theme.bull, fontWeight: 600 }}>✓ No revenge trades detected — strong control.</div>
@@ -1690,7 +1685,7 @@ export default function IndianAnalyticsPage() {
                   {/* Tilt */}
                   <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, letterSpacing: "0.08em" }}>TILT DAYS</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, letterSpacing: "0.08em" }}>TILT DAYS</div>
                       <div style={{ fontSize: 22, fontWeight: 900, color: (data.ai.psychologicalPatterns?.tiltDays?.length || 0) > 0 ? theme.bear : theme.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                         {data.ai.psychologicalPatterns?.tiltDays?.length || 0}
                       </div>
@@ -1702,14 +1697,14 @@ export default function IndianAnalyticsPage() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           {data.ai.psychologicalPatterns.tiltDays.slice(-3).map((td, i) => (
-                            <div key={i} style={{ fontSize: 10, color: theme.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
+                            <div key={i} style={{ fontSize: "var(--fs-2xs)", color: theme.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
                               <span>{td.day}</span>
                               <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{td.streakLength} losses</span>
                               <span style={{ color: theme.bear, fontWeight: 700 }}>-₹{Math.abs(parseFloat(td.totalLoss)).toFixed(0)}</span>
                             </div>
                           ))}
                         </div>
-                        <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: theme.bear }}>Rule: Stop trading after 3 consecutive losses.</div>
+                        <div style={{ marginTop: 8, fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.bear }}>Rule: Stop trading after 3 consecutive losses.</div>
                       </>
                     ) : (
                       <div style={{ fontSize: 11, color: theme.bull, fontWeight: 600 }}>✓ No tilt days detected — great discipline.</div>

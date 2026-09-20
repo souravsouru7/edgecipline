@@ -102,7 +102,7 @@ export default function PageHeader({
 
         {/* Logo */}
         <Link href={dashboardHref} style={{ textDecoration: "none", flexShrink: 0 }}>
-          <img src="/mainlogo1.png" alt="Edgecipline"
+          <img src="/mainlogo1.webp" alt="Edgecipline"
             style={{ width: 130, height: 36, objectFit: "contain", display: "block" }} />
         </Link>
 

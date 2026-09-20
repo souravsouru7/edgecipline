@@ -273,7 +273,7 @@ function normalizeAiFeedback(raw) {
 function KpiCard({ label, value, color }) {
   return (
     <div style={{ background: "#FAFAFA", borderRadius: 12, border: "1px solid #E8EDF2", padding: "14px 16px", minWidth: 0 }}>
-      <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8 }}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8 }}>{label.toUpperCase()}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: color || C.primary, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{value}</div>
     </div>
   );
@@ -300,19 +300,19 @@ function MistakeCard({ mistake, index }) {
     <div style={{ borderRadius: 12, border: "1px solid #FED7D7", background: "#FFF8F8", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #FED7D7", background: "#FFF5F5" }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: "#FED7D7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: C.bear }}>{index + 1}</span>
+          <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: C.bear }}>{index + 1}</span>
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{mistake.title}</div>
       </div>
       {mistake.evidence && (
         <div style={{ padding: "10px 14px", borderBottom: mistake.fix ? "1px solid #FED7D7" : "none" }}>
-          <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>EVIDENCE</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>EVIDENCE</div>
           <p style={{ margin: 0, fontSize: 12, color: "#4A5568", lineHeight: 1.65 }}>{mistake.evidence}</p>
         </div>
       )}
       {mistake.fix && (
         <div style={{ padding: "10px 14px", background: "rgba(13,158,110,0.04)" }}>
-          <div style={{ fontSize: 9, color: C.bull, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>FIX</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.bull, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>FIX</div>
           <p style={{ margin: 0, fontSize: 12, color: C.primary, lineHeight: 1.65 }}>{mistake.fix}</p>
         </div>
       )}
@@ -332,13 +332,13 @@ function ImprovementCard({ item }) {
       </div>
       {why && (
         <div style={{ padding: "10px 14px", borderBottom: how ? "1px solid #BFDBFE" : "none" }}>
-          <div style={{ fontSize: 9, color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>WHY</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>WHY</div>
           <p style={{ margin: 0, fontSize: 12, color: "#374151", lineHeight: 1.65 }}>{why}</p>
         </div>
       )}
       {how && (
         <div style={{ padding: "10px 14px" }}>
-          <div style={{ fontSize: 9, color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>HOW</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>HOW</div>
           <p style={{ margin: 0, fontSize: 12, color: "#374151", lineHeight: 1.65 }}>{how}</p>
         </div>
       )}
@@ -415,7 +415,7 @@ function ReportDetailSkeleton() {
         </div>
       </div>
 
-      <div className="wr-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="wr-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
         {[C.bear, C.blue].map((accent, item) => (
           <div key={item} style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
             <div style={{ height: 3, background: `linear-gradient(90deg, ${accent}, transparent)` }} />
@@ -502,7 +502,7 @@ function EmptyReportsState({ onGenerate, busy }) {
       </div>
 
       <div style={{ borderTop: "1px solid #EEF2F6", background: "#FBFCFD", padding: "18px 20px 20px" }}>
-        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.09em", color: C.muted, marginBottom: 14 }}>
+        <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.09em", color: C.muted, marginBottom: 14 }}>
           WHAT YOU GET
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
@@ -669,7 +669,7 @@ function WeeklyReportsContent() {
                       {label.replace(" (Last 7 days)", "")}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
+                      <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
                         {r?.snapshot?.counts?.totalTrades ?? 0} trades
                       </span>
                       <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: rNet >= 0 ? C.bull : C.bear }}>
@@ -707,11 +707,11 @@ function WeeklyReportsContent() {
                     </h2>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                       {selected.aiModel && !isGenuineAiModel(selected.aiModel) && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
                           <AlertTriangle size={10} /> AI unavailable
                         </span>
                       )}
-                      <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
                         {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} * {snap?.counts?.totalTrades ?? 0} trades
                       </div>
                     </div>
@@ -744,7 +744,7 @@ function WeeklyReportsContent() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                       <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>AI COACHING SUMMARY</div>
                       {!isGenuineAiModel(selected.aiModel) && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.gold, background: "rgba(184,134,11,0.1)", border: "1px solid rgba(184,134,11,0.25)", borderRadius: 5, padding: "1px 6px" }}>
                           <AlertTriangle size={10} /> Unavailable, showing fallback
                         </span>
                       )}
@@ -798,7 +798,7 @@ function WeeklyReportsContent() {
               )}
 
               {/* -- Improvements + Checklist ------------------------ */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="wr-grid">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }} className="wr-grid">
 
                 {ai?.improvements?.length > 0 && (
                   <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
@@ -826,7 +826,7 @@ function WeeklyReportsContent() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {ai.nextWeekChecklist.slice(0, 10).map((item, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <div style={{ width: 20, height: 20, borderRadius: 6, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#92400E", flexShrink: 0, marginTop: 1 }}>
+                            <div style={{ width: 20, height: 20, borderRadius: 6, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#92400E", flexShrink: 0, marginTop: 1 }}>
                               {i + 1}
                             </div>
                             <p style={{ margin: 0, fontSize: 12, color: C.primary, lineHeight: 1.65 }}>{item}</p>

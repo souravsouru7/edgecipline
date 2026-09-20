@@ -30,10 +30,10 @@ async function buildBehaviorProfile(userId, lookbackDays = DEFAULT_LOOKBACK_DAYS
 
   // Fetch recent trades from both markets
   const [forexTrades, indianTrades] = await Promise.all([
-    Trade.find({ user: userId, createdAt: { $gte: since }, deleted: { $ne: true } })
+    Trade.find({ user: userId, createdAt: { $gte: since }, deletedAt: null })
       .select("profit stopLoss riskPercent riskRewardRatio notes setupRules setupScore tradeDate marketType")
       .lean(),
-    IndianTrade.find({ user: userId, createdAt: { $gte: since }, deleted: { $ne: true } })
+    IndianTrade.find({ user: userId, createdAt: { $gte: since }, deletedAt: null })
       .select("profit stopLoss riskPercent riskRewardRatio notes setupRules setupScore tradeDate")
       .lean(),
   ]);

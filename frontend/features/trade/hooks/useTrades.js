@@ -2,12 +2,10 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTrades, deleteTrade } from "@/services/tradeApi";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getTradesPage, deleteTrade } from "@/services/tradeApi";
 import { useToast } from "@/features/shared/components/ui/Toast";
-import { getValidToken } from "@/utils/auth";
-import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import {
   invalidateTradeDependentQueries,
   TRADE_QUERY_FRESHNESS_OPTIONS,
@@ -19,7 +17,6 @@ import { calculatePerformanceMetrics } from "@/utils/metricEngine";
  * Encapsulates all state and logic for the Trade Journal list page using TanStack Query.
  */
 export function useTrades() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -27,22 +24,36 @@ export function useTrades() {
   const [filter, setFilter]             = useState("ALL");
   const [period, setPeriod]             = useState("all");
   const [search, setSearch]             = useState("");
-  const [mounted, setMounted]           = useState(false);
-  const [hasToken, setHasToken]         = useState(false);
+  // Client-side auth check; the query below waits for it to avoid a
+  // hydration mismatch and a guaranteed 401 on first paint.
+  const { ready: mounted, authenticated: hasToken } = useRequireAuth();
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // 1. Data Fetching via useQuery
-  const { data: trades = [], isLoading: loading, error } = useQuery({
+  // 1. Data fetching — paged. The API returns 50 trades per page; pages are
+  //    appended as the user scrolls (see LoadMoreSentinel) so the DOM never
+  //    holds a thousand rows and the first paint is one page.
+  const {
+    data: pages,
+    isLoading: loading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["trades", period],
-    queryFn: async () => {
-      const data = await getTrades("Forex", { period });
-      return Array.isArray(data) ? data : [];
-    },
+    queryFn: ({ pageParam, signal }) => getTradesPage("Forex", { period, after: pageParam, signal }),
+    initialPageParam: null,
+    getNextPageParam: (last) => (last?.pagination?.hasNextPage ? last.pagination.next : undefined),
     // Start only after client auth check to avoid hydration mismatch.
     enabled: mounted && hasToken,
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
     gcTime: 30 * 60 * 1000,
   });
+  const trades = useMemo(() => (pages?.pages || []).flatMap((p) => p?.items || []), [pages]);
+  const totalTrades = pages?.pages?.[0]?.pagination?.total ?? trades.length;
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 2. Data Deletion via useMutation
   const deleteMutation = useMutation({
@@ -50,9 +61,13 @@ export function useTrades() {
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ["trades", period] });
       const previous = queryClient.getQueryData(["trades", period]);
-      queryClient.setQueryData(["trades", period], (old) =>
-        Array.isArray(old) ? old.filter(t => t._id !== id) : []
-      );
+      queryClient.setQueryData(["trades", period], (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => ({ ...p, items: (p?.items || []).filter((t) => t._id !== id) })),
+        };
+      });
       return { previous };
     },
     onError: (err, id, context) => {
@@ -68,36 +83,6 @@ export function useTrades() {
     },
   });
   const deleteMutate = deleteMutation.mutate;
-
-  useEffect(() => {
-    let cancelled = false;
-    const checkAuth = async () => {
-      if (!getValidToken()) {
-        let token = null;
-        try {
-          token = await silentRefresh();
-        } catch (err) {
-          if (isAuthRefreshTransientError(err)) {
-            console.warn("[Auth] trades preserved session after transient refresh failure", {
-              at: new Date().toISOString(),
-              status: err.status || 0,
-            });
-            if (!cancelled) setMounted(true);
-            return;
-          }
-          throw err;
-        }
-        if (cancelled) return;
-        if (!token) { router.replace("/login"); return; }
-      }
-      if (!cancelled) {
-        setHasToken(true);
-        setMounted(true);
-      }
-    };
-    checkAuth();
-    return () => { cancelled = true; };
-  }, [router]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -166,5 +151,10 @@ export function useTrades() {
     mounted,
     error,
     handlers,
+    // Paging
+    totalTrades,
+    hasMore: Boolean(hasNextPage),
+    loadingMore: isFetchingNextPage,
+    loadMore,
   };
 }

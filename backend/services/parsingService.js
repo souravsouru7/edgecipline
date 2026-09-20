@@ -1,3 +1,4 @@
+const { safePositiveNumber, safeSignedNumber } = require("../utils/numbers");
 const { logger } = require("../utils/logger");
 
 function parseForexLot(rawLot) {
@@ -18,16 +19,6 @@ function parseForexLot(rawLot) {
   }
 
   return numeric;
-}
-
-function safePositiveNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
-}
-
-function safeSignedNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 const KNOWN_FOREX_SYMBOLS = [

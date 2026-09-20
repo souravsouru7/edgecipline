@@ -5,18 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   generateTradingDna,
   getLatestTradingDna,
+  normalizeMarket,
+  normalizePeriod,
 } from "../api/tradingDnaApi";
-
-const VALID_PERIODS = ["30d", "90d", "365d"];
-const VALID_MARKETS = ["Forex", "Indian_Market"];
-
-function normalizePeriod(p) {
-  return VALID_PERIODS.includes(p) ? p : "90d";
-}
-
-function normalizeMarket(m) {
-  return VALID_MARKETS.includes(m) ? m : "Forex";
-}
 
 function getQueryKey(marketType, period) {
   return ["tradingDna", "latest", marketType, period];

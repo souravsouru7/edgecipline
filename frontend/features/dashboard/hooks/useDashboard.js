@@ -8,6 +8,8 @@ import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { hasValidAuthToken, hydrateAuthToken, isNativeCapacitor } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
+import { markStartupContentReady } from "@/utils/startupGate";
+import { getOnboardingSetupsUrl } from "@/utils/marketNavigation";
 
 // Hide the native splash screen after the dashboard shell is painted.
 // Called via the Capacitor global so @capacitor/splash-screen npm package
@@ -19,12 +21,6 @@ function hideSplash() {
   } catch {
     // Not available in this runtime version — ignore.
   }
-}
-
-function setupRouteForMarket(market) {
-  return market === MARKETS.INDIAN_MARKET
-    ? "/indian-market/setups?onboarding=1"
-    : "/setups?onboarding=1";
 }
 
 export function useDashboard() {
@@ -52,6 +48,16 @@ export function useDashboard() {
     gcTime: 30 * 60 * 1000,
     enabled: mounted && (!marketLoading || Boolean(routeMarket)) && hasValidAuthToken(),
   });
+
+  // First-screen content signal for the brand opener (see utils/startupGate).
+  // Settled means success OR error: an error card is still a painted screen,
+  // and holding the opener over it would hide the retry button.
+  useEffect(() => {
+    // `snapshot` is also present straight from the persisted cache (see
+    // utils/persistedQueryCache) — that counts: the screen is painted and
+    // the refetch continues behind it.
+    if (mounted && (snapshot || (!loading && error))) markStartupContentReady();
+  }, [mounted, loading, snapshot, error]);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +122,7 @@ export function useDashboard() {
     if (!onboarding.welcomeSeen || !onboarding.marketSelected || onboarding.setupAdded) return;
 
     const market = routeMarket || snapshot?.preferredMarket || dashboardMarket;
-    router.replace(setupRouteForMarket(market));
+    router.replace(getOnboardingSetupsUrl(market));
   }, [
     mounted,
     loading,

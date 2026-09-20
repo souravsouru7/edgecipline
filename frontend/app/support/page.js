@@ -482,7 +482,7 @@ function HelpCenter() {
         }
         .hc-cat-count {
           font-family: var(--font-jetbrains-mono);
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           font-weight: 700;
           color: var(--color-primary);
           letter-spacing: 0.03em;

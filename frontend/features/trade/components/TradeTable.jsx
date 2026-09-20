@@ -78,7 +78,7 @@ function TradeTable({ trades, loading, onDelete, deletingId }) {
               <thead>
                 <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8F6F2" }}>
                   {TABLE_HEADERS.map((h, i) => (
-                    <th key={h} style={{ padding: "14px 16px", fontSize: 10, letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", textAlign: i === 5 ? "right" : "left", fontWeight: 700 }}>
+                    <th key={h} style={{ padding: "14px 16px", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", textAlign: i === 5 ? "right" : "left", fontWeight: 700 }}>
                       {h}
                     </th>
                   ))}

@@ -188,7 +188,7 @@ function FunnelTrail({ funnel }) {
             border: `1px solid ${step.completed ? "rgba(34,199,142,0.45)" : "rgba(255,255,255,0.08)"}`,
             background: step.completed ? "rgba(34,199,142,0.12)" : "rgba(255,255,255,0.03)",
             color: step.completed ? "#22C78E" : "#94A3B8",
-            fontSize: 10.5,
+            fontSize: "var(--fs-2xs)",
             fontWeight: 800,
             letterSpacing: "0.02em",
           }}

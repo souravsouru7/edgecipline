@@ -56,7 +56,7 @@ export default function NavCard({ href, emoji, label, sub, color, bg, delay = 0 
       <div style={{ fontSize: 13, fontWeight: 700, color: colors.primary, marginBottom: 3 }}>
         {label}
       </div>
-      <div style={{ fontSize: 10, color: colors.muted }}>{sub}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>{sub}</div>
     </Link>
   );
 }

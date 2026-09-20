@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { toObjectId } = require("../utils/objectId");
 const mongoose = require("mongoose");
 
 const KnowledgeBaseArticle = require("../models/KnowledgeBaseArticle");
@@ -121,12 +122,6 @@ async function fuzzySearch(term, baseFilter) {
     .sort((a, b) => b.score - a.score || (b.article.helpfulCount || 0) - (a.article.helpfulCount || 0));
 
   return scored.map((row) => row.article);
-}
-
-function toObjectId(value) {
-  return value instanceof mongoose.Types.ObjectId
-    ? value
-    : new mongoose.Types.ObjectId(String(value));
 }
 
 /**

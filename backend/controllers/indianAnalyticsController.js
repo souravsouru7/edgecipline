@@ -1,18 +1,8 @@
 ﻿const IndianTrade = require("../models/IndianTrade");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { toNum, safeDivide, fixed } = require("../utils/numbers");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
-const toNum = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-};
-const safeDivide = (a, b) => {
-  const d = toNum(b);
-  if (d === 0) return 0;
-  return toNum(a) / d;
-};
-const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
-
 const { withNetPnL } = require("../utils/metricEngine");
 
 const INDIAN_ANALYTICS_PROJECTION = [

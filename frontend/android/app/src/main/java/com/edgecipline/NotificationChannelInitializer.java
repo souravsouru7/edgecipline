@@ -76,7 +76,7 @@ public final class NotificationChannelInitializer {
                 manager,
                 "edgecipline_session",
                 "Session Reminders",
-                "London, New York, and Asian session start reminders",
+                "Forex (London, New York) and Indian market open reminders",
                 NotificationManager.IMPORTANCE_DEFAULT,
                 Notification.VISIBILITY_PUBLIC,
                 0xFF8B5CF6,
@@ -91,6 +91,17 @@ public final class NotificationChannelInitializer {
                 NotificationManager.IMPORTANCE_DEFAULT,
                 Notification.VISIBILITY_PRIVATE,
                 0xFF0EA5E9,
+                true,
+                true
+        );
+        createChannel(
+                manager,
+                "edgecipline_support",
+                "Support",
+                "Replies and status updates on your support tickets",
+                NotificationManager.IMPORTANCE_DEFAULT,
+                Notification.VISIBILITY_PRIVATE,
+                0xFFB8860B,
                 true,
                 true
         );

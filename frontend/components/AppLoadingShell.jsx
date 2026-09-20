@@ -234,7 +234,7 @@ export default function AppLoadingShell({
         <div style={{ textAlign: "center" }}>
           <Image
             className="app-loading-dense-mark"
-            src="/mainlogo1.png"
+            src="/mainlogo1.webp"
             alt=""
             width="184"
             height="58"

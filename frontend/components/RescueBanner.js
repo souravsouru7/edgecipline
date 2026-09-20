@@ -129,7 +129,7 @@ export default function RescueBanner({ onUpgrade }) {
           flexShrink: 0,
         }}>
           <span style={{
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             fontWeight: 700,
             color: tone.text,
             textTransform: "uppercase",

@@ -162,7 +162,7 @@ function PairRow({ name, count, winRate, profit }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F4F2EE" }}>
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: "'JetBrains Mono',monospace" }}>{name}</div>
-        <div style={{ fontSize: 10, color: C.muted }}>{count} trades · {winRate}% WR</div>
+        <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>{count} trades · {winRate}% WR</div>
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: p >= 0 ? C.bull : C.bear }}>
         {p >= 0 ? "+" : "-"}${Math.abs(p).toFixed(2)}
@@ -267,7 +267,7 @@ function PsychRow({ label, winRate, trades, avgProfit, color }) {
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: C.primary }}>{label}</span>
         <div style={{ display: "flex", gap: 12 }}>
-          <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{trades}t</span>
+          <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{trades}t</span>
           <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: ap >= 0 ? C.bull : C.bear }}>{ap >= 0 ? "+" : "-"}${Math.abs(ap).toFixed(2)}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: wr >= 50 ? C.bull : C.bear }}>{wr}%</span>
         </div>
@@ -293,7 +293,7 @@ function InterpretationGrid({ items, accent = C.purple }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, marginTop: 14 }}>
       {visible.map((item) => (
         <div key={item.label} style={{ borderRadius: 10, border: `1px solid ${accent}24`, background: `${accent}08`, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, fontWeight: 900, color: accent, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
+          <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
           <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.65 }}>{item.text}</div>
         </div>
       ))}
@@ -773,8 +773,8 @@ function AnalyticsContent({ section = "overview" }) {
                         <ProgressBar label={`Long Win Rate  ${longWR}%`}  value={parseFloat(longWR)}  showPercent={false} color={C.bull} />
                         <ProgressBar label={`Short Win Rate ${shortWR}%`} value={parseFloat(shortWR)} showPercent={false} color={C.bear} />
                         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-                          <span style={{ fontSize: 10, color: C.bull, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : "-"}${Math.abs(longP).toFixed(2)}</span>
-                          <span style={{ fontSize: 10, color: C.bear, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : "-"}${Math.abs(shortP).toFixed(2)}</span>
+                          <span style={{ fontSize: "var(--fs-2xs)", color: C.bull, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : "-"}${Math.abs(longP).toFixed(2)}</span>
+                          <span style={{ fontSize: "var(--fs-2xs)", color: C.bear, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : "-"}${Math.abs(shortP).toFixed(2)}</span>
                         </div>
                       </div>
                     ) : <p style={{ color: C.muted, fontSize: 12 }}>No trade direction data yet.</p>;
@@ -812,8 +812,8 @@ function AnalyticsContent({ section = "overview" }) {
                       {riskRewardRows(riskReward, performance).map(r => (
                         <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: "1px solid #F4F2EE" }}>
                           <span>
-                            <span style={{ display: "block", fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
-                            <span style={{ display: "block", marginTop: 2, fontSize: 10, color: C.muted }}>{r.sub}</span>
+                            <span style={{ display: "block", fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
+                            <span style={{ display: "block", marginTop: 2, fontSize: "var(--fs-2xs)", color: C.muted }}>{r.sub}</span>
                           </span>
                           <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: r.color }}>{r.value}</span>
                         </div>
@@ -888,7 +888,7 @@ function AnalyticsContent({ section = "overview" }) {
                         { label: "Plan Adherence",   value: sb.planAdherencePct ? `${parseFloat(sb.planAdherencePct).toFixed(0)}%` : "—", color: C.gold },
                       ].map(m => (
                         <div key={m.label} style={{ background: "#FAFAFA", borderRadius: 10, padding: "12px 14px", border: "1px solid #E8EDF2" }}>
-                          <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>{m.label.toUpperCase()}</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>{m.label.toUpperCase()}</div>
                           <div style={{ fontSize: 20, fontWeight: 800, color: m.color, fontFamily: "'JetBrains Mono',monospace" }}>{m.value}</div>
                         </div>
                       ))}
@@ -899,7 +899,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Mood breakdown */}
                       {moodRows.length > 0 && (
                         <div>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>MOOD LEVEL (1–5)</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>MOOD LEVEL (1–5)</div>
                           {moodRows.map(m => (
                             <PsychRow key={m.level} label={m.label} winRate={m.winRate} trades={m.trades} avgProfit={m.avgProfit}
                               color={m.level >= 4 ? C.bull : m.level <= 2 ? C.bear : C.gold} />
@@ -910,7 +910,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Confidence breakdown */}
                       {confRows.length > 0 && (
                         <div>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>CONFIDENCE LEVEL</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>CONFIDENCE LEVEL</div>
                           {confRows.map(c => {
                             const confColor = { Low: C.bear, Medium: C.gold, High: C.bull, Overconfident: C.bear };
                             return <PsychRow key={c.level} label={c.level} winRate={c.winRate} trades={c.trades} avgProfit={c.avgProfit} color={confColor[c.level]} />;
@@ -921,7 +921,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Emotional tag impact */}
                       {tagRows.length > 0 && (
                         <div>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>EMOTIONAL TAG IMPACT</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>EMOTIONAL TAG IMPACT</div>
                           {tagRows.slice(0, 6).map(t => (
                             <PsychRow key={t.tag} label={`${t.emoji} ${t.tag}`} winRate={t.winRate} trades={t.trades} avgProfit={t.avgProfit}
                               color={["FOMO","Revenge","Fear","Frustrated","Greed"].includes(t.tag) ? C.bear : C.bull} />
@@ -932,7 +932,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Would Retake */}
                       {(psychology?.wouldRetakeAnalysis?.yes || psychology?.wouldRetakeAnalysis?.no) && (
                         <div>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>WOULD YOU RETAKE?</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>WOULD YOU RETAKE?</div>
                           {psychology?.wouldRetakeAnalysis?.yes && (
                             <PsychRow label="Yes — retake" winRate={psychology.wouldRetakeAnalysis.yes.winRate}
                               trades={psychology.wouldRetakeAnalysis.yes.trades} avgProfit={psychology.wouldRetakeAnalysis.yes.avgProfit} color={C.bull} />
@@ -942,7 +942,7 @@ function AnalyticsContent({ section = "overview" }) {
                               trades={psychology.wouldRetakeAnalysis.no.trades} avgProfit={psychology.wouldRetakeAnalysis.no.avgProfit} color={C.bear} />
                           )}
                           {psychology?.totalTrackedTrades > 0 && (
-                            <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>{psychology.totalTrackedTrades} psychologically tracked trades</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 8 }}>{psychology.totalTrackedTrades} psychologically tracked trades</div>
                           )}
                         </div>
                       )}
@@ -957,7 +957,7 @@ function AnalyticsContent({ section = "overview" }) {
                       });
                       return psychInsights.length > 0 ? (
                         <div style={{ marginTop: 20 }}>
-                          <div style={{ fontSize: 10, color: C.purple, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>PSYCHOLOGY INSIGHTS — WHAT TO DO WITH THIS DATA</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.purple, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12 }}>PSYCHOLOGY INSIGHTS — WHAT TO DO WITH THIS DATA</div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
                             {psychInsights.map((ins, i) => (
                               <PsychInsightCard key={i} icon={ins.icon} title={ins.title} body={ins.body} type={ins.type} />
@@ -1045,7 +1045,7 @@ function AnalyticsContent({ section = "overview" }) {
                                 color: psychologyCostDays === range.value ? C.purple : C.muted,
                                 borderRadius: 8,
                                 padding: "6px 10px",
-                                fontSize: 10,
+                                fontSize: "var(--fs-2xs)",
                                 fontWeight: 800,
                                 cursor: "pointer",
                               }}
@@ -1065,14 +1065,14 @@ function AnalyticsContent({ section = "overview" }) {
                                a broken rule need different fixes, and the list
                                previously rendered them identically. */
                             <div key={leak.name} style={{ borderRadius: 10, border: "1px solid #FED7D7", background: "#FFF8F8", padding: "10px 12px" }}>
-                              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#B45B5B", marginBottom: 3 }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#B45B5B", marginBottom: 3 }}>
                                 {LEAK_KIND_LABEL[leak.type] || "Behavior"}
                               </div>
                               <div style={{ fontSize: 12, fontWeight: 800, color: C.primary }}>{leak.name}</div>
                               <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
                                 <span style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>{moneyText(leak.cost)}</span>
                                 {leak.count != null && (
-                                  <span style={{ fontSize: 10, color: C.muted }}>
+                                  <span style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>
                                     {leak.count} trade{leak.count === 1 ? "" : "s"}
                                   </span>
                                 )}
@@ -1113,7 +1113,7 @@ function AnalyticsContent({ section = "overview" }) {
                           tradingDNA.mistakeDNA?.mostExpensive && { label: "Costliest Mistake", value: tradingDNA.mistakeDNA.mostExpensive.name, sub: moneyText(tradingDNA.mistakeDNA.mostExpensive.netPnL) },
                         ].filter(Boolean).map((row) => (
                           <div key={row.label} style={{ borderRadius: 10, border: "1px solid #E2E8F0", background: "#FFFFFF", padding: "10px 12px" }}>
-                            <div style={{ fontSize: 9, color: C.muted, fontWeight: 800, letterSpacing: "0.08em" }}>{row.label.toUpperCase()}</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 800, letterSpacing: "0.08em" }}>{row.label.toUpperCase()}</div>
                             <div style={{ fontSize: 13, fontWeight: 900, color: C.primary, marginTop: 3 }}>{row.value}</div>
                             <div style={{ fontSize: 11, fontWeight: 800, color: row.sub.startsWith("-") ? C.bear : C.bull, fontFamily: "'JetBrains Mono',monospace" }}>{row.sub}</div>
                           </div>
@@ -1176,19 +1176,19 @@ function AnalyticsContent({ section = "overview" }) {
                                 </div>
                                 <div>
                                   <div style={{ fontSize: 13, fontWeight: 800, color: C.primary }}>{m.tag}</div>
-                                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{m.count} occurrence{m.count !== 1 ? "s" : ""} · avg ${Math.abs(m.avgPnl).toFixed(2)} {m.avgPnl < 0 ? "lost" : "made"} per trade</div>
+                                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>{m.count} occurrence{m.count !== 1 ? "s" : ""} · avg ${Math.abs(m.avgPnl).toFixed(2)} {m.avgPnl < 0 ? "lost" : "made"} per trade</div>
                                 </div>
                               </div>
                               <div style={{ textAlign: "right", flexShrink: 0 }}>
                                 <div style={{ fontSize: 15, fontWeight: 900, color: isLoss ? C.bear : C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                                   {isLoss ? "-" : "+"}${Math.abs(m.totalPnl).toFixed(2)}
                                 </div>
-                                <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>total cost</div>
+                                <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>total cost</div>
                               </div>
                             </div>
                             {m.lessons?.length > 0 && (
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${rankColor}20` }}>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
+                                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
                                 <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>{m.lessons[0]}</div>
                               </div>
                             )}
@@ -1228,13 +1228,13 @@ function AnalyticsContent({ section = "overview" }) {
                           const trendColor = trend === "?" ? C.bull : trend === "?" ? C.bear : C.muted;
                           return (
                             <div key={w.week} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: isLatest ? C.primary : C.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: isLatest ? C.primary : C.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
                               <div style={{ flex: 1, height: 6, background: "#F4F2EE", borderRadius: 99, overflow: "hidden" }}>
                                 <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: barColor, borderRadius: 99, transition: "width 0.4s" }} />
                               </div>
-                              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
-                              <div style={{ fontSize: 9, color: trendColor, width: 12 }}>{trend}</div>
-                              <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toFixed(0)}</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", color: trendColor, width: 12 }}>{trend}</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toFixed(0)}</div>
                             </div>
                           );
                         })}
@@ -1259,7 +1259,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Revenge trades */}
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
                           <div style={{
                             fontSize: 18, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace",
                             color: (aiInsights.behaviorDiscipline?.revengeTradesCount || 0) > 0 ? C.bear : C.bull,
@@ -1277,14 +1277,14 @@ function AnalyticsContent({ section = "overview" }) {
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               {(aiInsights.behaviorDiscipline.revengeTrades || []).slice(-3).map((t, i) => (
-                                <div key={i} style={{ fontSize: 10, color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
+                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
                                   <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{t.pair}</span>
                                   <span>{new Date(t.createdAt).toLocaleDateString()}</span>
                                   <span style={{ color: C.bear, fontWeight: 700 }}>${Math.abs(t.prevProfit || 0).toFixed(2)} trigger loss</span>
                                 </div>
                               ))}
                             </div>
-                            <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: C.bear }}>Rule: After a loss, wait 15 min before taking another trade.</div>
+                            <div style={{ marginTop: 8, fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bear }}>Rule: After a loss, wait 15 min before taking another trade.</div>
                           </>
                         ) : (
                           <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>? No revenge trades detected — strong emotional control.</div>
@@ -1294,7 +1294,7 @@ function AnalyticsContent({ section = "overview" }) {
                       {/* Tilt days */}
                       <div style={{ borderTop: "1px solid #F4F2EE", paddingTop: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>TILT DAYS</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>TILT DAYS</div>
                           <div style={{
                             fontSize: 18, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace",
                             color: (aiInsights.psychologicalPatterns?.tiltDays?.length || 0) > 0 ? C.bear : C.bull,
@@ -1309,14 +1309,14 @@ function AnalyticsContent({ section = "overview" }) {
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               {aiInsights.psychologicalPatterns.tiltDays.slice(-3).map((td, i) => (
-                                <div key={i} style={{ fontSize: 10, color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
+                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
                                   <span>{td.day}</span>
                                   <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{td.streakLength} losses</span>
                                   <span style={{ color: C.bear, fontWeight: 700 }}>-${Math.abs(parseFloat(td.totalLoss)).toFixed(2)}</span>
                                 </div>
                               ))}
                             </div>
-                            <div style={{ marginTop: 8, fontSize: 10, fontWeight: 700, color: C.bear }}>Rule: Stop trading after 3 consecutive losses.</div>
+                            <div style={{ marginTop: 8, fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bear }}>Rule: Stop trading after 3 consecutive losses.</div>
                           </>
                         ) : (
                           <div style={{ fontSize: 11, color: C.bull, fontWeight: 600 }}>? No tilt days detected — great discipline.</div>

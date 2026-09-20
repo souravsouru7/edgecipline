@@ -50,7 +50,7 @@ function ReflectionScoreRing({ score = 0, size = 60, stroke = 6 }) {
         }}
       >
         <span style={{ fontSize: size / 4, lineHeight: 1 }}>{safeScore}</span>
-        <span style={{ fontSize: 8, opacity: 0.7, marginTop: 2 }}>/100</span>
+        <span style={{ fontSize: "var(--fs-2xs)", opacity: 0.7, marginTop: 2 }}>/100</span>
       </div>
     </div>
   );

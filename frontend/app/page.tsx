@@ -54,31 +54,9 @@ export default function RootPage() {
     };
   }, [router]);
 
-  return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#F0EEE9",
-        color: "#0F1923",
-        fontFamily: "Arial, Helvetica, sans-serif",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <img
-          src="/mainlogo1.png"
-          alt="Edgecipline"
-          style={{
-            width: 180,
-            maxWidth: "70vw",
-            height: "auto",
-            objectFit: "contain",
-            display: "block",
-            margin: "0 auto",
-          }}
-        />
-      </div>
-    </main>
-  );
+  // Deliberately blank. This route only decides where to send the user, and
+  // while it does so the brand opener (AuthSessionBootstrap) is covering the
+  // screen. The previous static logo here was a second, different splash that
+  // flashed between the opener and the dashboard.
+  return <main style={{ minHeight: "100vh", background: "#F4F2EE" }} aria-busy="true" />;
 }

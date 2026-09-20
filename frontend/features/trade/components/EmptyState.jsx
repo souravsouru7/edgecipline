@@ -53,7 +53,7 @@ export default function EmptyState() {
         {[{ icon: "📊", text: "Track Performance" }, { icon: "🎯", text: "Analyze Patterns" }, { icon: "📈", text: "Improve Strategy" }].map((tip, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 20 }}>{tip.icon}</span>
-            <span style={{ fontSize: 9, color: "#64748B", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600 }}>{tip.text}</span>
+            <span style={{ fontSize: "var(--fs-2xs)", color: "#64748B", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600 }}>{tip.text}</span>
           </div>
         ))}
       </div>

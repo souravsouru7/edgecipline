@@ -16,7 +16,7 @@ export default function CoachSummaryCard({ summary, confidenceNote }) {
     >
       <div
         style={{
-          fontSize: 9,
+          fontSize: "var(--fs-2xs)",
           fontWeight: 800,
           color: "#8B5CF6",
           letterSpacing: "0.14em",

@@ -1,6 +1,8 @@
 package com.edgecipline;
 
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,6 +26,7 @@ public class MainActivity extends BridgeActivity {
         // android:background=@drawable/splash keeps painting the logo behind the
         // WebView for the whole boot. Must run before super.onCreate().
         SplashScreen.installSplashScreen(this);
+        applyOrientationPolicy();
         registerPlugin(ChecklistNotificationPlugin.class);
         registerPlugin(EdgeAuthStoragePlugin.class);
         registerPlugin(EdgeBillingPlugin.class);
@@ -40,6 +43,26 @@ public class MainActivity extends BridgeActivity {
         // calls PushNotifications.requestPermissions() once the user is
         // authenticated (after login, or on relaunch for an existing session).
         handleNotificationIntent(getIntent());
+    }
+
+    /**
+     * Phones stay portrait — nothing in the app is designed for a 360-dp
+     * layout rotated to 800 wide, and a rotation mid-form reflows every input.
+     * Tablets and unfolded foldables (smallest width >= 600dp) keep free
+     * rotation so their large-screen layouts are not destroyed. Done at
+     * runtime because android:screenOrientation in the manifest cannot vary
+     * by screen size.
+     */
+    private void applyOrientationPolicy() {
+        try {
+            Configuration configuration = getResources().getConfiguration();
+            boolean largeScreen = configuration.smallestScreenWidthDp >= 600;
+            setRequestedOrientation(largeScreen
+                    ? ActivityInfo.SCREEN_ORIENTATION_USER
+                    : ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not apply orientation policy: " + e.getMessage());
+        }
     }
 
     /**

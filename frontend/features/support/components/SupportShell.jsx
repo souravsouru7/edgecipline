@@ -55,7 +55,7 @@ export default function SupportShell({
               </button>
             )}
             <Link href="/support" className="sup-brand" aria-label="Edgecipline Support home">
-              <img src="/mainlogo1.png" alt="" aria-hidden="true" className="sup-logo" />
+              <img src="/mainlogo1.webp" alt="" aria-hidden="true" className="sup-logo" />
               <span className="sup-eyebrow">{eyebrow}</span>
             </Link>
           </div>

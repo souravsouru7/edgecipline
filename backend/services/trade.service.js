@@ -9,7 +9,8 @@ const streakService = require("./streak.service");
 const onboardingService = require("./onboardingService");
 const { handleStreakEvents } = require("./streakNotification.service");
 const tradeLifecycleService = require("./tradeLifecycle.service");
-const { normalizeTradeDate } = require("../utils/dateUtils");
+const { normalizeTradeDate, getPeriodStart } = require("../utils/dateUtils");
+const { wrapBatchInsertError, requireEntryBasisCustomText } = require("../utils/tradeValidation");
 const {
   claimOcrJobForConfirmation,
   releaseOcrJobClaim,
@@ -61,12 +62,6 @@ function requirePositiveNumber(value, label) {
   return num;
 }
 
-function requireEntryBasisCustomText(entryBasis, entryBasisCustom) {
-  if (entryBasis === "Custom" && !String(entryBasisCustom || "").trim()) {
-    throw new ApiError(400, "Custom entry basis requires a description", "VALIDATION_ERROR");
-  }
-}
-
 function enforcePositiveTradeSize(tradePayload) {
   const quantity = requirePositiveIfProvided(tradePayload.quantity, "Quantity");
   if (quantity !== undefined) tradePayload.quantity = quantity;
@@ -81,20 +76,6 @@ function enforceManualForexPricing(tradePayload) {
   if (tradePayload.lotSize == null && tradePayload.quantity == null) {
     throw new ApiError(400, "Lot size is required", "VALIDATION_ERROR");
   }
-}
-
-// insertMany({ordered:true}) on a mid-batch failure leaves the earlier
-// documents committed in Mongo but throws a plain (non-ApiError) bulk-write
-// error -- which the global error handler flattens into a generic 500
-// "Something went wrong", hiding both which trades already saved and that
-// a retry of the full batch would duplicate them. Surface that explicitly.
-function isBulkWriteError(err) {
-  return Boolean(err) && (
-    err.name === "MongoBulkWriteError" ||
-    err.name === "BulkWriteError" ||
-    Array.isArray(err.writeErrors) ||
-    Array.isArray(err.insertedDocs)
-  );
 }
 
 // An OCR-confirmed trade gets its double-submit protection from the atomic
@@ -122,58 +103,6 @@ function buildDuplicateTradeQuery(userId, tradeDoc) {
 
 async function findRecentDuplicateTrade(userId, tradeDoc) {
   return Trade.findOne(buildDuplicateTradeQuery(userId, tradeDoc)).sort({ createdAt: -1 });
-}
-
-function wrapBatchInsertError(err, totalCount) {
-  if (!isBulkWriteError(err)) return err;
-  const insertedDocs = Array.isArray(err.insertedDocs) ? err.insertedDocs : [];
-  const insertedCount = insertedDocs.length || Number(err?.result?.nInserted ?? err?.result?.result?.nInserted ?? 0);
-  const failedCount = Math.max(0, totalCount - insertedCount);
-  const insertedTradeIds = insertedDocs.map((d) => d?._id).filter(Boolean);
-  return new ApiError(
-    409,
-    insertedCount > 0
-      ? `${insertedCount} of ${totalCount} trades were saved before an error occurred (${failedCount} failed). Check your trade log before retrying to avoid duplicates.`
-      : `Failed to save trades: ${err.message}`,
-    "BATCH_PARTIAL_FAILURE",
-    { insertedCount, failedCount, insertedTradeIds }
-  );
-}
-
-// setMonth()/setFullYear() don't clamp -- subtracting a month from e.g. Mar
-// 31 overflows into Feb 31, which JS silently rolls into Mar 3 instead of
-// erroring, shrinking the "last month" filter to skip nearly all of
-// February. Set the day to 1 before changing month/year (so the change
-// itself can't overflow), then clamp back to the last real day of the
-// resulting month. Same rollover class as the bug already fixed in
-// normalizeTradeDate (utils/dateUtils.js).
-function subtractMonthsClamped(date, months) {
-  const originalDay = date.getDate();
-  const result = new Date(date);
-  result.setDate(1);
-  result.setMonth(result.getMonth() - months);
-  const daysInResultMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
-  result.setDate(Math.min(originalDay, daysInResultMonth));
-  return result;
-}
-
-function getPeriodStart(period) {
-  const now = new Date();
-  const start = new Date(now);
-
-  switch (String(period || "all").toLowerCase()) {
-    case "1w":
-      start.setDate(start.getDate() - 7);
-      return start;
-    case "1m":
-      return subtractMonthsClamped(now, 1);
-    case "3m":
-      return subtractMonthsClamped(now, 3);
-    case "1y":
-      return subtractMonthsClamped(now, 12);
-    default:
-      return null;
-  }
 }
 
 async function createTrade(userId, payload, { accountCreatedAt } = {}) {

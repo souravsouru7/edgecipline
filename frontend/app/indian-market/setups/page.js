@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { genId } from "@/utils/genId";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,10 +49,6 @@ const STARTER_TEMPLATES = [
     ],
   },
 ];
-
-function genId() {
-  return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
 
 export default function IndianSetupStrategiesPage() {
   const router = useRouter();
@@ -368,7 +365,7 @@ export default function IndianSetupStrategiesPage() {
     position: "absolute", top: -6, right: -6,
     width: 20, height: 20, borderRadius: "50%",
     border: "2px solid #FFFFFF", background: "#EF4444", color: "#FFFFFF",
-    fontSize: 9, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: "var(--fs-2xs)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
     zIndex: 2,
   };
   const moveBtnRowStyle = {
@@ -399,7 +396,7 @@ export default function IndianSetupStrategiesPage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: "#0F1923", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             Setup / Strategies
           </div>
-          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 6, background: "#EEF9F4", border: "1px solid #C6EEE0", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", fontWeight: 600 }}>
+          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 6, background: "#EEF9F4", border: "1px solid #C6EEE0", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", fontWeight: 600 }}>
             NSE / BSE
           </span>
         </div>
@@ -441,7 +438,7 @@ export default function IndianSetupStrategiesPage() {
 
         {onboardingMode && (
           <div style={{ marginBottom: 16, padding: 16, borderRadius: 14, background: "linear-gradient(135deg, rgba(34,199,142,0.10), rgba(184,134,11,0.06))", border: "1px solid rgba(13,158,110,0.28)", boxShadow: "0 2px 10px rgba(15,25,35,0.04)" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>
               ONBOARDING - STEP 1 OF 3
             </div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#0F1923", marginBottom: 5 }}>
@@ -485,7 +482,7 @@ export default function IndianSetupStrategiesPage() {
                   >
                     <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923", marginBottom: 5 }}>{template.name}</div>
                     <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.45, marginBottom: 10 }}>{template.description}</div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
+                    <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
                       USE EXAMPLE
                     </div>
                   </button>
@@ -531,7 +528,7 @@ export default function IndianSetupStrategiesPage() {
                     {/* Section header */}
                     <div onClick={() => toggleExpand(strategy.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer", userSelect: "none" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 9, letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 2 }}>TRADING SETUP</div>
+                        <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 2 }}>TRADING SETUP</div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: strategy.name ? "#0F1923" : "#A0AEC0", fontFamily: "'Plus Jakarta Sans',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {strategy.name || "Untitled Setup"}
                         </div>
@@ -541,7 +538,7 @@ export default function IndianSetupStrategiesPage() {
                           <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: "#0D9E6E", fontWeight: 700 }}>
                             {activeRules.length} RULE{activeRules.length === 1 ? "" : "S"}
                           </div>
-                          <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
+                          <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
                             setup checklist
                           </div>
                         </div>
@@ -556,7 +553,7 @@ export default function IndianSetupStrategiesPage() {
 
                       {/* Name input */}
                       <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontSize: 9, letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>TRADING SETUP NAME</label>
+                        <label style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>TRADING SETUP NAME</label>
                         <input
                           type="text"
                           value={strategy.name}
@@ -570,9 +567,9 @@ export default function IndianSetupStrategiesPage() {
                       {/* Reference images */}
                       <div style={{ marginBottom: 12 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <div style={{ fontSize: 9, letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>REFERENCE SCREENSHOTS</div>
+                          <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>REFERENCE SCREENSHOTS</div>
                           {totalImgs > 0 && (
-                            <span style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>{totalImgs}/{MAX_IMAGES}</span>
+                            <span style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>{totalImgs}/{MAX_IMAGES}</span>
                           )}
                         </div>
 
@@ -601,7 +598,7 @@ export default function IndianSetupStrategiesPage() {
                           {pendingImgs.map((pending, pIdx) => (
                             <div key={pending.id} style={imgCardBase}>
                               <img src={pending.previewUrl} alt={`pending ${pIdx + 1}`} style={{ ...imgStyle, border: "2px dashed #0D9E6E" }} />
-                              <div style={{ position: "absolute", top: 4, left: 4, background: "#0D9E6E", color: "#fff", fontSize: 8, fontWeight: 800, padding: "2px 5px", borderRadius: 4, letterSpacing: "0.08em", fontFamily: "'JetBrains Mono',monospace" }}>NEW</div>
+                              <div style={{ position: "absolute", top: 4, left: 4, background: "#0D9E6E", color: "#fff", fontSize: "var(--fs-2xs)", fontWeight: 800, padding: "2px 5px", borderRadius: 4, letterSpacing: "0.08em", fontFamily: "'JetBrains Mono',monospace" }}>NEW</div>
                               <button type="button" style={removeBtnStyle} title="Remove" onClick={() => removePendingImage(strategy.id, pending.id)}>
                                 <X size={10} strokeWidth={3} />
                               </button>
@@ -620,7 +617,7 @@ export default function IndianSetupStrategiesPage() {
 
                           {/* Add images button */}
                           {totalImgs < MAX_IMAGES && (
-                            <label style={{ width: 96, height: 72, borderRadius: 10, border: "1.5px dashed #0D9E6E33", background: "rgba(13,158,110,0.03)", color: "#0D9E6E", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0 }}>
+                            <label style={{ width: 96, height: 72, borderRadius: 10, border: "1.5px dashed #0D9E6E33", background: "rgba(13,158,110,0.03)", color: "#0D9E6E", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0 }}>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                               {totalImgs === 0 ? "ADD IMAGES" : "+ MORE"}
                               <input
@@ -651,13 +648,13 @@ export default function IndianSetupStrategiesPage() {
 
                       {/* Rule management buttons */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
-                        <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", color: "#94A3B8" }}>
+                        <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", color: "#94A3B8" }}>
                           RULES CHECKLIST
                         </div>
-                        <button type="button" onClick={() => deleteStrategy(strategy.id)} style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", cursor: "pointer" }}>
+                        <button type="button" onClick={() => deleteStrategy(strategy.id)} style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", cursor: "pointer" }}>
                           DELETE SETUP
                         </button>
-                        <button type="button" onClick={() => addRuleToStrategy(strategy.id)} style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #0D9E6E33", background: "rgba(13,158,110,0.04)", color: "#0D9E6E", cursor: "pointer" }}>
+                        <button type="button" onClick={() => addRuleToStrategy(strategy.id)} style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, border: "1px solid #0D9E6E33", background: "rgba(13,158,110,0.04)", color: "#0D9E6E", cursor: "pointer" }}>
                           + ADD RULE
                         </button>
                       </div>
@@ -666,7 +663,7 @@ export default function IndianSetupStrategiesPage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {strategy.rules.map((rule, ruleIdx) => (
                           <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 9, background: "#FAFBFC", border: "1px solid #E2E8F0" }}>
-                            <div style={{ width: 24, height: 24, borderRadius: 7, background: "#E8ECF0", color: "#64748B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, flexShrink: 0 }}>
+                            <div style={{ width: 24, height: 24, borderRadius: 7, background: "#E8ECF0", color: "#64748B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, flexShrink: 0 }}>
                               {ruleIdx + 1}
                             </div>
                             <input

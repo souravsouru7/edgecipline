@@ -250,7 +250,7 @@ export default function ChecklistNotificationSettingsPage() {
                         }}
                       >
                         {s.name}
-                        <span style={{ marginLeft: 6, fontSize: 10, color: "#94A3B8" }}>
+                        <span style={{ marginLeft: 6, fontSize: "var(--fs-2xs)", color: "#94A3B8" }}>
                           {(s.rules || []).filter(r => r.label?.trim()).length}R
                         </span>
                       </button>
@@ -262,7 +262,7 @@ export default function ChecklistNotificationSettingsPage() {
               {/* Preview items */}
               {enabled && strategies[selectedStrategyIdx] && (
                 <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "#94A3B8", letterSpacing: "0.1em", marginBottom: 10 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono', monospace", color: "#94A3B8", letterSpacing: "0.1em", marginBottom: 10 }}>
                     NOTIFICATION PREVIEW
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#0F1923" }}>
@@ -470,7 +470,7 @@ function Card({ children, title, dimmed = false }) {
     }}>
       {title && (
         <div style={{
-          fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono', monospace",
           letterSpacing: "0.12em", color: "#94A3B8", fontWeight: 700,
           marginBottom: 12,
         }}>

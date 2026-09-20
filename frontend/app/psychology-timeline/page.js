@@ -12,19 +12,7 @@ import { hasValidAuthToken } from "@/utils/auth";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { useRouter }         from "next/navigation";
 import { useMarket } from "@/context/MarketContext";
-import {
-  ComposedChart,
-  LineChart,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Legend,
-} from "recharts";
+import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 
@@ -61,7 +49,7 @@ function InterpretationGrid({ items, accent = C.psych }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
       {visible.map((item) => (
         <div key={item.label} style={{ borderRadius: 10, border: `1px solid ${accent}24`, background: `${accent}08`, padding: "12px 14px" }}>
-          <div style={{ fontSize: 9, fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
+          <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
           <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.65 }}>{item.text}</div>
         </div>
       ))}
@@ -150,8 +138,8 @@ function TrendBadge({ trend, label }) {
       minWidth: 90,
     }}>
       <div style={{ fontSize: 22, color, fontWeight: 900, lineHeight: 1 }}>{icon}</div>
-      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textAlign: "center", letterSpacing: "0.04em" }}>{label}</div>
-      <div style={{ fontSize: 9, color, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{trend || "stable"}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, textAlign: "center", letterSpacing: "0.04em" }}>{label}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{trend || "stable"}</div>
     </div>
   );
 }
@@ -205,7 +193,7 @@ function MilestoneItem({ milestone }) {
       <div>
         <div style={{ fontSize: 12, fontWeight: 800, color: C.primary, marginBottom: 3 }}>{milestone.title}</div>
         {milestone.key && (
-          <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, marginBottom: 4 }}>{milestone.key}</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 600, marginBottom: 4 }}>{milestone.key}</div>
         )}
         <div style={{ fontSize: 11, color: "#334155", lineHeight: 1.5 }}>{milestone.description}</div>
       </div>
@@ -407,7 +395,7 @@ function PsychologyTimelineContent() {
                             <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>
                               {s.value ?? "—"}{s.suffix}
                             </div>
-                            <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, marginTop: 3, letterSpacing: "0.04em" }}>{s.label}</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, marginTop: 3, letterSpacing: "0.04em" }}>{s.label}</div>
                           </div>
                         ))}
                       </div>
@@ -421,7 +409,7 @@ function PsychologyTimelineContent() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 16 }}>🤖</span>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.primary }}>Psychology Coach Summary</div>
-                  <div style={{ background: "#EFF6FF", color: "#2563EB", fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em" }}>AI</div>
+                  <div style={{ background: "#EFF6FF", color: "#2563EB", fontSize: "var(--fs-2xs)", fontWeight: 800, padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em" }}>AI</div>
                 </div>
                 {loading ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -455,31 +443,32 @@ function PsychologyTimelineContent() {
                 {loading ? (
                   <Skel h={200} r={8} />
                 ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
+                  <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height={220}>
+                    <R.ComposedChart data={chartData}>
+                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
                       {/* The score line and the P&L bars are different units, so they
                           need separate axes. Sharing one axis let the bars (thousands
                           of rupees) widen the 0-100 domain — Recharts extends a
                           specified domain unless allowDataOverflow is set — which
                           printed P&L values up the score axis and flattened the
                           score line to a straight bar. */}
-                      <YAxis
+                      <R.YAxis
                         yAxisId="score"
                         domain={[0, 100]}
                         allowDataOverflow
-                        tick={{ fontSize: 9, fill: C.muted }}
+                        tick={{ fontSize: 11, fill: C.muted }}
                         width={28}
                       />
-                      <YAxis yAxisId="pnl" hide domain={["dataMin", "dataMax"]} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <ReferenceLine yAxisId="score" y={70} stroke="#059669" strokeDasharray="4 4" strokeOpacity={0.5} />
-                      <ReferenceLine yAxisId="score" y={45} stroke="#D97706" strokeDasharray="4 4" strokeOpacity={0.4} />
-                      <Bar yAxisId="pnl" dataKey="net" name="Net P&L" fill="#E2E8F0" opacity={0.5} radius={[2, 2, 0, 0]}
+                      <R.YAxis yAxisId="pnl" hide domain={["dataMin", "dataMax"]} />
+                      <R.Tooltip content={<ChartTooltip />} />
+                      <R.ReferenceLine yAxisId="score" y={70} stroke="#059669" strokeDasharray="4 4" strokeOpacity={0.5} />
+                      <R.ReferenceLine yAxisId="score" y={45} stroke="#D97706" strokeDasharray="4 4" strokeOpacity={0.4} />
+                      <R.Bar yAxisId="pnl" dataKey="net" name="Net P&L" fill="#E2E8F0" opacity={0.5} radius={[2, 2, 0, 0]}
                         stroke="none"
                       />
-                      <Line
+                      <R.Line
                         yAxisId="score"
                         type="monotone"
                         dataKey="psych"
@@ -490,11 +479,12 @@ function PsychologyTimelineContent() {
                         activeDot={{ r: 5 }}
                         connectNulls
                       />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                    </R.ComposedChart>
+                  </R.ResponsiveContainer>
+)}</LazyRecharts>
                 )}
                 {!loading && (
-                  <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 10, color: C.muted }}>
+                  <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "var(--fs-2xs)", color: C.muted }}>
                     <span style={{ color: "#059669" }}>— ≥70 Healthy</span>
                     <span style={{ color: "#D97706" }}>— ≥45 Average</span>
                     <span style={{ color: "#DC2626" }}>— &lt;45 Costly</span>
@@ -509,14 +499,15 @@ function PsychologyTimelineContent() {
                 {loading ? (
                   <Skel h={200} r={8} />
                 ) : (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: C.muted }} width={28} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                      <Line
+                  <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height={200}>
+                    <R.LineChart data={chartData}>
+                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                      <R.YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: C.muted }} width={28} />
+                      <R.Tooltip content={<ChartTooltip />} />
+                      <R.Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                      <R.Line
                         type="monotone"
                         dataKey="aware"
                         name="Self-Awareness"
@@ -525,7 +516,7 @@ function PsychologyTimelineContent() {
                         dot={{ r: 3, fill: C.aware }}
                         connectNulls
                       />
-                      <Line
+                      <R.Line
                         type="monotone"
                         dataKey="disc"
                         name="Discipline"
@@ -534,8 +525,9 @@ function PsychologyTimelineContent() {
                         dot={{ r: 3, fill: C.disc }}
                         connectNulls
                       />
-                    </LineChart>
-                  </ResponsiveContainer>
+                    </R.LineChart>
+                  </R.ResponsiveContainer>
+)}</LazyRecharts>
                 )}
               </div>
 
@@ -546,14 +538,15 @@ function PsychologyTimelineContent() {
                 {loading ? (
                   <Skel h={180} r={8} />
                 ) : (
-                  <ResponsiveContainer width="100%" height={180}>
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 9, fill: C.muted }} width={36} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <ReferenceLine y={0} stroke="#E2E8F0" />
-                      <Bar
+                  <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height={180}>
+                    <R.ComposedChart data={chartData}>
+                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                      <R.YAxis tick={{ fontSize: 11, fill: C.muted }} width={36} />
+                      <R.Tooltip content={<ChartTooltip />} />
+                      <R.ReferenceLine y={0} stroke="#E2E8F0" />
+                      <R.Bar
                         dataKey="net"
                         name="Net P&L"
                         radius={[3, 3, 0, 0]}
@@ -566,14 +559,15 @@ function PsychologyTimelineContent() {
                             fill={entry.net >= 0 ? C.pnlPos : C.pnlNeg}
                           />
                         ))}
-                      </Bar>
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                      </R.Bar>
+                    </R.ComposedChart>
+                  </R.ResponsiveContainer>
+)}</LazyRecharts>
                 )}
               </div>
 
               {/* ── Two-column: Milestones + Mood ─────────────────────── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 20 }}>
 
                 {/* Milestones */}
                 <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px" }}>
@@ -602,14 +596,15 @@ function PsychologyTimelineContent() {
                   {loading ? (
                     <Skel h={200} r={8} />
                   ) : chartData.some(d => d.avgMood !== null) ? (
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                        <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
-                        <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 9, fill: C.muted }} width={20} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <ReferenceLine y={3} stroke="#94A3B8" strokeDasharray="4 4" strokeOpacity={0.5} />
-                        <Line
+                    <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height={200}>
+                      <R.LineChart data={chartData}>
+                        <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                        <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                        <R.YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 11, fill: C.muted }} width={20} />
+                        <R.Tooltip content={<ChartTooltip />} />
+                        <R.ReferenceLine y={3} stroke="#94A3B8" strokeDasharray="4 4" strokeOpacity={0.5} />
+                        <R.Line
                           type="monotone"
                           dataKey="avgMood"
                           name="Avg Mood"
@@ -618,8 +613,9 @@ function PsychologyTimelineContent() {
                           dot={{ r: 3, fill: "#F59E0B" }}
                           connectNulls
                         />
-                      </LineChart>
-                    </ResponsiveContainer>
+                      </R.LineChart>
+                    </R.ResponsiveContainer>
+)}</LazyRecharts>
                   ) : (
                     <div style={{ textAlign: "center", padding: "32px 0", color: C.muted, fontSize: 12 }}>
                       Log trades with mood ratings to see this chart.
@@ -633,15 +629,17 @@ function PsychologyTimelineContent() {
                 <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Trade Activity</div>
                 <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Number of trades per {period}</div>
                 {loading ? <Skel h={120} r={8} /> : (
-                  <ResponsiveContainer width="100%" height={120}>
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 9, fill: C.muted }} width={24} allowDecimals={false} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="trades" name="Trades" fill={`${C.psych}44`} stroke={C.psych} strokeWidth={1} radius={[2, 2, 0, 0]} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height={120}>
+                    <R.ComposedChart data={chartData}>
+                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                      <R.YAxis tick={{ fontSize: 11, fill: C.muted }} width={24} allowDecimals={false} />
+                      <R.Tooltip content={<ChartTooltip />} />
+                      <R.Bar dataKey="trades" name="Trades" fill={`${C.psych}44`} stroke={C.psych} strokeWidth={1} radius={[2, 2, 0, 0]} />
+                    </R.ComposedChart>
+                  </R.ResponsiveContainer>
+)}</LazyRecharts>
                 )}
               </div>
             </>

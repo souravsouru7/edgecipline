@@ -72,7 +72,7 @@ export default function RecentTradeCards({ trades, compact = false }) {
               {trade.side && (
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: "var(--fs-2xs)",
                     fontWeight: 800,
                     letterSpacing: "0.08em",
                     color: sideColour,

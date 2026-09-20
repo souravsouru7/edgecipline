@@ -46,7 +46,7 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
               Done
             </div>
             <div style={{
-              fontSize: 10,
+              fontSize: "var(--fs-2xs)",
               fontWeight: 800,
               color: "#0D9E6E",
               letterSpacing: "0.12em",

@@ -102,7 +102,7 @@ export default function PushNotificationToast() {
             <Bell size={17} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: isMorningMentor ? "#F59E0B" : "#38BDF8", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.08em", color: isMorningMentor ? "#F59E0B" : "#38BDF8", marginBottom: 3 }}>
               TAP TO OPEN
             </div>
             <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.35, marginBottom: notification.body ? 3 : 0 }}>

@@ -12,36 +12,6 @@ const tradeQuotaService = require("../services/tradeQuotaService");
 const freeTierFunnelService = require("../services/freeTierFunnelService");
 const { withQuota } = require("../utils/tradeQuotaResponse");
 
-// insertMany({ordered:true}) on a mid-batch failure (only reachable via the
-// standalone-Mongo fallback below -- the transactional path is all-or-
-// nothing) leaves earlier documents committed but throws a plain bulk-write
-// error, which the global error handler flattens into a generic 500. Surface
-// which trades actually saved instead of hiding it.
-function isBulkWriteError(err) {
-  return Boolean(err) && (
-    err.name === "MongoBulkWriteError" ||
-    err.name === "BulkWriteError" ||
-    Array.isArray(err.writeErrors) ||
-    Array.isArray(err.insertedDocs)
-  );
-}
-
-function wrapBatchInsertError(err, totalCount) {
-  if (!isBulkWriteError(err)) return err;
-  const insertedDocs = Array.isArray(err.insertedDocs) ? err.insertedDocs : [];
-  const insertedCount = insertedDocs.length || Number(err?.result?.nInserted ?? err?.result?.result?.nInserted ?? 0);
-  const failedCount = Math.max(0, totalCount - insertedCount);
-  const insertedTradeIds = insertedDocs.map((d) => d?._id).filter(Boolean);
-  return new ApiError(
-    409,
-    insertedCount > 0
-      ? `${insertedCount} of ${totalCount} trades were saved before an error occurred (${failedCount} failed). Check your trade log before retrying to avoid duplicates.`
-      : `Failed to save trades: ${err.message}`,
-    "BATCH_PARTIAL_FAILURE",
-    { insertedCount, failedCount, insertedTradeIds }
-  );
-}
-
 // Official NSE lot sizes for the major indices, most-specific name first so
 // "BANKNIFTY"/"FINNIFTY"/"MIDCPNIFTY" don't get matched by the plain "NIFTY"
 // substring check. Individual stock F&O lot sizes vary and change
@@ -80,7 +50,8 @@ const {
   extractConfirmationTrades,
   markOcrJobConfirmed,
 } = require("../services/ocrJob.service");
-const { normalizeTradeDate } = require("../utils/dateUtils");
+const { normalizeTradeDate, getPeriodStart } = require("../utils/dateUtils");
+const { wrapBatchInsertError, requireEntryBasisCustomText } = require("../utils/tradeValidation");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
 const { logger } = require("../utils/logger");
 const { pickIndianTradeFields } = require("../utils/tradeFieldAllowlist");
@@ -88,42 +59,6 @@ const {
   deriveIndianProfit,
   trustedOcrProfitForTrade,
 } = require("../utils/tradeProfit");
-
-// setMonth()/setFullYear() don't clamp -- subtracting a month from e.g. Mar
-// 31 overflows into Feb 31, which JS silently rolls into Mar 3 instead of
-// erroring, shrinking the "last month" filter to skip nearly all of
-// February. Set the day to 1 before changing month/year (so the change
-// itself can't overflow), then clamp back to the last real day of the
-// resulting month. Same rollover class as the bug already fixed in
-// normalizeTradeDate (utils/dateUtils.js).
-function subtractMonthsClamped(date, months) {
-  const originalDay = date.getDate();
-  const result = new Date(date);
-  result.setDate(1);
-  result.setMonth(result.getMonth() - months);
-  const daysInResultMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
-  result.setDate(Math.min(originalDay, daysInResultMonth));
-  return result;
-}
-
-function getPeriodStart(period) {
-  const now = new Date();
-  const start = new Date(now);
-
-  switch (String(period || "all").toLowerCase()) {
-    case "1w":
-      start.setDate(start.getDate() - 7);
-      return start;
-    case "1m":
-      return subtractMonthsClamped(now, 1);
-    case "3m":
-      return subtractMonthsClamped(now, 3);
-    case "1y":
-      return subtractMonthsClamped(now, 12);
-    default:
-      return null;
-  }
-}
 
 function userMatch(userId) {
   const id = userId?.toString?.() || String(userId || "");
@@ -179,12 +114,6 @@ function requirePositiveNumber(value, label) {
     throw new ApiError(400, `${label} must be greater than 0`, "VALIDATION_ERROR");
   }
   return parsed;
-}
-
-function requireEntryBasisCustomText(entryBasis, entryBasisCustom) {
-  if (entryBasis === "Custom" && !String(entryBasisCustom || "").trim()) {
-    throw new ApiError(400, "Custom entry basis requires a description", "VALIDATION_ERROR");
-  }
 }
 
 function normalizeOptionalNumber(target, field) {

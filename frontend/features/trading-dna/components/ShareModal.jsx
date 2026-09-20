@@ -335,7 +335,7 @@ export default function ShareModal({
         <div
           style={{
             marginTop: 16,
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             color: C.muted,
             lineHeight: 1.6,
           }}

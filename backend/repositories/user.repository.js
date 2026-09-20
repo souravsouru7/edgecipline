@@ -26,6 +26,15 @@ async function findUsersForWeeklyReports() {
   return User.find({}, { _id: 1 }).lean();
 }
 
+// Session reminders need the market signal on the user record plus the
+// streak timezone so the reminder day can be keyed in the user's zone.
+async function findUsersForSessionReminders() {
+  return User.find(
+    { role: { $ne: "admin" } },
+    { _id: 1, preferredMarket: 1, "streaks.timezone": 1 }
+  ).lean();
+}
+
 // Users whose journal streak is alive (≥3 days) — candidates for the
 // "don't lose your streak" evening push. The cron filters further in JS by
 // checking whether today is already their lastQualifyingDate.
@@ -43,6 +52,7 @@ async function findUsersWithActiveJournalStreak(minStreak = 3) {
 
 module.exports = {
   findUsersForWeeklyReports,
+  findUsersForSessionReminders,
   findUsersWithActiveJournalStreak,
   markFreeUploadUsed,
   claimFreeUpload,

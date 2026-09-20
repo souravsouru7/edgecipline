@@ -13,7 +13,7 @@ export default function CoachQuotaPill({ quota }) {
     return (
       <span style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        fontSize: 10, fontWeight: 800, color: "#7C3AED",
+        fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#7C3AED",
         background: "rgba(139, 92, 246, 0.12)", padding: "3px 8px",
         borderRadius: 999, letterSpacing: "0.04em", textTransform: "uppercase",
       }}>
@@ -28,7 +28,7 @@ export default function CoachQuotaPill({ quota }) {
       href="/settings?section=billing"
       style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        fontSize: 10, fontWeight: 800,
+        fontSize: "var(--fs-2xs)", fontWeight: 800,
         color: low ? "#D63B3B" : "#475569",
         background: low ? "rgba(214,59,59,0.08)" : "#F1F5F9",
         padding: "3px 8px", borderRadius: 999,

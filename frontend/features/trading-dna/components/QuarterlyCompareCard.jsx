@@ -129,7 +129,7 @@ const th = {
   textAlign: "left",
   padding: "8px 10px",
   borderBottom: `1px solid ${C.border}`,
-  fontSize: 9,
+  fontSize: "var(--fs-2xs)",
   color: C.muted,
   fontWeight: 800,
   letterSpacing: "0.1em",

@@ -4,13 +4,9 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import AdminHeader from "@/components/AdminHeader";
-import { adminGetIssue, adminUpdateIssueStatus, ISSUE_CATEGORIES } from "@/services/issueApi";
+import { adminGetIssue, adminUpdateIssueStatus, categoryLabel } from "@/services/issueApi";
 
 const STATUS_FLOW = ["OPEN", "INVESTIGATING", "FIXED", "CLOSED"];
-
-function categoryLabel(value) {
-  return ISSUE_CATEGORIES.find((c) => c.value === value)?.label || value;
-}
 
 function Inner() {
   const search = useSearchParams();

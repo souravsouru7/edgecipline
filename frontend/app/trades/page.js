@@ -14,6 +14,7 @@ import { useTrades }         from "@/features/trade/hooks/useTrades";
 import { Skeleton }          from "@/features/shared";
 import { markOnboardingStep } from "@/services/api";
 import { useMarket, MARKETS } from "@/context/MarketContext";
+import LoadMoreSentinel from "@/features/shared/components/LoadMoreSentinel";
 
 const FILTER_OPTIONS = ["ALL", "LONG", "SHORT"];
 const PERIOD_OPTIONS = [
@@ -28,6 +29,7 @@ function TradesContent() {
     filtered, loading, deleteTarget, deletingId, filter, search,
     period,
     summaryStats, mounted,
+    totalTrades, hasMore, loadingMore, loadMore, trades,
     handlers: { setFilter, setPeriod, setSearch, setDeleteTarget, confirmDelete, cancelDelete },
   } = useTrades();
 
@@ -75,7 +77,7 @@ function TradesContent() {
                 fontSize: 18, fontWeight: 900,
               }}>OK</div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 3 }}>
                   ACTIVATION COMPLETE - YOUR TRADE LOG
                 </div>
                 <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginBottom: 2 }}>
@@ -103,7 +105,7 @@ function TradesContent() {
           <div className="trades-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18, opacity: mounted ? 1 : 0, transition: "all 0.5s 0.1s" }}>
             {summaryStats.map((s, i) => (
               <div key={s.label} style={{ background: "#FFFFFF", borderRadius: 10, border: "1px solid #E2E8F0", padding: "16px 18px", boxShadow: "0 2px 8px rgba(15,25,35,0.05)", animation: `fadeUp 0.4s ease ${i * 0.06}s both` }}>
-                <div style={{ fontSize: 9, color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>{s.label}</div>
+                <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>{s.label}</div>
                 {loading ? (
                   <Skeleton width="80px" height="22px" style={{ marginTop: 2 }} />
                 ) : (
@@ -117,14 +119,14 @@ function TradesContent() {
           <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap", alignItems: "center", opacity: mounted ? 1 : 0, transition: "all 0.5s 0.15s" }}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {FILTER_OPTIONS.map(f => (
-                <button key={f} onClick={() => setFilter(f)} style={{ fontSize: 10, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "9px 14px", minHeight: 38, borderRadius: 20, border: filter === f ? "1.5px solid rgba(13,158,110,0.5)" : "1px solid #E2E8F0", background: filter === f ? "rgba(13,158,110,0.1)" : "#FFFFFF", color: filter === f ? "#0D9E6E" : "#94A3B8", cursor: "pointer", transition: "all 0.2s" }}>
+                <button key={f} onClick={() => setFilter(f)} style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "9px 14px", minHeight: 38, borderRadius: 20, border: filter === f ? "1.5px solid rgba(13,158,110,0.5)" : "1px solid #E2E8F0", background: filter === f ? "rgba(13,158,110,0.1)" : "#FFFFFF", color: filter === f ? "#0D9E6E" : "#94A3B8", cursor: "pointer", transition: "all 0.2s" }}>
                   {f}
                 </button>
               ))}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {PERIOD_OPTIONS.map(option => (
-                <button key={option.value} onClick={() => setPeriod(option.value)} style={{ fontSize: 10, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "9px 14px", minHeight: 38, borderRadius: 20, border: period === option.value ? "1.5px solid rgba(15,25,35,0.35)" : "1px solid #E2E8F0", background: period === option.value ? "#0F1923" : "#FFFFFF", color: period === option.value ? "#FFFFFF" : "#94A3B8", cursor: "pointer", transition: "all 0.2s" }}>
+                <button key={option.value} onClick={() => setPeriod(option.value)} style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "9px 14px", minHeight: 38, borderRadius: 20, border: period === option.value ? "1.5px solid rgba(15,25,35,0.35)" : "1px solid #E2E8F0", background: period === option.value ? "#0F1923" : "#FFFFFF", color: period === option.value ? "#FFFFFF" : "#94A3B8", cursor: "pointer", transition: "all 0.2s" }}>
                   {option.label}
                 </button>
               ))}
@@ -142,11 +144,12 @@ function TradesContent() {
           ) : (
             <TradeTable trades={filtered} loading={loading} onDelete={setDeleteTarget} deletingId={deletingId} />
           )}
+          <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} loaded={trades.length} total={totalTrades} />
 
           {/* Footer count */}
           {filtered.length > 0 && (
-            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", fontSize: 9, color: "#94A3B8", letterSpacing: "0.08em", fontFamily: "'JetBrains Mono',monospace", background: "#F8F6F2", borderRadius: "0 0 14px 14px", marginTop: -1, border: "1px solid #E2E8F0", borderTop: "none" }}>
-              <span>SHOWING {filtered.length} TRADES</span>
+            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.08em", fontFamily: "'JetBrains Mono',monospace", background: "#F8F6F2", borderRadius: "0 0 14px 14px", marginTop: -1, border: "1px solid #E2E8F0", borderTop: "none" }}>
+              <span>SHOWING {filtered.length} OF {totalTrades} TRADES</span>
               <span>{period.toUpperCase()} WINDOW</span>
               <span>EDGECIPLINE AI COACH</span>
             </div>

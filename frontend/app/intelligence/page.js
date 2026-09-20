@@ -42,7 +42,7 @@ function ModuleLink({ href, title, eyebrow, summary, action, accent }) {
         boxShadow: "0 2px 10px rgba(15,25,35,0.04)",
       }}
     >
-      <div style={{ fontSize: 9, fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{eyebrow}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{eyebrow}</div>
       <div style={{ fontSize: 14, fontWeight: 900, color: C.primary, marginBottom: 5 }}>{title}</div>
       <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, marginBottom: 10 }}>{summary}</div>
       <div style={{ fontSize: 11, fontWeight: 800, color: accent }}>{action}</div>

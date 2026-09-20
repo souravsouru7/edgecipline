@@ -9,6 +9,7 @@ import {
 import { Capacitor } from "@capacitor/core";
 import { getValidToken, hasValidAuthToken, hydrateAuthToken } from "@/utils/auth";
 import { silentRefresh } from "@/services/apiClient";
+import { getNotificationTarget } from "@/services/notificationRoutes";
 
 // ─── Structured logging ───────────────────────────────────────────────────────
 // All FCM lifecycle events go through this. Use grep on FCM_ prefix in
@@ -99,22 +100,9 @@ async function getAuthTokenOrRefreshOnce() {
 }
 
 // ─── Deep-link router ────────────────────────────────────────────────────────
-export function getNotificationTarget(data = {}) {
-  if (data.deepLink) return data.deepLink;
-  const routes = {
-    "trade":             `/trades/view?id=${data.tradeId || ""}`,
-    "trade-edit":        `/trades/edit?id=${data.tradeId || ""}`,
-    "indian-trade":      `/indian-market/trades/view?id=${data.tradeId || ""}`,
-    "indian-trade-edit": `/indian-market/trades/edit?id=${data.tradeId || ""}`,
-    "indian-trades":     "/indian-market/trades",
-    "trades":            "/trades",
-    "weekly-report":     `/weekly-reports?id=${data.reportId || ""}`,
-    "analytics":         "/analytics",
-    "psychology":        "/checklist/psychology",
-    "notifications":     "/notifications",
-  };
-  return routes[data.screen] || "/dashboard";
-}
+// Pure mapping lives in notificationRoutes.js so it can be unit-tested
+// without Capacitor.
+export { getNotificationTarget };
 function routeFromNotification(data = {}) {
   const target = getNotificationTarget(data);
   window.dispatchEvent(new CustomEvent("edgecipline:notification-route", { detail: { target } }));
@@ -126,7 +114,7 @@ const NOTIFICATION_CHANNELS = [
   { id: "edgecipline_discipline", name: "Discipline Alerts",    description: "Setup checklist, mood risk, and trade quality warnings", importance: 4, visibility: 0, sound: "default", lights: true,  vibration: true,  lightColor: "#F59E0B" },
   { id: "edgecipline_insights",   name: "Performance Insights", description: "Repeated mistakes, weekly summaries, and improvement tips", importance: 3, visibility: 0, sound: null,      lights: true,  vibration: false, lightColor: "#0D9E6E" },
   { id: "edgecipline_coaching",   name: "Coaching",             description: "Confidence and discipline reinforcement messages", importance: 3, visibility: 0, sound: null,      lights: false, vibration: false, lightColor: "#3B82F6" },
-  { id: "edgecipline_session",    name: "Session Reminders",    description: "London, New York, and Asian session start reminders", importance: 4, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#8B5CF6" },
+  { id: "edgecipline_session",    name: "Session Reminders",    description: "Forex (London, New York) and Indian market open reminders", importance: 4, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#8B5CF6" },
   { id: "edgecipline_checklist",  name: "Pre-Trade Checklist",  description: "Daily interactive checklist in the notification shade", importance: 5, visibility: 1, sound: "default", lights: true,  vibration: true,  lightColor: "#0D9E6E" },
   { id: "edgecipline_ocr",        name: "OCR Results",          description: "Trade screenshot processing completion and failure alerts", importance: 4, visibility: 0, sound: "default", lights: true, vibration: true, lightColor: "#0EA5E9" },
   { id: "edgecipline_support",    name: "Support",              description: "Replies and status updates on your support tickets", importance: 4, visibility: 0, sound: "default", lights: true, vibration: true, lightColor: "#B8860B" },

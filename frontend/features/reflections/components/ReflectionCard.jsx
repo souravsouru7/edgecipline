@@ -123,7 +123,7 @@ export default function ReflectionCard({ data, loading }) {
               <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 240px", minWidth: 0 }}>
                 <ReflectionScoreRing score={score} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: "#94A3B8", letterSpacing: "0.08em", fontWeight: 700, textTransform: "uppercase" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.08em", fontWeight: 700, textTransform: "uppercase" }}>
                     Weekly score
                   </div>
                   <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginTop: 2 }}>
@@ -187,7 +187,7 @@ export default function ReflectionCard({ data, loading }) {
                 <Sparkles size={14} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 10, color: "#7C3AED", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: "#7C3AED", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>
                   AI coach{latestInsight.fallback ? " · offline" : ""}
                 </div>
                 <div style={{ fontSize: 12, color: "#1E293B", lineHeight: 1.55, fontWeight: 600, marginBottom: 8 }}>
@@ -247,7 +247,7 @@ function ReflectionGuide({ onStart }) {
         border: "1px solid #E2E8F0",
       }}
     >
-      <div style={{ fontSize: 10, color: "#64748B", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
+      <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
         How to use this in your trading journey
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>

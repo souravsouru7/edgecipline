@@ -9,7 +9,8 @@ const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { logger } = require("../utils/logger");
-const { CURRENT_TERMS_VERSION } = require("../constants/terms");
+const { CURRENT_TERMS_VERSION, needsTermsAcceptance } = require("../constants/terms");
+const { isAccountActive } = require("../utils/accountStatus");
 const {
   generateAccessToken,
   createRefreshToken,
@@ -76,18 +77,6 @@ function validatePasswordStrength(password) {
   if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
     throw new ApiError(400, "Password must contain at least one special character", "WEAK_PASSWORD");
   }
-}
-
-function needsTermsAcceptance(user) {
-  return (
-    user?.termsAcceptance?.acceptedTerms !== true ||
-    user?.termsAcceptance?.acceptedPrivacy !== true ||
-    user?.termsAcceptance?.termsVersion !== CURRENT_TERMS_VERSION
-  );
-}
-
-function isAccountActive(user) {
-  return !user?.accountStatus || user.accountStatus === "active";
 }
 
 // ---------------------------------------------------------------------------

@@ -1,18 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { prettyBytes } from "@/features/support/lib/prettyBytes";
 import { Paperclip, Send, X, Lock } from "lucide-react";
 import { InlineSpinner } from "./SupportBits";
 
 const DEFAULT_MAX_ATTACHMENTS = 5;
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 const MAX_BODY = 10000;
-
-function prettyBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /**
  * Reply box, shared by the customer thread and the agent console.
@@ -469,7 +464,7 @@ export default function MessageComposer({
           border-radius: 9px;
           background: var(--color-primary);
           color: #fff;
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           font-weight: 800;
         }
         .mc-select {

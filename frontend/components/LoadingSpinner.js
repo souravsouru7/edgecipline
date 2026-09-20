@@ -83,7 +83,7 @@ export default function LoadingSpinner({
           animation: "ls-pulse 2s ease-in-out infinite",
         }}>
           <img
-            src="/logo.png"
+            src="/logo.webp"
             alt=""
             loading="eager"
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
@@ -135,7 +135,7 @@ export default function LoadingSpinner({
             }} />
           </div>
           <div style={{
-            marginTop: 6, fontSize: 10, color: "#94A3B8",
+            marginTop: 6, fontSize: "var(--fs-2xs)", color: "#94A3B8",
             fontFamily: "'JetBrains Mono',monospace",
             textAlign: "center", letterSpacing: "0.06em",
           }}>

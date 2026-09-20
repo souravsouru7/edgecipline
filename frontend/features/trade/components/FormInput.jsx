@@ -1,8 +1,10 @@
 "use client";
 
+import { blockInvalidNumberKeys } from "@/features/trade/lib/numericInput";
+
 // ─── shared style constants ────────────────────────────────────────────────────
 export const labelStyle = {
-  display: "block", fontSize: 10, fontWeight: 600, color: "#4A5568",
+  display: "block", fontSize: "var(--fs-2xs)", fontWeight: 600, color: "#4A5568",
   letterSpacing: "0.1em", marginBottom: 7, fontFamily: "'JetBrains Mono',monospace",
 };
 
@@ -27,10 +29,6 @@ export const onBlurReset = e => {
 
 // Block e/E/+ in number inputs — browsers allow these for scientific notation
 // but they're nonsensical for trade values.
-const blockInvalidNumberKeys = (e) => {
-  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
-};
-
 /**
  * FormInput — labelled text/number/date input field.
  */

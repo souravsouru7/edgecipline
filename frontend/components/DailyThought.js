@@ -202,7 +202,7 @@ export default function DailyThought({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: "var(--fs-2xs)",
                   letterSpacing: "0.16em",
                   color: muted,
                   fontFamily: "'JetBrains Mono',monospace",

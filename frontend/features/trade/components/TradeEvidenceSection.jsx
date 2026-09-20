@@ -1,14 +1,11 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { genId } from "@/utils/genId";
 import { X } from "lucide-react";
 import { uploadTradeEvidenceImages } from "@/services/uploadApi";
 
 const MAX_IMAGES = 20;
-
-function genId() {
-  return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
 
 /**
  * Reusable evidence-image section used in add-trade, edit-trade, and OCR
@@ -159,12 +156,12 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
           gap: 10px; margin-bottom: 8px;
         }
         .evidence-label {
-          font-size: 10px; font-weight: 700;
+          font-size: var(--fs-2xs); font-weight: 700;
           letter-spacing: 0.1em; color: #64748B;
           font-family: 'JetBrains Mono', monospace;
         }
         .evidence-count {
-          font-size: 10px; color: #94A3B8;
+          font-size: var(--fs-2xs); color: #94A3B8;
           font-family: 'JetBrains Mono', monospace;
         }
         .evidence-grid {
@@ -206,7 +203,7 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         .evidence-new-badge {
           position: absolute; top: 4px; left: 4px;
           background: ${accentColor}; color: #FFFFFF;
-          font-size: 8px; font-weight: 800;
+          font-size: var(--fs-2xs); font-weight: 800;
           padding: 2px 5px; border-radius: 4px; letter-spacing: 0.08em;
           font-family: 'JetBrains Mono', monospace;
         }
@@ -214,7 +211,7 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
           width: ${thumbW}px; height: ${thumbH}px;
           border-radius: 9px;
           border: 1.5px dashed #CBD5E0; background: #FFFFFF;
-          color: #64748B; font-size: 10px; font-weight: 600;
+          color: #64748B; font-size: var(--fs-2xs); font-weight: 600;
           cursor: pointer;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           gap: 4px; transition: border-color 0.15s, background 0.15s;

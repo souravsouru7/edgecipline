@@ -1,4 +1,5 @@
 const Razorpay = require("razorpay");
+const { addDays } = require("../utils/dateUtils");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Payment = require("../models/Payment");
@@ -429,12 +430,6 @@ async function createRazorpayOrder({ userId, planType = "3_months", couponCode }
   }
 
   return { ...order, planType: plan.planType, quote: publicQuote(quote) };
-}
-
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
 }
 
 async function notifyPaymentReceived({ user, userId, paymentId, amount, planType }) {

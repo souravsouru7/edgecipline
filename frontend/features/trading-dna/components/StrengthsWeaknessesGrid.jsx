@@ -39,7 +39,7 @@ function Item({ entry, accent, accentBg, accentText }) {
       {entry.metric ? (
         <div
           style={{
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             color: accent,
             fontFamily: FONT.mono,
             letterSpacing: "0.04em",
@@ -57,7 +57,7 @@ function Column({ title, items, accent, accentBg, accentText, emptyLabel }) {
     <div>
       <div
         style={{
-          fontSize: 9,
+          fontSize: "var(--fs-2xs)",
           color: accent,
           fontWeight: 800,
           letterSpacing: "0.12em",

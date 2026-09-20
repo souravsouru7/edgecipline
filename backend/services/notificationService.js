@@ -401,10 +401,36 @@ async function sendPushToUser(userId, notification, acceptedTokenIds = []) {
 }
 
 // ─── Public notifyUser ────────────────────────────────────────────────────────
+// Reason codes attached to every "not sent" decision. Stable strings so log
+// queries and the admin history view can group on them.
+const SKIP_REASONS = Object.freeze({
+  PREFERENCE_DISABLED: "PREFERENCE_DISABLED",
+  PUSH_DISABLED: "push_disabled",   // persisted in delivery.error — keep legacy spelling
+  QUIET_HOURS: "quiet_hours",       // persisted in delivery.error — keep legacy spelling
+  DUPLICATE: "DUPLICATE",
+  NO_DEVICE_TOKEN: "NO_DEVICE_TOKEN",
+});
+
+function logSkipped(userId, payload, reason, extra = {}) {
+  logger.info("NOTIFICATION_SKIPPED", {
+    userId: userId?.toString?.(),
+    notificationType: payload.type,
+    marketType: payload.data?.marketType || null,
+    dedupeKey: payload.dedupeKey || null,
+    reason,
+    ...extra,
+  });
+}
+
 async function notifyUser(userId, payload) {
   requireUserId(userId);
   const prefs = await getOrCreatePreferences(userId);
-  if (!isNotificationTypeEnabled(prefs, payload.type)) return null;
+  if (!isNotificationTypeEnabled(prefs, payload.type)) {
+    logSkipped(userId, payload, SKIP_REASONS.PREFERENCE_DISABLED, {
+      preferenceFlag: resolvePreferenceFlag(payload.type) || (isSmartCoachType(payload.type) ? "smartCoach" : "inAppEnabled/pushEnabled"),
+    });
+    return null;
+  }
   const quietHoursBlocked = isBlockedByQuietHours(prefs, userId, payload.type);
 
   const dedupeKey = payload.dedupeKey || `${payload.type}:${userId}:${payload.sourceId || Date.now()}`;
@@ -430,7 +456,13 @@ async function notifyUser(userId, payload) {
   } catch (error) {
     if (error?.code === 11000) {
       notification = await NotificationHistory.findOne({ user: userId, dedupeKey });
-      if (!notification || notification.status === "sent") return notification;
+      if (!notification || notification.status === "sent") {
+        logSkipped(userId, payload, SKIP_REASONS.DUPLICATE, {
+          notificationId: notification?._id?.toString?.(),
+          existingStatus: notification?.status || null,
+        });
+        return notification;
+      }
       logger.info("NOTIFICATION_RETRY_RESUMED", {
         userId: userId?.toString?.(), notificationType: payload.type, dedupeKey,
       });
@@ -440,7 +472,8 @@ async function notifyUser(userId, payload) {
   }
 
   if (!prefs.pushEnabled || quietHoursBlocked) {
-    const reason = quietHoursBlocked ? "quiet_hours" : "push_disabled";
+    const reason = quietHoursBlocked ? SKIP_REASONS.QUIET_HOURS : SKIP_REASONS.PUSH_DISABLED;
+    logSkipped(userId, payload, reason, { notificationId: notification._id?.toString?.(), inboxRowKept: true });
     return NotificationHistory.findOneAndUpdate(
       { _id: notification._id, user: userId },
       { status: "skipped", "delivery.error": reason },
@@ -505,10 +538,14 @@ async function notifyUser(userId, payload) {
       { returnDocument: "after" }
     ) || notification;
 
+    if (delivery.noTokens && !acceptedTokenIds.length) {
+      logSkipped(userId, payload, SKIP_REASONS.NO_DEVICE_TOKEN, { notificationId: notification._id?.toString?.(), inboxRowKept: true });
+    }
     logger.info("NOTIFICATION_SENT", {
       notificationId: notification._id?.toString?.(),
       userId: userId?.toString?.(),
       notificationType: payload.type,
+      marketType: payload.data?.marketType || null,
       status,
       successCount: delivery.successCount,
       failureCount: delivery.failureCount,
@@ -645,6 +682,7 @@ async function markAllAsRead(userId) {
 }
 
 module.exports = {
+  SKIP_REASONS,
   getAllowedPreferences,
   getOrCreatePreferences,
   isBlockedByQuietHours,

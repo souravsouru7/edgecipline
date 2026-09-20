@@ -17,6 +17,7 @@ const jwt = require("jsonwebtoken");
 const { appConfig } = require("../config");
 const RefreshToken = require("../models/RefreshToken");
 const ApiError = require("../utils/ApiError");
+const { isAccountActive } = require("../utils/accountStatus");
 
 // Access token lives 15 minutes — small blast radius if stolen via XSS.
 // Configurable so you can increase in dev without code changes.
@@ -40,10 +41,6 @@ const REFRESH_COOKIE_NAME = "sid";
 // logout for users on slow mobile networks.
 const REFRESH_REUSE_GRACE_MS =
   Number(process.env.REFRESH_REUSE_GRACE_MS) || 60_000;
-
-function isAccountActive(user) {
-  return !user?.accountStatus || user.accountStatus === "active";
-}
 
 // ---------------------------------------------------------------------------
 // Crypto helpers

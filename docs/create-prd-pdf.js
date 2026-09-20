@@ -59,23 +59,23 @@ function newPage() {
   y = 742;
 }
 
-function addLine(text = "", options = {}) {
+function addLine(text = "", options = {}, bold = false) {
   const size = options.size || 10;
   const leading = options.leading || 14;
   const indent = options.indent || 0;
 
   if (y - leading < 54) newPage();
-  page.push({ text, size, leading, indent });
+  page.push({ text, size, leading, indent, bold });
   y -= leading;
 }
 
-function addWrapped(text, options = {}) {
+function addWrapped(text, options = {}, bold = false) {
   const max = options.max || 86;
   const prefix = options.prefix || "";
   const continuation = options.continuation || "";
   const lines = wrap(`${prefix}${text}`, max);
   lines.forEach((line, index) => {
-    addLine(index === 0 ? line : `${continuation}${line}`, options);
+    addLine(index === 0 ? line : `${continuation}${line}`, options, bold);
   });
 }
 
@@ -89,7 +89,7 @@ page.push({ text: "EDGEDISCIPLINE", size: 10, leading: 16, indent: 0 });
 page.push({ text: "Product Requirements Document", size: 26, leading: 36, indent: 0 });
 page.push({ text: "AI-powered trading journal and discipline coach", size: 13, leading: 22, indent: 0 });
 page.push({ text: "Prepared from the Edgecipline codebase", size: 10, leading: 18, indent: 0 });
-page.push({ text: "Last updated: 2026-06-13", size: 10, leading: 18, indent: 0 });
+page.push({ text: "Last updated: 2026-09-18", size: 10, leading: 18, indent: 0 });
 pages.push(page);
 page = [];
 y = 742;
@@ -97,6 +97,7 @@ y = 742;
 const lines = markdown.split(/\r?\n/);
 let paragraph = [];
 let inCode = false;
+let tableHeader = null;
 
 function flushParagraph() {
   if (!paragraph.length) return;
@@ -120,6 +121,7 @@ for (const rawLine of lines) {
 
   if (!line.trim()) {
     flushParagraph();
+    tableHeader = null;
     addSpacer(5);
     continue;
   }
@@ -135,6 +137,32 @@ for (const rawLine of lines) {
     wrap(text, st.max).forEach((wrapped) => addLine(wrapped, { size: st.size, leading: st.leading }));
     continue;
   }
+
+  // Markdown tables: header row sets column names, separator row is skipped,
+  // each body row renders as the first cell in bold followed by "Column: value"
+  // lines for the remaining cells. Keeps the PDF readable without drawing grids.
+  if (/^\|.*\|\s*$/.test(line.trim())) {
+    flushParagraph();
+    const cells = line.trim().slice(1, -1).split("|").map((c) => c.trim());
+    if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue;
+    if (!tableHeader) {
+      tableHeader = cells;
+      continue;
+    }
+    addSpacer(3);
+    addWrapped(cells[0], { size: 10.5, leading: 14, max: 84 }, true);
+    // Short cells (Web: Yes / Mobile: Yes) share one line; long ones wrap alone.
+    const short = [];
+    for (let i = 1; i < cells.length; i++) {
+      if (!cells[i]) continue;
+      const labelled = `${tableHeader[i] || ""}: ${cells[i]}`;
+      if (labelled.length <= 28) short.push(labelled);
+      else addWrapped(labelled, { size: 9.5, leading: 13, max: 88, indent: 14 });
+    }
+    if (short.length) addLine(short.join("     "), { size: 9.5, leading: 13, indent: 14 });
+    continue;
+  }
+  tableHeader = null;
 
   if (/^[-*]\s+/.test(line.trim())) {
     flushParagraph();
@@ -188,7 +216,7 @@ for (let p = 0; p < pages.length; p++) {
   let stream = "BT\n";
 
   for (const line of pages[p]) {
-    const font = line.size >= 12 ? boldFontId : fontId;
+    const font = line.bold || line.size >= 12 ? boldFontId : fontId;
     stream += `/F${font === boldFontId ? "B" : "R"} ${line.size} Tf\n`;
     stream += `1 0 0 1 ${62 + line.indent} ${cursorY} Tm\n`;
     stream += `(${sanitize(line.text)}) Tj\n`;

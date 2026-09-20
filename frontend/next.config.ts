@@ -50,6 +50,10 @@ const protectedRoutePatterns = [
 
 const nextConfig: NextConfig = {
   output: "export",
+  env: {
+    // Cache buster for the persisted React Query cache (utils/persistedQueryCache).
+    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || process.env.npm_package_version || "0.0.0",
+  },
   images: {
     unoptimized: true,
   },

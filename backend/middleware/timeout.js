@@ -1,5 +1,6 @@
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { withTimeout: raceWithTimeout } = require("../utils/withTimeout");
 
 /**
  * Global Timeout Configuration
@@ -106,36 +107,9 @@ function timeoutMiddleware(req, res, next) {
   next();
 }
 
-/**
- * Create a promise that rejects after specified timeout
- * @param {Promise} promise - The promise to wrap
- * @param {number} timeoutMs - Timeout in milliseconds
- * @param {string} operationName - Name of operation for logging
- * @returns {Promise} - Wrapped promise with timeout
- */
-async function withTimeout(promise, operationName, timeoutMs = TIMEOUT_CONFIG.externalApiTimeout) {
-  const startTime = Date.now();
-  
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => {
-        const duration = Date.now() - startTime;
-        const error = new Error(`${operationName} timed out after ${duration}ms (limit: ${timeoutMs}ms)`);
-        error.name = 'TimeoutError';
-        error.code = 'ETIMEDOUT';
-        error.duration = duration;
-        
-        logger.error(`${operationName} timeout`, {
-          operation: operationName,
-          duration: `${duration}ms`,
-          timeout: `${timeoutMs}ms`,
-        });
-        
-        reject(error);
-      }, timeoutMs);
-    }),
-  ]);
+// Shared with every service that races an external call; see utils/withTimeout.
+function withTimeout(promise, operationName, timeoutMs = TIMEOUT_CONFIG.externalApiTimeout) {
+  return raceWithTimeout(promise, operationName, timeoutMs);
 }
 
 /**

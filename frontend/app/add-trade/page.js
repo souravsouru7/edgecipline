@@ -13,14 +13,11 @@ import PageHeader            from "@/features/shared/components/PageHeader";
 import { useClock }          from "@/features/shared/hooks/useClock";
 import { useMarket }         from "@/context/MarketContext";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
-import { useAddTrade, UNDERLYINGS, blockInvalidNumberKeys } from "@/features/trade/hooks/useAddTrade";
+import { useAddTrade, UNDERLYINGS } from "@/features/trade/hooks/useAddTrade";
+import { blockInvalidNumberKeys } from "@/features/trade/lib/numericInput";
+import { getTodayInputValue } from "@/features/trade/lib/dateInput";
 import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
 import { Spinner }           from "@/features/shared";
-
-const getTodayInputValue = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-};
 
 const MOODS = [
   { emoji: "😰", val: 1, label: "Stressed" },
@@ -114,7 +111,7 @@ function AddTradeContent() {
             border: "1px solid rgba(34,199,142,0.25)",
             marginBottom: 18,
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: theme.primary, ...monoStyle, marginBottom: 4 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: theme.primary, ...monoStyle, marginBottom: 4 }}>
               STEP 2 OF 3 · LOG YOUR FIRST TRADE
             </div>
             <div style={{ fontSize: 13, color: theme.secondary, lineHeight: 1.55 }}>
@@ -169,7 +166,7 @@ function AddTradeContent() {
                   <Field label="Stock Symbol" required>
                     <input name="stockSymbol" placeholder="e.g. RELIANCE, TCS, HDFC" value={trade.stockSymbol} onChange={handleChange} style={{ ...fieldInput, textTransform: "uppercase" }} />
                   </Field>
-                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                     <Field label="Exchange">
                       <select name="exchange" value={trade.exchange} onChange={handleChange} style={fieldInput}>
                         <option value="NSE">NSE</option>
@@ -183,7 +180,7 @@ function AddTradeContent() {
                       </select>
                     </Field>
                   </div>
-                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                     <Field label="Shares Qty" required>
                       <input name="sharesQty" type="number" min="1" placeholder="e.g. 100" value={trade.sharesQty} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={fieldInput} />
                     </Field>
@@ -220,7 +217,7 @@ function AddTradeContent() {
                   <Field label="Strike (₹)" required>
                     <input name="strikePrice" type="number" min="1" step="1" placeholder="e.g. 26100" value={trade.strikePrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={fieldInput} />
                   </Field>
-                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                     <Field label="CE / PE">
                       <select name="optionType" value={trade.optionType} onChange={handleChange} style={fieldInput}>
                         <option value="CE">CE</option>
@@ -244,7 +241,7 @@ function AddTradeContent() {
                 <Field label="Pair" required>
                   <input name="pair" placeholder="XAUUSD" value={trade.pair} onChange={handleChange} style={{ ...fieldInput, textTransform: "uppercase" }} />
                 </Field>
-                <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                   <Field label="Action">
                     <select name="type" value={trade.type} onChange={handleChange} style={fieldInput}>
                       <option value="BUY">BUY</option>
@@ -258,7 +255,7 @@ function AddTradeContent() {
               </>
             )}
 
-            <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <Field label={isEquity ? "Avg buy price" : isIndianMarket ? "Entry premium (₹)" : "Entry Price"} required>
                 <input name="entryPrice" type="number" step="any" placeholder={isEquity ? "e.g. 2450.50" : isIndianMarket ? "e.g. 85.50" : "0.00"} value={trade.entryPrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={fieldInput} />
               </Field>
@@ -278,7 +275,7 @@ function AddTradeContent() {
 
           {/* ── Risk Management ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <Field label="Stop Loss">
                 <input name="stopLoss" type="number" step="any" value={trade.stopLoss} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={fieldInput} />
               </Field>
@@ -298,7 +295,7 @@ function AddTradeContent() {
             <Field label="Trade Date" required>
               <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} min={accountCreatedDate || undefined} max={getTodayInputValue()} style={fieldInput} />
               {accountCreatedDate && (
-                <div style={{ fontSize: 10, color: theme.muted, marginTop: 5, ...monoStyle }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 5, ...monoStyle }}>
                   Earliest: {accountCreatedDate}
                 </div>
               )}
@@ -376,7 +373,7 @@ function AddTradeContent() {
             </Field>
             <Field label="Notes">
               <textarea name="notes" placeholder="Setup, context, emotions..." value={trade.notes} onChange={handleChange} rows={3} maxLength={2000} style={{ ...fieldInput, resize: "vertical" }} />
-              <div style={{ fontSize: 10, color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
             </Field>
           </div>
 
@@ -426,7 +423,7 @@ function AddTradeContent() {
           </div>
 
           {/* ── Costs ── */}
-          <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="form-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
             {isIndianMarket ? (
               <>
                 <Field label="Brokerage (₹)">
@@ -452,7 +449,7 @@ function AddTradeContent() {
           <div style={{ background: theme.card, borderRadius: 12, padding: 20, border: `1px solid ${theme.border}` }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: theme.secondary, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
               TRADE PSYCHOLOGY
-              <span style={{ fontSize: 9, color: theme.bear, fontWeight: 700, ...monoStyle, background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
+              <span style={{ fontSize: "var(--fs-2xs)", color: theme.bear, fontWeight: 700, ...monoStyle, background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
             </div>
 
             <div style={{ marginBottom: 18 }}>
@@ -467,7 +464,7 @@ function AddTradeContent() {
                       transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
                     }}>
                     <div style={{ fontSize: 22, marginBottom: 4 }}>{m.emoji}</div>
-                    <div style={{ fontSize: 9, color: trade.mood === m.val ? theme.primary : theme.muted, fontWeight: 800, letterSpacing: "0.02em" }}>{m.label.toUpperCase()}</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: trade.mood === m.val ? theme.primary : theme.muted, fontWeight: 800, letterSpacing: "0.02em" }}>{m.label.toUpperCase()}</div>
                   </button>
                 ))}
               </div>
@@ -524,7 +521,7 @@ function AddTradeContent() {
 
             <div>
               <label style={{ ...fieldLabel, marginBottom: 8 }}>Trade Quality (how well did you execute?)</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                 {[
                   { val: "Great", color: theme.bull, desc: "Followed the plan" },
                   { val: "Average", color: "#F59E0B", desc: "Partial execution" },
@@ -538,7 +535,7 @@ function AddTradeContent() {
                       transition: "all 0.2s"
                     }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : theme.secondary }}>{q.val}</div>
-                    <div style={{ fontSize: 9, color: theme.muted, marginTop: 2 }}>{q.desc}</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 2 }}>{q.desc}</div>
                   </button>
                 ))}
               </div>

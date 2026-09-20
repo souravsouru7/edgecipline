@@ -47,7 +47,7 @@ export default function MarketStep({ value, onChange }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#F1F5F9", marginBottom: 2 }}>{opt.title}</div>
               <div style={{ fontSize: 11, color: "#94A3B8" }}>{opt.sub}</div>
-              <div style={{ fontSize: 10, color: "#64748B", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>e.g. {opt.examples}</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>e.g. {opt.examples}</div>
             </div>
             <span style={{
               width: 22, height: 22, borderRadius: "50%",

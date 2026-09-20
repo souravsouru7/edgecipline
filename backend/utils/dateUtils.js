@@ -90,7 +90,62 @@ function normalizeTradeDate(tradeDate, { accountCreatedAt } = {}) {
   return parsed;
 }
 
+// Calendar-day arithmetic on a Date (local time). Used for subscription and
+// trial expiry math.
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+// "YYYY-MM-DDTHH" bucket key. Cron jobs use it as a Redis lock/idempotency
+// suffix so a job that runs twice within the same hour is a no-op.
+function hourlyKey(date = new Date()) {
+  return date.toISOString().slice(0, 13);
+}
+
+// setMonth()/setFullYear() don't clamp -- subtracting a month from e.g. Mar
+// 31 overflows into Feb 31, which JS silently rolls into Mar 3 instead of
+// erroring, shrinking the "last month" filter to skip nearly all of
+// February. Set the day to 1 before changing month/year (so the change
+// itself can't overflow), then clamp back to the last real day of the
+// resulting month. Same rollover class as the bug fixed in normalizeTradeDate.
+function subtractMonthsClamped(date, months) {
+  const originalDay = date.getDate();
+  const result = new Date(date);
+  result.setDate(1);
+  result.setMonth(result.getMonth() - months);
+  const daysInResultMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(originalDay, daysInResultMonth));
+  return result;
+}
+
+// Start boundary for the trade-list `period` query param ("1w" | "1m" |
+// "3m" | "1y"). Anything else means "all time" and returns null.
+function getPeriodStart(period) {
+  const now = new Date();
+  const start = new Date(now);
+
+  switch (String(period || "all").toLowerCase()) {
+    case "1w":
+      start.setDate(start.getDate() - 7);
+      return start;
+    case "1m":
+      return subtractMonthsClamped(now, 1);
+    case "3m":
+      return subtractMonthsClamped(now, 3);
+    case "1y":
+      return subtractMonthsClamped(now, 12);
+    default:
+      return null;
+  }
+}
+
 module.exports = {
   toUtcDayStart,
   normalizeTradeDate,
+  addDays,
+  hourlyKey,
+  subtractMonthsClamped,
+  getPeriodStart,
 };

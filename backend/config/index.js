@@ -345,9 +345,14 @@ const appConfig = {
     from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@edgecipline.com",
   },
   razorpay: {
-    keyId: process.env.RAZORPAY_KEY_ID || "",
-    keySecret: process.env.RAZORPAY_KEY_SECRET || "",
-    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    keyId: (process.env.RAZORPAY_KEY_ID || "").trim(),
+    keySecret: (process.env.RAZORPAY_KEY_SECRET || "").trim(),
+    webhookSecret: (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim(),
+    // "live" | "test" | "unset", read off the key prefix rather than a
+    // separate env var so the two can never disagree. Razorpay itself decides
+    // whether money moves purely from which key signed the order, so this is
+    // the only honest source of truth for "are we charging real cards".
+    mode: razorpayModeOf(process.env.RAZORPAY_KEY_ID),
     // Sandbox payments activate a REAL subscription against the REAL database
     // from a fabricated payment ID. Any authenticated user can self-grant
     // premium. Keying that purely on NODE_ENV was too weak: a staging box that
@@ -446,6 +451,17 @@ const appConfig = {
   },
 };
 
+// rzp_live_* signs real charges, rzp_test_* signs nothing. Anything else is a
+// key that was pasted wrong (a whole "key_id:secret" pair, a quoted value, a
+// truncated copy) and must not be treated as either.
+function razorpayModeOf(keyId) {
+  const value = String(keyId || "").trim();
+  if (!value) return "unset";
+  if (/^rzp_live_[A-Za-z0-9]+$/.test(value)) return "live";
+  if (/^rzp_test_[A-Za-z0-9]+$/.test(value)) return "test";
+  return "invalid";
+}
+
 function assertFirebaseAdminConfig() {
   if (!appConfig.firebase.projectId || !appConfig.firebase.clientEmail || !appConfig.firebase.privateKey) {
     const error = new Error(
@@ -518,6 +534,97 @@ function assertGooglePlayRtdnConfig() {
   }
 
   return appConfig.googlePlay;
+}
+
+// Everything about the payment configuration that an operator needs to see in
+// the boot log, as human sentences. Warnings only — the hard failures live in
+// assertRazorpayProductionConfig() below, which runs before the server binds.
+// Nothing here prints key material.
+function getRazorpayConfigWarnings() {
+  const warnings = [];
+  const isProduction = appConfig.env === "production";
+  const { mode, keySecret, webhookSecret, keyId } = appConfig.razorpay;
+
+  if (mode === "unset") {
+    warnings.push(
+      "RAZORPAY_KEY_ID is empty: checkout returns 503 RAZORPAY_CONFIG_MISSING. " +
+      "Only manual admin activation can grant premium."
+    );
+  } else if (mode === "invalid") {
+    warnings.push(
+      "RAZORPAY_KEY_ID is neither rzp_live_* nor rzp_test_*. Paste ONLY the Key Id " +
+      "from Razorpay Dashboard > Account & Settings > API Keys — not the key:secret pair, " +
+      "and without quotes."
+    );
+  } else if (mode === "test" && !isProduction) {
+    warnings.push("Razorpay is in TEST mode: no card is ever charged. Use Razorpay's test cards.");
+  }
+
+  if (mode !== "unset" && !keySecret) {
+    warnings.push("RAZORPAY_KEY_SECRET is empty while RAZORPAY_KEY_ID is set; every order creation and signature check fails.");
+  }
+  // The Key Secret is issued together with the Key Id, so a live id paired
+  // with the old test secret is the single most likely go-live mistake: order
+  // creation 401s and every payment looks like a Razorpay outage.
+  if (mode === "live" && keySecret && /^rzp_test_/i.test(keySecret)) {
+    warnings.push("RAZORPAY_KEY_SECRET looks like a test secret while RAZORPAY_KEY_ID is live. Both must come from the same Live-mode key pair.");
+  }
+  if (keySecret && keySecret === keyId) {
+    warnings.push("RAZORPAY_KEY_SECRET is identical to RAZORPAY_KEY_ID; the secret is a separate value shown once when the key is generated.");
+  }
+  if (!webhookSecret) {
+    warnings.push(
+      (isProduction ? "PRODUCTION: " : "") +
+      "RAZORPAY_WEBHOOK_SECRET is empty — every webhook returns 503, so a payment whose " +
+      "browser tab closed mid-checkout is never activated. Create the webhook at " +
+      "Razorpay Dashboard > Settings > Webhooks and copy its secret here."
+    );
+  } else if (webhookSecret === keySecret) {
+    warnings.push("RAZORPAY_WEBHOOK_SECRET must not equal RAZORPAY_KEY_SECRET; it is generated separately when you create the webhook endpoint.");
+  }
+
+  return warnings;
+}
+
+// Fail CLOSED at boot, in production only. Same reasoning as
+// assertGooglePlayConfig: everything below sits upstream of granting a paid
+// entitlement, and a test key against a production database is worse than a
+// down server — Razorpay's test cards would mint real premium accounts for
+// free. Called from server.js before the listener binds, so a misconfigured
+// deploy dies in the logs instead of at a customer's first checkout.
+function assertRazorpayProductionConfig() {
+  if (appConfig.env !== "production") return appConfig.razorpay;
+
+  const { mode, keySecret } = appConfig.razorpay;
+  const fail = (message, code) => {
+    const error = new Error(message);
+    error.code = code;
+    throw error;
+  };
+
+  if (mode === "test") {
+    fail(
+      "RAZORPAY_KEY_ID is a TEST key (rzp_test_*) with NODE_ENV=production. Razorpay's " +
+      "test cards would activate real subscriptions against the production database. " +
+      "Set the Live key pair from Razorpay Dashboard > Account & Settings > API Keys.",
+      "RAZORPAY_TEST_KEY_IN_PRODUCTION"
+    );
+  }
+  if (mode === "invalid") {
+    fail(
+      "RAZORPAY_KEY_ID is malformed. Expected the Key Id alone, starting with rzp_live_.",
+      "RAZORPAY_KEY_MALFORMED"
+    );
+  }
+  if (mode === "live" && !keySecret) {
+    fail(
+      "RAZORPAY_KEY_SECRET is empty while a live Key Id is set. Both halves of the live " +
+      "key pair are required before the server may accept payments.",
+      "RAZORPAY_CONFIG_MISSING"
+    );
+  }
+
+  return appConfig.razorpay;
 }
 
 // Mailbox providers whose domains Resend can never verify. RESEND_FROM on one
@@ -612,6 +719,14 @@ function getMaskedConfigSnapshot() {
     // service account is absent, every purchase fails verification and the
     // user is charged without being activated. Print enough to spot that at
     // boot — the package name and the client email, never the private key.
+    // Which mode Razorpay is in decides whether a checkout moves real money;
+    // the Key Id is printed masked because support tickets need to identify
+    // the key, and the secret is never printed at all.
+    razorpayMode: appConfig.razorpay.mode,
+    razorpayKeyId: appConfig.razorpay.keyId ? maskSecret(appConfig.razorpay.keyId, 12, 4) : "[missing]",
+    razorpaySecretConfigured: Boolean(appConfig.razorpay.keySecret),
+    razorpayWebhookConfigured: Boolean(appConfig.razorpay.webhookSecret),
+    razorpayWarnings: getRazorpayConfigWarnings(),
     googlePlayEnabled: appConfig.googlePlay.enabled,
     googlePlayPackageName: appConfig.googlePlay.packageName || "[missing]",
     googlePlayClientEmail: appConfig.googlePlay.clientEmail || "[missing]",
@@ -627,7 +742,9 @@ module.exports = {
   assertGooglePlayConfig,
   assertGooglePlayRtdnConfig,
   assertGoogleVisionConfig,
+  assertRazorpayProductionConfig,
   getEmailConfigWarnings,
+  getRazorpayConfigWarnings,
   getMaskedConfigSnapshot,
   maskSecret,
 };

@@ -65,7 +65,7 @@ export default function ControlsBar({
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <span
           style={{
-            fontSize: 9,
+            fontSize: "var(--fs-2xs)",
             color: C.muted,
             fontWeight: 800,
             letterSpacing: "0.1em",
@@ -87,7 +87,7 @@ export default function ControlsBar({
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <span
           style={{
-            fontSize: 9,
+            fontSize: "var(--fs-2xs)",
             color: C.muted,
             fontWeight: 800,
             letterSpacing: "0.1em",

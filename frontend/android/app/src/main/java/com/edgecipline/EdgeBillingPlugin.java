@@ -216,11 +216,16 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
                         ))
                         .build();
 
-                billingClient.queryProductDetailsAsync(params, (result, productDetailsList) -> {
+                // Billing 8 hands back a QueryProductDetailsResult rather than
+                // a bare list: products Play could not resolve are reported in
+                // getUnfetchedProductList() instead of being silently dropped.
+                billingClient.queryProductDetailsAsync(params, (result, queryResult) -> {
                     if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
                         call.reject(describeResult(result), String.valueOf(result.getResponseCode()));
                         return;
                     }
+
+                    List<ProductDetails> productDetailsList = queryResult.getProductDetailsList();
 
                     JSArray offers = new JSArray();
                     productCache.clear();

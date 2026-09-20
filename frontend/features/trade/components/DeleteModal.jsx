@@ -21,24 +21,24 @@ export default function DeleteModal({ trade, onConfirm, onCancel }) {
         <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 800, color: "#0F1923", marginBottom: 8 }}>
           DELETE TRADE?
         </div>
-        <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6, letterSpacing: "0.08em" }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", marginBottom: 6, letterSpacing: "0.08em" }}>
           TRADE TO DELETE
         </div>
         <div style={{ fontSize: 13, color: "#0F1923", fontFamily: "'JetBrains Mono',monospace", marginBottom: 20, fontWeight: 600 }}>
           {trade?.pair} — {trade?.type?.toUpperCase()}
         </div>
-        <div style={{ fontSize: 9, color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 22, lineHeight: 1.6 }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 22, lineHeight: 1.6 }}>
           THIS ACTION CANNOT BE UNDONE. THE TRADE WILL BE PERMANENTLY REMOVED FROM YOUR TRADE LOG.
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
           <button
             onClick={onCancel}
-            style={{ flex: 1, padding: "10px", background: "#F8F6F2", border: "1px solid #E2E8F0", borderRadius: 6, color: "#4A5568", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.12em", cursor: "pointer" }}
+            style={{ flex: 1, padding: "10px", background: "#F8F6F2", border: "1px solid #E2E8F0", borderRadius: 6, color: "#4A5568", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.12em", cursor: "pointer" }}
           >CANCEL</button>
           <button
             onClick={onConfirm}
-            style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg,#D63B3B,#F87171)", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "0.12em", cursor: "pointer", boxShadow: "0 4px 12px rgba(214,59,59,0.3)" }}
+            style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg,#D63B3B,#F87171)", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "0.12em", cursor: "pointer", boxShadow: "0 4px 12px rgba(214,59,59,0.3)" }}
           >DELETE TRADE</button>
         </div>
       </div>

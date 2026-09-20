@@ -50,7 +50,7 @@ export default function StreakHeroChip({ streaks }) {
       <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>{palette.icon}</span>
       <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
         <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.2 }}>{label}</span>
-        <span style={{ fontSize: 10, opacity: 0.75 }}>{sub}</span>
+        <span style={{ fontSize: "var(--fs-2xs)", opacity: 0.75 }}>{sub}</span>
       </span>
     </Link>
   );

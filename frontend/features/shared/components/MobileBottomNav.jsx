@@ -76,11 +76,11 @@ function MobileBottomNav() {
           right: 0,
           bottom: 0,
           zIndex: 900,
-          background: "rgba(244,242,238,0.9)",
+          background: "rgba(244,242,238,0.96)",
           borderTop: "1px solid var(--color-border-subtle)",
           boxShadow: "0 -12px 34px rgba(15,25,35,0.12)",
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
+          // Frosted-glass blur is applied by CSS on non-Android platforms
+          // only (see mobile-optimizations.css) — never inline.
           paddingBottom: "env(safe-area-inset-bottom)",
           justifyContent: "space-around",
           alignItems: "stretch",
@@ -116,7 +116,7 @@ function MobileBottomNav() {
                 boxSizing: "border-box",
                 textDecoration: "none",
                 color: primary ? ACCENT : active ? ACCENT : MUTED,
-                fontSize: 10.5,
+                fontSize: "var(--fs-2xs)",
                 fontWeight: primary || active ? 700 : 500,
                 fontFamily: "var(--font-plus-jakarta-sans)",
                 letterSpacing: "0.01em",
@@ -193,6 +193,13 @@ function MobileBottomNav() {
         @media (max-width: 768px) {
           .mobile-bottom-nav {
             display: flex;
+          }
+          @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+            html:not([data-platform="android"]) .mobile-bottom-nav {
+              background: rgba(244,242,238,0.9);
+              backdrop-filter: blur(18px);
+              -webkit-backdrop-filter: blur(18px);
+            }
           }
           .mobile-bottom-nav a {
             outline-offset: -6px;

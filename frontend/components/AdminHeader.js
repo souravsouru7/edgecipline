@@ -59,7 +59,7 @@ export default function AdminHeader({ title, subtitle }) {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
           <div style={{ width: 150, height: 38, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-            <img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} />
+            <img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} />
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export default function AdminHeader({ title, subtitle }) {
               {unreadCount > 0 && (
                 <div style={{ 
                   position: "absolute", top: -2, right: -2, background: "#D63B3B", 
-                  color: "white", fontSize: 8, fontWeight: 800, minWidth: 14, height: 14, 
+                  color: "white", fontSize: "var(--fs-2xs)", fontWeight: 800, minWidth: 14, height: 14, 
                   borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
                   border: "2px solid white"
                 }}>
@@ -109,7 +109,7 @@ export default function AdminHeader({ title, subtitle }) {
                         await markAllAdminNotificationsAsRead();
                         fetchNotifications();
                       }}
-                      style={{ background: "none", border: "none", color: "#B8860B", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+                      style={{ background: "none", border: "none", color: "#B8860B", fontSize: "var(--fs-2xs)", fontWeight: 700, cursor: "pointer" }}
                     >
                       MARK ALL AS READ
                     </button>
@@ -148,7 +148,7 @@ export default function AdminHeader({ title, subtitle }) {
                           <div style={{ textAlign: "left" }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 2 }}>{n.title}</div>
                             <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.4, marginBottom: 4 }}>{n.message}</div>
-                            <div style={{ fontSize: 9, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
                               {new Date(n.createdAt).toLocaleString()}
                             </div>
                           </div>
@@ -157,7 +157,7 @@ export default function AdminHeader({ title, subtitle }) {
                     )}
                   </div>
                   <div style={{ padding: 12, textAlign: "center", borderTop: "1px solid #F1F5F9", background: "#F8FAFC" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", letterSpacing: "0.05em" }}>END OF ACTIVITY</span>
+                    <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "#64748B", letterSpacing: "0.05em" }}>END OF ACTIVITY</span>
                   </div>
                 </div>
               </>
@@ -173,7 +173,7 @@ export default function AdminHeader({ title, subtitle }) {
               width: 24, height: 24, borderRadius: "50%",
               background: "linear-gradient(135deg,#B8860B,#D4A843)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 700, color: "#FFFFFF",
+              fontSize: "var(--fs-2xs)", fontWeight: 700, color: "#FFFFFF",
             }}>
               {adminName.charAt(0).toUpperCase()}
             </div>
@@ -187,7 +187,7 @@ export default function AdminHeader({ title, subtitle }) {
             style={{
               background: "rgba(214,59,59,0.06)", border: "1px solid rgba(214,59,59,0.2)",
               borderRadius: 8, padding: "7px 14px",
-              color: "#D63B3B", fontSize: 10, fontWeight: 600,
+              color: "#D63B3B", fontSize: "var(--fs-2xs)", fontWeight: 600,
               fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em",
               cursor: "pointer", transition: "all 0.2s",
               display: "flex", alignItems: "center", gap: 6,

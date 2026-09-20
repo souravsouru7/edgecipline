@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { C, FONT, cardSurface } from "./tokens";
 import SectionTitle from "./SectionTitle";
+import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -51,26 +43,27 @@ export default function EvolutionChart({ data = [] }) {
       <SectionTitle>MONTHLY EVOLUTION</SectionTitle>
 
       <div style={{ width: "100%", height: 260 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+        <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+          <R.LineChart
             data={data}
             margin={{ top: 8, right: 16, left: -10, bottom: 4 }}
           >
-            <CartesianGrid stroke={C.rowDivider} strokeDasharray="3 3" />
-            <XAxis
+            <R.CartesianGrid stroke={C.rowDivider} strokeDasharray="3 3" />
+            <R.XAxis
               dataKey="month"
-              tick={{ fontSize: 10, fill: C.muted, fontFamily: FONT.mono }}
+              tick={{ fontSize: 11, fill: C.muted, fontFamily: FONT.mono }}
               tickLine={false}
               axisLine={{ stroke: C.border }}
             />
-            <YAxis
-              tick={{ fontSize: 10, fill: C.muted, fontFamily: FONT.mono }}
+            <R.YAxis
+              tick={{ fontSize: 11, fill: C.muted, fontFamily: FONT.mono }}
               tickLine={false}
               axisLine={{ stroke: C.border }}
               domain={[0, 100]}
             />
-            <Tooltip content={<CustomTooltip />} />
-            <Line
+            <R.Tooltip content={<CustomTooltip />} />
+            <R.Line
               type="monotone"
               dataKey="winRate"
               name="Win rate %"
@@ -79,7 +72,7 @@ export default function EvolutionChart({ data = [] }) {
               dot={{ r: 3, fill: C.bull }}
               activeDot={{ r: 5 }}
             />
-            <Line
+            <R.Line
               type="monotone"
               dataKey="planAdherencePct"
               name="Plan adherence %"
@@ -88,7 +81,7 @@ export default function EvolutionChart({ data = [] }) {
               dot={{ r: 3, fill: C.purple }}
               activeDot={{ r: 5 }}
             />
-            <Line
+            <R.Line
               type="monotone"
               dataKey="avgSetupScore"
               name="Avg setup score"
@@ -97,8 +90,9 @@ export default function EvolutionChart({ data = [] }) {
               dot={{ r: 3, fill: C.blue }}
               activeDot={{ r: 5 }}
             />
-          </LineChart>
-        </ResponsiveContainer>
+          </R.LineChart>
+        </R.ResponsiveContainer>
+)}</LazyRecharts>
       </div>
 
       <div
@@ -107,7 +101,7 @@ export default function EvolutionChart({ data = [] }) {
           gap: 16,
           flexWrap: "wrap",
           marginTop: 10,
-          fontSize: 10,
+          fontSize: "var(--fs-2xs)",
           color: C.muted,
           fontFamily: FONT.mono,
           letterSpacing: "0.04em",

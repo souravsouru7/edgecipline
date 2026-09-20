@@ -78,6 +78,10 @@ function getDeepLinks(trade, collection) {
       edit:      `/indian-market/trades/edit?id=${id}`,
       listToday: "/indian-market/trades?filter=today",
       analytics: "/indian-market/analytics",
+      // The Indian analytics page has its own "By Mistake Tag" breakdown —
+      // never bounce an Indian trader to the Forex analytics tree.
+      mistakes:  (tag) => `/indian-market/analytics?insight=mistakes&tag=${encodeURIComponent(tag)}`,
+      analyticsScreen: "indian-analytics",
     };
   }
   return {
@@ -85,6 +89,8 @@ function getDeepLinks(trade, collection) {
     edit:      `/trades/edit?id=${id}`,
     listToday: "/trades?filter=today",
     analytics: "/analytics",
+    mistakes:  (tag) => `/analytics?insight=mistakes&tag=${encodeURIComponent(tag)}`,
+    analyticsScreen: "analytics",
   };
 }
 
@@ -139,7 +145,7 @@ async function runAsyncChecks(payload) {
 }
 
 // ─── 1. No Stop Loss ──────────────────────────────────────────────────────────
-async function checkNoStopLoss({ userId, trade, collection }) {
+async function checkNoStopLoss({ userId, trade, collection, marketType }) {
   if (!hasNoStopLoss(trade)) return;
   const links = getDeepLinks(trade, collection);
   await safeNotify(userId, {
@@ -154,6 +160,7 @@ async function checkNoStopLoss({ userId, trade, collection }) {
     data: {
       screen:  collection === "indian" ? "indian-trade-edit" : "trade-edit",
       tradeId: trade._id?.toString?.(),
+      marketType,
     },
   });
 }
@@ -250,6 +257,7 @@ async function checkSetupDisciplineDrop({ userId, trade, collection, marketType,
       screen:     collection === "indian" ? "indian-trade" : "trade",
       tradeId,
       setupScore: score,
+      marketType,
     },
   });
 
@@ -403,6 +411,7 @@ async function checkRevengeTrading({ userId, trade, collection, marketType, time
       screen:    collection === "indian" ? "indian-trades" : "trades",
       filter:    "today",
       totalLoss: String(totalLoss),
+      marketType,
     },
   });
 }
@@ -448,6 +457,7 @@ async function checkOvertrading({ userId, trade, collection, marketType, timezon
       filter:     "today",
       todayCount: String(todayCount),
       threshold:  String(threshold),
+      marketType,
     },
   });
 }
@@ -474,6 +484,7 @@ async function checkRepeatedMistake({ userId, trade, collection, marketType, tim
 
   const weekKey     = getWeekKey(timestamp, timezone);
   const mistakeLabel = humanize(mistake);
+  const links       = getDeepLinks(trade, collection);
   const dedupeKey = `repeated-mistake:${userId}:${marketType}:${weekKey}:${mistake}`;
 
   logDedupeKey({ userId, type: "repeated_mistake", timezone, timestamp, dateKey: weekKey, dedupeKey });
@@ -485,12 +496,13 @@ async function checkRepeatedMistake({ userId, trade, collection, marketType, tim
     sourceType: "trade",
     sourceId:   trade._id,
     dedupeKey,
-    deepLink:   `/analytics?insight=mistakes&tag=${encodeURIComponent(mistake)}`,
+    deepLink:   links.mistakes(mistake),
     data: {
-      screen:  "analytics",
+      screen:  links.analyticsScreen,
       insight: "mistakes",
       tag:     mistake,
       count:   String(count),
+      marketType,
     },
   });
 }
@@ -540,6 +552,7 @@ async function checkDailyLossWarning({ userId, trade, collection, marketType, ti
       screen:     collection === "indian" ? "indian-trades" : "trades",
       filter:     "today",
       totalLoss:  String(totalLoss.toFixed(2)),
+      marketType,
     },
   });
 }
@@ -583,6 +596,7 @@ async function checkConfidenceReminder({ userId, trade, collection, marketType, 
     data: {
       screen:   collection === "indian" ? "indian-trades" : "trades",
       winCount: String(winCount),
+      marketType,
     },
   });
 }

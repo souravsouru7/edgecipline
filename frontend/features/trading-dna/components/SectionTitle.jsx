@@ -6,7 +6,7 @@ export default function SectionTitle({ children }) {
   return (
     <div
       style={{
-        fontSize: 10,
+        fontSize: "var(--fs-2xs)",
         fontWeight: 800,
         color: "#64748B",
         letterSpacing: "0.1em",

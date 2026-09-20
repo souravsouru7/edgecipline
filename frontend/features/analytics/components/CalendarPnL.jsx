@@ -107,7 +107,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           gap: 6px;
         }
         .cal-day-label {
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           font-weight: 700;
           letter-spacing: 0.06em;
           color: #94A3B8;
@@ -145,7 +145,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           line-height: 1;
         }
         .cal-cell-badge {
-          font-size: 8px;
+          font-size: var(--fs-2xs);
           font-family: 'JetBrains Mono', monospace;
           font-weight: 700;
           padding: 1px 4px;
@@ -161,13 +161,13 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           white-space: nowrap;
         }
         .cal-cell-wr {
-          font-size: 8px;
+          font-size: var(--fs-2xs);
           margin-top: 2px;
           font-family: 'JetBrains Mono', monospace;
           font-weight: 600;
         }
         .cal-cell-empty-label {
-          font-size: 9px;
+          font-size: var(--fs-2xs);
           margin-top: 2px;
           opacity: 0.5;
         }
@@ -185,7 +185,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           display: flex;
           align-items: center;
           gap: 5px;
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           color: #94A3B8;
           font-family: 'JetBrains Mono', monospace;
         }
@@ -198,28 +198,28 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
         /* ── Mobile ─────────────────────────────────── */
         @media (max-width: 480px) {
           .cal-month-title { font-size: 16px; }
-          .cal-month-sub   { font-size: 10px; }
+          .cal-month-sub   { font-size: var(--fs-2xs); }
           .cal-nav-btn     { width: 32px; height: 32px; font-size: 16px; }
           .cal-grid        { gap: 4px; }
-          .cal-day-label   { font-size: 9px; padding-bottom: 4px; }
+          .cal-day-label   { font-size: var(--fs-2xs); padding-bottom: 4px; }
           .cal-cell        { min-height: 62px; padding: 5px 4px 4px; border-radius: 8px; }
-          .cal-cell-day-num { font-size: 10px; }
-          .cal-cell-badge   { font-size: 7px; padding: 1px 3px; }
-          .cal-cell-profit  { font-size: 9px; }
-          .cal-cell-wr      { font-size: 7px; }
-          .cal-cell-empty-label { font-size: 8px; }
+          .cal-cell-day-num { font-size: var(--fs-2xs); }
+          .cal-cell-badge   { font-size: var(--fs-2xs); padding: 1px 3px; }
+          .cal-cell-profit  { font-size: var(--fs-2xs); }
+          .cal-cell-wr      { font-size: var(--fs-2xs); }
+          .cal-cell-empty-label { font-size: var(--fs-2xs); }
           .cal-empty        { border-radius: 8px; }
         }
 
         @media (max-width: 360px) {
           .cal-grid        { gap: 3px; }
           .cal-cell        { min-height: 54px; padding: 4px 3px 3px; border-radius: 7px; }
-          .cal-cell-day-num { font-size: 9px; }
+          .cal-cell-day-num { font-size: var(--fs-2xs); }
           .cal-cell-badge   { display: none; }
-          .cal-cell-profit  { font-size: 8px; }
+          .cal-cell-profit  { font-size: var(--fs-2xs); }
           .cal-cell-wr      { display: none; }
           .cal-cell-empty-label { display: none; }
-          .cal-day-label    { font-size: 8px; letter-spacing: 0; }
+          .cal-day-label    { font-size: var(--fs-2xs); letter-spacing: 0; }
         }
       `}</style>
 

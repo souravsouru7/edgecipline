@@ -26,7 +26,7 @@ function pickOutputExtension(originalName, originalType) {
   return `${base}.jpg`;
 }
 
-async function decodeToBitmap(file) {
+export async function decodeToBitmap(file) {
   // createImageBitmap is the fastest path and works on Capacitor Android
   // and iOS WebView. Falls back to HTMLImageElement if unavailable.
   if (typeof createImageBitmap === "function") {
@@ -51,7 +51,7 @@ async function decodeToBitmap(file) {
   });
 }
 
-function calculateTargetSize(width, height, maxDimension) {
+export function calculateTargetSize(width, height, maxDimension) {
   if (width <= maxDimension && height <= maxDimension) {
     return { width, height, scaled: false };
   }
@@ -71,7 +71,7 @@ function calculateTargetSize(width, height, maxDimension) {
   };
 }
 
-async function renderToBlob(source, targetWidth, targetHeight, quality) {
+export async function renderToBlob(source, targetWidth, targetHeight, quality) {
   // Prefer OffscreenCanvas — it doesn't block the main thread layout pipeline.
   if (typeof OffscreenCanvas === "function") {
     try {

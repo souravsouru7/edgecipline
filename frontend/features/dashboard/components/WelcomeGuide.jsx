@@ -200,14 +200,14 @@ export default function WelcomeGuide({ onClose }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{
-              fontSize: 10, color: "#22C78E", fontFamily: "monospace",
+              fontSize: "var(--fs-2xs)", color: "#22C78E", fontFamily: "monospace",
               letterSpacing: "0.12em", fontWeight: 700,
             }}>
               EDGECIPLINE GUIDE
             </span>
             <span style={{
               background: "rgba(34,199,142,0.15)", color: "#22C78E",
-              fontSize: 10, fontWeight: 700, padding: "2px 9px",
+              fontSize: "var(--fs-2xs)", fontWeight: 700, padding: "2px 9px",
               borderRadius: 20, border: "1px solid rgba(34,199,142,0.25)",
             }}>
               {step + 1} / {STEPS.length}
@@ -255,7 +255,7 @@ export default function WelcomeGuide({ onClose }) {
                 {current.title}
               </h2>
               <p style={{
-                fontSize: 10, color: "#22C78E", margin: "5px 0 0",
+                fontSize: "var(--fs-2xs)", color: "#22C78E", margin: "5px 0 0",
                 fontWeight: 700, letterSpacing: "0.1em",
               }}>
                 {current.subtitle}

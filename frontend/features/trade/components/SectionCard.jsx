@@ -25,7 +25,7 @@ export default function SectionCard({ accentColor = "#0D9E6E", title, subtitle, 
       <div style={{ padding: "22px 24px" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 2 }}>{title}</div>
         {subtitle && (
-          <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", marginBottom: 18 }}>
+          <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", marginBottom: 18 }}>
             {subtitle}
           </div>
         )}

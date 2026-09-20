@@ -21,45 +21,15 @@ import { useToast } from "@/features/shared/components/ui/Toast";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 import { Spinner } from "@/features/shared";
-
-const getTodayInputValue = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-};
-
-const INTEGER_NUMBER_FIELDS = new Set(["strikePrice", "quantity", "sharesQty"]);
-const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes", "stopLoss", "takeProfit"]);
-
-const blockInvalidNumberKeys = (e) => {
-  const fieldName = e.currentTarget?.name;
-  const isIntegerField = INTEGER_NUMBER_FIELDS.has(fieldName);
-  const allowsNegative = fieldName === "profit";
-  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
-  if (!allowsNegative && e.key === "-") e.preventDefault();
-  if (isIntegerField && e.key === ".") e.preventDefault();
-};
-
-const sanitizeNumericInput = (value, { allowNegative = false, integer = false } = {}) => {
-  const raw = String(value ?? "");
-  let cleaned = raw.replace(/[^\d.-]/g, "");
-
-  if (!allowNegative) {
-    cleaned = cleaned.replace(/-/g, "");
-  } else {
-    const isNegative = cleaned.startsWith("-");
-    cleaned = cleaned.replace(/-/g, "");
-    if (isNegative) cleaned = `-${cleaned}`;
-  }
-
-  if (integer) {
-    return cleaned.replace(/\./g, "");
-  }
-
-  const sign = cleaned.startsWith("-") ? "-" : "";
-  const unsigned = sign ? cleaned.slice(1) : cleaned;
-  const [firstPart, ...rest] = unsigned.split(".");
-  return `${sign}${firstPart}${rest.length ? `.${rest.join("")}` : ""}`;
-};
+import { UNDERLYINGS, LOT_SIZES } from "@/features/trade/hooks/useAddTrade";
+import { getTodayInputValue } from "@/features/trade/lib/dateInput";
+import { sanitizeNumericField, blockInvalidNumberKeys } from "@/features/trade/lib/numericInput";
+import {
+  appendSetupRule,
+  clearSetupRules as clearSetupRulesFollowed,
+  setSetupRuleLabel,
+  toggleSetupRule as toggleSetupRuleFollowed,
+} from "@/features/trade/lib/setupRules";
 
 const theme = {
   bull: "#0D9E6E",
@@ -72,8 +42,6 @@ const theme = {
   card: "#FFFFFF"
 };
 
-const UNDERLYINGS = ["NIFTY", "BANK NIFTY", "FIN NIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX", "Other"];
-const LOT_SIZES = { "NIFTY": 25, "BANK NIFTY": 15, "FIN NIFTY": 25, "MIDCPNIFTY": 50, "SENSEX": 10, "BANKEX": 15, "Other": 1 };
 
 function IndianOptionsAddTradeContent() {
   const router = useRouter();
@@ -189,12 +157,7 @@ function IndianOptionsAddTradeContent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let nextValue = value;
-    if (INTEGER_NUMBER_FIELDS.has(name)) {
-      nextValue = sanitizeNumericInput(value, { integer: true });
-    } else if (DECIMAL_NUMBER_FIELDS.has(name)) {
-      nextValue = sanitizeNumericInput(value, { allowNegative: name === "profit" });
-    }
+    const nextValue = sanitizeNumericField(name, value);
     setTrade((prev) => ({ ...prev, [name]: nextValue }));
   };
 
@@ -233,18 +196,10 @@ function IndianOptionsAddTradeContent() {
     }
   };
 
-  const toggleSetupRule = (id) => {
-    setSetupRules(prev => prev.map(r => (r.id === id ? { ...r, followed: !r.followed } : r)));
-  };
-  const updateSetupRuleLabel = (id, value) => {
-    setSetupRules(prev => prev.map(r => (r.id === id ? { ...r, label: value } : r)));
-  };
-  const addSetupRule = () => {
-    setSetupRules(prev => [...prev, { id: (prev[prev.length - 1]?.id || 0) + 1, label: "", followed: false }]);
-  };
-  const clearSetupRules = () => {
-    setSetupRules(prev => prev.map(r => ({ ...r, followed: false })));
-  };
+  const toggleSetupRule = (id) => setSetupRules(prev => toggleSetupRuleFollowed(prev, id));
+  const updateSetupRuleLabel = (id, value) => setSetupRules(prev => setSetupRuleLabel(prev, id, value));
+  const addSetupRule = () => setSetupRules(prev => appendSetupRule(prev));
+  const clearSetupRules = () => setSetupRules(prev => clearSetupRulesFollowed(prev));
 
   const getUnderlyingLabel = () => trade.underlying === "Other" ? trade.underlyingOther : trade.underlying;
   const getLotSize = () => LOT_SIZES[trade.underlying] || 1;
@@ -514,7 +469,7 @@ function IndianOptionsAddTradeContent() {
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Stock Symbol</label>
                   <input name="stockSymbol" placeholder="e.g. RELIANCE, TCS, HDFC" value={trade.stockSymbol} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, textTransform: "uppercase" }} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Exchange</label>
                     <select name="exchange" value={trade.exchange} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }}>
@@ -530,7 +485,7 @@ function IndianOptionsAddTradeContent() {
                     </select>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Shares Qty</label>
                     <input name="sharesQty" type="number" min="1" placeholder="e.g. 100" value={trade.sharesQty} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
@@ -574,7 +529,7 @@ function IndianOptionsAddTradeContent() {
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Strike (₹)</label>
                   <input name="strikePrice" type="number" min="1" step="1" placeholder="e.g. 26100" value={trade.strikePrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>CE / PE</label>
                     <select name="optionType" value={trade.optionType} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }}>
@@ -602,7 +557,7 @@ function IndianOptionsAddTradeContent() {
               <input name="profit" type="number" placeholder="e.g. 1500 or -500" value={trade.profit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontWeight: 600 }} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>{isEquity ? "Avg buy price (₹)" : "Entry premium (₹)"}</label>
                 <input name="entryPrice" type="number" step="0.01" placeholder={isEquity ? "e.g. 2450.50" : "e.g. 85.50"} value={trade.entryPrice} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
@@ -613,7 +568,7 @@ function IndianOptionsAddTradeContent() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Stop Loss</label>
                 <input name="stopLoss" type="number" step="0.01" value={trade.stopLoss} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
@@ -637,7 +592,7 @@ function IndianOptionsAddTradeContent() {
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Trade Date <span style={{ color: "#D63B3B" }}>*</span></label>
               <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               {accountCreatedDate && (
-                <div style={{ fontSize: 10, color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
                   Earliest allowed: {accountCreatedDate} (account creation date)
                 </div>
               )}
@@ -676,7 +631,7 @@ function IndianOptionsAddTradeContent() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.12em", color: theme.muted, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: theme.muted, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800 }}>
                     SETUP CHECKLIST
                   </div>
                   <div style={{ fontSize: 12, color: theme.muted, marginTop: 4 }}>
@@ -833,7 +788,7 @@ function IndianOptionsAddTradeContent() {
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Notes</label>
               <textarea name="notes" placeholder="Setup, context, emotions..." value={trade.notes} onChange={handleChange} rows={3} maxLength={2000} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, resize: "vertical" }} />
-              <div style={{ fontSize: 10, color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, textAlign: "right", marginTop: 4 }}>{(trade.notes || "").length}/2000</div>
             </div>
 
             <div>
@@ -876,7 +831,7 @@ function IndianOptionsAddTradeContent() {
               accentColor="#0D9E6E"
             />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Brokerage (₹)</label>
                 <input name="brokerage" type="number" step="0.01" placeholder="0" value={trade.brokerage} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
@@ -891,11 +846,11 @@ function IndianOptionsAddTradeContent() {
             <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, border: "1px solid #E2E8F0" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                 <span>PSY</span> TRADE PSYCHOLOGY
-                <span style={{ fontSize: 9, color: "#D63B3B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
+                <span style={{ fontSize: "var(--fs-2xs)", color: "#D63B3B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>HOW ARE YOU FEELING? <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>HOW ARE YOU FEELING? <span style={{ color: "#D63B3B" }}>*</span></label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {[
                     { score: "1", val: 1, label: "Stressed" },
@@ -921,14 +876,14 @@ function IndianOptionsAddTradeContent() {
                       }}
                     >
                       <div style={{ fontSize: 20, fontWeight: 800 }}>{m.score}</div>
-                      <div style={{ fontSize: 10, color: trade.mood === m.val ? "#0D9E6E" : "#64748B", fontWeight: 700, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{m.label}</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: trade.mood === m.val ? "#0D9E6E" : "#64748B", fontWeight: 700, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{m.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>CONFIDENCE LEVEL <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>CONFIDENCE LEVEL <span style={{ color: "#D63B3B" }}>*</span></label>
                 <select
                   name="confidence"
                   value={trade.confidence}
@@ -944,7 +899,7 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused", "Frustrated"].map(tag => {
                     const selected = (trade.emotionalTags || []).includes(tag);
@@ -979,7 +934,7 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>WOULD YOU RETAKE THIS TRADE?</label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>WOULD YOU RETAKE THIS TRADE?</label>
                 <div style={{ display: "flex", gap: 10 }}>
                   {["Yes", "No"].map(option => (
                     <button
@@ -1007,8 +962,8 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div style={{ marginTop: 18 }}>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>TRADE QUALITY (EXECUTION)</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>TRADE QUALITY (EXECUTION)</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                   {[
                     { val: "Great", color: "#0D9E6E", desc: "Followed the plan" },
                     { val: "Average", color: "#F59E0B", desc: "Partial execution" },
@@ -1029,7 +984,7 @@ function IndianOptionsAddTradeContent() {
                       }}
                     >
                       <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.val}</div>
-                      <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.desc}</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 2, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.desc}</div>
                     </button>
                   ))}
                 </div>

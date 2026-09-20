@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   adminLogin,
   clearAdminSession,
@@ -9,121 +9,8 @@ import {
   setAdminSessionName,
 } from "@/services/adminApi";
 import { useRouter } from "next/navigation";
-
-/* ─────────────────────────────────────────
-   LIGHT THEME DESIGN TOKENS (matching main site)
-   Base bg:      #F0EEE9  (warm parchment)
-   Card:         #FFFFFF
-   Header:       rgba(255,255,255,0.92)
-   Bull:         #0D9E6E
-   Bear:         #D63B3B
-   Gold:         #B8860B
-   Text primary: #0F1923
-   Text muted:   #94A3B8
-   Border:       #E2E8F0
-───────────────────────────────────────── */
-
-/* ─────────────────────────────────────────
-   CANDLESTICK BACKGROUND (light, subtle)
-───────────────────────────────────────── */
-function CandlestickBackground() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const draw = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-
-      const candles = [];
-      const count = Math.floor(W / 30);
-      let price = 200;
-      for (let i = 0; i < count; i++) {
-        const open = price + (Math.random() - 0.5) * 20;
-        const close = open + (Math.random() - 0.5) * 28;
-        const high = Math.max(open, close) + Math.random() * 12;
-        const low = Math.min(open, close) - Math.random() * 12;
-        price = close;
-        candles.push({ open, close, high, low });
-      }
-
-      const all = candles.flatMap(c => [c.high, c.low]);
-      const mx = Math.max(...all), mn = Math.min(...all), rng = mx - mn || 1;
-      const toY = p => H * 0.1 + (H * 0.8 * (mx - p)) / rng;
-
-      // Grid
-      ctx.strokeStyle = "rgba(0,0,0,0.04)";
-      ctx.lineWidth = 1;
-      for (let i = 1; i < 7; i++) {
-        ctx.beginPath(); ctx.moveTo(0, (H / 7) * i); ctx.lineTo(W, (H / 7) * i); ctx.stroke();
-      }
-
-      candles.forEach((c, i) => {
-        const x = i * 30 + 15, bull = c.close >= c.open;
-        ctx.strokeStyle = bull ? "rgba(13,158,110,0.22)" : "rgba(214,59,59,0.18)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(x, toY(c.high)); ctx.lineTo(x, toY(c.low)); ctx.stroke();
-        ctx.fillStyle = bull ? "rgba(13,158,110,0.15)" : "rgba(214,59,59,0.12)";
-        const bTop = toY(Math.max(c.open, c.close)), bBot = toY(Math.min(c.open, c.close));
-        ctx.fillRect(x - 8, bTop, 16, Math.max(bBot - bTop, 1));
-      });
-
-      // MA line
-      const ma = candles.map((_, i) => {
-        const sl = candles.slice(Math.max(0, i - 5), i + 1);
-        return sl.reduce((a, c) => a + c.close, 0) / sl.length;
-      });
-      ctx.strokeStyle = "rgba(184,134,11,0.28)";
-      ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ma.forEach((p, i) => { const x = i * 30 + 15, y = toY(p); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-      ctx.stroke(); ctx.setLineDash([]);
-    };
-
-    draw();
-    window.addEventListener("resize", draw);
-    return () => window.removeEventListener("resize", draw);
-  }, []);
-
-  return (
-    <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 1 }} />
-  );
-}
-
-/* ─────────────────────────────────────────
-   TICKER TAPE — dark strip for contrast
-───────────────────────────────────────── */
-const tickers = [
-  { sym: "BTC", val: "+2.34%", bull: true }, { sym: "ETH", val: "-1.12%", bull: false },
-  { sym: "AAPL", val: "+0.87%", bull: true }, { sym: "TSLA", val: "+4.20%", bull: true },
-  { sym: "NVDA", val: "-0.55%", bull: false }, { sym: "GOLD", val: "+0.62%", bull: true },
-  { sym: "SPY", val: "+0.31%", bull: true }, { sym: "OIL", val: "-2.18%", bull: false },
-  { sym: "AMZN", val: "+1.05%", bull: true }, { sym: "USD/JPY", val: "-0.33%", bull: false },
-];
-function TickerTape() {
-  const items = [...tickers, ...tickers];
-  return (
-    <div style={{
-      overflow: "hidden", background: "#0F1923",
-      borderBottom: "3px solid #B8860B",
-      padding: "7px 0", whiteSpace: "nowrap", position: "relative", zIndex: 10,
-    }}>
-      <div style={{ display: "inline-flex", gap: "48px", animation: "ticker 32s linear infinite" }}>
-        {items.map((t, i) => (
-          <span key={i} style={{ fontSize: "11px", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
-            <span style={{ color: "#94A3B8", marginRight: 6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#22C78E" : "#F87171" }}>{t.bull ? "▲" : "▼"} {t.val}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
+import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
+import TickerTape from "@/features/shared/components/TickerTape";
 
 /* ─────────────────────────────────────────
    ADMIN LOGIN PAGE (light theme)
@@ -226,7 +113,7 @@ export default function AdminLoginPage() {
 
       {/* BG canvas */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
-        <CandlestickBackground />
+        <CandlestickBackground canvasId="admin-login-bg-canvas" position="absolute" />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(240,238,233,0.78) 0%,rgba(240,238,233,0.72) 100%)" }} />
         <div style={{ position: "absolute", top: -60, left: -60, width: 320, height: 320, borderRadius: "50%", background: "radial-gradient(circle,rgba(184,134,11,0.08) 0%,transparent 70%)" }} />
         <div style={{ position: "absolute", bottom: -80, right: -50, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(13,158,110,0.06) 0%,transparent 70%)" }} />
@@ -242,7 +129,7 @@ export default function AdminLoginPage() {
         boxShadow: "0 1px 12px rgba(15,25,35,0.06)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
+          <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
           <div>
             <div style={{ display: "none" }}>EDGEDISCIPLINE</div>
             <div style={{ fontSize: 9, letterSpacing: "0.18em", color: "#B8860B", marginTop: 1, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>ADMIN PORTAL</div>
@@ -262,7 +149,7 @@ export default function AdminLoginPage() {
         </div>
       </header>
 
-      <TickerTape />
+      <TickerTape accent="#B8860B" />
 
       {/* ── MAIN ── */}
       <main style={{
@@ -528,7 +415,6 @@ export default function AdminLoginPage() {
         @keyframes blink    { 0%,100%{opacity:1}      50%{opacity:0.2} }
         @keyframes spin     { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes shimmer  { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-        @keyframes ticker   { 0%{transform:translateX(0)}    100%{transform:translateX(-50%)} }
         @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes shake    {
           0%,100%{ transform:translateX(0) }

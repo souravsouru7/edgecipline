@@ -37,7 +37,7 @@ export default function StreakMilestones({ milestones = [], current = 0, longest
               {m.days}
             </div>
             <div style={{
-              fontSize: 9, letterSpacing: 0.1, marginTop: 4,
+              fontSize: "var(--fs-2xs)", letterSpacing: 0.1, marginTop: 4,
               color: earned ? "#7A3E0B" : "#94A3B8",
               fontWeight: 700, textTransform: "uppercase",
             }}>
@@ -51,7 +51,7 @@ export default function StreakMilestones({ milestones = [], current = 0, longest
         background: "#F8FAFC", border: "1px dashed #CBD5E1",
       }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#475569", lineHeight: 1 }}>{longest}</div>
-        <div style={{ fontSize: 9, letterSpacing: 0.1, marginTop: 4, color: "#94A3B8", fontWeight: 700, textTransform: "uppercase" }}>
+        <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: 0.1, marginTop: 4, color: "#94A3B8", fontWeight: 700, textTransform: "uppercase" }}>
           Personal Best
         </div>
       </div>

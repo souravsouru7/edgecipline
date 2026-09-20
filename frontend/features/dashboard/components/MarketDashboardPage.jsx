@@ -43,7 +43,7 @@ function DashboardPanel({ title, subtitle, children, action, accent = "#0D9E6E" 
 function InsightItem({ label, value, tone = "#0D9E6E" }) {
   return (
     <div style={{ padding: "10px 12px", borderRadius: 10, background: `${tone}08`, border: `1px solid ${tone}22` }}>
-      <div style={{ fontSize: 9, fontWeight: 900, color: tone, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: tone, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.55, fontWeight: 700 }}>{value}</div>
     </div>
   );
@@ -57,7 +57,7 @@ function QuickAction({ href, icon: Icon, label, sub, accent = "#0D9E6E" }) {
       </div>
       <div>
         <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 3 }}>{label}</div>
-        <div style={{ fontSize: 10, color: "#94A3B8", lineHeight: 1.35 }}>{sub}</div>
+        <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", lineHeight: 1.35 }}>{sub}</div>
       </div>
     </Link>
   );
@@ -117,20 +117,20 @@ function GrowthPathStep({ step, index, isLast }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, minWidth: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 900, color: step.accent, fontFamily: "'JetBrains Mono',monospace" }}>
+          <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: step.accent, fontFamily: "'JetBrains Mono',monospace" }}>
             {String(index + 1).padStart(2, "0")}
           </span>
           <span style={{ fontSize: 12, fontWeight: 900, color: "#0F1923", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {step.title}
           </span>
         </div>
-        <div style={{ fontSize: 10.5, color: "#64748B", lineHeight: 1.45 }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", lineHeight: 1.45 }}>
           {step.body}
         </div>
       </div>
       <span
         style={{
-          fontSize: 9,
+          fontSize: "var(--fs-2xs)",
           fontWeight: 900,
           color: step.done ? step.accent : "#94A3B8",
           letterSpacing: "0.08em",
@@ -738,7 +738,7 @@ function DashboardContent() {
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: cats.length ? 14 : 0 }}>
                   <div style={{ flexShrink: 0, textAlign: "center" }}>
                     <div style={{ fontSize: 30, fontWeight: 900, color: scoreColor, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{sa.score}%</div>
-                    <div style={{ fontSize: 8, color: scoreColor, fontWeight: 700, letterSpacing: "0.08em", marginTop: 3 }}>{scoreLabel.toUpperCase()}</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: scoreColor, fontWeight: 700, letterSpacing: "0.08em", marginTop: 3 }}>{scoreLabel.toUpperCase()}</div>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1923", marginBottom: 2 }}>Self-Awareness Score</div>
@@ -755,11 +755,11 @@ function DashboardContent() {
                       const acc = sa.perCategory?.[key]?.accuracy ?? 0;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ width: 20, fontSize: 9, fontWeight: 800, color, flexShrink: 0 }}>{label}</div>
+                          <div style={{ width: 20, fontSize: "var(--fs-2xs)", fontWeight: 800, color, flexShrink: 0 }}>{label}</div>
                           <div style={{ flex: 1, height: 5, borderRadius: 99, background: "#F1F5F9", overflow: "hidden" }}>
                             <div style={{ height: "100%", width: `${acc}%`, background: color, borderRadius: 99 }} />
                           </div>
-                          <div style={{ width: 32, fontSize: 10, fontWeight: 700, color, fontFamily: "'JetBrains Mono',monospace", textAlign: "right" }}>{acc}%</div>
+                          <div style={{ width: 32, fontSize: "var(--fs-2xs)", fontWeight: 700, color, fontFamily: "'JetBrains Mono',monospace", textAlign: "right" }}>{acc}%</div>
                         </div>
                       );
                     })}
@@ -785,20 +785,20 @@ function DashboardContent() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 22, fontWeight: 900, color: scoreColor, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{pc.psychologyCostScore}<span style={{ fontSize: 11 }}>/100</span></div>
-                    <div style={{ fontSize: 8, color: scoreColor, fontWeight: 700, letterSpacing: "0.08em" }}>PSYCH SCORE</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: scoreColor, fontWeight: 700, letterSpacing: "0.08em" }}>PSYCH SCORE</div>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: topLeak ? 12 : 0 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8, marginBottom: topLeak ? 12 : 0 }}>
                   {topLeak && (
                     <div style={{ padding: "8px 10px", borderRadius: 8, background: "#D63B3B06", border: "1px solid #D63B3B18" }}>
-                      <div style={{ fontSize: 9, color: "#D63B3B", fontWeight: 700, marginBottom: 2 }}>BIGGEST LEAK</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: "#D63B3B", fontWeight: 700, marginBottom: 2 }}>BIGGEST LEAK</div>
                       <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923" }}>{topLeak.name}</div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "#D63B3B", fontFamily: "'JetBrains Mono',monospace" }}>{fmtPnl(topLeak.cost)}</div>
                     </div>
                   )}
                   {bestEmotion && (
                     <div style={{ padding: "8px 10px", borderRadius: 8, background: "#0D9E6E08", border: "1px solid #0D9E6E22" }}>
-                      <div style={{ fontSize: 9, color: "#0D9E6E", fontWeight: 700, marginBottom: 2 }}>BIGGEST STRENGTH</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: "#0D9E6E", fontWeight: 700, marginBottom: 2 }}>BIGGEST STRENGTH</div>
                       <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923" }}>{bestEmotion.name}</div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace" }}>{fmtPnl(bestEmotion.profit)}</div>
                     </div>
@@ -817,7 +817,7 @@ function DashboardContent() {
               if (!c) return null;
               const bg = c === "High" ? "#0D9E6E18" : c === "Medium" ? "#F59E0B18" : "#94A3B818";
               const fc = c === "High" ? "#0D9E6E" : c === "Medium" ? "#B8860B" : "#64748B";
-              return <span style={{ fontSize: 8, fontWeight: 800, color: fc, background: bg, borderRadius: 4, padding: "1px 5px", letterSpacing: "0.06em", marginLeft: 4 }}>{c.toUpperCase()}</span>;
+              return <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: fc, background: bg, borderRadius: 4, padding: "1px 5px", letterSpacing: "0.06em", marginLeft: 4 }}>{c.toUpperCase()}</span>;
             };
             const dnaRows = [
               d.sessionDNA?.best && { label: "Best Session", val: d.sessionDNA.best.name, sub: fmtPnl(d.sessionDNA.best.netPnL), color: "#0D9E6E", conf: d.sessionDNA.best.confidence },
@@ -842,14 +842,14 @@ function DashboardContent() {
                   </div>
                 )}
                 {dnaRows.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
                     {dnaRows.map((row, i) => (
                       <div key={i} style={{ padding: "8px 10px", borderRadius: 8, background: `${row.color}06`, border: `1px solid ${row.color}20` }}>
-                        <div style={{ fontSize: 9, color: "#94A3B8", fontWeight: 700, marginBottom: 2, display: "flex", alignItems: "center" }}>
+                        <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontWeight: 700, marginBottom: 2, display: "flex", alignItems: "center" }}>
                           {row.label}{confBadge(row.conf)}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923" }}>{row.val}</div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: row.color, fontFamily: "'JetBrains Mono',monospace" }}>{row.sub}</div>
+                        <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: row.color, fontFamily: "'JetBrains Mono',monospace" }}>{row.sub}</div>
                       </div>
                     ))}
                   </div>

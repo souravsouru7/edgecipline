@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { toObjectId } = require("../utils/objectId");
 const mongoose = require("mongoose");
 
 const SupportTicket = require("../models/SupportTicket");
@@ -51,12 +52,6 @@ const DEFAULT_PAGE_SIZE = 20;
 const MESSAGE_SEARCH_TICKET_CAP = 200;
 
 // ─── Small helpers ───────────────────────────────────────────────────────────
-
-function toObjectId(value) {
-  return value instanceof mongoose.Types.ObjectId
-    ? value
-    : new mongoose.Types.ObjectId(String(value));
-}
 
 /**
  * Human-quotable ticket id: EC-4K2P9M.

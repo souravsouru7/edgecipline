@@ -295,6 +295,11 @@ export async function hydrateAuthToken() {
 }
 
 export function clearAuthToken() {
+  // Whatever the previous account had cached must not survive into the next
+  // sign-in on this device. Lazy import: persistedQueryCache is client-only.
+  import("@/utils/persistedQueryCache")
+    .then((m) => m.clearPersistedQueryCache())
+    .catch(() => {});
   authLog("info", "AUTH_LOGOUT_TRIGGERED", {
     reason: "clearAuthToken",
     hadMemoryToken: Boolean(_memoryToken),

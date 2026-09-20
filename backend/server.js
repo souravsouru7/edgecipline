@@ -134,6 +134,24 @@ if (enableSmartWorker && process.env.DISABLE_EMBEDDED_SMART_NOTIFICATION_WORKER 
   for (const warning of emailWarnings) logger.warn(`[Email] ${warning}`);
 }
 
+// Payments. The assertion throws on a production box still holding test keys —
+// a hard stop at boot, because Razorpay's test cards against a production
+// database hand out free premium to anyone who looks. Everything softer (a
+// missing webhook secret, a mismatched secret) is a warning, since manual
+// admin activation still works without it.
+{
+  const { assertRazorpayProductionConfig, getRazorpayConfigWarnings, maskSecret } = require("./config");
+  assertRazorpayProductionConfig();
+  logger.info("[Razorpay] Payment configuration", {
+    mode: appConfig.razorpay.mode,
+    keyId: appConfig.razorpay.keyId ? maskSecret(appConfig.razorpay.keyId, 12, 4) : "[missing]",
+    keySecretConfigured: Boolean(appConfig.razorpay.keySecret),
+    webhookSecretConfigured: Boolean(appConfig.razorpay.webhookSecret),
+    sandboxPaymentsAllowed: appConfig.razorpay.allowSandboxPayments,
+  });
+  for (const warning of getRazorpayConfigWarnings()) logger.warn(`[Razorpay] ${warning}`);
+}
+
 logger.info("[Timezone] Server timezone configuration", {
   timezoneOffsetHours: appConfig.timezoneOffsetHours,
   currentUtc: new Date().toISOString(),

@@ -51,7 +51,7 @@ export default function CreateTradeButton() {
                   <div style={{ width: 36, height: 36, borderRadius: 8, background: opt.iconBg, display: "flex", alignItems: "center", justifyContent: "center", color: opt.iconColor }}>{opt.icon}</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{opt.label}</div>
-                    <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 2 }}>{opt.sub}</div>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 2 }}>{opt.sub}</div>
                   </div>
                 </button>
               </div>

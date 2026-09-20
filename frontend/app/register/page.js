@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { googleLogin, registerUser, testConnection as apiTestConnection } from "@/services/api";
 import {
   signInWithFirebaseGoogle,
@@ -12,6 +12,8 @@ import {
 import { clearAuthToken, setAuthToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import TickerTape from "@/features/shared/components/TickerTape";
+import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 
 function resetFreshStartState() {
   if (typeof window === "undefined") return;
@@ -35,100 +37,6 @@ function resetFreshStartState() {
    Text muted:   #94A3B8
    Border:       #E2E8F0
 ───────────────────────────────────────── */
-
-/* ─────────────────────────────────────────
-   CANDLESTICK BACKGROUND (light, subtle)
-───────────────────────────────────────── */
-function CandlestickBg() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const draw = () => {
-      canvas.width  = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-      const count = Math.floor(W / 32) + 2;
-      const candles = [];
-      let price = 180;
-      for (let i = 0; i < count; i++) {
-        const o = price + (Math.random() - 0.48) * 22;
-        const c = o + (Math.random() - 0.46) * 28;
-        const h = Math.max(o, c) + Math.random() * 12;
-        const l = Math.min(o, c) - Math.random() * 12;
-        price = c;
-        candles.push({ o, c, h, l });
-      }
-      const all = candles.flatMap(c => [c.h, c.l]);
-      const mn = Math.min(...all), mx = Math.max(...all), rng = mx - mn || 1;
-      const toY = p => H * 0.08 + (H * 0.84 * (mx - p)) / rng;
-
-      // Grid
-      ctx.strokeStyle = "rgba(0,0,0,0.04)";
-      ctx.lineWidth = 1;
-      for (let i = 1; i < 6; i++) {
-        ctx.beginPath(); ctx.moveTo(0,(H/6)*i); ctx.lineTo(W,(H/6)*i); ctx.stroke();
-      }
-
-      candles.forEach((c, i) => {
-        const x = i * 32 + 16, bull = c.c >= c.o;
-        ctx.strokeStyle = bull ? "rgba(13,158,110,0.22)" : "rgba(214,59,59,0.18)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(x, toY(c.h)); ctx.lineTo(x, toY(c.l)); ctx.stroke();
-        ctx.fillStyle = bull ? "rgba(13,158,110,0.15)" : "rgba(214,59,59,0.12)";
-        const bTop = toY(Math.max(c.o, c.c)), bBot = toY(Math.min(c.o, c.c));
-        ctx.fillRect(x - 8, bTop, 16, Math.max(bBot - bTop, 1));
-      });
-
-      // MA line
-      const ma = candles.map((_, i) => {
-        const sl = candles.slice(Math.max(0,i-6),i+1);
-        return sl.reduce((a,c) => a+c.c, 0) / sl.length;
-      });
-      ctx.strokeStyle = "rgba(184,134,11,0.28)";
-      ctx.lineWidth = 2; ctx.setLineDash([5,5]);
-      ctx.beginPath();
-      ma.forEach((p,i) => { const x=i*32+16, y=toY(p); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-      ctx.stroke(); ctx.setLineDash([]);
-    };
-    draw();
-    window.addEventListener("resize", draw);
-    return () => window.removeEventListener("resize", draw);
-  }, []);
-  return <canvas ref={ref} style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:1 }}/>;
-}
-
-/* ─────────────────────────────────────────
-   TICKER TAPE — dark strip for contrast
-───────────────────────────────────────── */
-const tickers = [
-  {sym:"BTC",val:"+2.34%",bull:true},{sym:"ETH",val:"-1.12%",bull:false},
-  {sym:"AAPL",val:"+0.87%",bull:true},{sym:"TSLA",val:"+4.20%",bull:true},
-  {sym:"NVDA",val:"-0.55%",bull:false},{sym:"GOLD",val:"+0.62%",bull:true},
-  {sym:"SPY",val:"+0.31%",bull:true},{sym:"OIL",val:"-2.18%",bull:false},
-  {sym:"AMZN",val:"+1.05%",bull:true},{sym:"USD/JPY",val:"-0.33%",bull:false},
-];
-function TickerTape() {
-  const items = [...tickers, ...tickers];
-  return (
-    <div style={{
-      overflow:"hidden", background:"#0F1923",
-      borderBottom:"3px solid #0D9E6E",
-      padding:"7px 0", whiteSpace:"nowrap", position:"relative", zIndex:10,
-    }}>
-      <div style={{ display:"inline-flex", gap:"48px", animation:"ticker 32s linear infinite" }}>
-        {items.map((t,i) => (
-          <span key={i} style={{ fontSize:"11px", fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.04em" }}>
-            <span style={{ color:"#94A3B8", marginRight:6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#22C78E" : "#F87171" }}>{t.bull?"▲":"▼"} {t.val}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /* ─────────────────────────────────────────
    COACH FEED PREVIEW — auto-cycling widget
@@ -157,7 +65,7 @@ function CoachFeedPreview() {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <div style={{ width:5, height:5, borderRadius:"50%", background:"#0D9E6E", animation:"blink 1.2s ease-in-out infinite" }}/>
-          <span style={{ fontSize:9, letterSpacing:"0.12em", color:"#94A3B8", fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
+          <span style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.12em", color:"#94A3B8", fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
             AI COACH FEED
           </span>
         </div>
@@ -176,7 +84,7 @@ function CoachFeedPreview() {
           <div style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", color:"#0F1923", fontWeight:700, marginBottom:3 }}>
             {item.pair}
           </div>
-          <div style={{ fontSize:10, color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+          <div style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             {item.note}
           </div>
         </div>
@@ -184,7 +92,7 @@ function CoachFeedPreview() {
           <div style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace", color: item.bull?"#0D9E6E":"#D63B3B", fontWeight:700 }}>
             {item.pnl}
           </div>
-          <div style={{ fontSize:10, color: item.bull?"#0D9E6E":"#D63B3B", fontFamily:"'JetBrains Mono',monospace", opacity:0.7 }}>
+          <div style={{ fontSize: "var(--fs-2xs)", color: item.bull?"#0D9E6E":"#D63B3B", fontFamily:"'JetBrains Mono',monospace", opacity:0.7 }}>
             {item.rr}
           </div>
         </div>
@@ -345,7 +253,7 @@ export default function RegisterPage() {
 
       {/* Background */}
       <div style={{ position:"fixed", inset:0, zIndex:0 }}>
-        <CandlestickBg/>
+        <CandlestickBackground canvasId="register-bg-canvas" position="absolute" />
         {/* Warm overlay */}
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,rgba(240,238,233,0.78) 0%,rgba(240,238,233,0.72) 100%)" }}/>
         {/* Green glow top-left */}
@@ -365,10 +273,10 @@ export default function RegisterPage() {
       }}>
         {/* Logo */}
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
+          <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
           <div>
             <div style={{ display: "none" }}>EDGEDISCIPLINE</div>
-            <div style={{ fontSize:9, letterSpacing:"0.18em", color:"#0D9E6E", marginTop:1, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>AI DISCIPLINE COACH</div>
+            <div style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.18em", color:"#0D9E6E", marginTop:1, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>AI DISCIPLINE COACH</div>
           </div>
         </div>
 
@@ -379,13 +287,13 @@ export default function RegisterPage() {
           borderRadius:20, padding:"5px 14px",
         }}>
           <div style={{ width:6, height:6, borderRadius:"50%", background:"#0D9E6E", animation:"blink 1.2s ease-in-out infinite" }}/>
-          <span style={{ fontSize:10, letterSpacing:"0.1em", color:"#0D9E6E", fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>
+          <span style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.1em", color:"#0D9E6E", fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>
             AI ENGINE ACTIVE
           </span>
         </div>
       </header>
 
-      <TickerTape/>
+      <TickerTape />
 
       {/* ── MAIN ── */}
       <main style={{
@@ -451,7 +359,7 @@ export default function RegisterPage() {
                   { label:"Risk Scoring",        icon:"🎯" },
                 ].map(f => (
                   <div key={f.label} style={{
-                    fontSize:10, color:"#0D9E6E", fontWeight:600,
+                    fontSize: "var(--fs-2xs)", color:"#0D9E6E", fontWeight:600,
                     fontFamily:"'Plus Jakarta Sans',sans-serif",
                     background:"#ECFDF5", border:"1px solid #A7F3D0",
                     borderRadius:20, padding:"4px 10px",
@@ -535,7 +443,7 @@ export default function RegisterPage() {
                       {strength > 0 && (
                         <div style={{
                           display:"inline-flex", alignItems:"center", gap:5,
-                          fontSize:10, color: strengthMeta[strength-1].color,
+                          fontSize: "var(--fs-2xs)", color: strengthMeta[strength-1].color,
                           background: strengthMeta[strength-1].bg,
                           borderRadius:20, padding:"2px 8px",
                           fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:600,
@@ -713,7 +621,7 @@ export default function RegisterPage() {
               </button>
 
               <div style={{ textAlign:"center", marginTop:10 }}>
-                <button type="button" onClick={testConnection} style={{ fontSize:10, color:"#94A3B8", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
+                <button type="button" onClick={testConnection} style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
                   Test Backend Connection
                 </button>
               </div>
@@ -737,11 +645,11 @@ export default function RegisterPage() {
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
-              <span style={{ fontSize:10, color:"#CBD5E1", letterSpacing:"0.06em", fontFamily:"'JetBrains Mono',monospace" }}>256-BIT ENCRYPTED</span>
+              <span style={{ fontSize: "var(--fs-2xs)", color:"#CBD5E1", letterSpacing:"0.06em", fontFamily:"'JetBrains Mono',monospace" }}>256-BIT ENCRYPTED</span>
             </div>
             <div style={{ display:"flex", gap:14 }}>
               {["FOREX","CRYPTO","STOCKS","FUTURES"].map(m => (
-                <span key={m} style={{ fontSize:9, color:"#CBD5E1", letterSpacing:"0.1em", fontFamily:"'JetBrains Mono',monospace" }}>{m}</span>
+                <span key={m} style={{ fontSize: "var(--fs-2xs)", color:"#CBD5E1", letterSpacing:"0.1em", fontFamily:"'JetBrains Mono',monospace" }}>{m}</span>
               ))}
             </div>
           </div>
@@ -752,7 +660,6 @@ export default function RegisterPage() {
         @keyframes blink    { 0%,100%{opacity:1}      50%{opacity:0.2} }
         @keyframes spin     { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes shimmer  { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-        @keyframes ticker   { 0%{transform:translateX(0)}    100%{transform:translateX(-50%)} }
         @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         input::placeholder {
           color: #CBD5E1;

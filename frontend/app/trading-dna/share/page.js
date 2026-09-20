@@ -153,7 +153,7 @@ function ReportBody({ data, accent }) {
       >
         <div
           style={{
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             color: accent,
             letterSpacing: "0.2em",
             fontWeight: 800,
@@ -204,7 +204,7 @@ function ReportBody({ data, accent }) {
             marginTop: 20,
             display: "flex",
             gap: 18,
-            fontSize: 10,
+            fontSize: "var(--fs-2xs)",
             color: "#64748B",
             letterSpacing: "0.06em",
             fontFamily: FONT_MONO,
@@ -331,7 +331,7 @@ function Card({ title, accent, children }) {
     >
       <div
         style={{
-          fontSize: 9,
+          fontSize: "var(--fs-2xs)",
           color: accent,
           letterSpacing: "0.18em",
           fontWeight: 800,
@@ -350,7 +350,7 @@ function Metric({ label, value, accent }) {
     <div>
       <div
         style={{
-          fontSize: 10,
+          fontSize: "var(--fs-2xs)",
           color: C.muted,
           letterSpacing: "0.1em",
           marginBottom: 6,

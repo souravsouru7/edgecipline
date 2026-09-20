@@ -66,7 +66,7 @@ export default function TradesMonitoringPage() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
           <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img src="/mainlogo1.png" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            <img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.04em", color: "#0F1923", lineHeight: 1 }}>TRADE MONITORING</div>

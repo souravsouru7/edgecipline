@@ -76,7 +76,7 @@ export default function ReflectionHistoryList({ items = [], loading }) {
                 {formatDay(r.day)}
               </div>
               <span style={{
-                fontSize: 10,
+                fontSize: "var(--fs-2xs)",
                 fontWeight: 800,
                 padding: "3px 8px",
                 borderRadius: 99,

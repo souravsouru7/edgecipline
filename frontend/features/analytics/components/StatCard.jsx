@@ -68,10 +68,10 @@ export default function StatCard({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-        <span style={{ fontSize: 10, color: colors.muted, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ fontSize: "var(--fs-2xs)", color: colors.muted, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
           {label}
           {tooltip && (
-            <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
+            <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
           )}
         </span>
         {icon && (
@@ -84,7 +84,7 @@ export default function StatCard({
         {formattedValue}
       </div>
       {sub && (
-        <div style={{ fontSize: 10, color: label?.toLowerCase().includes("profit factor") && isInfinite ? colors.bull : colors.muted, letterSpacing: "0.06em", fontWeight: isInfinite ? 700 : 500 }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: label?.toLowerCase().includes("profit factor") && isInfinite ? colors.bull : colors.muted, letterSpacing: "0.06em", fontWeight: isInfinite ? 700 : 500 }}>
           {label?.toLowerCase().includes("profit factor") && isInfinite ? "Perfect Edge" : sub}
         </div>
       )}

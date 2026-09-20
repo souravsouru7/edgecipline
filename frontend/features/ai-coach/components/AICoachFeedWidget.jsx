@@ -79,7 +79,7 @@ function CategoryBadge({ category }) {
       gap: 4,
       background: cfg.bg,
       color: cfg.color,
-      fontSize: 10,
+      fontSize: "var(--fs-2xs)",
       fontWeight: 800,
       padding: "3px 8px",
       borderRadius: 999,
@@ -146,7 +146,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
             <CategoryBadge category={insight.category} />
             {insight.type === "positive" && (
-              <span style={{ fontSize: 10, color: "#059669", fontWeight: 700 }}>✓ Strength</span>
+              <span style={{ fontSize: "var(--fs-2xs)", color: "#059669", fontWeight: 700 }}>✓ Strength</span>
             )}
           </div>
           <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A", lineHeight: 1.4, marginBottom: 4 }}>
@@ -219,7 +219,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
             borderRadius: 8,
             padding: "8px 12px",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
               OBSERVATION
             </div>
             <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>{observation}</div>
@@ -232,7 +232,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
             borderRadius: 8,
             padding: "8px 12px",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
               EVIDENCE
             </div>
             <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>{evidence}</div>
@@ -245,7 +245,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
             borderRadius: 8,
             padding: "8px 12px",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
               WHY IT MATTERS
             </div>
             <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>{whyItMatters}</div>
@@ -258,7 +258,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
             borderRadius: 8,
             padding: "8px 12px",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: isNegative ? "#DC2626" : "#059669", letterSpacing: "0.06em", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: isNegative ? "#DC2626" : "#059669", letterSpacing: "0.06em", marginBottom: 3 }}>
               ACTION
             </div>
             <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>{action}</div>
@@ -271,7 +271,7 @@ function InsightCard({ insight, currency, market, onDismiss }) {
             borderRadius: 8,
             padding: "8px 12px",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", marginBottom: 3 }}>
               EXPECTED OUTCOME
             </div>
             <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>{expectedOutcome}</div>
@@ -381,7 +381,7 @@ export default function AICoachFeedWidget({
             <div style={{
               background: "#EFF6FF",
               color: "#2563EB",
-              fontSize: 10,
+              fontSize: "var(--fs-2xs)",
               fontWeight: 800,
               padding: "2px 7px",
               borderRadius: 999,
@@ -463,7 +463,7 @@ export default function AICoachFeedWidget({
 
           {/* Generated at */}
           {feed?.generatedAt && (
-            <div style={{ marginTop: 12, fontSize: 10, color: "#CBD5E1", textAlign: "right" }}>
+            <div style={{ marginTop: 12, fontSize: "var(--fs-2xs)", color: "#CBD5E1", textAlign: "right" }}>
               Updated: {new Date(feed.generatedAt).toLocaleString()}
             </div>
           )}

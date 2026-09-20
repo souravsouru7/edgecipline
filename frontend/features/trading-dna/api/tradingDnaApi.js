@@ -2,14 +2,15 @@ import apiClient from "@/services/apiClient";
 
 const BASE = "/trading-dna";
 
-const ALLOWED_PERIODS = new Set(["30d", "90d", "365d"]);
+export const TRADING_DNA_PERIODS = ["30d", "90d", "365d"];
+export const TRADING_DNA_MARKETS = ["Forex", "Indian_Market"];
 
-function normalizePeriod(period) {
-  return ALLOWED_PERIODS.has(period) ? period : "90d";
+export function normalizePeriod(period) {
+  return TRADING_DNA_PERIODS.includes(period) ? period : "90d";
 }
 
-function normalizeMarket(marketType) {
-  return marketType === "Indian_Market" ? "Indian_Market" : "Forex";
+export function normalizeMarket(marketType) {
+  return TRADING_DNA_MARKETS.includes(marketType) ? marketType : "Forex";
 }
 
 /**

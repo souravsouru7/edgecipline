@@ -186,7 +186,7 @@ function SectionTitle({ title, subtitle }) {
 function MetricBlock({ label, value, sub, hint }) {
   return (
     <div style={{ padding: "14px 16px", borderRadius: 12, background: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-      <div style={{ fontSize: 10, color: "#94A3B8", letterSpacing: 0.1, textTransform: "uppercase", fontWeight: 800 }}>{label}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: 0.1, textTransform: "uppercase", fontWeight: 800 }}>{label}</div>
       <div style={{ fontSize: 28, color: "#0F1923", fontWeight: 800, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{value}</div>
       <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{sub}</div>
       {hint && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 8, lineHeight: 1.5 }}>{hint}</div>}

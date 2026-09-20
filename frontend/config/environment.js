@@ -36,6 +36,10 @@ export const PUBLIC_ENVIRONMENT = Object.freeze({
   firebaseAppId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   firebaseWebClientId: process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID,
   razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+  // Read here as well as in config/payments.js: this module is what a
+  // production build is validated against, and "payments are on" is the fact
+  // that turns a missing Razorpay key from harmless into a broken checkout.
+  paymentsEnabled: process.env.NEXT_PUBLIC_PAYMENTS_ENABLED,
   sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   sentryEnvironment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
   sentryRelease: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
@@ -153,6 +157,19 @@ export function validateEnvironment(
     }
 
     const razorpayKeyId = String(environment.razorpayKeyId || "").trim();
+    const paymentsEnabled =
+      String(environment.paymentsEnabled || "").trim() === "true";
+
+    // An empty key used to pass silently: every check below is guarded on the
+    // value being present, so a production web build with payments switched on
+    // and no key shipped a checkout that could only fail at the moment a
+    // customer clicked Pay. If the purchase surface is compiled in, the key
+    // that surface needs is mandatory.
+    if (paymentsEnabled && !razorpayKeyId) {
+      errors.push(
+        "NEXT_PUBLIC_RAZORPAY_KEY_ID is required when NEXT_PUBLIC_PAYMENTS_ENABLED=true."
+      );
+    }
     // The prefix check alone is not enough — `rzp_live_placeholder` satisfies
     // it while being obviously fake, which is exactly what shipped before.
     if (razorpayKeyId && hasPlaceholder(razorpayKeyId)) {

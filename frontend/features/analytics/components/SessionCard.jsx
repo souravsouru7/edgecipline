@@ -31,7 +31,7 @@ export default function SessionCard({ label, data, color, delay = 0 }) {
       animation: `fadeUp 0.5s ease ${delay}s both`,
     }}>
       <div style={{
-        fontSize: 9,
+        fontSize: "var(--fs-2xs)",
         color: color,
         fontWeight: 700,
         letterSpacing: "0.1em",
@@ -56,19 +56,19 @@ export default function SessionCard({ label, data, color, delay = 0 }) {
         fontFamily: "'JetBrains Mono',monospace",
       }}>
         <div>
-          <div style={{ fontSize: 9, color: colors.muted }}>P&L</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>P&L</div>
           <div style={{ color: isProfit ? colors.bull : colors.bear, fontWeight: 700 }}>
             {data.profit}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: colors.muted }}>W/R</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>W/R</div>
           <div style={{ color: data.winRate >= 50 ? colors.bull : colors.bear, fontWeight: 700 }}>
             {data.winRate}%
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: colors.muted }}>TRADES</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>TRADES</div>
           <div style={{ color: colors.primary, fontWeight: 700 }}>
             {data.trades}
           </div>

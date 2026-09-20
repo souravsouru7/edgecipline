@@ -6,6 +6,7 @@ import {
   Bell, CheckCheck, Loader2,
   Sunrise, AlertTriangle, TrendingUp,
   Brain, Clock, Shield, BookOpen, Target,
+  Flame, Moon, Compass, Camera, LifeBuoy,
 } from "lucide-react";
 import {
   getNotifications,
@@ -89,6 +90,54 @@ const TYPE_META = {
     bg: "rgba(139,92,246,0.07)", border: "rgba(139,92,246,0.25)",
     unreadBg: "#0A0014",
   },
+  streak_milestone: {
+    label: "Streak", Icon: Flame,
+    color: "#3B82F6", accent: "#60A5FA",
+    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
+    unreadBg: "#000D1A",
+  },
+  streak_at_risk: {
+    label: "Streak", Icon: Flame,
+    color: "#3B82F6", accent: "#60A5FA",
+    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
+    unreadBg: "#000D1A",
+  },
+  streak_broken: {
+    label: "Streak", Icon: Flame,
+    color: "#3B82F6", accent: "#60A5FA",
+    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
+    unreadBg: "#000D1A",
+  },
+  evening_reflection: {
+    label: "Reflection", Icon: Moon,
+    color: "#3B82F6", accent: "#60A5FA",
+    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
+    unreadBg: "#000D1A",
+  },
+  mission_update: {
+    label: "Mission", Icon: Compass,
+    color: "#3B82F6", accent: "#60A5FA",
+    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
+    unreadBg: "#000D1A",
+  },
+  ocr_completed: {
+    label: "Screenshot", Icon: Camera,
+    color: "#0EA5E9", accent: "#38BDF8",
+    bg: "rgba(14,165,233,0.07)", border: "rgba(14,165,233,0.25)",
+    unreadBg: "#00101A",
+  },
+  ocr_failed: {
+    label: "Screenshot", Icon: Camera,
+    color: "#E53935", accent: "#FF5252",
+    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
+    unreadBg: "#110000",
+  },
+  support_agent_reply: {
+    label: "Support", Icon: LifeBuoy,
+    color: "#B8860B", accent: "#D4A017",
+    bg: "rgba(184,134,11,0.07)", border: "rgba(184,134,11,0.25)",
+    unreadBg: "#120D00",
+  },
 };
 
 const DEFAULT_META = {
@@ -166,7 +215,7 @@ function MorningMentorCard({ n, onRead }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{
-                fontSize: 10, fontWeight: 800, letterSpacing: "0.1em",
+                fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.1em",
                 color: "#F59E0B", textTransform: "uppercase",
               }}>
                 Morning Mentor
@@ -206,7 +255,7 @@ function MorningMentorCard({ n, onRead }) {
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 5 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: scenarioColor }} />
             <span style={{
-              fontSize: 10, color: "#475569",
+              fontSize: "var(--fs-2xs)", color: "#475569",
               letterSpacing: "0.06em", textTransform: "capitalize",
             }}>
               {scenario.replace(/_/g, " ")}
@@ -256,7 +305,7 @@ function NotificationCard({ n, onRead }) {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+              fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em",
               color: isRead ? "#2D3748" : meta.color, textTransform: "uppercase",
             }}>
               {meta.label}
@@ -351,7 +400,7 @@ export default function NotificationsPage() {
                   <span style={{
                     position: "absolute", top: -4, right: -4,
                     background: "#F59E0B", color: "#000",
-                    borderRadius: 10, fontSize: 10, fontWeight: 800,
+                    borderRadius: 10, fontSize: "var(--fs-2xs)", fontWeight: 800,
                     padding: "1px 5px", lineHeight: 1.4,
                   }}>
                     {unreadCount}

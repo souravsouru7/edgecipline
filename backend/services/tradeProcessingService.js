@@ -25,6 +25,7 @@ const {
   isTradeRelatedContent,
 } = require("./extractionQualityService");
 const { logger } = require("../utils/logger");
+const { withTimeout } = require("../utils/withTimeout");
 const { captureOperationalError } = require("../config/sentry");
 const { appConfig } = require("../config");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
@@ -137,18 +138,6 @@ function normalizeTradeType(type) {
   return normalized === "BUY" || normalized === "SELL" ? normalized : undefined;
 }
 
-function withTimeout(promise, message, timeoutMs = PROCESSING_TIMEOUT_MS) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-  });
-  // Prevent the original promise from producing an unhandled rejection after
-  // the timeout wins the race. Without this, a Gemini Vision call that keeps
-  // running past the deadline eventually rejects with nothing catching it,
-  // which crashes the worker process and triggers a PM2 restart.
-  promise.catch(() => {});
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 function isWeakOcrText(text) {
   const cleaned = cleanOcrText(text);
@@ -1465,7 +1454,7 @@ async function processTradeUpload({
       parsedTrade,
       parsedTrades,
     };
-  })(), "Processing timeout");
+  })(), "Processing timeout", PROCESSING_TIMEOUT_MS);
 }
 
 function getFriendlyProcessingError(error) {

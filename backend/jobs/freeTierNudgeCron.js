@@ -1,6 +1,7 @@
 "use strict";
 
 const cron = require("node-cron");
+const { hourlyKey } = require("../utils/dateUtils");
 const User = require("../models/Users");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
@@ -31,10 +32,6 @@ const USER_PROJECTION =
   + "subscriptionStatus subscriptionExpiry playEntitlementExpiry totalPaid";
 
 let isRunning = false;
-
-function hourlyKey(date = new Date()) {
-  return date.toISOString().slice(0, 13);
-}
 
 async function processTouchpoint(touchpoint, now, batchSize) {
   const { from, to } = windowForTouchpoint(touchpoint, now.getTime());

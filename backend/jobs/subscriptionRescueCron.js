@@ -1,6 +1,7 @@
 "use strict";
 
 const cron = require("node-cron");
+const { hourlyKey } = require("../utils/dateUtils");
 const User = require("../models/Users");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
@@ -19,10 +20,6 @@ const LOCK_NAME = "subscription-rescue";
 const LOCK_TTL_SECONDS = 55 * 60;
 
 let isRunning = false;
-
-function hourlyKey(date = new Date()) {
-  return date.toISOString().slice(0, 13);
-}
 
 // Per-touchpoint pass: query users in the window for that touchpoint and
 // dispatch. The RescueDispatch unique index dedupes — we don't need to

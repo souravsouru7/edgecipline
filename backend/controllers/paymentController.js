@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { addDays } = require("../utils/dateUtils");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
@@ -34,12 +35,6 @@ const isSandboxMode = () => {
   if (appConfig.razorpay.allowSandboxPayments) return true;
   throw new ApiError(503, "Razorpay is not configured", "RAZORPAY_CONFIG_MISSING");
 };
-
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
 
 function getSafeSandboxId(value, prefix) {
   const raw = String(value || "").trim();

@@ -32,7 +32,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#000000",
+  // Must match the app surface and the Android bars in styles.xml.
+  themeColor: "#F4F2EE",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

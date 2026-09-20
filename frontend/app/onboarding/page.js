@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useMarket } from "@/context/MarketContext";
+import { getOnboardingSetupsUrl } from "@/utils/marketNavigation";
 import { markOnboardingStep, setPreferredMarket as setPreferredMarketLocal } from "@/services/api";
 import OnboardingShell from "@/features/onboarding/components/OnboardingShell";
 import WelcomeStep from "@/features/onboarding/components/WelcomeStep";
@@ -26,11 +27,6 @@ const STEPS = [
   "tradeAdded",
   "journalSeen",
 ];
-
-function setupRouteForMarket(market) {
-  const marketRoot = market === "Indian_Market" ? "/indian-market" : "";
-  return `${marketRoot}/setups?onboarding=1`;
-}
 
 function Page() {
   const router = useRouter();
@@ -78,7 +74,7 @@ function Page() {
 
   useEffect(() => {
     if (activeKey !== "setupAdded") return;
-    router.replace(setupRouteForMarket(selectedMarket));
+    router.replace(getOnboardingSetupsUrl(selectedMarket));
   }, [activeKey, selectedMarket, router]);
 
   // Final hop — when the funnel is complete, route to the dashboard. The
@@ -155,7 +151,7 @@ function Page() {
           setPreferredMarketLocal(marketChoice).catch(() => {});
           try {
             await selectMarket.mutateAsync(marketChoice);
-            router.push(setupRouteForMarket(marketChoice));
+            router.push(getOnboardingSetupsUrl(marketChoice));
           } catch {/* error banner already shown via mutation state */}
         }}
       >

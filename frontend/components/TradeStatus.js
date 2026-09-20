@@ -195,7 +195,7 @@ export default function TradeStatus({ status, data, error, onRetry, onReset }) {
           padding: "14px 18px",
           marginBottom: 20,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#991B1B", marginBottom: 8, letterSpacing: "0.05em" }}>
+          <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "#991B1B", marginBottom: 8, letterSpacing: "0.05em" }}>
             💡 TIPS FOR BETTER EXTRACTION:
           </div>
           <ul style={{ 

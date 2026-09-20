@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { markOnboardingStep, setPreferredMarket } from "@/services/api";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import FocusTrap from "@/features/shared/components/FocusTrap";
+import { getOnboardingSetupsUrl } from "@/utils/marketNavigation";
 
 // Full-screen welcome shown only on the very first login. Three short slides:
 // (1) intro, (2) market picker, (3) setup explainer - then routes the user
@@ -72,12 +73,6 @@ const card = {
 // Step indices: 0 = intro, 1 = market picker, 2 = setup explainer.
 const TOTAL_STEPS = 3;
 
-function setupRouteForMarket(market) {
-  return market === MARKETS.INDIAN_MARKET
-    ? "/indian-market/setups?onboarding=1"
-    : "/setups?onboarding=1";
-}
-
 export default function FirstLoginWelcome({ onClose }) {
   const router = useRouter();
   const { toggleMarket } = useMarket();
@@ -106,7 +101,7 @@ export default function FirstLoginWelcome({ onClose }) {
       // Keep moving; setup can still save the same market context next.
     }
     onClose?.();
-    router.replace(setupRouteForMarket(market));
+    router.replace(getOnboardingSetupsUrl(market));
   }
 
   async function handleNext() {
@@ -125,7 +120,7 @@ export default function FirstLoginWelcome({ onClose }) {
       ]);
     } catch {/* non-blocking */}
     onClose?.();
-    router.replace(setupRouteForMarket(pickedMarket));
+    router.replace(getOnboardingSetupsUrl(pickedMarket));
   }
 
   function handleBack() {
@@ -151,7 +146,7 @@ export default function FirstLoginWelcome({ onClose }) {
 
         <div style={{ padding: "24px 26px 8px" }}>
           <div style={{
-            fontSize: 10, fontWeight: 800, color: "#22C78E",
+            fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#22C78E",
             letterSpacing: "0.12em", fontFamily: "'JetBrains Mono', monospace",
           }}>
             {isMarketStep ? "PICK YOUR MARKET" : slide.badge} · {step + 1}/{TOTAL_STEPS}
@@ -202,7 +197,7 @@ export default function FirstLoginWelcome({ onClose }) {
                     <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 2 }}>
                       {opt.sub}
                     </div>
-                    <div style={{ fontSize: 10, color: "#64748B", fontFamily: "'JetBrains Mono', monospace" }}>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", fontFamily: "'JetBrains Mono', monospace" }}>
                       e.g. {opt.examples}
                     </div>
                   </div>

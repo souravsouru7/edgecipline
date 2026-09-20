@@ -218,7 +218,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
         description: selectedPlan
           ? `Edgecipline Premium — ${selectedPlan.label}`
           : (ctx?.cta?.orderableLabel || "3 Months Premium Access"),
-        image: "/mainlogo1.png",
+        image: "/mainlogo1.webp",
         order_id: order.id,
         handler: async (response) => {
           try {
@@ -475,7 +475,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
                         </span>
                         {plan.savingsPct > 0 && (
                           <span style={{
-                            fontSize: 10, fontWeight: 800, letterSpacing: "0.04em",
+                            fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.04em",
                             color: "#0D9E6E", background: "rgba(13,158,110,0.12)",
                             borderRadius: 999, padding: "2px 8px",
                           }}>

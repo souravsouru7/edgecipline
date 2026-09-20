@@ -186,7 +186,7 @@ describe("mailService delivery envelope and failure classification", () => {
     const assertion = expect(pending).rejects.toMatchObject({
       provider: "resend",
       permanent: false,
-      providerErrorName: "timeout",
+      providerErrorName: "TimeoutError",
     });
     await jest.advanceTimersByTimeAsync(1001);
     await assertion;

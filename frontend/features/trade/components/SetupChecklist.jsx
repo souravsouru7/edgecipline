@@ -1,5 +1,7 @@
 "use client";
 
+import { tapLight } from "@/utils/haptics";
+
 /**
  * SetupChecklist
  * Renders setup rules as interactive checkboxes for trade quality tracking.
@@ -39,7 +41,7 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
               {score !== null ? `${followedCount}/${activeRules.length} Rules Followed` : "No rules defined"}
             </div>
             {score !== null && (
-              <div style={{ fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>Setup score: {score}%</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>Setup score: {score}%</div>
             )}
           </div>
         </div>
@@ -47,12 +49,12 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
           <button
             type="button"
             onClick={onClear}
-            style={{ fontSize: 9, color: "#94A3B8", background: "none", border: "1px solid #E2E8F0", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
+            style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", background: "none", border: "1px solid #E2E8F0", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
           >CLEAR</button>
           <button
             type="button"
             onClick={onAdd}
-            style={{ fontSize: 9, color: "#0D9E6E", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.25)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
+            style={{ fontSize: "var(--fs-2xs)", color: "#0D9E6E", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.25)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
           >+ RULE</button>
         </div>
       </div>
@@ -71,7 +73,7 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
             >
               {/* Checkbox */}
               <div
-                onClick={() => onToggle(rule.id)}
+                onClick={() => { void tapLight(); onToggle(rule.id); }}
                 style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${rule.followed ? "#0D9E6E" : "#CBD5E1"}`, background: rule.followed ? "#0D9E6E" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "all 0.2s" }}
               >
                 {rule.followed && (
@@ -91,7 +93,7 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
 
               {/* Status badge */}
               {rule.label && rule.label.trim() && (
-                <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: rule.followed ? "#0D9E6E" : "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
+                <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.1em", color: rule.followed ? "#0D9E6E" : "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
                   {rule.followed ? "✓ FOLLOWED" : "PENDING"}
                 </span>
               )}

@@ -2,12 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import AppLoadingShell from "@/components/AppLoadingShell";
+import BrandOpener, { OPENER_EXIT_MS } from "@/components/BrandOpener";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import { hideNativeSplash } from "@/utils/nativeSplash";
+import { isStartupContentReady, isStartupGatedRoute, subscribeStartupGate } from "@/utils/startupGate";
+import { hasPersistedStartupContent } from "@/utils/persistedQueryCache";
 
 const STARTUP_REVEAL_TIMEOUT_MS = 1400;
+// Native only: the AndroidX splash has already shown this logo statically, so
+// the web opener continuing for a beat is what makes the hand-off read as one
+// motion rather than a flash. On the web there is no native splash and any
+// hold is pure delay, so it is zero there.
+const OPENER_MIN_HOLD_NATIVE_MS = 520;
+// On a gated route (see utils/startupGate) the opener also waits for the first
+// screen's data. This is the ceiling on that wait: past it the app reveals
+// with its own loading state rather than leaving the user staring at a logo
+// on a very slow connection.
+const STARTUP_CONTENT_TIMEOUT_MS = 10000;
 
 // Routes an unauthenticated visitor may reach. Anything not listed here gets
 // redirected to /login when session restore comes back empty.
@@ -48,8 +60,16 @@ const PUBLIC_PATH_PREFIXES = [
 ];
 
 export default function AuthSessionBootstrap({ children }) {
+  // `ready`  — session restored; children mount so the first screen can start
+  //            fetching underneath the opener.
+  // `shown`  — the opener has started its exit; false again only for bfcache
+  //            restores. Overlay stays mounted for OPENER_EXIT_MS after this
+  //            flips so it can crossfade over the app rather than cut.
   const [ready, setReady] = useState(false);
+  const [shown, setShown] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const readyRef = useRef(false);
+  const mountedAtRef = useRef(0);
   const pathname = usePathname();
   const pathnameRef = useRef(pathname || "");
 
@@ -60,6 +80,11 @@ export default function AuthSessionBootstrap({ children }) {
     let nativeListener = null;
     let resumeInFlight = null;
     let revealTimer = null;
+    let holdTimer = null;
+    let exitTimer = null;
+    let contentTimer = null;
+    let unsubscribeGate = null;
+    mountedAtRef.current = performance.now();
     const isProtectedRoute = () => !PUBLIC_PATH_PREFIXES.some((prefix) => pathnameRef.current === prefix || pathnameRef.current.startsWith(`${prefix}/`));
     const redirectToLogin = () => {
       if (typeof window === "undefined") return;
@@ -71,18 +96,60 @@ export default function AuthSessionBootstrap({ children }) {
     const revealApp = (reason) => {
       if (!active || readyRef.current) return;
       readyRef.current = true;
-      setReady(true);
-      hideNativeSplash();
       if (reason === "timeout") {
         console.warn("AUTH_STARTUP_SOFT_TIMEOUT", {
           timeoutMs: STARTUP_REVEAL_TIMEOUT_MS,
           platform: window.Capacitor?.isNativePlatform?.() ? "capacitor" : "web",
         });
       }
+      // Mount the app now so a gated first screen can fetch behind the opener.
+      setReady(true);
+      hideNativeSplash();
+
+      const dismiss = () => {
+        if (!active) return;
+        const isNative = Boolean(window.Capacitor?.isNativePlatform?.());
+        const elapsed = performance.now() - mountedAtRef.current;
+        // With a persisted dashboard snapshot the first screen paints from
+        // storage in the same frame the app mounts, so the opener only needs
+        // its own crossfade — holding it longer would be the wait we removed.
+        const cachedFirstScreen = hasPersistedStartupContent();
+        const hold = isNative && !cachedFirstScreen ? Math.max(0, OPENER_MIN_HOLD_NATIVE_MS - elapsed) : 0;
+        holdTimer = window.setTimeout(() => {
+          if (!active) return;
+          setShown(true);
+          setExiting(true);
+          exitTimer = window.setTimeout(() => {
+            if (active) setExiting(false);
+          }, OPENER_EXIT_MS);
+        }, hold);
+      };
+
+      if (!isStartupGatedRoute(pathnameRef.current) || isStartupContentReady()) {
+        dismiss();
+        return;
+      }
+      // Gated route: wait for the first screen's content, with a ceiling.
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        unsubscribeGate?.();
+        if (contentTimer) window.clearTimeout(contentTimer);
+        dismiss();
+      };
+      unsubscribeGate = subscribeStartupGate(settle);
+      contentTimer = window.setTimeout(() => {
+        console.warn("STARTUP_CONTENT_TIMEOUT", { timeoutMs: STARTUP_CONTENT_TIMEOUT_MS, pathname: pathnameRef.current });
+        settle();
+      }, STARTUP_CONTENT_TIMEOUT_MS);
     };
     const hideProtectedApp = () => {
       if (!active || !isProtectedRoute()) return;
       readyRef.current = false;
+      mountedAtRef.current = performance.now();
+      setExiting(false);
+      setShown(false);
       setReady(false);
     };
 
@@ -157,21 +224,20 @@ export default function AuthSessionBootstrap({ children }) {
     return () => {
       active = false;
       if (revealTimer) window.clearTimeout(revealTimer);
+      if (holdTimer) window.clearTimeout(holdTimer);
+      if (exitTimer) window.clearTimeout(exitTimer);
+      if (contentTimer) window.clearTimeout(contentTimer);
+      unsubscribeGate?.();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
       nativeListener?.remove?.();
     };
   }, []);
 
-  if (!ready) {
-    return (
-      <AppLoadingShell
-        title="Restoring Edgecipline"
-        subtitle="Checking your secure session"
-        dense
-      />
-    );
-  }
-
-  return children;
+  return (
+    <>
+      {ready ? children : null}
+      {(!shown || exiting) && <BrandOpener exiting={exiting} />}
+    </>
+  );
 }

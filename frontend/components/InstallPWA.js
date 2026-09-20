@@ -57,7 +57,7 @@ export default function InstallPWA() {
                 display: "flex", alignItems: "center", gap: 6,
                 background: "rgba(34,199,142,0.1)", border: "1px solid rgba(34,199,142,0.3)",
                 borderRadius: 6, padding: "6px 12px",
-                cursor: "pointer", fontSize: 10, letterSpacing: "0.1em",
+                cursor: "pointer", fontSize: "var(--fs-2xs)", letterSpacing: "0.1em",
                 color: "#0D9E6E", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
                 transition: "all 0.2s",
             }}

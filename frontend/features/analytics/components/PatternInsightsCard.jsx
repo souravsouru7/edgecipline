@@ -31,7 +31,7 @@ function confidencePill(level) {
   const style = map[level] || { bg: "#F1F5F9", color: "#475569" };
   return (
     <span style={{
-      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+      fontSize: "var(--fs-2xs)", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
       background: style.bg, color: style.color, fontFamily: "'JetBrains Mono',monospace",
       textTransform: "uppercase", letterSpacing: "0.05em",
     }}>
@@ -77,7 +77,7 @@ function PatternRow({ label, winRate, netPnl, count, confidence, accent }) {
         }}>
           {label}
         </div>
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 2, display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2, display: "flex", gap: 6, alignItems: "center" }}>
           <span>{count} trades</span>
           <span>·</span>
           <span style={{ color: accent }}>{winRate}% WR</span>
@@ -99,15 +99,15 @@ function StreakBlock({ label, stats, accent }) {
       background: `${accent}10`, border: `1px solid ${accent}30`,
       borderRadius: 8, padding: "8px 12px", flex: "1 1 120px", minWidth: 100,
     }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: accent }}>
         {stats.winRate}%
       </div>
-      <div style={{ fontSize: 10, color: C.muted }}>Win Rate</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>Win Rate</div>
       <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: parseFloat(stats.netPnl) >= 0 ? C.bull : C.bear, marginTop: 2 }}>
         {fmt(stats.netPnl)}
       </div>
-      <div style={{ fontSize: 9, color: C.muted }}>{stats.count} trades · {stats.confidence}</div>
+      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>{stats.count} trades · {stats.confidence}</div>
     </div>
   );
 }
@@ -121,7 +121,7 @@ function SectionHeading({ icon, title, subtitle }) {
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{title}</span>
       </div>
-      {subtitle && <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{subtitle}</div>}
     </div>
   );
 }
@@ -211,13 +211,13 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                     +{summary.topPositivePattern.netPnl?.toFixed?.(2) ?? summary.topPositivePattern.netPnl}
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
                     {summary.topPositivePattern.winRate}%
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
                 </div>
               </div>
             </Card>
@@ -233,13 +233,13 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
                     {summary.topNegativePattern.netPnl?.toFixed?.(2) ?? summary.topNegativePattern.netPnl}
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
                     {summary.topNegativePattern.winRate}%
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
                 </div>
               </div>
             </Card>
@@ -284,7 +284,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {combinations.topPositive?.length > 0 && (
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.bull, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bull, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
                   Most Profitable
                 </div>
                 {combinations.topPositive.map((c, i) => (
@@ -302,7 +302,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
             )}
             {combinations.topNegative?.length > 0 && (
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.bear, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bear, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
                   Most Dangerous
                 </div>
                 {combinations.topNegative.map((c, i) => (
@@ -461,7 +461,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     {r.rule}
                   </div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>
                     Broken {r.brokenCount}× · avg {r.avgCost} per violation · {confidencePill(r.confidence)}
                   </div>
                 </div>
@@ -482,7 +482,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {rankings.top5Positive?.length > 0 && (
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.bull, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bull, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
                   Top 5 Positive Patterns
                 </div>
                 {rankings.top5Positive.map((p, i) => (
@@ -500,7 +500,7 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
             )}
             {rankings.top5Negative?.length > 0 && (
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.bear, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: C.bear, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
                   Top 5 Negative Patterns
                 </div>
                 {rankings.top5Negative.map((p, i) => (

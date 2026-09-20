@@ -40,7 +40,7 @@ export default function StyleStep({ styles = [], value, onChange }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#F1F5F9" }}>{style.label}</span>
                 <span style={{
-                  fontSize: 9, fontWeight: 800, color: "#22C78E",
+                  fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#22C78E",
                   background: "rgba(34,199,142,0.18)", padding: "2px 6px", borderRadius: 999,
                   letterSpacing: "0.06em", textTransform: "uppercase",
                 }}>

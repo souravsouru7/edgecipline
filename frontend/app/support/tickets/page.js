@@ -312,7 +312,7 @@ function TicketList() {
           color: var(--color-text-disabled);
         }
         .tl-bug {
-          font-size: 10px;
+          font-size: var(--fs-2xs);
           font-weight: 800;
           letter-spacing: 0.06em;
           text-transform: uppercase;

@@ -58,7 +58,7 @@ export default function LoginForm({
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 16, flexWrap: "wrap" }}>
           {[{ label: "Resume Coaching", icon: "🧭" }, { label: "AI Insights", icon: "🤖" }, { label: "Trade History", icon: "📊" }].map(f => (
-            <div key={f.label} style={{ fontSize: 10, color: "#0D9E6E", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600, background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 20, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+            <div key={f.label} style={{ fontSize: "var(--fs-2xs)", color: "#0D9E6E", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600, background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 20, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ fontSize: 11 }}>{f.icon}</span> {f.label}
             </div>
           ))}

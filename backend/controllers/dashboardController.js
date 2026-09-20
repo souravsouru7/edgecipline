@@ -8,6 +8,8 @@ const IndianTrade = require("../models/IndianTrade");
 const streakService = require("../services/streak.service");
 const reflectionService = require("../services/reflectionService");
 const { logger } = require("../utils/logger");
+const { needsTermsAcceptance } = require("../constants/terms");
+const { toNum, fixed } = require("../utils/numbers");
 const { getTrialState, getPlanSource, isPremium } = require("../utils/premium");
 
 async function loadStreakSnapshot(userId) {
@@ -68,19 +70,6 @@ async function loadOnboardingProgress(userId) {
   }
 }
 
-const toNum = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-};
-
-const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
-
-function needsTermsAcceptance(user) {
-  return (
-    user?.termsAcceptance?.acceptedTerms !== true ||
-    user?.termsAcceptance?.acceptedPrivacy !== true
-  );
-}
 
 function buildProfile(user) {
   return {

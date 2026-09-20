@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { prettyBytes } from "@/features/support/lib/prettyBytes";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, FileText, Paperclip, X, ChevronRight } from "lucide-react";
@@ -37,11 +38,6 @@ function detectPlatform() {
     /* fall through to web */
   }
   return "web";
-}
-
-function prettyBytes(bytes) {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function NewTicketForm() {

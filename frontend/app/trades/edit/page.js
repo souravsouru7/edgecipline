@@ -11,6 +11,17 @@ import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import SetupChecklist from "@/features/trade/components/SetupChecklist";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
+import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
+import TickerTape from "@/features/shared/components/TickerTape";
+import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
+import { parseNumericField } from "@/features/trade/lib/numericInput";
+import {
+  appendSetupRule,
+  clearSetupRules as clearSetupRulesFollowed,
+  normalizeSetupRules,
+  setSetupRuleLabel,
+  toggleSetupRule as toggleSetupRuleFollowed,
+} from "@/features/trade/lib/setupRules";
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS — Light Trading Theme
@@ -26,100 +37,6 @@ import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSecti
 ───────────────────────────────────────── */
 
 /* ─────────────────────────────────────────
-   CANDLESTICK BACKGROUND (subtle, light)
-───────────────────────────────────────── */
-function CandlestickBackground() {
-  useEffect(() => {
-    const canvas = document.getElementById("edit-bg-canvas");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const draw = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-      const count = Math.floor(W / 32);
-      const candles = [];
-      let price = 200;
-      for (let i = 0; i < count; i++) {
-        const open = price + (Math.random() - 0.5) * 20;
-        const close = open + (Math.random() - 0.5) * 28;
-        const high = Math.max(open, close) + Math.random() * 12;
-        const low = Math.min(open, close) - Math.random() * 12;
-        price = close;
-        candles.push({ open, close, high, low });
-      }
-      const all = candles.flatMap(c => [c.high, c.low]);
-      const mx = Math.max(...all), mn = Math.min(...all), rng = mx - mn || 1;
-      const toY = p => H * 0.1 + (H * 0.8 * (mx - p)) / rng;
-
-      ctx.strokeStyle = "rgba(0,0,0,0.04)";
-      ctx.lineWidth = 1;
-      for (let i = 1; i < 7; i++) {
-        ctx.beginPath(); ctx.moveTo(0,(H/7)*i); ctx.lineTo(W,(H/7)*i); ctx.stroke();
-      }
-
-      candles.forEach((c, i) => {
-        const x = i * 32 + 16, bull = c.close >= c.open;
-        const col = bull ? "rgba(13,158,110,0.18)" : "rgba(214,59,59,0.15)";
-        const bTop = toY(Math.max(c.open, c.close)), bBot = toY(Math.min(c.open, c.close));
-        ctx.strokeStyle = bull ? "rgba(13,158,110,0.25)" : "rgba(214,59,59,0.22)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(x, toY(c.high)); ctx.lineTo(x, toY(c.low)); ctx.stroke();
-        ctx.fillStyle = col;
-        ctx.fillRect(x - 8, bTop, 16, Math.max(bBot - bTop, 1));
-      });
-
-      const ma = candles.map((_, i) => {
-        const sl = candles.slice(Math.max(0,i-5),i+1);
-        return sl.reduce((a,c) => a+c.close,0)/sl.length;
-      });
-      ctx.strokeStyle = "rgba(184,134,11,0.3)";
-      ctx.lineWidth = 2; ctx.setLineDash([5,5]);
-      ctx.beginPath();
-      ma.forEach((p,i) => { const x=i*32+16,y=toY(p); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-      ctx.stroke(); ctx.setLineDash([]);
-    };
-    draw();
-    window.addEventListener("resize", draw);
-    return () => window.removeEventListener("resize", draw);
-  }, []);
-  return <canvas id="edit-bg-canvas" style={{ position:"fixed", inset:0, width:"100%", height:"100%", opacity:1, zIndex:0, pointerEvents:"none" }}/>;
-}
-
-/* ─────────────────────────────────────────
-   TICKER TAPE — dark strip on light bg
-───────────────────────────────────────── */
-const tickers = [
-  {sym:"BTC",val:"+2.34%",bull:true},{sym:"ETH",val:"-1.12%",bull:false},
-  {sym:"AAPL",val:"+0.87%",bull:true},{sym:"TSLA",val:"+4.20%",bull:true},
-  {sym:"NVDA",val:"-0.55%",bull:false},{sym:"GOLD",val:"+0.62%",bull:true},
-  {sym:"SPY",val:"+0.31%",bull:true},{sym:"OIL",val:"-2.18%",bull:false},
-  {sym:"AMZN",val:"+1.05%",bull:true},{sym:"USD/JPY",val:"-0.33%",bull:false},
-];
-function TickerTape() {
-  const items = [...tickers, ...tickers];
-  return (
-    <div style={{
-      overflow:"hidden", background:"#0F1923",
-      borderBottom:"3px solid #0D9E6E",
-      padding:"7px 0", whiteSpace:"nowrap", position:"relative", zIndex:10,
-    }}>
-      <div style={{ display:"inline-flex", gap:"48px", animation:"ticker 32s linear infinite" }}>
-        {items.map((t,i) => (
-          <span key={i} style={{ fontSize:"11px", fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.04em" }}>
-            <span style={{ color:"#94A3B8", marginRight:6 }}>{t.sym}</span>
-            <span style={{ color: t.bull ? "#22C78E" : "#F87171" }}>
-              {t.bull?"▲":"▼"} {t.val}
-            </span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
    INPUT FIELD
 ───────────────────────────────────────── */
 function InputField({ label, name, value, onChange, type = "text", options = null, required = false, min, max }) {
@@ -127,7 +44,7 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
     <div style={{ marginBottom: 16 }}>
       <label style={{
         display: "block",
-        fontSize: 10,
+        fontSize: "var(--fs-2xs)",
         letterSpacing: "0.14em",
         color: "#4A5568",
         marginBottom: 8,
@@ -184,18 +101,6 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
   );
 }
 
-function normalizeDateInput(value) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-}
-
-function getTodayInputValue() {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-}
-
 const MAX_SCREENSHOT_SIZE_BYTES = 2 * 1024 * 1024;
 const formatFileSizeMb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
 const MOOD_OPTIONS = [
@@ -206,16 +111,6 @@ const MOOD_OPTIONS = [
   { value: 5, label: "Peak" },
 ];
 const EMOTIONAL_TAGS = ["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused", "Frustrated", "Disciplined", "Rushed"];
-
-function normalizeSetupRules(rules = []) {
-  return Array.isArray(rules)
-    ? rules.map((rule, index) => ({
-        id: rule.id ?? index + 1,
-        label: rule.label || "",
-        followed: Boolean(rule.followed),
-      }))
-    : [];
-}
 
 /* ─────────────────────────────────────────
    MAIN PAGE
@@ -246,7 +141,7 @@ function EditTradePageContent() {
       setTrade(data);
       setFormData({
         ...data,
-        tradeDate: normalizeDateInput(data.tradeDate || data.createdAt),
+        tradeDate: normalizeDateForInput(data.tradeDate || data.createdAt),
         strategyCustom: "",
       });
       setSetupRules(normalizeSetupRules(data.setupRules));
@@ -306,21 +201,10 @@ function EditTradePageContent() {
     }
   };
 
-  const toggleSetupRule = (id) => {
-    setSetupRules((prev) => prev.map((rule) => rule.id === id ? { ...rule, followed: !rule.followed } : rule));
-  };
-
-  const updateSetupRuleLabel = (id, value) => {
-    setSetupRules((prev) => prev.map((rule) => rule.id === id ? { ...rule, label: value } : rule));
-  };
-
-  const addSetupRule = () => {
-    setSetupRules((prev) => [...prev, { id: Date.now(), label: "", followed: false }]);
-  };
-
-  const clearSetupRules = () => {
-    setSetupRules((prev) => prev.map((rule) => ({ ...rule, followed: false })));
-  };
+  const toggleSetupRule = (id) => setSetupRules((prev) => toggleSetupRuleFollowed(prev, id));
+  const updateSetupRuleLabel = (id, value) => setSetupRules((prev) => setSetupRuleLabel(prev, id, value));
+  const addSetupRule = () => setSetupRules((prev) => appendSetupRule(prev));
+  const clearSetupRules = () => setSetupRules((prev) => clearSetupRulesFollowed(prev));
 
   const toggleEmotionalTag = (tag) => {
     setFormData((prev) => {
@@ -330,11 +214,6 @@ function EditTradePageContent() {
         : [...current, tag].slice(0, 10);
       return { ...prev, emotionalTags: next };
     });
-  };
-
-  const parseNumericField = (val) => {
-    const n = parseFloat(val);
-    return Number.isFinite(n) ? n : undefined;
   };
 
   const handleSubmit = async (e) => {
@@ -434,12 +313,12 @@ function EditTradePageContent() {
       {/* Fonts */}
 
       {/* Background */}
-      <CandlestickBackground/>
+      <CandlestickBackground canvasId="edit-bg-canvas" />
       <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "linear-gradient(135deg, rgba(240,238,233,0.82) 0%, rgba(240,238,233,0.75) 100%)" }}/>
 
       <PageHeader />
 
-      <TickerTape/>
+      <TickerTape />
 
       {/* Main */}
       <main style={{
@@ -518,7 +397,7 @@ function EditTradePageContent() {
                   </div>
                 )}
                 {!dateError && accountCreatedDate && (
-                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
                     Earliest allowed: {accountCreatedDate}
                   </div>
                 )}
@@ -637,7 +516,7 @@ function EditTradePageContent() {
                     )}
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
                         MOOD
                       </label>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8 }}>
@@ -648,7 +527,7 @@ function EditTradePageContent() {
                               key={mood.value}
                               type="button"
                               onClick={() => setFormData((prev) => ({ ...prev, mood: active ? null : mood.value }))}
-                              style={{ minHeight: 62, padding: "8px 4px", borderRadius: 8, border: active ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: active ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: active ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: 10, fontWeight: 800 }}
+                              style={{ minHeight: 62, padding: "8px 4px", borderRadius: 8, border: active ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: active ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: active ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: "var(--fs-2xs)", fontWeight: 800 }}
                             >
                               <div style={{ fontSize: 13, marginBottom: 4 }}>{mood.value}</div>
                               <div>{mood.label}</div>
@@ -673,7 +552,7 @@ function EditTradePageContent() {
                     />
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
                         EMOTIONAL TAGS
                       </label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -706,10 +585,10 @@ function EditTradePageContent() {
                     />
 
                     <div style={{ marginTop: 16 }}>
-                      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
                         TRADE QUALITY (EXECUTION)
                       </label>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                         {[
                           { val: "Great", color: "#0D9E6E", desc: "Followed plan" },
                           { val: "Average", color: "#F59E0B", desc: "Partial exec." },
@@ -724,7 +603,7 @@ function EditTradePageContent() {
                               transition: "all 0.2s",
                             }}>
                             <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'JetBrains Mono',monospace" }}>{q.val}</div>
-                            <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2 }}>{q.desc}</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 2 }}>{q.desc}</div>
                           </button>
                         ))}
                       </div>
@@ -736,7 +615,7 @@ function EditTradePageContent() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
                     color: "#4A5568",
                     marginBottom: 8,
@@ -788,7 +667,7 @@ function EditTradePageContent() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
                     color: "#4A5568",
                     marginBottom: 8,
@@ -898,7 +777,7 @@ function EditTradePageContent() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{
                     display: "block",
-                    fontSize: 10,
+                    fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
                     color: "#4A5568",
                     marginBottom: 8,
@@ -927,7 +806,7 @@ function EditTradePageContent() {
                       resize: "vertical",
                     }}
                   />
-                  <div style={{ fontSize: 10, color: "#94A3B8", textAlign: "right", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", textAlign: "right", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
                     {(formData.notes || "").length}/2000
                   </div>
                 </div>
@@ -983,7 +862,6 @@ function EditTradePageContent() {
 
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
         * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
     </div>

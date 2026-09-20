@@ -1,6 +1,7 @@
 const Trade = require("../models/Trade");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+const { toNum, safeDivide, fixed } = require("../utils/numbers");
 const { appConfig } = require("../config");
 const analyticsSnapshotService = require("../services/analyticsSnapshotService");
 
@@ -36,21 +37,6 @@ const getAnalyticsLocalDate = (dateLike) => {
   const shiftedMs = base.getTime() + offsetHours * 60 * 60 * 1000;
   return new Date(shiftedMs);
 };
-
-const toNum = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-};
-
-const safeDivide = (a, b) => {
-  const numerator = toNum(a);
-  const denominator = toNum(b);
-  if (denominator === 0) return 0;
-  const result = numerator / denominator;
-  return Number.isFinite(result) ? result : 0;
-};
-
-const fixed = (value, digits = 2) => toNum(value).toFixed(digits);
 
 const handleAnalyticsError = (error) => {
   if (error instanceof ApiError) {

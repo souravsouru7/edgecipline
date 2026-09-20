@@ -53,7 +53,7 @@ function Badge({ label, color = C.bull, bg }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
-      fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+      fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em",
       fontFamily: C.mono,
       color,
       background: bg || color + "18",
@@ -141,7 +141,7 @@ function PriceGrid({ entry, exit, sl, tp, type }) {
           background: C.bg, borderRadius: 10, padding: "12px 14px",
           border: `1px solid ${C.border}`,
         }}>
-          <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, marginBottom: 4, fontFamily: C.sans }}>{c.label}</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 600, marginBottom: 4, fontFamily: C.sans }}>{c.label}</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: c.color || C.ink, fontFamily: C.mono }}>{c.val}</div>
         </div>
       ))}
@@ -330,7 +330,7 @@ function IndianTradeDetailContent() {
                   {trade.type === "BUY" ? "▲ BUY" : "▼ SELL"}{isEquity ? "" : ` ${optType}`}
                 </span>
                 <span style={{
-                  fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.6)",
+                  fontSize: "var(--fs-2xs)", fontWeight: 600, color: "rgba(255,255,255,0.6)",
                   fontFamily: C.mono,
                 }}>
                   {trade.tradeType || "INTRADAY"}
@@ -371,9 +371,9 @@ function IndianTradeDetailContent() {
 
           {/* NSE tag strip at bottom */}
           <div style={{ background: "rgba(0,0,0,0.2)", padding: "8px 24px", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.5)", fontFamily: C.mono, letterSpacing: "0.12em" }}>NSE</span>
+            <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: "rgba(255,255,255,0.5)", fontFamily: C.mono, letterSpacing: "0.12em" }}>NSE</span>
             <span style={{ width: 1, height: 10, background: "rgba(255,255,255,0.15)" }} />
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: C.mono }}>
+            <span style={{ fontSize: "var(--fs-2xs)", color: "rgba(255,255,255,0.4)", fontFamily: C.mono }}>
               {isEquity
                 ? `${trade.exchange || "NSE"} · Equity ${trade.tradeType || "INTRADAY"}`
                 : `${trade.underlying || "NIFTY"} · ${optType === "CE" ? "Call" : "Put"} Option`}
@@ -381,7 +381,7 @@ function IndianTradeDetailContent() {
             {trade.setupScore != null && (
               <>
                 <span style={{ width: 1, height: 10, background: "rgba(255,255,255,0.15)" }} />
-                <span style={{ fontSize: 10, color: trade.setupScore >= 70 ? "#34D399" : "#FCA5A5", fontFamily: C.mono }}>
+                <span style={{ fontSize: "var(--fs-2xs)", color: trade.setupScore >= 70 ? "#34D399" : "#FCA5A5", fontFamily: C.mono }}>
                   Setup {trade.setupScore}%
                 </span>
               </>

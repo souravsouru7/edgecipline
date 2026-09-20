@@ -1,3 +1,4 @@
+const { safePositiveNumber, safeSignedNumber } = require("../utils/numbers");
 function cleanOcrText(text) {
   return String(text || "")
     .replace(/\r/g, "\n")
@@ -20,16 +21,6 @@ function detectBrokerPattern(text, fallbackBroker = null) {
   if (source.includes("KOTAK") || source.includes("NEO")) return "Kotak";
   if (source.includes("PAYTM")) return "Paytm Money";
   return fallbackBroker || null;
-}
-
-function safePositiveNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
-}
-
-function safeSignedNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function normalizeValidationPayload(parsedTrade = {}) {

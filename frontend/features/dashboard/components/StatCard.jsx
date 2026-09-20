@@ -52,10 +52,10 @@ function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = f
       <div style={{ height: 3, background: `linear-gradient(90deg,${accentColor},${accentColor}22)`, borderRadius: "12px 12px 0 0" }} />
       <div style={{ padding: "20px 20px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-          <span style={{ fontSize: 10, color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
             {label}
             {tooltip && (
-              <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
+              <span style={{ width: 13, height: 13, borderRadius: "50%", background: "#E2E8F0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 900, color: "#64748B", cursor: "help", flexShrink: 0 }}>?</span>
             )}
           </span>
           {icon && (
@@ -67,7 +67,7 @@ function StatCard({ label, value, sub, accentColor, icon, delay = 0, loading = f
         <div style={{ fontSize: 30, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: accentColor, lineHeight: 1, marginBottom: 6 }}>
           {displayValue}
         </div>
-        {sub && <div style={{ fontSize: 10, color: "#94A3B8", letterSpacing: "0.06em", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{sub}</div>}
+        {sub && <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.06em", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{sub}</div>}
       </div>
       {tooltip && showTip && (
         <div style={{

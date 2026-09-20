@@ -6,6 +6,7 @@ import { X, SendHorizonal, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import CoachMessage from "./CoachMessage";
 import CoachQuickPrompts from "./CoachQuickPrompts";
 import CoachQuotaPill from "./CoachQuotaPill";
+import BottomSheet from "@/features/shared/components/BottomSheet";
 import {
   useCoachConversation,
   useCoachQuota,
@@ -86,8 +87,8 @@ export default function CoachChat({
     <Container onClose={onClose}>
       <header style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12, padding: "14px 18px", borderBottom: "1px solid #E2E8F0",
-        background: "#FFFFFF",
+        gap: 12, padding: isModal ? "8px 14px 12px 18px" : "14px 18px", borderBottom: "1px solid #E2E8F0",
+        background: "#FFFFFF", flexShrink: 0,
       }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -117,8 +118,11 @@ export default function CoachChat({
             <RefreshCw size={14} />
           </button>
           {isModal && (
-            <button type="button" aria-label="Close" onClick={onClose} style={iconBtnStyle}>
-              <X size={16} />
+            // Solid, 40px, own background: the previous ghost button was 32px
+            // with no fill, which on a phone read as decoration and was easy
+            // to miss with a thumb.
+            <button type="button" aria-label="Close" onClick={onClose} style={closeBtnStyle}>
+              <X size={18} strokeWidth={2.4} />
             </button>
           )}
         </div>
@@ -129,6 +133,8 @@ export default function CoachChat({
         style={{
           flex: 1,
           overflowY: "auto",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
           padding: "18px 18px 8px",
           background: "#F8F9FB",
           display: "flex",
@@ -225,36 +231,23 @@ export default function CoachChat({
 }
 
 const iconBtnStyle = {
-  width: 32, height: 32, borderRadius: 8, border: "none",
+  width: 36, height: 36, borderRadius: 10, border: "none",
   background: "transparent", color: "#64748B", cursor: "pointer",
   display: "inline-flex", alignItems: "center", justifyContent: "center",
+  touchAction: "manipulation", WebkitTapHighlightColor: "transparent",
+};
+
+const closeBtnStyle = {
+  ...iconBtnStyle,
+  width: 40, height: 40, borderRadius: 12,
+  background: "#F1F5F9", color: "#0F1923",
 };
 
 function ModalShell({ children, onClose }) {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Coach chat"
-      style={{
-        position: "fixed", inset: 0, zIndex: 1100,
-        background: "rgba(15, 25, 35, 0.55)",
-        display: "flex", alignItems: "flex-end", justifyContent: "center",
-      }}
-      onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
-    >
-      <div style={{
-        width: "100%", maxWidth: 640,
-        height: "min(86vh, 720px)",
-        background: "#FFFFFF",
-        borderTopLeftRadius: 18, borderTopRightRadius: 18,
-        boxShadow: "0 -16px 40px rgba(15,25,35,0.18)",
-        display: "flex", flexDirection: "column",
-        overflow: "hidden",
-      }}>
-        {children}
-      </div>
-    </div>
+    <BottomSheet onClose={onClose} label="Coach chat">
+      {children}
+    </BottomSheet>
   );
 }
 

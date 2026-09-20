@@ -3,7 +3,8 @@ const User = require("../models/Users");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
-const { CURRENT_TERMS_VERSION } = require("../constants/terms");
+const { hasAcceptedCurrentTerms } = require("../constants/terms");
+const { isAccountActive } = require("../utils/accountStatus");
 const {
   getCachedAuthUser,
   setCachedAuthUser,
@@ -22,18 +23,6 @@ const TERMS_ALLOWED_PATHS = new Set([
   // what Play's User Data policy requires.
   "/api/auth/account",
 ]);
-
-function hasAcceptedCurrentTerms(user) {
-  return (
-    user?.termsAcceptance?.acceptedTerms === true &&
-    user?.termsAcceptance?.acceptedPrivacy === true &&
-    user?.termsAcceptance?.termsVersion === CURRENT_TERMS_VERSION
-  );
-}
-
-function isAccountActive(user) {
-  return !user?.accountStatus || user.accountStatus === "active";
-}
 
 // Account deletion disables the account before it purges anything, so that a
 // half-erased account can never keep being used. If the purge then fails, the

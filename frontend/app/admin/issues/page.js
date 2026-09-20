@@ -9,6 +9,7 @@ import {
   adminGetIssueAnalytics,
   ISSUE_CATEGORIES,
   ISSUE_STATUSES,
+  categoryLabel,
 } from "@/services/issueApi";
 
 const STATUS_COLORS = {
@@ -19,10 +20,6 @@ const STATUS_COLORS = {
 };
 
 const MARKETS = ["Forex", "Indian_Market", "Both", "Unknown"];
-
-function categoryLabel(value) {
-  return ISSUE_CATEGORIES.find((c) => c.value === value)?.label || value;
-}
 
 export default function AdminIssuesPage() {
   const router = useRouter();

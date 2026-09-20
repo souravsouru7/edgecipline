@@ -133,7 +133,7 @@ export default function GettingStartedCard({ onboarding, onMutate, routes, userI
         }}>
           <div style={{ minWidth: 0 }}>
             <div style={{
-              fontSize: 10,
+              fontSize: "var(--fs-2xs)",
               fontWeight: 800,
               color: "#22C78E",
               letterSpacing: "0.12em",
@@ -165,7 +165,7 @@ Start, setup, import. Your progress saves after every step.
               color: "#94A3B8",
               borderRadius: 8,
               padding: "5px 10px",
-              fontSize: 10,
+              fontSize: "var(--fs-2xs)",
               fontWeight: 700,
               cursor: "pointer",
               whiteSpace: "nowrap",
@@ -241,7 +241,7 @@ Start, setup, import. Your progress saves after every step.
                   }}>
                     {labelText}
                   </div>
-                  <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", marginTop: 2 }}>
                     {subText}
                   </div>
                 </div>

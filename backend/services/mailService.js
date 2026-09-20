@@ -3,6 +3,7 @@ const { Resend } = require("resend");
 const nodemailer = require("nodemailer");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { withTimeout } = require("../utils/withTimeout");
 // Safe: paymentService does not require mailService, so there is no cycle.
 const { listOrderablePlans } = require("./paymentService");
 
@@ -159,21 +160,6 @@ const PUBLIC_MAILBOX_DOMAINS = new Set([
   "hotmail.com", "live.com", "icloud.com", "proton.me", "protonmail.com", "rediffmail.com",
 ]);
 
-// Rejects after `ms` so a hung provider connection cannot pin the caller's
-// request. The provider call keeps running in the background; that is fine —
-// at worst a late-accepted email is delivered after the user was told to retry.
-function withTimeout(promise, ms, label) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      const err = new Error(`${label} did not respond within ${ms}ms`);
-      err.name = "timeout";
-      err.code = "ETIMEDOUT";
-      reject(err);
-    }, ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 // Resend refuses a misconfigured sender the same way every single time: an
 // unverified `from` domain, a send-only key used for a read, a revoked key, or
@@ -222,7 +208,7 @@ function buildSendError(error, provider = "resend") {
   err.providerErrorName = String(error?.name || "");
   // A timeout or a dropped connection is the one kind of failure a retry can
   // fix — never let it be mistaken for a config fault.
-  err.permanent = err.providerErrorName === "timeout" ? false : isPermanentSendFailure(error);
+  err.permanent = error?.code === "ETIMEDOUT" ? false : isPermanentSendFailure(error);
   return err;
 }
 
@@ -268,8 +254,8 @@ async function deliver({ to, subject, html }) {
     try {
       await withTimeout(
         getSmtpTransport().sendMail({ from: getSmtpFromAddress(), to, subject, html, text, replyTo }),
-        timeoutMs,
-        "SMTP relay"
+        "SMTP relay",
+        timeoutMs
       );
       return { error: null, provider };
     } catch (error) {
@@ -290,8 +276,8 @@ async function deliver({ to, subject, html }) {
         text,
         replyTo,
       }),
-      timeoutMs,
-      "Resend"
+      "Resend",
+      timeoutMs
     );
     return { error: error ? buildSendError(error, "resend") : null, provider };
   } catch (error) {

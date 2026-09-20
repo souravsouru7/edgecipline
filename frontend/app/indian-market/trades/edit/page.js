@@ -12,6 +12,14 @@ import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
+import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
+import {
+  appendSetupRule,
+  clearSetupRules as clearSetupRulesFollowed,
+  normalizeSetupRules,
+  setSetupRuleLabel,
+  toggleSetupRule as toggleSetupRuleFollowed,
+} from "@/features/trade/lib/setupRules";
 
 const C = {
   bull: "#0D9E6E",
@@ -32,7 +40,7 @@ const C = {
 function InputField({ label, name, value, onChange, type = "text", options = null, placeholder = "", required = false, min, max }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
+      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
         {label}{required && <span style={{ color: "#D63B3B", marginLeft: 2 }}>*</span>}
       </label>
       {options ? (
@@ -60,27 +68,6 @@ function InputField({ label, name, value, onChange, type = "text", options = nul
       )}
     </div>
   );
-}
-
-function normalizeDateInput(value) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-}
-
-function getTodayInputValue() {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-}
-
-function normalizeSetupRules(rules = []) {
-  if (!Array.isArray(rules)) return [];
-  return rules.map((rule, index) => ({
-    id: index + 1,
-    label: rule?.label || "",
-    followed: Boolean(rule?.followed),
-  }));
 }
 
 function calculateSetupScore(rules = []) {
@@ -132,8 +119,8 @@ function IndianEditTradeContent() {
       const data = await getTrade(id, MARKETS.INDIAN_MARKET);
       setFormData({
         ...data,
-        tradeDate: normalizeDateInput(data.tradeDate || data.createdAt),
-        expiryDate: normalizeDateInput(data.expiryDate),
+        tradeDate: normalizeDateForInput(data.tradeDate || data.createdAt),
+        expiryDate: normalizeDateForInput(data.expiryDate),
         emotionalTags: Array.isArray(data.emotionalTags) ? data.emotionalTags.join(", ") : "",
         setupRules: normalizeSetupRules(data.setupRules),
       });
@@ -154,40 +141,12 @@ function IndianEditTradeContent() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const toggleSetupRule = (ruleId) => {
-    setFormData((prev) => ({
-      ...prev,
-      setupRules: (prev.setupRules || []).map((rule) =>
-        rule.id === ruleId ? { ...rule, followed: !rule.followed } : rule
-      ),
-    }));
-  };
-
-  const updateSetupRuleLabel = (ruleId, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      setupRules: (prev.setupRules || []).map((rule) =>
-        rule.id === ruleId ? { ...rule, label: value } : rule
-      ),
-    }));
-  };
-
-  const addSetupRule = () => {
-    setFormData((prev) => ({
-      ...prev,
-      setupRules: [
-        ...(prev.setupRules || []),
-        { id: (prev.setupRules || []).length + 1, label: "", followed: false },
-      ],
-    }));
-  };
-
-  const clearSetupRules = () => {
-    setFormData((prev) => ({
-      ...prev,
-      setupRules: (prev.setupRules || []).map((rule) => ({ ...rule, followed: false })),
-    }));
-  };
+  const updateSetupRules = (update) =>
+    setFormData((prev) => ({ ...prev, setupRules: update(prev.setupRules || []) }));
+  const toggleSetupRule = (ruleId) => updateSetupRules((rules) => toggleSetupRuleFollowed(rules, ruleId));
+  const updateSetupRuleLabel = (ruleId, value) => updateSetupRules((rules) => setSetupRuleLabel(rules, ruleId, value));
+  const addSetupRule = () => updateSetupRules((rules) => appendSetupRule(rules));
+  const clearSetupRules = () => updateSetupRules((rules) => clearSetupRulesFollowed(rules));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -345,7 +304,7 @@ function IndianEditTradeContent() {
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: C.sans, color: C.ink }}>
       <IndianMarketHeader />
 
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 48px" }}>
+      <main style={{ maxWidth: 640, margin: "0 auto", padding: "28px 20px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
@@ -364,7 +323,7 @@ function IndianEditTradeContent() {
           <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, ${C.gold})` }} />
 
           <form onSubmit={handleSubmit} style={{ padding: "24px 20px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               {equityTrade ? (
                 <InputField label="STOCK SYMBOL" name="stockSymbol" value={formData.stockSymbol || formData.pair} onChange={handleChange} required />
               ) : (
@@ -377,7 +336,7 @@ function IndianEditTradeContent() {
                     {dateError}
                   </div>
                 ) : accountCreatedDate ? (
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
                     Earliest: {accountCreatedDate}
                   </div>
                 ) : null}
@@ -386,17 +345,17 @@ function IndianEditTradeContent() {
 
             {equityTrade ? (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="TYPE" name="type" value={formData.type} onChange={handleChange} options={[{ value: "BUY", label: "BUY" }, { value: "SELL", label: "SELL" }]} />
                   <InputField label="EXCHANGE" name="exchange" value={formData.exchange || "NSE"} onChange={handleChange} options={[{ value: "NSE", label: "NSE" }, { value: "BSE", label: "BSE" }]} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="SHARES QTY" name="sharesQty" type="number" value={formData.sharesQty} onChange={handleChange} />
                   <InputField label="PROFIT / LOSS" name="profit" type="number" value={formData.profit} onChange={handleChange} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="AVG BUY PRICE" name="entryPrice" type="number" value={formData.entryPrice} onChange={handleChange} />
                   <InputField label="AVG SELL PRICE" name="exitPrice" type="number" value={formData.exitPrice} onChange={handleChange} />
                 </div>
@@ -405,34 +364,34 @@ function IndianEditTradeContent() {
               </>
             ) : (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="TYPE" name="type" value={formData.type} onChange={handleChange} options={[{ value: "BUY", label: "BUY" }, { value: "SELL", label: "SELL" }]} />
                   <InputField label="OPTION TYPE" name="optionType" value={formData.optionType} onChange={handleChange} options={[{ value: "CE", label: "CE" }, { value: "PE", label: "PE" }]} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="STRIKE PRICE" name="strikePrice" type="number" value={formData.strikePrice} onChange={handleChange} />
                   <InputField label="LOT SIZE" name="lotSize" type="number" value={formData.lotSize} onChange={handleChange} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="QUANTITY (LOTS)" name="quantity" type="number" value={formData.quantity} onChange={handleChange} />
                   <InputField label="PROFIT / LOSS" name="profit" type="number" value={formData.profit} onChange={handleChange} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="ENTRY PRICE (PREMIUM)" name="entryPrice" type="number" value={formData.entryPrice} onChange={handleChange} />
                   <InputField label="EXIT PRICE (PREMIUM)" name="exitPrice" type="number" value={formData.exitPrice} onChange={handleChange} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                   <InputField label="STOP LOSS" name="stopLoss" type="number" value={formData.stopLoss} onChange={handleChange} />
                   <InputField label="TAKE PROFIT" name="takeProfit" type="number" value={formData.takeProfit} onChange={handleChange} />
                 </div>
               </>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               <InputField label="TRADE TYPE" name="tradeType" value={formData.tradeType} onChange={handleChange} options={[{ value: "INTRADAY", label: "INTRADAY" }, { value: "DELIVERY", label: "DELIVERY" }, { value: "SWING", label: "SWING" }]} />
               <InputField label="ENTRY BASIS" name="entryBasis" value={formData.entryBasis} onChange={handleChange} options={[{ value: "Plan", label: "Plan" }, { value: "Emotion", label: "Emotion" }, { value: "Impulsive", label: "Impulsive" }, { value: "Custom", label: "Custom" }, { value: "", label: "None" }]} />
             </div>
@@ -441,22 +400,22 @@ function IndianEditTradeContent() {
               <InputField label="EXPIRY DATE" name="expiryDate" type="date" value={formData.expiryDate} onChange={handleChange} />
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               <InputField label="ENTRY BASIS CUSTOM" name="entryBasisCustom" value={formData.entryBasisCustom} onChange={handleChange} />
               <InputField label="TRADING SETUP" name="strategy" value={formData.strategy} onChange={handleChange} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               <InputField label="RISK : REWARD" name="riskRewardRatio" value={formData.riskRewardRatio} onChange={handleChange} options={[{ value: "", label: "Select…" }, { value: "1:1", label: "1:1" }, { value: "1:2", label: "1:2" }, { value: "1:3", label: "1:3" }, { value: "1:4", label: "1:4" }, { value: "1:5", label: "1:5" }, { value: "custom", label: "Custom" }]} required />
               <InputField label="CUSTOM R:R" name="riskRewardCustom" value={formData.riskRewardCustom} onChange={handleChange} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               <InputField label="BROKERAGE" name="brokerage" type="number" value={formData.brokerage} onChange={handleChange} />
               <InputField label="STT / TAXES" name="sttTaxes" type="number" value={formData.sttTaxes} onChange={handleChange} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
               <InputField label="SETUP NAME" name="setup" value={formData.setup} onChange={handleChange} />
               <InputField label="MISTAKE TAG" name="mistakeTag" value={formData.mistakeTag} onChange={handleChange} />
             </div>
@@ -466,13 +425,13 @@ function IndianEditTradeContent() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.purple}20`, background: `${C.purple}08` }}>
                 <span style={{ fontSize: 15 }}>🧠</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: C.purple, fontFamily: C.mono }}>PSYCHOLOGY</span>
-                <span style={{ fontSize: 9, color: "#D63B3B", fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
+                <span style={{ fontSize: "var(--fs-2xs)", color: "#D63B3B", fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
               </div>
 
               <div style={{ padding: "16px" }}>
                 {/* Mood */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>
                     MOOD <span style={{ color: "#D63B3B" }}>*</span>
                   </div>
                   {(() => {
@@ -499,8 +458,8 @@ function IndianEditTradeContent() {
                                 <div key={bar} style={{ width: 4, height: bar <= i ? 14 : 6, borderRadius: 2, background: bar <= i ? moodColors[i] : C.border, transition: "all 0.15s" }} />
                               ))}
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: current === i ? moodColors[i] : C.muted, fontFamily: C.mono }}>{i}</span>
-                            <span style={{ fontSize: 9, color: current === i ? moodColors[i] : C.muted, textAlign: "center", lineHeight: 1.2 }}>{moodLabels[i]}</span>
+                            <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: current === i ? moodColors[i] : C.muted, fontFamily: C.mono }}>{i}</span>
+                            <span style={{ fontSize: "var(--fs-2xs)", color: current === i ? moodColors[i] : C.muted, textAlign: "center", lineHeight: 1.2 }}>{moodLabels[i]}</span>
                           </button>
                         ))}
                         {current > 0 && (
@@ -517,7 +476,7 @@ function IndianEditTradeContent() {
 
                 {/* Confidence */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>CONFIDENCE <span style={{ color: "#D63B3B" }}>*</span></div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>CONFIDENCE <span style={{ color: "#D63B3B" }}>*</span></div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {[
                       { value: "Low",           color: C.bear   },
@@ -549,7 +508,7 @@ function IndianEditTradeContent() {
 
                 {/* Would Retake */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>WOULD RETAKE?</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>WOULD RETAKE?</div>
                   <div style={{ display: "flex", gap: 10 }}>
                     {[
                       { value: "Yes", color: C.bull, icon: "✓" },
@@ -580,8 +539,8 @@ function IndianEditTradeContent() {
 
                 {/* Trade Quality */}
                 <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>TRADE QUALITY (EXECUTION)</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>TRADE QUALITY (EXECUTION)</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                     {[
                       { val: "Great", color: C.bull },
                       { val: "Average", color: "#F59E0B" },
@@ -603,7 +562,7 @@ function IndianEditTradeContent() {
 
                 {/* Emotional Tags */}
                 <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></div>
                   {/* Quick-tap common tags */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     {["FOMO", "Revenge", "Fear", "Greed", "Calm", "Rushed", "Focused", "Frustrated", "Disciplined", "Impulsive"].map(tag => {
@@ -648,7 +607,7 @@ function IndianEditTradeContent() {
             <div style={{ marginBottom: 18, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, background: "#FCFBF8" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", fontFamily: C.mono, fontWeight: 600 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", fontFamily: C.mono, fontWeight: 600 }}>
                     SETUP CHECKLIST
                   </div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
@@ -712,7 +671,7 @@ function IndianEditTradeContent() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
+              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
                 NOTES
               </label>
               <textarea
@@ -725,7 +684,7 @@ function IndianEditTradeContent() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 10, letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
+              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
                 LESSON LEARNED
               </label>
               <textarea

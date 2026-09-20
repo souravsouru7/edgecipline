@@ -24,6 +24,12 @@ def sentryUploadConfigured = [
     System.getenv('SENTRY_ORG'),
     System.getenv('SENTRY_PROJECT')
 ].every { it != null && !it.toString().trim().isEmpty() }
+// Internal-testing escape hatch. Crash reporting only needs the DSN; the
+// mapping upload is what makes minified stack traces readable, and a first
+// closed-testing upload can go out without it. Explicit opt-in so a release
+// pipeline that forgets the token still fails loudly rather than shipping
+// unreadable crashes to Production by accident.
+def sentryUploadSkipped = (System.getenv('EDGE_SKIP_SENTRY_UPLOAD') ?: '').toString().trim() == 'true'
 def releaseSigningConfigured = [
     releaseStoreFile,
     releaseStorePassword,
@@ -97,9 +103,18 @@ gradle.taskGraph.whenReady { taskGraph ->
         throw new GradleException('Release observability is not configured. Set SENTRY_ANDROID_DSN.')
     }
     if (releaseRequested && !sentryUploadConfigured) {
-        throw new GradleException(
-            'Release mapping upload is not configured. Set SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT.'
-        )
+        if (sentryUploadSkipped) {
+            logger.warn(
+                'EDGE_SKIP_SENTRY_UPLOAD=true: building without a Sentry mapping upload. ' +
+                'Crashes from this build will show obfuscated stack traces. ' +
+                'Set SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT before a Production release.'
+            )
+        } else {
+            throw new GradleException(
+                'Release mapping upload is not configured. Set SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT ' +
+                '(or EDGE_SKIP_SENTRY_UPLOAD=true for an internal-testing build).'
+            )
+        }
     }
 }
 
@@ -126,7 +141,8 @@ dependencies {
     // Google Play Billing — Android in-app subscriptions (EdgeBillingPlugin).
     // Play enforces a MINIMUM Billing Library version for new uploads and it
     // moves roughly once a year; check the current floor in Play Console before
-    // a release rather than assuming this pin still qualifies.
+    // a release rather than assuming this pin still qualifies. Play Console
+    // rejected 7.1.1 on 2026-09-20 (floor: 8.0.0).
     implementation "com.android.billingclient:billing:$playBillingVersion"
 }
 

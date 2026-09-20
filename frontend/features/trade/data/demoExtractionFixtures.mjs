@@ -20,9 +20,9 @@
 
 const INDIAN_MARKET = "Indian_Market";
 
-// /public/sample.png -- MetaTrader 5, History > Positions, one closed position.
+// /public/sample.webp -- MetaTrader 5, History > Positions, one closed position.
 const FOREX_DEMO_EXTRACTION = {
-  imageUrl: "/sample.png",
+  imageUrl: "/sample.webp",
   brokerType: "MetaTrader 5",
   detectedMarket: "Forex",
   imageQuality: "good",

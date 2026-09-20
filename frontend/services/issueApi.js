@@ -14,6 +14,10 @@ export const ISSUE_CATEGORIES = [
   { value: "OTHER", label: "Other" },
 ];
 
+// Display label for a category value; unknown values fall back to the raw value.
+export const categoryLabel = (value) =>
+  ISSUE_CATEGORIES.find((c) => c.value === value)?.label || value;
+
 export const ISSUE_STATUSES = ["OPEN", "INVESTIGATING", "FIXED", "CLOSED"];
 
 function detectPlatform() {

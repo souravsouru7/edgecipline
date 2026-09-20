@@ -14,6 +14,11 @@ const ALL_TYPES = [
   "morning_mentor",
   "weekly_ai_insight",
   "weekly_report_reminder",
+  "streak_milestone",
+  "streak_at_risk",
+  "streak_broken",
+  "evening_reflection",
+  "mission_update",
   "ocr_completed",
   "ocr_failed",
   "issue_fixed",
@@ -298,6 +303,82 @@ exports.getQueueMetrics = async (req, res) => {
     res.json({
       ...metrics,
       deadLetterSample,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Human-readable explanation of a history row's outcome. Mirrors the reason
+// codes notificationService logs, so the API answer and the log line agree.
+function explainOutcome(row) {
+  const err = row.delivery?.error || "";
+  if (row.status === "sent") return "SENT";
+  if (row.status === "partial") return "PARTIAL_DELIVERY";
+  if (row.status === "skipped") {
+    if (err === "quiet_hours") return "QUIET_HOURS";
+    if (err === "push_disabled") return "PUSH_DISABLED";
+    if (!row.delivery?.successCount && !row.delivery?.failureCount) return "NO_DEVICE_TOKEN";
+    return "SKIPPED";
+  }
+  if (row.status === "failed") return err === "transient_fcm_failure" ? "FCM_TRANSIENT_FAILURE" : "FCM_FAILED";
+  if (row.status === "sending") return "IN_FLIGHT";
+  return "CREATED_NOT_SENT";
+}
+
+/**
+ * GET /api/admin/notifications/history?userId=<id>&type=<type>&limit=<n>
+ *
+ * Per-user delivery audit: every history row with its status, the reason it
+ * was skipped/failed, the dedupe key that would block a repeat, and the FCM
+ * token outcome — enough to answer "why did (or didn't) user X get this?"
+ * without exposing message bodies of other users. Title/body are included
+ * because the operator is already scoped to one user id.
+ */
+exports.getUserNotificationHistory = async (req, res) => {
+  try {
+    const { userId, type } = req.query;
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    const query = { user: userId };
+    if (type) query.type = type;
+
+    const rows = await NotificationHistory.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .select("type title status dedupeKey deepLink sourceType sourceId data createdAt sentAt deliveredAt openedAt actionClickedAt actionType deliveryAttemptCount delivery.successCount delivery.failureCount delivery.error delivery.invalidTokens delivery.transientFailureCount delivery.permanentFailureCount")
+      .lean();
+
+    res.json({
+      userId,
+      count: rows.length,
+      items: rows.map((row) => ({
+        id: row._id,
+        type: row.type,
+        marketType: row.data?.marketType || null,
+        title: row.title,
+        status: row.status,
+        outcome: explainOutcome(row),
+        dedupeKey: row.dedupeKey,
+        deepLink: row.deepLink,
+        source: { type: row.sourceType, id: row.sourceId },
+        createdAt: row.createdAt,
+        sentAt: row.sentAt,
+        deliveredAt: row.deliveredAt,
+        openedAt: row.openedAt,
+        actionClickedAt: row.actionClickedAt,
+        actionType: row.actionType,
+        attempts: row.deliveryAttemptCount,
+        delivery: {
+          successCount: row.delivery?.successCount ?? 0,
+          failureCount: row.delivery?.failureCount ?? 0,
+          invalidTokenCount: row.delivery?.invalidTokens?.length ?? 0,
+          transientFailureCount: row.delivery?.transientFailureCount ?? 0,
+          permanentFailureCount: row.delivery?.permanentFailureCount ?? 0,
+          error: row.delivery?.error || null,
+        },
+      })),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

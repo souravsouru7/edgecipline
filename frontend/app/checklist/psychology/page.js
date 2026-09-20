@@ -105,8 +105,8 @@ function DiamondNode() {
           display:"flex", flexDirection:"column",
           alignItems:"center", justifyContent:"center", textAlign:"center", gap:3,
         }}>
-          <span style={{ fontSize:10, fontFamily:MONO, letterSpacing:"0.12em", color:SUB, fontWeight:700 }}>DID YOU</span>
-          <span style={{ fontSize:10, fontFamily:MONO, letterSpacing:"0.12em", color:SUB, fontWeight:700 }}>APPLY THE</span>
+          <span style={{ fontSize: "var(--fs-2xs)", fontFamily:MONO, letterSpacing:"0.12em", color:SUB, fontWeight:700 }}>DID YOU</span>
+          <span style={{ fontSize: "var(--fs-2xs)", fontFamily:MONO, letterSpacing:"0.12em", color:SUB, fontWeight:700 }}>APPLY THE</span>
           <span style={{ fontSize:12, fontFamily:MONO, letterSpacing:"0.12em", color:TXT, fontWeight:900 }}>FIX?</span>
         </div>
       </div>

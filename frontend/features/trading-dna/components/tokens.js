@@ -30,7 +30,7 @@ export const cardSurface = {
 };
 
 export const sectionLabel = {
-  fontSize: 9,
+  fontSize: "var(--fs-2xs)",
   fontWeight: 800,
   color: C.muted,
   letterSpacing: "0.1em",

@@ -56,7 +56,7 @@ export default function InsightStep({ insight, loading }) {
       </p>
 
       {insight.evidence && (
-        <div style={{ marginTop: 10, fontSize: 10, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+        <div style={{ marginTop: 10, fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           {insight.evidence}
         </div>
       )}
@@ -68,7 +68,7 @@ export default function InsightStep({ insight, loading }) {
           border: "1px solid rgba(34,199,142,0.25)",
           borderRadius: 10,
         }}>
-          <div style={{ fontSize: 10, color: "#22C78E", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>Next move</div>
+          <div style={{ fontSize: "var(--fs-2xs)", color: "#22C78E", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>Next move</div>
           <div style={{ fontSize: 12, color: "#F1F5F9", lineHeight: 1.55 }}>{insight.action}</div>
         </div>
       )}

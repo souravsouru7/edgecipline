@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getValidToken } from "@/utils/auth";
-import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
+import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTrade } from "@/services/tradeApi";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
@@ -17,51 +16,24 @@ import {
   TRADE_QUERY_FRESHNESS_OPTIONS,
 } from "@/utils/queryInvalidation";
 import { markOnboardingStep } from "@/services/api";
+import { getTodayInputValue } from "@/features/trade/lib/dateInput";
+import * as haptics from "@/utils/haptics";
+import { sanitizeNumericField, parseNumericField } from "@/features/trade/lib/numericInput";
+import {
+  appendSetupRule,
+  clearSetupRules as clearSetupRulesFollowed,
+  setSetupRuleLabel,
+  toggleSetupRule as toggleSetupRuleFollowed,
+} from "@/features/trade/lib/setupRules";
 
-const getTodayInputValue = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
-};
+// Re-exported for the form pages that previously imported these from here.
+export { sanitizeNumericInput, blockInvalidNumberKeys } from "@/features/trade/lib/numericInput";
 
 // Indian options: underlying picklist and the lot size each one trades in.
 // Mirrors the constants in app/indian-market/add-trade/page.js so both
 // manual-entry forms compute the same lotSize for the same underlying.
 export const UNDERLYINGS = ["NIFTY", "BANK NIFTY", "FIN NIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX", "Other"];
 export const LOT_SIZES = { "NIFTY": 25, "BANK NIFTY": 15, "FIN NIFTY": 25, "MIDCPNIFTY": 50, "SENSEX": 10, "BANKEX": 15, "Other": 1 };
-
-const INTEGER_NUMBER_FIELDS = new Set(["strikePrice", "quantity", "sharesQty"]);
-const DECIMAL_NUMBER_FIELDS = new Set(["profit", "entryPrice", "exitPrice", "brokerage", "sttTaxes", "stopLoss", "takeProfit"]);
-
-export const sanitizeNumericInput = (value, { allowNegative = false, integer = false } = {}) => {
-  const raw = String(value ?? "");
-  let cleaned = raw.replace(/[^\d.-]/g, "");
-
-  if (!allowNegative) {
-    cleaned = cleaned.replace(/-/g, "");
-  } else {
-    const isNegative = cleaned.startsWith("-");
-    cleaned = cleaned.replace(/-/g, "");
-    if (isNegative) cleaned = `-${cleaned}`;
-  }
-
-  if (integer) {
-    return cleaned.replace(/\./g, "");
-  }
-
-  const sign = cleaned.startsWith("-") ? "-" : "";
-  const unsigned = sign ? cleaned.slice(1) : cleaned;
-  const [firstPart, ...rest] = unsigned.split(".");
-  return `${sign}${firstPart}${rest.length ? `.${rest.join("")}` : ""}`;
-};
-
-export const blockInvalidNumberKeys = (e) => {
-  const fieldName = e.currentTarget?.name;
-  const isIntegerField = INTEGER_NUMBER_FIELDS.has(fieldName);
-  const allowsNegative = fieldName === "profit";
-  if (["e", "E", "+"].includes(e.key)) e.preventDefault();
-  if (!allowsNegative && e.key === "-") e.preventDefault();
-  if (isIntegerField && e.key === ".") e.preventDefault();
-};
 
 /**
  * useAddTrade
@@ -141,7 +113,9 @@ export function useAddTrade(marketType, isIndianMarket) {
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [setupRules, setSetupRules] = useState([]);
-  const [mounted, setMounted] = useState(false);
+  // Auth-gated "mounted": true once the route guard has confirmed a session
+  // (or decided to keep one after a transient refresh failure).
+  const { ready: mounted } = useRequireAuth();
   const submitLockRef = useRef(false);
 
   const getUnderlyingLabel = () => (trade.underlying === "Other" ? trade.underlyingOther : trade.underlying);
@@ -192,6 +166,7 @@ export function useAddTrade(marketType, isIndianMarket) {
       const quota = applyQuotaFromResponse(queryClient, marketType, res);
 
       addToast("Trade created and synced successfully!", "success");
+      void haptics.success();
 
       markOnboardingStep("tradeAdded", true).catch(() => {});
 
@@ -217,30 +192,6 @@ export function useAddTrade(marketType, isIndianMarket) {
   });
 
   useEffect(() => {
-    let cancelled = false;
-    const checkAuth = async () => {
-      if (!getValidToken()) {
-        let token = null;
-        try {
-          token = await silentRefresh();
-        } catch (err) {
-          if (isAuthRefreshTransientError(err)) {
-            console.warn("[Auth] add trade preserved session after transient refresh failure", {
-              at: new Date().toISOString(),
-              status: err.status || 0,
-            });
-            if (!cancelled) setMounted(true);
-            return;
-          }
-          throw err;
-        }
-        if (cancelled) return;
-        if (!token) { router.replace("/login"); return; }
-      }
-      if (!cancelled) setMounted(true);
-    };
-    checkAuth();
-
     // Session detection
     const now = new Date();
     const hour = now.getUTCHours();
@@ -252,18 +203,11 @@ export function useAddTrade(marketType, isIndianMarket) {
       else if (hour >= 13 && hour < 21) det = "New York";
       setTrade(prev => ({ ...prev, session: det }));
     }
-    return () => { cancelled = true; };
-  }, [isIndianMarket, router]);
+  }, [isIndianMarket]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let nextValue = value;
-    if (INTEGER_NUMBER_FIELDS.has(name)) {
-      nextValue = sanitizeNumericInput(value, { integer: true });
-    } else if (DECIMAL_NUMBER_FIELDS.has(name)) {
-      nextValue = sanitizeNumericInput(value, { allowNegative: name === "profit" });
-    }
-    setTrade(prev => ({ ...prev, [name]: nextValue }));
+    setTrade(prev => ({ ...prev, [name]: sanitizeNumericField(name, value) }));
   };
 
   const handleStrategyChange = (e) => {
@@ -298,18 +242,13 @@ export function useAddTrade(marketType, isIndianMarket) {
     }
   };
 
-  const toggleSetupRule = (id) => setSetupRules(p => p.map(r => r.id === id ? { ...r, followed: !r.followed } : r));
-  const updateSetupRuleLabel = (id, val) => setSetupRules(p => p.map(r => r.id === id ? { ...r, label: val } : r));
-  const addSetupRule = () => setSetupRules(p => [...p, { id: Date.now(), label: "", followed: false }]);
-  const clearSetupRules = () => setSetupRules(p => p.map(r => ({ ...r, followed: false })));
+  const toggleSetupRule = (id) => setSetupRules(p => toggleSetupRuleFollowed(p, id));
+  const updateSetupRuleLabel = (id, val) => setSetupRules(p => setSetupRuleLabel(p, id, val));
+  const addSetupRule = () => setSetupRules(p => appendSetupRule(p));
+  const clearSetupRules = () => setSetupRules(p => clearSetupRulesFollowed(p));
 
   // parseNumericField preserves 0 — unlike `parseFloat(x) || undefined` which
   // silently drops legitimate zero values (e.g. breakeven P&L).
-  const parseNumericField = (val) => {
-    const n = parseFloat(val);
-    return Number.isFinite(n) ? n : undefined;
-  };
-
   // Validation and payload shape mirror app/indian-market/add-trade/page.js
   // so manual entry requires and stores the same information regardless of
   // which page the user lands on for a given market.

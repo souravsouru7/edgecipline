@@ -15,7 +15,7 @@ export default function ListItem({ label, value, color = colors.primary, sub }) 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${colors.border}` }}>
       <div>
         <div style={{ fontSize: 12, color: colors.secondary, fontWeight: 500 }}>{label}</div>
-        {sub && <div style={{ fontSize: 10, color: colors.muted }}>{sub}</div>}
+        {sub && <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>{sub}</div>}
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color }}>{formattedValue}</div>
     </div>

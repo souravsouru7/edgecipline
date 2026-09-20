@@ -132,12 +132,51 @@ function formatLocalTime(date = new Date(), timezone = DEFAULT_NOTIFICATION_TIME
   return `${localPartsToDateKey(parts)} ${pad2(parts.hour)}:${pad2(parts.minute)}:${pad2(parts.second)}`;
 }
 
+// ─── Per-user timezone resolution ─────────────────────────────────────────────
+//
+// The product is India-first: every scheduled notification runs in
+// Asia/Kolkata unless the user record says otherwise. The only per-user zone
+// stored today is `User.streaks.timezone` (set by the streak engine); quiet
+// hours carry their own on NotificationPreference. Resolve through here so
+// that when a proper profile timezone lands, every notification path picks it
+// up from one place instead of each cron re-deriving it.
+function getUserNotificationTimezone(user, fallback = DEFAULT_NOTIFICATION_TIMEZONE) {
+  const candidate =
+    user?.notificationTimezone ||
+    user?.timezone ||
+    user?.streaks?.timezone ||
+    fallback;
+  return resolveTimeZone(candidate, fallback);
+}
+
+// "YYYY-MM-DD" of `date` in the user's zone — the key every per-day dedupe
+// and "did they log today" check should agree on.
+function getNotificationDayKey(date = new Date(), user = null, fallback = DEFAULT_NOTIFICATION_TIMEZONE) {
+  return getLocalDateKey(date, getUserNotificationTimezone(user, fallback));
+}
+
+// 0 = Sunday … 6 = Saturday, in the given zone (not the server's).
+function getLocalDayOfWeek(date = new Date(), timezone = DEFAULT_NOTIFICATION_TIMEZONE) {
+  const parts = getTimeZoneParts(date, timezone);
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+}
+
+// "HH:MM" local wall-clock — what the session schedule is compared against.
+function getLocalHourMinute(date = new Date(), timezone = DEFAULT_NOTIFICATION_TIMEZONE) {
+  const parts = getTimeZoneParts(date, timezone);
+  return `${pad2(parts.hour)}:${pad2(parts.minute)}`;
+}
+
 module.exports = {
   DEFAULT_NOTIFICATION_TIMEZONE,
   asDate,
   formatLocalTime,
   getDayRange,
   getLocalDateKey,
+  getLocalDayOfWeek,
+  getLocalHourMinute,
+  getNotificationDayKey,
+  getUserNotificationTimezone,
   getWeekKey,
   getWeekStart,
   getWindowKey,

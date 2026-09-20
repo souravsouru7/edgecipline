@@ -141,7 +141,7 @@ export default function DeleteAccountPage() {
           </div>
           <div
             style={{
-              fontSize: 9,
+              fontSize: "var(--fs-2xs)",
               color: C.green,
               letterSpacing: "0.15em",
               fontFamily: "'JetBrains Mono', monospace",

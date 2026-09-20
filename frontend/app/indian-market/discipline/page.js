@@ -11,10 +11,7 @@ import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { ruleSample, LOW_RULE_SAMPLE, pickWeakestRule, pickStrongestRule } from "@/utils/disciplineRules";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, LineChart, Line,
-} from "recharts";
+import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 
 // Matches backend MIN_INSIGHT_TRADES in disciplineAnalytics.js
 const MIN_SAMPLE_TRADES = 3;
@@ -170,12 +167,12 @@ function DisciplineContent() {
           <div style={{ width: `${Math.min(100, score ?? 0)}%`, height: "100%", background: `linear-gradient(90deg,${gradeColor},${gradeColor}aa)`, borderRadius: 6, transition: "width 0.8s ease" }} />
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.totalTrades ?? 0}</div><div style={{ fontSize: 10, color: C.muted }}>total trades</div></div>
-          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.tradesWithRules ?? 0}</div><div style={{ fontSize: 10, color: C.muted }}>with rules</div></div>
-          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.uniqueRules ?? 0}</div><div style={{ fontSize: 10, color: C.muted }}>rules tracked</div></div>
+          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.totalTrades ?? 0}</div><div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>total trades</div></div>
+          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.tradesWithRules ?? 0}</div><div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>with rules</div></div>
+          <div><div style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>{stats.uniqueRules ?? 0}</div><div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>rules tracked</div></div>
           <div style={{ marginLeft: "auto", textAlign: "right" }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: trend.color }}>{trend.arrow}</div>
-            <div style={{ fontSize: 10, color: C.muted }}>{trend.text}</div>
+            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>{trend.text}</div>
           </div>
         </div>
       </div>
@@ -195,7 +192,7 @@ function DisciplineContent() {
                   <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: i === 0 ? "#FEE2E2" : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: i === 0 ? C.red : C.muted }}>{i + 1}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}</div>
-                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>
                       Broken {r.timesBroken} times
                       {hasDiff && diff !== 0 && <> · <span style={{ color: diff >= 0 ? C.green : C.red, fontWeight: 700 }}>{fmt(diff, cur)}/trade when followed</span></>}
                     </div>
@@ -226,7 +223,7 @@ function DisciplineContent() {
                   <div style={{ height: 7, background: "#E2E8F0", borderRadius: 4, overflow: "hidden" }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: col, borderRadius: 4, transition: "width 0.6s ease" }} />
                   </div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>Followed {r.timesFollowed}× · Skipped {r.timesBroken}×</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 3 }}>Followed {r.timesFollowed}× · Skipped {r.timesBroken}×</div>
                 </div>
               );
             })}
@@ -240,21 +237,23 @@ function DisciplineContent() {
           <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Is your discipline improving?</div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>Rule follow rate and win rate over time</div>
           <div style={{ height: 160 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timelineData}>
-                <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="key" tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: C.muted }} width={28} axisLine={false} tickLine={false} />
-                <Tooltip content={<Tip />} />
-                <ReferenceLine y={70} stroke="#CBD5E1" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="Follow rate" stroke={C.green} strokeWidth={2.5} dot={false} connectNulls />
-                <Line type="monotone" dataKey="Win rate" stroke={C.blue} strokeWidth={2} dot={false} strokeDasharray="5 3" connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
+            <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.LineChart data={timelineData}>
+                <R.CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+                <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
+                <R.YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: C.muted }} width={28} axisLine={false} tickLine={false} />
+                <R.Tooltip content={<Tip />} />
+                <R.ReferenceLine y={70} stroke="#CBD5E1" strokeDasharray="4 4" />
+                <R.Line type="monotone" dataKey="Follow rate" stroke={C.green} strokeWidth={2.5} dot={false} connectNulls />
+                <R.Line type="monotone" dataKey="Win rate" stroke={C.blue} strokeWidth={2} dot={false} strokeDasharray="5 3" connectNulls />
+              </R.LineChart>
+            </R.ResponsiveContainer>
+)}</LazyRecharts>
           </div>
           <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 16, height: 3, background: C.green, borderRadius: 2 }} /><span style={{ fontSize: 10, color: C.muted }}>Follow rate</span></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 16, height: 3, background: C.blue, borderRadius: 2 }} /><span style={{ fontSize: 10, color: C.muted }}>Win rate</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 16, height: 3, background: C.green, borderRadius: 2 }} /><span style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>Follow rate</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 16, height: 3, background: C.blue, borderRadius: 2 }} /><span style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>Win rate</span></div>
           </div>
         </div>
       )}
@@ -275,10 +274,10 @@ function DisciplineContent() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{s.setupName || "Unspecified"}</span>
-                      {isBest  && <span style={{ fontSize: 9, fontWeight: 800, color: C.green, background: "#DCFCE7", borderRadius: 4, padding: "1px 5px" }}>BEST</span>}
-                      {isWorst && <span style={{ fontSize: 9, fontWeight: 800, color: C.red,   background: "#FEE2E2", borderRadius: 4, padding: "1px 5px" }}>WEAKEST</span>}
+                      {isBest  && <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: C.green, background: "#DCFCE7", borderRadius: 4, padding: "1px 5px" }}>BEST</span>}
+                      {isWorst && <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: C.red,   background: "#FEE2E2", borderRadius: 4, padding: "1px 5px" }}>WEAKEST</span>}
                     </div>
-                    <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>
+                    <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 3 }}>
                       {s.trades} trades · {s.winRate}% win rate
                       {s.avgDisciplineScore != null && ` · ${s.avgDisciplineScore}% discipline`}
                     </div>
@@ -300,21 +299,23 @@ function DisciplineContent() {
             {data.psychologyCorrelation.optimalThreshold != null && <span style={{ color: C.blue, fontWeight: 700 }}> — aim for {data.psychologyCorrelation.optimalThreshold}+</span>}
           </div>
           <div style={{ height: 130 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.psychologyCorrelation.bySetupRange.map(r => ({ name: `${r.range} (n=${r.count})`, pnl: r.avgPnL ?? 0, count: r.count }))}>
-                <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 8, fill: C.muted }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: C.muted }} width={36} axisLine={false} tickLine={false} />
-                <Tooltip content={<Tip />} />
-                <ReferenceLine y={0} stroke="#CBD5E1" />
-                <Bar dataKey="pnl" name="Avg P&L" radius={[4,4,0,0]}>
+            <LazyRecharts>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={data.psychologyCorrelation.bySetupRange.map(r => ({ name: `${r.range} (n=${r.count})`, pnl: r.avgPnL ?? 0, count: r.count }))}>
+                <R.CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+                <R.XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
+                <R.YAxis tick={{ fontSize: 11, fill: C.muted }} width={36} axisLine={false} tickLine={false} />
+                <R.Tooltip content={<Tip />} />
+                <R.ReferenceLine y={0} stroke="#CBD5E1" />
+                <R.Bar dataKey="pnl" name="Avg P&L" radius={[4,4,0,0]}>
                   {data.psychologyCorrelation.bySetupRange.map((r, i) => <rect key={i} fill={(r.avgPnL ?? 0) >= 0 ? C.green : C.red} fillOpacity={r.count < MIN_SAMPLE_TRADES ? 0.35 : 1} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </R.Bar>
+              </R.BarChart>
+            </R.ResponsiveContainer>
+)}</LazyRecharts>
           </div>
           {data.psychologyCorrelation.bySetupRange.some(r => r.count < MIN_SAMPLE_TRADES) && (
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 8 }}>
               Faded bars are based on fewer than {MIN_SAMPLE_TRADES} trades — not enough data to draw a conclusion yet.
             </div>
           )}
@@ -328,21 +329,21 @@ function DisciplineContent() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {dna.mostValuableRule && (
               <div style={{ padding: "12px 14px", borderRadius: 12, background: "#F5F3FF", border: "1px solid #7C3AED22" }}>
-                <div style={{ fontSize: 10, color: "#7C3AED", fontWeight: 800, marginBottom: 4 }}>MOST VALUABLE RULE</div>
+                <div style={{ fontSize: "var(--fs-2xs)", color: "#7C3AED", fontWeight: 800, marginBottom: 4 }}>MOST VALUABLE RULE</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{dna.mostValuableRule.label}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>Following this rule gives you <strong style={{ color: C.green }}>{fmt(dna.mostValuableRule.pnlDifference, cur)}/trade</strong> more than when you skip it.</div>
               </div>
             )}
             {strongestRule && (
               <div style={{ padding: "12px 14px", borderRadius: 12, background: "#F0FDF4", border: "1px solid #0D9E6E22" }}>
-                <div style={{ fontSize: 10, color: C.green, fontWeight: 800, marginBottom: 4 }}>MOST CONSISTENT RULE</div>
+                <div style={{ fontSize: "var(--fs-2xs)", color: C.green, fontWeight: 800, marginBottom: 4 }}>MOST CONSISTENT RULE</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{strongestRule.label}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>You follow this {strongestRule.compliancePct}% of the time ({strongestRule.timesFollowed || 0} of {ruleSample(strongestRule)} logged) — your strongest habit.</div>
               </div>
             )}
             {weakestRule && weakestRule.label !== strongestRule?.label && (
               <div style={{ padding: "12px 14px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #DC262622" }}>
-                <div style={{ fontSize: 10, color: C.red, fontWeight: 800, marginBottom: 4 }}>MOST SKIPPED RULE</div>
+                <div style={{ fontSize: "var(--fs-2xs)", color: C.red, fontWeight: 800, marginBottom: 4 }}>MOST SKIPPED RULE</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{weakestRule.label}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>
                   You follow this {weakestRule.compliancePct}% of the time ({weakestRule.timesFollowed || 0} of {ruleSample(weakestRule)} logged)
@@ -383,7 +384,7 @@ function DisciplineContent() {
         </div>
       )}
 
-      <div style={{ textAlign: "center", fontSize: 10, color: C.muted, paddingTop: 4 }}>
+      <div style={{ textAlign: "center", fontSize: "var(--fs-2xs)", color: C.muted, paddingTop: 4 }}>
         {stats.totalTrades} trades · {stats.uniqueRules} rules · {stats.uniqueSetups} setups
       </div>
     </div>

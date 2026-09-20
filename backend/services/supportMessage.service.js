@@ -1,6 +1,7 @@
 "use strict";
 
 const mongoose = require("mongoose");
+const { toObjectId } = require("../utils/objectId");
 const SupportTicket = require("../models/SupportTicket");
 const SupportMessage = require("../models/SupportMessage");
 const ApiError = require("../utils/ApiError");
@@ -24,12 +25,6 @@ const {
 
 const MAX_MESSAGE_PAGE = 50;
 const DEFAULT_MESSAGE_PAGE = 30;
-
-function toObjectId(value) {
-  return value instanceof mongoose.Types.ObjectId
-    ? value
-    : new mongoose.Types.ObjectId(String(value));
-}
 
 /**
  * Reject a message that is empty once trimmed.
