@@ -14,6 +14,26 @@ import AdminHeader from "@/components/AdminHeader";
 /* ─────────────────────────────────────────
    PAYMENTS MANAGEMENT PAGE – Light theme
 ───────────────────────────────────────── */
+// Keep in step with PLAN_CONFIG in backend/services/paymentService.js. The
+// backend records a fixed plan only at its current price or a price it was
+// previously sold at (priorAmounts); Custom accepts any amount and needs a
+// day count.
+const MANUAL_PLANS = {
+  monthly: { label: "1 Month", amount: 349, priorAmounts: [199] },
+  "3_months": { label: "3 Months", amount: 899, priorAmounts: [150, 537] },
+  "6_months": { label: "6 Months", amount: 1499, priorAmounts: [894] },
+  custom: { label: "Custom Extension", amount: null, priorAmounts: [] },
+};
+
+const EMPTY_MANUAL_FORM = {
+  userId: "",
+  amount: MANUAL_PLANS["3_months"].amount,
+  transactionId: "",
+  planType: "3_months",
+  customDays: "",
+  notes: "",
+};
+
 export default function PaymentsPage() {
   const router = useRouter();
   const [payments, setPayments] = useState([]);
@@ -27,13 +47,7 @@ export default function PaymentsPage() {
   const [showManualModal, setShowManualModal] = useState(false);
   
   // Manual Payment Form State
-  const [manualForm, setManualForm] = useState({
-    userId: "",
-    amount: 150,
-    transactionId: "",
-    planType: "3_months",
-    notes: ""
-  });
+  const [manualForm, setManualForm] = useState(EMPTY_MANUAL_FORM);
 
   useEffect(() => {
     setMounted(true);
@@ -69,15 +83,58 @@ export default function PaymentsPage() {
     }
   };
 
+  const handlePlanTypeChange = (planType) => {
+    const plan = MANUAL_PLANS[planType];
+    setManualForm((prev) => ({
+      ...prev,
+      planType,
+      // Fixed plans are recorded at their configured price; only Custom
+      // keeps whatever the admin typed.
+      amount: plan?.amount ?? prev.amount,
+      customDays: planType === "custom" ? prev.customDays : "",
+    }));
+  };
+
+  const validateManualForm = () => {
+    if (!manualForm.userId) return "Please select a user";
+    const amountString = String(manualForm.amount ?? "").trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(amountString) || Number(amountString) <= 0) {
+      return "Amount must be a positive number with at most two decimals";
+    }
+    const amount = Number(amountString);
+    const plan = MANUAL_PLANS[manualForm.planType];
+    if (!plan) return "Please choose a plan type";
+    if (manualForm.planType === "custom") {
+      const days = Number(manualForm.customDays);
+      if (!Number.isInteger(days) || days <= 0) return "Enter the number of days (1 or more) for a custom extension";
+      if (days > 3650) return "Custom extension cannot exceed 3650 days";
+    } else if (amount !== plan.amount && !plan.priorAmounts.includes(amount)) {
+      return `${plan.label} is ₹${plan.amount}. Enter that amount, or switch to Custom Extension to record ₹${amount}.`;
+    }
+    return null;
+  };
+
   const handleManualSubmit = async (e) => {
     e.preventDefault();
-    if (!manualForm.userId) return setError("Please select a user");
-    
+    const validationError = validateManualForm();
+    if (validationError) return setError(validationError);
+
+    const payload = {
+      userId: manualForm.userId,
+      amount: Number(manualForm.amount),
+      planType: manualForm.planType,
+      transactionId: manualForm.transactionId.trim() || undefined,
+      notes: manualForm.notes.trim() || undefined,
+    };
+    if (manualForm.planType === "custom") {
+      payload.customDays = Number(manualForm.customDays);
+    }
+
     try {
-      await addManualPayment(manualForm);
+      await addManualPayment(payload);
       setSuccess("Manual payment recorded and plan extended");
       setShowManualModal(false);
-      setManualForm({ userId: "", amount: 150, transactionId: "", planType: "3_months", notes: "" });
+      setManualForm(EMPTY_MANUAL_FORM);
       fetchData();
     } catch (err) {
       setError(err.message || "Manual record failed");
@@ -176,7 +233,7 @@ export default function PaymentsPage() {
                         <div style={{ fontSize: 10, color: "#94A3B8" }}>{new Date(payment.createdAt).toLocaleDateString()}</div>
                       </td>
                       <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 600, color: "#4A5568" }}>{payment.planType === "3_months" ? "3 Months" : "Custom"}</div>
+                        <div style={{ fontWeight: 600, color: "#4A5568" }}>{MANUAL_PLANS[payment.planType]?.label || payment.planType || "—"}</div>
                         <div style={{ fontSize: 10, color: "#0D9E6E" }}>
                           {payment.expiryDate ? `Exp: ${new Date(payment.expiryDate).toLocaleDateString()}` : "Not Activated"}
                         </div>
@@ -260,30 +317,45 @@ export default function PaymentsPage() {
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>AMOUNT (INR)</label>
                     <input 
-                      type="number" required
+                      type="number" required min="1" step="0.01"
                       style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid #E2E8F0", outline: "none", fontSize: 14 }}
                       value={manualForm.amount}
                       onChange={e => setManualForm({...manualForm, amount: e.target.value})}
                     />
+                    {manualForm.planType !== "custom" && MANUAL_PLANS[manualForm.planType] && (
+                      <div style={{ fontSize: 11, color: "#64748B", marginTop: 6 }}>
+                        {MANUAL_PLANS[manualForm.planType].label} is ₹{MANUAL_PLANS[manualForm.planType].amount}. Use Custom Extension for any other amount.
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>PLAN TYPE</label>
                     <select 
                       style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid #E2E8F0", outline: "none", fontSize: 14 }}
                       value={manualForm.planType}
-                      onChange={e => setManualForm({...manualForm, planType: e.target.value})}
+                      onChange={e => handlePlanTypeChange(e.target.value)}
                     >
-                      {/* Informational labels. Keep in step with
-                          PLAN_CONFIG in backend/services/paymentService.js —
-                          the amount actually charged always comes from there,
-                          never from this dropdown. */}
-                      <option value="monthly">1 Month (₹349)</option>
-                      <option value="3_months">3 Months (₹899)</option>
-                      <option value="6_months">6 Months (₹1499)</option>
-                      <option value="custom">Custom Extension</option>
+                      {Object.entries(MANUAL_PLANS).map(([key, plan]) => (
+                        <option key={key} value={key}>
+                          {plan.label}{plan.amount ? ` (₹${plan.amount})` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
+
+                {manualForm.planType === "custom" && (
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>EXTEND BY (DAYS)</label>
+                    <input 
+                      type="number" required min="1" max="3650" step="1"
+                      placeholder="e.g. 45"
+                      style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid #E2E8F0", outline: "none", fontSize: 14 }}
+                      value={manualForm.customDays}
+                      onChange={e => setManualForm({...manualForm, customDays: e.target.value})}
+                    />
+                  </div>
+                )}
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>TRANSACTION ID (OPTIONAL)</label>

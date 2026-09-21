@@ -141,19 +141,81 @@ exports.updatePaymentStatus = asyncHandler(async (req, res) => {
  * @route   POST /api/admin/payments/manual
  * @access  Private/Admin
  */
+// Manual entries record money that already moved outside Razorpay (bank
+// transfer, UPI, cash). Bounds below are sanity rails against typos, not
+// business limits.
+const MANUAL_MAX_AMOUNT = 1_000_000;
+const MANUAL_MAX_CUSTOM_DAYS = 3650;
+const MANUAL_MAX_TRANSACTION_ID_LENGTH = 128;
+const MANUAL_MAX_NOTES_LENGTH = 1000;
+
+function hasAtMostTwoDecimals(value) {
+  return Math.round(value * 100) === value * 100;
+}
+
 exports.addManualPayment = asyncHandler(async (req, res) => {
   const { userId, amount, transactionId, planType = "3_months", customDays, notes } = req.body;
-  if (transactionId !== undefined && typeof transactionId !== "string") {
+
+  if (!mongoose.isValidObjectId(userId)) {
+    throw new ApiError(400, "A valid user is required", "VALIDATION_ERROR");
+  }
+  if (transactionId !== undefined && transactionId !== null && typeof transactionId !== "string") {
     throw new ApiError(400, "Transaction ID must be a string", "VALIDATION_ERROR");
   }
-  const normalizedTransactionId = String(transactionId || `MAN-${Date.now()}`).trim();
-  const numericAmount = Number(amount);
-  const plan = getPlanConfig(planType, { customDays, amount: numericAmount });
-  if (!Number.isFinite(numericAmount) || numericAmount <= 0 || !plan || plan.days <= 0) {
-    throw new ApiError(400, "Valid amount, plan type, and subscription duration are required", "VALIDATION_ERROR");
+  const normalizedTransactionId = String(transactionId || "").trim() || `MAN-${Date.now()}`;
+  if (normalizedTransactionId.length > MANUAL_MAX_TRANSACTION_ID_LENGTH) {
+    throw new ApiError(400, `Transaction ID must be at most ${MANUAL_MAX_TRANSACTION_ID_LENGTH} characters`, "VALIDATION_ERROR");
   }
-  if (Number.isFinite(plan.amount) && plan.planType !== "custom" && numericAmount !== plan.amount) {
-    throw new ApiError(400, "Manual payment amount does not match the configured plan price", "PAYMENT_INTEGRITY_CHECK_FAILED");
+  if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    throw new ApiError(400, "Notes must be a string", "VALIDATION_ERROR");
+  }
+  const normalizedNotes = String(notes || "").trim().slice(0, MANUAL_MAX_NOTES_LENGTH) || "Manual admin entry";
+
+  // Accept "899", " 899 ", "899.00"; reject "", "abc", "1e3"-style surprises.
+  const amountString = typeof amount === "number" ? String(amount) : String(amount ?? "").trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(amountString)) {
+    throw new ApiError(400, "Amount must be a positive number with at most two decimals", "VALIDATION_ERROR");
+  }
+  const numericAmount = Number(amountString);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0 || !hasAtMostTwoDecimals(numericAmount)) {
+    throw new ApiError(400, "Amount must be a positive number with at most two decimals", "VALIDATION_ERROR");
+  }
+  if (numericAmount > MANUAL_MAX_AMOUNT) {
+    throw new ApiError(400, `Amount cannot exceed ₹${MANUAL_MAX_AMOUNT.toLocaleString("en-IN")}`, "VALIDATION_ERROR");
+  }
+
+  const normalizedPlanType = String(planType || "3_months").trim();
+  if (normalizedPlanType === "custom") {
+    const days = Number(customDays);
+    if (!Number.isInteger(days) || days <= 0) {
+      throw new ApiError(400, "Custom plans need a whole number of days (1 or more)", "VALIDATION_ERROR");
+    }
+    if (days > MANUAL_MAX_CUSTOM_DAYS) {
+      throw new ApiError(400, `Custom plans cannot exceed ${MANUAL_MAX_CUSTOM_DAYS} days`, "VALIDATION_ERROR");
+    }
+  }
+
+  const plan = getPlanConfig(normalizedPlanType, { customDays, amount: numericAmount });
+  if (!plan || !Number.isFinite(plan.days) || plan.days <= 0) {
+    throw new ApiError(400, "Unknown plan type", "VALIDATION_ERROR");
+  }
+
+  // Fixed plans must be recorded at a price we have actually charged: the
+  // current one, or any prior price still in PLAN_CONFIG.priorAmounts (a
+  // bank transfer made before a price change is still legitimate). Anything
+  // else — a discount, a typo — belongs on a "custom" entry so revenue
+  // reports never show a plan at a price it never had.
+  if (plan.planType !== "custom" && Number.isFinite(plan.amount)) {
+    const acceptedAmounts = [plan.amount, ...(plan.priorAmounts || [])];
+    if (!acceptedAmounts.includes(numericAmount)) {
+      throw new ApiError(
+        400,
+        `Amount ₹${numericAmount} does not match the ${plan.label || plan.planType} plan (₹${plan.amount}). ` +
+          "Use the plan price, or choose Custom Extension to record a different amount.",
+        "PAYMENT_INTEGRITY_CHECK_FAILED",
+        { expectedAmount: plan.amount, acceptedAmounts }
+      );
+    }
   }
 
   const session = await mongoose.startSession();
@@ -183,7 +245,7 @@ exports.addManualPayment = asyncHandler(async (req, res) => {
       planType: plan.planType,
       paymentMethod: "manual",
       status: "completed",
-      notes: notes || "Manual admin entry",
+      notes: normalizedNotes,
       expiryDate,
       subscriptionDays: plan.days,
     }], { session });
