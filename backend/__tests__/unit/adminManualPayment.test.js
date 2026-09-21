@@ -45,9 +45,6 @@ test.each([
 });
 
 test.each([
-  ["price never charged for this plan", { ...base, amount: 200 }, "PAYMENT_INTEGRITY_CHECK_FAILED"],
-  ["off-by-one price", { ...base, amount: 900 }, "PAYMENT_INTEGRITY_CHECK_FAILED"],
-  ["fractional fixed price", { ...base, amount: 899.5 }, "PAYMENT_INTEGRITY_CHECK_FAILED"],
   ["zero amount", { ...base, amount: 0 }, "VALIDATION_ERROR"],
   ["negative amount", { ...base, amount: -899 }, "VALIDATION_ERROR"],
   ["non-numeric amount", { ...base, amount: "abc" }, "VALIDATION_ERROR"],
@@ -65,11 +62,20 @@ test.each([
   expect(Payment.create).not.toHaveBeenCalled();
 });
 
-test("mismatch error tells admin the expected price", async () => {
-  await expect(run({ ...base, amount: 200 })).rejects.toMatchObject({
-    message: expect.stringContaining("₹899"),
-    details: { expectedAmount: 899 },
-  });
+test("off-price fixed plan is accepted and the discrepancy is stamped on the record", async () => {
+  const { payload } = await run({ ...base, planType: "monthly", amount: 150, notes: "Festival offer" });
+  expect(payload.message).toMatch(/recorded/);
+  const [[doc]] = Payment.create.mock.calls[0];
+  expect(doc.amount).toBe(150);
+  expect(doc.planType).toBe("monthly");
+  expect(doc.subscriptionDays).toBe(30);
+  expect(doc.notes).toBe("Festival offer [Recorded at ₹150; 1 month plan price is ₹349]");
+});
+
+test("full-price entry leaves notes untouched", async () => {
+  await run({ ...base, notes: "Bank transfer" });
+  const [[doc]] = Payment.create.mock.calls[0];
+  expect(doc.notes).toBe("Bank transfer");
 });
 
 test("blank transactionId gets a generated one and blank notes get the default", async () => {

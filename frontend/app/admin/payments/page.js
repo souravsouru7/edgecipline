@@ -15,14 +15,13 @@ import AdminHeader from "@/components/AdminHeader";
    PAYMENTS MANAGEMENT PAGE – Light theme
 ───────────────────────────────────────── */
 // Keep in step with PLAN_CONFIG in backend/services/paymentService.js. The
-// backend records a fixed plan only at its current price or a price it was
-// previously sold at (priorAmounts); Custom accepts any amount and needs a
-// day count.
+// amount is pre-filled from here but any amount is accepted — an off-price
+// entry is flagged as discounted on the record. Custom needs a day count.
 const MANUAL_PLANS = {
-  monthly: { label: "1 Month", amount: 349, priorAmounts: [199] },
-  "3_months": { label: "3 Months", amount: 899, priorAmounts: [150, 537] },
-  "6_months": { label: "6 Months", amount: 1499, priorAmounts: [894] },
-  custom: { label: "Custom Extension", amount: null, priorAmounts: [] },
+  monthly: { label: "1 Month", amount: 349 },
+  "3_months": { label: "3 Months", amount: 899 },
+  "6_months": { label: "6 Months", amount: 1499 },
+  custom: { label: "Custom Extension", amount: null },
 };
 
 const EMPTY_MANUAL_FORM = {
@@ -101,15 +100,12 @@ export default function PaymentsPage() {
     if (!/^\d+(\.\d{1,2})?$/.test(amountString) || Number(amountString) <= 0) {
       return "Amount must be a positive number with at most two decimals";
     }
-    const amount = Number(amountString);
     const plan = MANUAL_PLANS[manualForm.planType];
     if (!plan) return "Please choose a plan type";
     if (manualForm.planType === "custom") {
       const days = Number(manualForm.customDays);
       if (!Number.isInteger(days) || days <= 0) return "Enter the number of days (1 or more) for a custom extension";
       if (days > 3650) return "Custom extension cannot exceed 3650 days";
-    } else if (amount !== plan.amount && !plan.priorAmounts.includes(amount)) {
-      return `${plan.label} is ₹${plan.amount}. Enter that amount, or switch to Custom Extension to record ₹${amount}.`;
     }
     return null;
   };
@@ -323,9 +319,15 @@ export default function PaymentsPage() {
                       onChange={e => setManualForm({...manualForm, amount: e.target.value})}
                     />
                     {manualForm.planType !== "custom" && MANUAL_PLANS[manualForm.planType] && (
-                      <div style={{ fontSize: 11, color: "#64748B", marginTop: 6 }}>
-                        {MANUAL_PLANS[manualForm.planType].label} is ₹{MANUAL_PLANS[manualForm.planType].amount}. Use Custom Extension for any other amount.
-                      </div>
+                      Number(manualForm.amount) === MANUAL_PLANS[manualForm.planType].amount ? (
+                        <div style={{ fontSize: 11, color: "#64748B", marginTop: 6 }}>
+                          Plan price: ₹{MANUAL_PLANS[manualForm.planType].amount}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: "#B8860B", marginTop: 6, fontWeight: 600 }}>
+                          Differs from the {MANUAL_PLANS[manualForm.planType].label} price (₹{MANUAL_PLANS[manualForm.planType].amount}). It will be recorded as a discounted entry.
+                        </div>
+                      )
                     )}
                   </div>
                   <div>

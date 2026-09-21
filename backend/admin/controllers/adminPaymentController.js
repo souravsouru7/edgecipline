@@ -200,23 +200,15 @@ exports.addManualPayment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Unknown plan type", "VALIDATION_ERROR");
   }
 
-  // Fixed plans must be recorded at a price we have actually charged: the
-  // current one, or any prior price still in PLAN_CONFIG.priorAmounts (a
-  // bank transfer made before a price change is still legitimate). Anything
-  // else — a discount, a typo — belongs on a "custom" entry so revenue
-  // reports never show a plan at a price it never had.
-  if (plan.planType !== "custom" && Number.isFinite(plan.amount)) {
-    const acceptedAmounts = [plan.amount, ...(plan.priorAmounts || [])];
-    if (!acceptedAmounts.includes(numericAmount)) {
-      throw new ApiError(
-        400,
-        `Amount ₹${numericAmount} does not match the ${plan.label || plan.planType} plan (₹${plan.amount}). ` +
-          "Use the plan price, or choose Custom Extension to record a different amount.",
-        "PAYMENT_INTEGRITY_CHECK_FAILED",
-        { expectedAmount: plan.amount, acceptedAmounts }
-      );
-    }
-  }
+  // Manual entries are how admins record offline deals, discounts and old
+  // pricing, so any amount is allowed. When it differs from the configured
+  // price we stamp the discrepancy on the record and the audit log so
+  // revenue reports can tell a discounted 1-month from a full-price one.
+  const configuredAmount = plan.planType !== "custom" && Number.isFinite(plan.amount) ? plan.amount : null;
+  const offPrice = configuredAmount !== null && numericAmount !== configuredAmount;
+  const finalNotes = offPrice
+    ? `${normalizedNotes} [Recorded at ₹${numericAmount}; ${plan.label || plan.planType} plan price is ₹${configuredAmount}]`.slice(0, MANUAL_MAX_NOTES_LENGTH + 120)
+    : normalizedNotes;
 
   const session = await mongoose.startSession();
   let payment;
@@ -245,7 +237,7 @@ exports.addManualPayment = asyncHandler(async (req, res) => {
       planType: plan.planType,
       paymentMethod: "manual",
       status: "completed",
-      notes: normalizedNotes,
+      notes: finalNotes,
       expiryDate,
       subscriptionDays: plan.days,
     }], { session });
@@ -280,6 +272,8 @@ exports.addManualPayment = asyncHandler(async (req, res) => {
     amount: numericAmount,
     planType: plan.planType,
     subscriptionDays: plan.days,
+    configuredAmount,
+    offPrice,
   });
 
   res.status(201).json({ message: "Manual payment recorded successfully", payment });
