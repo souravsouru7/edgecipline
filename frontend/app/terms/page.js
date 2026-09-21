@@ -343,7 +343,7 @@ export default function TermsPage() {
           <BulletList items={[
             "You may cancel your subscription at any time to prevent future charges",
             "Cancellation takes effect at the end of the current billing period; you will retain access until then",
-            "If you believe you have been charged in error, contact us within 14 days at edgecipline@gmail.com",
+            "If you believe you have been charged in error, contact us within 14 days at dream@edgecipline.com",
           ]} />
         </Section>
 
@@ -351,7 +351,7 @@ export default function TermsPage() {
         <Section title="7. Account Responsibility" id="account">
           <BulletList items={[
             "You are responsible for maintaining the security of your account credentials",
-            "You must notify us immediately at edgecipline@gmail.com if you suspect unauthorized access to your account",
+            "You must notify us immediately at dream@edgecipline.com if you suspect unauthorized access to your account",
             "We are not liable for any losses resulting from unauthorized account access caused by your failure to secure your credentials",
             "You are responsible for all activity that occurs under your account",
             "You may not transfer, sell, or share your account with any third party",
@@ -433,7 +433,7 @@ export default function TermsPage() {
           }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edgecipline</div>
             <div style={{ fontSize: 14, color: "#94A3B8", marginBottom: 12 }}>Legal & Terms Inquiries</div>
-            <a href="mailto:edgecipline@gmail.com" style={{
+            <a href="mailto:dream@edgecipline.com" style={{
               display: "flex", alignItems: "center", gap: 8,
               color: "#22C78E", textDecoration: "none", fontSize: 14, fontWeight: 700,
               marginBottom: 8,
@@ -442,7 +442,7 @@ export default function TermsPage() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22,6 12,13 2,6" />
               </svg>
-              edgecipline@gmail.com
+              dream@edgecipline.com
             </a>
             <a href="tel:+919061650463" style={{
               display: "flex", alignItems: "center", gap: 8,

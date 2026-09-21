@@ -40,3 +40,55 @@ export const toForexPath = (pathname) => {
   if (!pathname || !pathname.startsWith("/indian-market")) return pathname;
   return pathname.replace("/indian-market", "") || "/dashboard";
 };
+
+/**
+ * Where the market switcher sends the user when they flip markets while on
+ * `pathname`. Mirrors each page onto its counterpart in the other tree; pages
+ * with no counterpart (checklist, coach, intelligence) keep their path and
+ * rely on MarketContext instead.
+ */
+export const getMarketSwitchPath = (pathname, targetMarket) => {
+  let newPath = pathname || "/dashboard";
+
+  if (targetMarket === MARKETS.FOREX) {
+    if (newPath.startsWith("/indian-market")) {
+      newPath = newPath.replace("/indian-market", "");
+    }
+    if (newPath === "" || newPath === "/") newPath = "/dashboard";
+    if (newPath === "/weekly-reports") {
+      newPath = "/weekly-reports?market=Forex";
+    }
+    return newPath;
+  }
+
+  if (newPath === "/" || newPath === "/dashboard") {
+    return "/indian-market/dashboard";
+  }
+  if (
+    newPath === "/trades" ||
+    newPath.startsWith("/trades/") ||
+    newPath === "/add-trade" ||
+    newPath === "/upload-trade" ||
+    newPath === "/setups" ||
+    newPath === "/discipline"
+  ) {
+    return `/indian-market${newPath}`;
+  }
+  if (newPath === "/analytics" || newPath.startsWith("/analytics/")) {
+    return "/indian-market/analytics";
+  }
+  if (newPath === "/weekly-reports") {
+    return "/weekly-reports?market=Indian_Market";
+  }
+  return newPath;
+};
+
+/**
+ * Both dashboard routes render the same component (MarketDashboardPage), which
+ * reads its market from the URL. A switch between them therefore needs no
+ * route transition at all: updating the URL in place is enough, and nothing
+ * above the market-specific content has to remount. Every other page pair is
+ * a separate implementation and still needs a real navigation.
+ */
+export const isShallowMarketSwitchRoute = (pathname) =>
+  pathname === "/dashboard" || pathname === "/indian-market/dashboard";

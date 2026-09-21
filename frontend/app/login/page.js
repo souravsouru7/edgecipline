@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import LoginForm             from "@/features/auth/components/LoginForm";
 import { useLogin }          from "@/features/auth/hooks/useLogin";
+import { markStartupContentReady } from "@/utils/startupGate";
 
 const PREVIEW_STATS = [
   { label: "TRADES LOGGED", val: "1,284", bull: true  },
@@ -15,6 +16,15 @@ const PREVIEW_STATS = [
 function LoginPageContent() {
   const loginState = useLogin();
   const { mounted } = loginState;
+
+  // First-screen content signal for the brand opener (see utils/startupGate).
+  // A cold start with no session lands here, and the opener holds until this
+  // fires — otherwise it uncovers the blank placeholder that "/" renders while
+  // it decides where to send the user. Nothing here waits on the network, so
+  // this is effectively "the form is painted".
+  useEffect(() => {
+    if (mounted) markStartupContentReady();
+  }, [mounted]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative", overflow: "hidden" }}>

@@ -123,6 +123,16 @@ export default function SupportShell({
           gap: 10px;
           min-width: 0;
         }
+        /* The actions must never shrink below their labels — a flex item
+           that gets squeezed keeps painting its nowrap text, so two buttons
+           end up drawn on top of each other. The brand side gives way
+           instead (see the narrow-screen rules below). */
+        .sup-header-right {
+          flex-shrink: 0;
+        }
+        .sup-header-left {
+          flex: 1 1 auto;
+        }
         .sup-back {
           display: flex;
           align-items: center;
@@ -226,6 +236,28 @@ export default function SupportShell({
         .sup-footer :global(a:hover) {
           color: var(--color-text-muted);
           text-decoration: underline;
+        }
+        /* Phone widths: logo + badge + up to three actions do not fit in
+           360px. Drop the badge (the logo already says Edgecipline) and
+           tighten the logo and gaps so the actions keep their full labels. */
+        @media (max-width: 519px) {
+          .sup-header-inner {
+            gap: 8px;
+            padding: 0 calc(14px + env(safe-area-inset-right, 0px)) 0 calc(14px + env(safe-area-inset-left, 0px));
+          }
+          .sup-header-right {
+            gap: 4px;
+          }
+          .sup-eyebrow {
+            display: none;
+          }
+          .sup-logo {
+            width: 92px;
+            height: 26px;
+          }
+          :global(.sup-exit) {
+            padding: 8px 8px;
+          }
         }
         @media (min-width: 720px) {
           .sup-title {

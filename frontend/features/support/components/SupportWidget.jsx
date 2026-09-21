@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -63,6 +63,176 @@ const GREETING = {
 // question is what the knowledge-base search actually matches on.
 const QUICK_TOPICS = ["trade_import", "subscription_billing", "account_profile", "technical_issue"];
 
+// The bubble can be dragged anywhere on screen so it never sits on top of the
+// one thing the customer is trying to tap. The position is stored as an offset
+// from the CSS default (bottom-right) so the tab-bar / desktop breakpoints keep
+// working; it is re-clamped whenever the viewport changes.
+const DRAG_STORAGE_KEY = "ec.support.bubble.offset";
+const DRAG_THRESHOLD_PX = 6; // below this a pointer-down/up is a tap, not a drag
+const EDGE_MARGIN_PX = 8;
+
+function readStoredOffset() {
+  try {
+    const raw = window.localStorage.getItem(DRAG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.dx !== "number" || typeof parsed?.dy !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredOffset(offset) {
+  try {
+    window.localStorage.setItem(DRAG_STORAGE_KEY, JSON.stringify(offset));
+  } catch {
+    /* private mode / storage blocked — position just resets next visit */
+  }
+}
+
+/**
+ * Where CSS rests the bubble, derived from its current rect minus the offset
+ * we applied. Returns null when that cannot be trusted: while the route
+ * entrance animation runs, the transformed page wrapper becomes the containing
+ * block for position:fixed and the rect is measured against the whole
+ * document, not the viewport. The CSS rest position is always on screen, so
+ * anything else means "don't clamp against this".
+ */
+function restPosition(el, currentOffset) {
+  const rect = el.getBoundingClientRect();
+  const base = {
+    left: rect.left - currentOffset.dx,
+    top: rect.top - currentOffset.dy,
+    width: rect.width,
+    height: rect.height,
+  };
+  const onScreen =
+    base.width > 0 &&
+    base.left >= 0 &&
+    base.top >= 0 &&
+    base.left + base.width <= window.innerWidth + 1 &&
+    base.top + base.height <= window.innerHeight + 1;
+  return onScreen ? base : null;
+}
+
+/**
+ * Keeps the bubble fully on screen. `offset` is relative to where CSS put the
+ * element, so the rest position is `rect - currentOffset`.
+ */
+function clampOffset(el, currentOffset, wanted) {
+  const base = restPosition(el, currentOffset);
+  if (!base) return currentOffset;
+  const minDx = EDGE_MARGIN_PX - base.left;
+  const maxDx = window.innerWidth - EDGE_MARGIN_PX - base.width - base.left;
+  const minDy = EDGE_MARGIN_PX - base.top;
+  const maxDy = window.innerHeight - EDGE_MARGIN_PX - base.height - base.top;
+  return {
+    dx: Math.min(Math.max(wanted.dx, minDx), maxDx),
+    dy: Math.min(Math.max(wanted.dy, minDy), maxDy),
+  };
+}
+
+// Snap to whichever side edge is closer, like every other floating button
+// people are used to; vertical position is kept where they left it.
+function snapToEdge(el, currentOffset, wanted) {
+  const base = restPosition(el, currentOffset);
+  if (!base) return currentOffset;
+  const leftDx = EDGE_MARGIN_PX - base.left;
+  const rightDx = window.innerWidth - EDGE_MARGIN_PX - base.width - base.left;
+  const centre = base.left + wanted.dx + base.width / 2;
+  const dx = centre < window.innerWidth / 2 ? leftDx : rightDx;
+  return clampOffset(el, currentOffset, { dx, dy: wanted.dy });
+}
+
+function useDraggableBubble(bubbleRef, enabled) {
+  const [offset, setOffset] = useState({ dx: 0, dy: 0 });
+  const [dragging, setDragging] = useState(false);
+  // Mirror of `offset` for the pointer handlers, which must read the latest
+  // value without being re-created on every move. Every setOffset below
+  // updates the ref first.
+  const offsetRef = useRef({ dx: 0, dy: 0 });
+  // Pointer bookkeeping lives in a ref so moves never re-render on their own.
+  const gesture = useRef(null);
+
+  // Restore the saved spot, then keep it on screen as the viewport changes
+  // (rotation, keyboard, resize). The restore is retried after the route
+  // entrance animation (see restPosition) so the first measurement that is
+  // actually against the viewport wins.
+  useLayoutEffect(() => {
+    if (!enabled) return undefined;
+    const el = bubbleRef.current;
+    if (!el) return undefined;
+    const apply = (wanted) => {
+      if (!restPosition(el, offsetRef.current)) return false;
+      const next = clampOffset(el, offsetRef.current, wanted);
+      offsetRef.current = next;
+      setOffset(next);
+      return true;
+    };
+    const stored = readStoredOffset();
+    let retry = null;
+    const restore = () => {
+      if (!apply(stored || offsetRef.current)) retry = setTimeout(restore, 250);
+    };
+    const raf = requestAnimationFrame(restore);
+    const onResize = () => apply(offsetRef.current);
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (retry) clearTimeout(retry);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [bubbleRef, enabled]);
+
+  const onPointerDown = useCallback((event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    gesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: offsetRef.current,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((event) => {
+    const g = gesture.current;
+    if (!g || g.pointerId !== event.pointerId) return;
+    const dx = event.clientX - g.startX;
+    const dy = event.clientY - g.startY;
+    if (!g.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    if (!g.moved) {
+      g.moved = true;
+      setDragging(true);
+    }
+    const next = clampOffset(event.currentTarget, offsetRef.current, {
+      dx: g.startOffset.dx + dx,
+      dy: g.startOffset.dy + dy,
+    });
+    offsetRef.current = next;
+    setOffset(next);
+  }, []);
+
+  // Returns true when the gesture was a drag (so the click must be ignored).
+  const endGesture = useCallback((event) => {
+    const g = gesture.current;
+    if (!g || g.pointerId !== event.pointerId) return false;
+    gesture.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (!g.moved) return false;
+    const next = snapToEdge(event.currentTarget, offsetRef.current, offsetRef.current);
+    offsetRef.current = next;
+    setOffset(next);
+    setDragging(false);
+    writeStoredOffset(next);
+    return true;
+  }, []);
+
+  return { offset, dragging, onPointerDown, onPointerMove, endGesture };
+}
+
 export default function SupportWidget() {
   const pathname = usePathname() || "";
   const [open, setOpen] = useState(false);
@@ -77,6 +247,11 @@ export default function SupportWidget() {
   const bubbleRef = useRef(null);
 
   const hidden = HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  const drag = useDraggableBubble(bubbleRef, !hidden && !open);
+  // A drag must not also open the panel. Pointer-up fires before click, so
+  // the flag set there is what the click handler checks.
+  const suppressClick = useRef(false);
 
   // Esc closes, and focus returns to the bubble rather than being dumped at the
   // top of the page.
@@ -193,9 +368,25 @@ export default function SupportWidget() {
         <button
           ref={bubbleRef}
           type="button"
-          onClick={() => setOpen(true)}
-          className="sw-bubble"
-          aria-label="Open support help"
+          onClick={() => {
+            if (suppressClick.current) {
+              suppressClick.current = false;
+              return;
+            }
+            setOpen(true);
+          }}
+          onPointerDown={drag.onPointerDown}
+          onPointerMove={drag.onPointerMove}
+          onPointerUp={(event) => {
+            suppressClick.current = drag.endGesture(event);
+          }}
+          onPointerCancel={(event) => {
+            suppressClick.current = drag.endGesture(event);
+          }}
+          className={`sw-bubble${drag.dragging ? " sw-bubble-dragging" : ""}`}
+          style={{ translate: `${drag.offset.dx}px ${drag.offset.dy}px` }}
+          aria-label="Open support help (drag to move)"
+          title="Drag to move"
         >
           <span className="sw-bubble-icon">
             <LifeBuoy size={20} aria-hidden="true" />
@@ -450,9 +641,25 @@ export default function SupportWidget() {
           font-size: 14px;
           font-weight: 700;
           letter-spacing: 0.01em;
-          cursor: pointer;
+          cursor: grab;
+          /* The browser must not turn a drag into a page scroll or a
+             long-press context menu. */
+          touch-action: none;
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
           box-shadow: 0 10px 30px -6px rgba(15, 25, 35, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
+          /* The dragged offset lives in the CSS "translate" property, not
+             "transform", so the hover lift below still composes with it. The
+             translate transition is what animates the snap-to-edge on release. */
+          transition: transform 0.18s ease, box-shadow 0.18s ease, translate 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sw-bubble-dragging {
+          cursor: grabbing;
+          /* Follow the finger exactly — no easing while the pointer is down. */
+          transition: box-shadow 0.18s ease;
+          transform: scale(1.06);
+          box-shadow: 0 18px 40px -8px rgba(15, 25, 35, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
         }
         .sw-bubble-icon {
           display: flex;
@@ -465,7 +672,7 @@ export default function SupportWidget() {
           color: #fff;
           box-shadow: 0 4px 12px rgba(13, 158, 110, 0.4);
         }
-        .sw-bubble:hover {
+        .sw-bubble:hover:not(.sw-bubble-dragging) {
           transform: translateY(-2px);
           box-shadow: 0 16px 36px -8px rgba(15, 25, 35, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
         }

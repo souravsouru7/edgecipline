@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import BrandOpener, { OPENER_EXIT_MS } from "@/components/BrandOpener";
 import { getValidToken, hydrateAuthToken } from "@/utils/auth";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
@@ -20,6 +20,11 @@ const OPENER_MIN_HOLD_NATIVE_MS = 520;
 // with its own loading state rather than leaving the user staring at a logo
 // on a very slow connection.
 const STARTUP_CONTENT_TIMEOUT_MS = 10000;
+// Ceiling on waiting for the login form to paint after the redirect above.
+// Short: that screen is static with no data to fetch, so anything beyond this
+// means the navigation is not coming and revealing whatever is on screen
+// beats holding a logo indefinitely.
+const LOGIN_ROUTE_TIMEOUT_MS = 3000;
 
 // Routes an unauthenticated visitor may reach. Anything not listed here gets
 // redirected to /login when session restore comes back empty.
@@ -70,6 +75,9 @@ export default function AuthSessionBootstrap({ children }) {
   const [exiting, setExiting] = useState(false);
   const readyRef = useRef(false);
   const mountedAtRef = useRef(0);
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const pathname = usePathname();
   const pathnameRef = useRef(pathname || "");
 
@@ -84,13 +92,26 @@ export default function AuthSessionBootstrap({ children }) {
     let exitTimer = null;
     let contentTimer = null;
     let unsubscribeGate = null;
+    // Set when this startup is heading for /login. The startup gate waits for
+    // the first screen's DATA, which only a signed-in screen reports; without
+    // this an unauthenticated launch from "/" would hold the opener for the
+    // full content timeout waiting for a dashboard that is never rendered.
+    let redirectedToLogin = false;
     mountedAtRef.current = performance.now();
     const isProtectedRoute = () => !PUBLIC_PATH_PREFIXES.some((prefix) => pathnameRef.current === prefix || pathnameRef.current.startsWith(`${prefix}/`));
+    // Client-side, not window.location.replace. A hard navigation unloads the
+    // document, and the next one paints an empty background for as long as it
+    // takes to parse and hydrate — the blank screen a first install saw
+    // between the opener and the login form, because a fresh install is the
+    // one case where this redirect actually fires. Routing in-place keeps the
+    // opener mounted across the transition, so it crossfades into /login the
+    // same way it crossfades into the dashboard.
     const redirectToLogin = () => {
       if (typeof window === "undefined") return;
       if (!isProtectedRoute()) return;
       if (window.location.pathname === "/login") return;
-      window.location.replace("/login");
+      redirectedToLogin = true;
+      routerRef.current?.replace("/login");
     };
 
     const revealApp = (reason) => {
@@ -125,11 +146,20 @@ export default function AuthSessionBootstrap({ children }) {
         }, hold);
       };
 
-      if (!isStartupGatedRoute(pathnameRef.current) || isStartupContentReady()) {
+      // Whether this startup still owes the user a first screen. Both the
+      // dashboard and the login form report through the same startup gate, so
+      // the opener does not have to know which one it is waiting for — only
+      // that something has painted. Waiting on the gate rather than on the URL
+      // is what keeps the redirect from uncovering the blank placeholder that
+      // "/" renders while it decides where to go.
+      const waitsForContent = redirectedToLogin || isStartupGatedRoute(pathnameRef.current);
+      if (!waitsForContent || isStartupContentReady()) {
         dismiss();
         return;
       }
-      // Gated route: wait for the first screen's content, with a ceiling.
+      // The login form is static, the dashboard is a network round trip, so
+      // they get very different ceilings on how long the logo may stay up.
+      const timeoutMs = redirectedToLogin ? LOGIN_ROUTE_TIMEOUT_MS : STARTUP_CONTENT_TIMEOUT_MS;
       let settled = false;
       const settle = () => {
         if (settled) return;
@@ -140,9 +170,9 @@ export default function AuthSessionBootstrap({ children }) {
       };
       unsubscribeGate = subscribeStartupGate(settle);
       contentTimer = window.setTimeout(() => {
-        console.warn("STARTUP_CONTENT_TIMEOUT", { timeoutMs: STARTUP_CONTENT_TIMEOUT_MS, pathname: pathnameRef.current });
+        console.warn("STARTUP_CONTENT_TIMEOUT", { timeoutMs, pathname: pathnameRef.current, redirectedToLogin });
         settle();
-      }, STARTUP_CONTENT_TIMEOUT_MS);
+      }, timeoutMs);
     };
     const hideProtectedApp = () => {
       if (!active || !isProtectedRoute()) return;

@@ -303,7 +303,7 @@ const appConfig = {
     // and normalising here means callers never have to think about it.
     whatsappNumber: String(process.env.SUPPORT_WHATSAPP_NUMBER || "917510606322").replace(/[^\d]/g, ""),
     whatsappEnabled: readBoolean("SUPPORT_WHATSAPP_ENABLED", true),
-    email: process.env.SUPPORT_EMAIL || "info@edgecipline.com",
+    email: process.env.SUPPORT_EMAIL || "dream@edgecipline.com",
     // Kill switch for the ticket surface. With this off, the Help Center still
     // renders articles and the WhatsApp/email CTAs — self-service and the
     // external channels must never depend on the ticket system being healthy.
@@ -425,7 +425,7 @@ const appConfig = {
     // Where a customer lands when they hit "reply" on a transactional email.
     // noreply@edgecipline.com is send-only (Resend receiving is disabled on the
     // domain), so without this every reply to an OTP or ticket email vanishes.
-    replyTo: process.env.EMAIL_REPLY_TO || "edgecipline@gmail.com",
+    replyTo: process.env.EMAIL_REPLY_TO || "dream@edgecipline.com",
     // Upper bound on one provider call. The forgot-password request awaits the
     // send, so a hung Resend/SMTP connection would otherwise pin the user's
     // request until the HTTP timeout and surface as a generic 5xx.

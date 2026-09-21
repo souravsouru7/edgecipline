@@ -138,12 +138,14 @@ function HelpCenter() {
             {/* The same reporter the OCR review screen uses. Wherever a
                 problem is reported from, it lands in the ticket list below
                 this button — one queue, one place to track it. */}
-            <IssueReporterButton
-              label="Report a problem"
-              variant="inline"
-              defaultModule="support-home"
-              style={{ fontSize: 12.5, padding: "8px 12px", whiteSpace: "nowrap" }}
-            />
+            <span className="hc-report">
+              <IssueReporterButton
+                label="Report a problem"
+                variant="inline"
+                defaultModule="support-home"
+                style={{ fontSize: 12.5, padding: "8px 12px", whiteSpace: "nowrap" }}
+              />
+            </span>
             <Link href="/support/tickets" className="hc-mine">
               My tickets
             </Link>
@@ -313,7 +315,7 @@ function HelpCenter() {
 
         {configQuery.isError ? (
           <ErrorBlock
-            message="We couldn't load the contact options. Please refresh, or email us at info@edgecipline.com."
+            message="We couldn't load the contact options. Please refresh, or email us at dream@edgecipline.com."
             onRetry={() => configQuery.refetch()}
           />
         ) : (
@@ -501,6 +503,17 @@ function HelpCenter() {
         :global(.hc-mine:focus-visible) {
           outline: 2px solid var(--color-primary);
           outline-offset: 2px;
+        }
+        :global(.hc-report) {
+          display: inline-flex;
+        }
+        /* Three actions plus the brand overflow a phone header. On narrow
+           screens the reporter moves out of the header; the contact section
+           below still offers "open a ticket" for the same queue. */
+        @media (max-width: 719px) {
+          :global(.hc-report) {
+            display: none;
+          }
         }
         @media (min-width: 720px) {
           .hc-h1 {

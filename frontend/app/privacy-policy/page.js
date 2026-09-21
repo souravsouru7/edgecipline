@@ -332,8 +332,8 @@ export default function PrivacyPolicyPage() {
           ]} />
           <p style={{ marginTop: 16 }}>
             To exercise any of these rights or for data-related requests, contact us at{" "}
-            <a href="mailto:edgecipline@gmail.com" style={{ color: "#22C78E", textDecoration: "none" }}>
-              edgecipline@gmail.com
+            <a href="mailto:dream@edgecipline.com" style={{ color: "#22C78E", textDecoration: "none" }}>
+              dream@edgecipline.com
             </a>.
           </p>
         </Section>
@@ -377,7 +377,7 @@ export default function PrivacyPolicyPage() {
           }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edgecipline</div>
             <div style={{ fontSize: 14, color: "#94A3B8", marginBottom: 12 }}>Privacy & Data Requests</div>
-            <a href="mailto:edgecipline@gmail.com" style={{
+            <a href="mailto:dream@edgecipline.com" style={{
               display: "flex", alignItems: "center", gap: 8,
               color: "#22C78E", textDecoration: "none", fontSize: 14, fontWeight: 700,
               marginBottom: 8,
@@ -386,7 +386,7 @@ export default function PrivacyPolicyPage() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22,6 12,13 2,6" />
               </svg>
-              edgecipline@gmail.com
+              dream@edgecipline.com
             </a>
             <a href="tel:+919061650463" style={{
               display: "flex", alignItems: "center", gap: 8,

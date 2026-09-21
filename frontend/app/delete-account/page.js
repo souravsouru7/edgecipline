@@ -235,10 +235,10 @@ export default function DeleteAccountPage() {
           <p>
             Email{" "}
             <a
-              href="mailto:edgecipline@gmail.com?subject=Account%20deletion%20request"
+              href="mailto:dream@edgecipline.com?subject=Account%20deletion%20request"
               style={{ color: C.green, textDecoration: "none", fontWeight: 600 }}
             >
-              edgecipline@gmail.com
+              dream@edgecipline.com
             </a>{" "}
             from the address registered to your account, with the subject{" "}
             <em>Account deletion request</em>.

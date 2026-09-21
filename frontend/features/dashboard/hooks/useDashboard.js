@@ -10,6 +10,14 @@ import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
 import { markStartupContentReady } from "@/utils/startupGate";
 import { getOnboardingSetupsUrl } from "@/utils/marketNavigation";
+import { isOnline } from "@/utils/networkStatus";
+
+const DASHBOARD_SNAPSHOT_GC_MS = 30 * 60 * 1000;
+// A market switch swaps the query key; with staleTime 0 every flip refetched
+// the snapshot it had just shown, so bouncing Forex ↔ Indian fired a request
+// per tap. Trade/setup mutations invalidate ["dashboard"] explicitly (see
+// utils/queryInvalidation), so a short freshness window loses nothing there.
+const DASHBOARD_SNAPSHOT_STALE_MS = 30 * 1000;
 
 // Hide the native splash screen after the dashboard shell is painted.
 // Called via the Capacitor global so @capacitor/splash-screen npm package
@@ -40,14 +48,40 @@ export function useDashboard() {
   const {
     data: snapshot = null,
     isLoading: loading,
+    isFetching: fetching,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["dashboard", "snapshot", dashboardMarket],
     queryFn: ({ signal }) => getDashboardSnapshot(signal, dashboardMarket),
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
-    gcTime: 30 * 60 * 1000,
+    staleTime: DASHBOARD_SNAPSHOT_STALE_MS,
+    gcTime: DASHBOARD_SNAPSHOT_GC_MS,
     enabled: mounted && (!marketLoading || Boolean(routeMarket)) && hasValidAuthToken(),
   });
+
+  // Warm the other market's snapshot once this one is on screen, so the
+  // market switcher can paint it straight from cache instead of dropping the
+  // KPI cards to skeletons. One request per session at most: once either
+  // market has data, the switch itself keeps it fresh under the normal
+  // trade-freshness policy. Skipped offline, and never before this market's
+  // own snapshot has landed so it can't compete with the first paint.
+  useEffect(() => {
+    if (!mounted || loading || !snapshot || !hasValidAuthToken() || !isOnline()) return;
+    const otherMarket =
+      dashboardMarket === MARKETS.INDIAN_MARKET ? MARKETS.FOREX : MARKETS.INDIAN_MARKET;
+    const otherKey = ["dashboard", "snapshot", otherMarket];
+    if (queryClient.getQueryState(otherKey)?.data !== undefined) return;
+    queryClient
+      .prefetchQuery({
+        queryKey: otherKey,
+        queryFn: ({ signal }) => getDashboardSnapshot(signal, otherMarket),
+        gcTime: DASHBOARD_SNAPSHOT_GC_MS,
+      })
+      .catch(() => {
+        // Best effort — the switch falls back to a section-level skeleton.
+      });
+  }, [mounted, loading, snapshot, dashboardMarket, queryClient]);
 
   // First-screen content signal for the brand opener (see utils/startupGate).
   // Settled means success OR error: an error card is still a painted screen,
@@ -167,6 +201,12 @@ export function useDashboard() {
   return {
     stats: snapshot?.summary || null,
     loading,
+    fetching,
+    // A snapshot that failed with nothing cached for this market — the market
+    // switcher's "couldn't load" state. With cached data React Query keeps
+    // showing it and `error` is just a stale background refresh.
+    loadFailed: Boolean(error) && !snapshot && !loading,
+    retry: () => refetch(),
     mounted,
     showFirstLogin,
     closeFirstLogin,

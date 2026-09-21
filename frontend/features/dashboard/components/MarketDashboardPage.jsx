@@ -3,10 +3,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { ArrowRight, BarChart3, BookOpen, Brain, CheckSquare, FileText, Camera, MessageCircle, Plus, Sparkles, Target } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, Brain, CheckSquare, FileText, Camera, MessageCircle, Plus, RefreshCw, Sparkles, Target, WifiOff } from "lucide-react";
 import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
+import MarketContentTransition from "@/features/shared/components/MarketContentTransition";
 import { useClock }          from "@/features/shared/hooks/useClock";
 import StatCard              from "@/features/dashboard/components/StatCard";
 import EquityCurve           from "@/features/dashboard/components/EquityCurve";
@@ -346,6 +347,47 @@ function TradingGrowthPath({ onboarding, stats, routes }) {
   );
 }
 
+// Shown in place of the KPI/chart data when a market's snapshot could not be
+// fetched and nothing is cached for it (typically: switched markets while
+// offline). The rest of the dashboard stays; only the data sections are
+// replaced, and the user keeps the market they picked.
+function MarketLoadFailed({ marketLabel, retrying, onRetry }) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        marginBottom: 20, padding: "14px 16px", borderRadius: 12,
+        background: "#FFFFFF", border: "1px solid rgba(214,59,59,0.28)",
+        boxShadow: "0 2px 12px rgba(15,25,35,0.04)",
+      }}
+    >
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(214,59,59,0.08)", color: "#D63B3B", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <WifiOff size={17} />
+      </div>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#0F1923" }}>Couldn&apos;t load {marketLabel} data</div>
+        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>Check your connection and try again. Your other market is unaffected.</div>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={retrying}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 7,
+          minHeight: 40, padding: "8px 14px", borderRadius: 9,
+          border: "1px solid rgba(13,158,110,0.3)", background: "rgba(13,158,110,0.08)",
+          color: "#0D9E6E", fontSize: 12, fontWeight: 800, cursor: retrying ? "default" : "pointer",
+          opacity: retrying ? 0.6 : 1,
+        }}
+      >
+        <RefreshCw size={14} />
+        {retrying ? "Retrying…" : "Retry"}
+      </button>
+    </div>
+  );
+}
+
 function greetingFor(hour) {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
@@ -428,7 +470,7 @@ function buildStats(s, streaks, currencySymbol = "$") {
 
 function DashboardContent() {
   const {
-    stats, mounted, loading,
+    stats, mounted, loading, fetching, loadFailed, retry,
     showFirstLogin, closeFirstLogin,
     refreshOnboarding, onboarding,
     selfAwareness, psychologyCost, tradingDNA, timeline, profile,
@@ -471,7 +513,7 @@ function DashboardContent() {
   // sample overlay with a clear next action on top of the data-driven blocks.
   const totalTrades = Number(stats?.totalTrades || 0);
   const isExplorer = Boolean(onboarding?.tradeSkipped) && totalTrades === 0;
-  const showEmptyOverlay = mounted && !loading && totalTrades === 0;
+  const showEmptyOverlay = mounted && !loading && !loadFailed && totalTrades === 0;
   // Two voices: a direct nudge for users who haven't decided, and a softer
   // "ready when you are" tone for explorers who told us they aren't trading
   // yet. Same component — different copy/CTA.
@@ -536,6 +578,9 @@ function DashboardContent() {
         <PageHeader showMarketSwitcher showClock clock={clock} />
         <TickerTape />
 
+        {/* Header and ticker above stay put on a market switch; only what is
+            inside <main> depends on the market and fades across. */}
+        <MarketContentTransition style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <main style={{
           flex: 1,
           maxWidth: 1200, width: "100%",
@@ -585,6 +630,14 @@ function DashboardContent() {
           <GettingStartedCard onboarding={onboarding} onMutate={refreshOnboarding} routes={marketRoutes} userId={profile?._id} />
 
           <TradingGrowthPath onboarding={onboarding} stats={stats} routes={marketRoutes} />
+
+          {loadFailed && (
+            <MarketLoadFailed
+              marketLabel={isIndianMarket ? "Indian Market" : "Forex"}
+              retrying={fetching}
+              onRetry={retry}
+            />
+          )}
 
           {/* ── KPI stat cards ───────────────────────────────────── */}
           <div id="tour-kpi-grid" className="dash-kpi-grid" style={{
@@ -859,6 +912,7 @@ function DashboardContent() {
           })()}
 
         </main>
+        </MarketContentTransition>
       </div>
 
       {showFirstLogin && <FirstLoginWelcome onClose={closeFirstLogin} />}

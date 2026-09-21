@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { CreditCard, LogOut } from "lucide-react";
 import MarketSwitcher from "@/components/MarketSwitcher";
+import { MARKET_SWITCH_TIMING } from "@/context/marketTransition";
 import PricingModal from "@/components/PricingModal";
 import TrialCountdownBanner from "@/components/TrialCountdownBanner";
 import RescueBanner from "@/components/RescueBanner";
@@ -190,7 +191,11 @@ export default function PageHeader({
         onLogout={handleLogout}
         profile={profile}
         navItems={navLinks}
-        extraSlot={showMarketSwitcher ? <MarketSwitcher /> : null}
+        extraSlot={showMarketSwitcher ? (
+          // Let the pill finish gliding before the drawer slides away, so the
+          // new market's dashboard is what the closing drawer reveals.
+          <MarketSwitcher onSwitch={() => setTimeout(() => setDrawerOpen(false), MARKET_SWITCH_TIMING.pill)} />
+        ) : null}
         paymentSlot={showUpgrade ? (
           <button
             onClick={() => { setDrawerOpen(false); setPricingOpen(true); }}

@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="notification_accent">#0D9E6E</color>
+    <!-- Brand ground for the boot splash. Must equal BrandOpener's BG and the
+         body background, so splash -> opener -> app never flashes a different
+         colour. -->
+    <color name="splash_background">#F4F2EE</color>
 </resources>
