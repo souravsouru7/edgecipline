@@ -7,6 +7,7 @@ import { deleteMyAccount } from "@/services/api";
 import { clearAuthToken } from "@/utils/auth";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import FocusTrap from "@/features/shared/components/FocusTrap";
+import { PLAY_MANAGE_URL } from "@/features/premium/utils/subscriptionCard.mjs";
 
 // In-app account deletion.
 //
@@ -36,7 +37,12 @@ const WHAT_GETS_DELETED = [
   "Your profile, login and notification settings",
 ];
 
-export default function DeleteAccountSection({ email }) {
+// Deleting the Edgecipline account does NOT cancel a Play agreement — Google
+// keeps charging the Google account that bought it — so the dialog says so
+// before the user confirms.
+export default function DeleteAccountSection({ email, subscription = null }) {
+  const hasLivePlaySubscription =
+    subscription?.provider === "google_play" && subscription?.status === "active";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -233,12 +239,41 @@ export default function DeleteAccountSection({ email }) {
                   fontSize: 12,
                   color: C.redDark,
                   lineHeight: 1.55,
-                  marginBottom: 16,
+                  marginBottom: hasLivePlaySubscription ? 10 : 16,
                 }}
               >
                 This is immediate and permanent. There is no grace period and no way
                 to restore your data.
               </div>
+
+              {hasLivePlaySubscription && (
+                <div
+                  role="alert"
+                  style={{
+                    background: "#FFFBEB",
+                    border: "1px solid #FCD34D",
+                    borderRadius: 9,
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: "#92400E",
+                    lineHeight: 1.55,
+                    marginBottom: 16,
+                  }}
+                >
+                  <strong>Your Google Play subscription will keep billing.</strong> Deleting
+                  your account does not cancel it, and it cannot be restored to a new account.
+                  Cancel it first in{" "}
+                  <a
+                    href={PLAY_MANAGE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#92400E", fontWeight: 700, textDecoration: "underline" }}
+                  >
+                    Play Store › Subscriptions
+                  </a>
+                  .
+                </div>
+              )}
 
               <label
                 htmlFor="confirm-email"

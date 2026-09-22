@@ -73,6 +73,18 @@ const webhookEventSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    // Bearer material lifted OUT of `payload` before it is stored. For Google
+    // Play that is the purchase token: `payload` carries only its 16-char
+    // fingerprint, and the raw token lives here so a replay by the
+    // reconciliation cron can re-inject it. Pruned with the payload — and,
+    // unlike the payload, also pruned from permanently-failed events after
+    // WEBHOOK_SECRETS_RETENTION_DAYS, because those are kept forever.
+    payloadSecrets: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+    payloadSecretsPrunedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

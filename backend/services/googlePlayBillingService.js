@@ -28,6 +28,7 @@ const analytics = require("./analyticsEventService");
 const {
   getSubscriptionPurchase,
   acknowledgeSubscriptionPurchase,
+  areCredentialsUsable,
 } = require("./googlePlayApiService");
 const {
   isAllowedProductId,
@@ -95,7 +96,15 @@ function normalizePlayPurchase(raw) {
 // ─── Entitlement projection onto the User document ──────────────────────────
 
 /**
- * Write the Play half of this user's entitlement.
+ * Recompute and write the Play half of this user's entitlement from EVERY
+ * PlaySubscription row they own — never from the single token that happened
+ * to trigger the sync.
+ *
+ * Why not project the current token: a user legitimately holds more than one
+ * row. After a plan change the superseded token gets its own EXPIRED RTDN, a
+ * restore batch can carry a pending token next to the active one, and a
+ * resubscribe leaves the old expired row behind. Projecting any of those
+ * onto the user would null an entitlement that another token still funds.
  *
  * Deliberately touches ONLY `playEntitlementExpiry` (plus the cosmetic plan
  * label). It must never set subscriptionStatus/subscriptionExpiry:
@@ -106,15 +115,48 @@ function normalizePlayPurchase(raw) {
  *     unlimited access. A Play write that set status without a matching expiry
  *     would hand out permanent free premium.
  *
- * Losing entitlement writes null, which is what makes cancellation, hold,
- * pause, expiry and revocation all take effect immediately.
+ * When nothing entitles, the field keeps the most recent PAID-THROUGH date
+ * (never a future one — an ON_HOLD row still reports a future expiryTime and
+ * writing that would grant access) so the settings page can say "expired"
+ * rather than "never paid". `hasActivePlaySubscription` compares dates, so a
+ * past date is exactly as locked-out as null.
  */
-async function applyPlayEntitlement({ userId, entitled, expiryTime, basePlan, session }) {
-  const update = {
-    $set: { playEntitlementExpiry: entitled ? expiryTime : null },
-  };
+async function recomputePlayEntitlement(userId, { session = null } = {}) {
+  const now = Date.now();
 
-  if (entitled && basePlan?.userPlan) {
+  let query = PlaySubscription.find({ user: userId, supersededAt: null, detachedAt: null })
+    .select("state expiryTime basePlanId supersededAt detachedAt")
+    .lean();
+  if (session) query = query.session(session);
+  const rows = (await query) || [];
+
+  let entitledExpiry = null;
+  let entitlingRow = null;
+  let latestExpiry = null;
+
+  for (const row of rows) {
+    const expiry = row.expiryTime ? new Date(row.expiryTime) : null;
+    // A PENDING row never granted anything, so it must not leave a "lapsed"
+    // date behind — that would tell a first-time buyer they had expired.
+    const everPaid = expiry && row.state !== SUBSCRIPTION_STATES.PENDING;
+    if (everPaid && (!latestExpiry || expiry > latestExpiry)) latestExpiry = expiry;
+    if (grantsEntitlement(row.state, row.expiryTime, now) && (!entitledExpiry || expiry > entitledExpiry)) {
+      entitledExpiry = expiry;
+      entitlingRow = row;
+    }
+  }
+
+  let playEntitlementExpiry = entitledExpiry;
+  if (!playEntitlementExpiry && latestExpiry) {
+    // Lapsed: keep the date for "expired on" display, but cap it at now so a
+    // held/paused row with a future expiryTime can never read as active.
+    playEntitlementExpiry = latestExpiry.getTime() < now ? latestExpiry : new Date(now - 1);
+  }
+
+  const update = { $set: { playEntitlementExpiry } };
+
+  const basePlan = entitlingRow ? getBasePlan(entitlingRow.basePlanId) : null;
+  if (basePlan?.userPlan) {
     // Read-modify-write via the same rank guard the Razorpay path uses, so a
     // Play monthly purchase cannot relabel a user who still holds a longer
     // web plan. Cosmetic only — no entitlement depends on this field.
@@ -129,13 +171,20 @@ async function applyPlayEntitlement({ userId, entitled, expiryTime, basePlan, se
 
   // A stale cache entry keeps the OLD entitlement for up to the cache TTL
   // (~300s). On a grant that is a paying user still being told to upgrade; on
-  // a revoke it is free premium. Never skip this.
-  invalidateAuthCache(userId).catch((error) => {
-    logger.warn("PLAY_CACHE_INVALIDATION_FAILED", {
-      userId: String(userId),
-      error: error?.message,
-    });
-  });
+  // a revoke it is free premium. Awaited so the response that follows can
+  // never be served from the pre-write snapshot. invalidateAuthCache never
+  // throws — it logs and returns false.
+  await invalidateAuthCache(userId);
+
+  return { entitled: Boolean(entitledExpiry), expiry: playEntitlementExpiry, basePlan };
+}
+
+/**
+ * Backwards-compatible name. Every caller now recomputes from the user's rows;
+ * the per-token arguments are ignored on purpose (see recomputePlayEntitlement).
+ */
+async function applyPlayEntitlement({ userId, session } = {}) {
+  return recomputePlayEntitlement(userId, { session });
 }
 
 // ─── Account association (Phase 9) ──────────────────────────────────────────
@@ -150,22 +199,33 @@ async function applyPlayEntitlement({ userId, entitled, expiryTime, basePlan, se
  *      enforced by the unique index on purchaseToken and never reassigned.
  *      A different user presenting it is rejected, which is precisely the
  *      "log out, log in as someone else, inherit their subscription" case.
- *   2. The token is bound to nobody (its owner deleted their account). It
- *      stays spent forever. Re-binding it would resurrect a subscription onto
- *      a stranger's account.
- *   3. The token is new. Google's echoed obfuscatedAccountId must either match
- *      this user or be absent; a mismatch means the purchase was started under
- *      a different Edgecipline account and is refused.
+ *   2. The token was DETACHED (its owner deleted their account —
+ *      `detachedAt` is set). It stays spent forever. Re-binding it would
+ *      resurrect a subscription onto a stranger's account. An RTDN for such a
+ *      token is still synced (state bookkeeping) but grants nobody anything.
+ *   3. The token is new to this account — either no row exists, or the row
+ *      was created by an RTDN that beat the app's verify call and has no
+ *      user yet. Google's echoed obfuscatedAccountId must either match this
+ *      user or be absent; a mismatch means the purchase was started under a
+ *      different Edgecipline account and is refused.
  */
 function resolvePurchaseOwner({ existing, claimingUserId, purchase, tokenFingerprint }) {
-  if (existing) {
-    if (!existing.user) {
-      throw new ApiError(
-        409,
-        "This purchase is linked to an account that has been deleted and cannot be reused.",
-        "PLAY_PURCHASE_DETACHED"
-      );
+  if (existing?.detachedAt) {
+    if (!claimingUserId) {
+      return { userId: null, identity: "detached", mismatch: false };
     }
+    logger.warn("PLAY_PURCHASE_DETACHED_CLAIM", {
+      purchaseRef: tokenFingerprint,
+      claimingUserId: String(claimingUserId),
+    });
+    throw new ApiError(
+      409,
+      "This purchase is linked to an account that has been deleted and cannot be reused.",
+      "PLAY_PURCHASE_DETACHED"
+    );
+  }
+
+  if (existing?.user) {
     if (claimingUserId && String(existing.user) !== String(claimingUserId)) {
       logger.warn("PLAY_PURCHASE_OWNERSHIP_CONFLICT", {
         purchaseRef: tokenFingerprint,
@@ -182,13 +242,15 @@ function resolvePurchaseOwner({ existing, claimingUserId, purchase, tokenFingerp
   }
 
   if (!claimingUserId) {
-    // An RTDN arrived for a token we have never seen. We cannot reverse the
-    // HMAC to find the owner, and guessing is unthinkable. Recording it and
-    // moving on is safe: the device that made the purchase will present the
-    // token at the next app open and the restore path will bind it then.
+    // An RTDN arrived for a token nobody has claimed yet. We cannot reverse
+    // the HMAC to find the owner, and guessing is unthinkable. Recording it
+    // and moving on is safe: the device that made the purchase will present
+    // the token at the next verify/restore and the branch below binds it.
     return { userId: null, identity: "unknown", mismatch: false };
   }
 
+  // No row, or an unbound row (RTDN-first). Either way this is the first
+  // account to claim the token, so the echoed identifier decides.
   const identity = verifyObfuscatedAccountId(purchase.obfuscatedAccountId, claimingUserId);
 
   if (identity === "mismatch") {
@@ -333,13 +395,16 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
 
   const basePlan = getBasePlan(purchase.basePlanId);
   if (!basePlan) {
-    // A base plan created in Play Console but not added to constants/googlePlay.
-    // Not fatal: the product is verified as ours, so refusing would strand a
-    // real subscriber over a config gap. Entitlement still comes from Google.
+    // Phase 4 again: a base plan that exists in Play Console but not in
+    // constants/googlePlay is not something we sell. Refuse rather than grant
+    // with an unknown plan — the fix is to add it to BASE_PLANS, and until
+    // then the purchase is recorded in Google's own ledger, not lost.
     logger.warn("PLAY_BASE_PLAN_UNKNOWN", {
       purchaseRef: tokenFingerprint,
+      source,
       basePlanId: purchase.basePlanId,
     });
+    throw new ApiError(400, "Unknown subscription plan", "PLAY_BASE_PLAN_UNKNOWN");
   }
 
   const existing = await PlaySubscription.findOne({ purchaseToken }).lean();
@@ -354,7 +419,7 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
       storedSyncedAt: existing.lastSyncedAt,
       incomingSyncedAt: fetchedAt,
     });
-    return { stale: true, record: existing, entitled: isRecordEntitling(existing) };
+    return settleStaleSync({ current: existing, claimingUserId: userId, purchase, tokenFingerprint, source });
   }
 
   const entitled = grantsEntitlement(purchase.state, purchase.expiryTime);
@@ -364,7 +429,7 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
       productId: purchase.productId,
       basePlanId: purchase.basePlanId,
       offerId: purchase.offerId,
-      planType: basePlan?.planType || null,
+      planType: basePlan.planType,
       state: purchase.state,
       playState: purchase.playState,
       autoRenewing: purchase.autoRenewing,
@@ -393,41 +458,60 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
     update.$set.accountMismatchAt = null;
   }
 
+  const filter = {
+    purchaseToken,
+    // Re-assert the ordering guard inside the write so two concurrent
+    // handlers cannot both pass the read-time check above.
+    $or: [{ lastSyncedAt: null }, { lastSyncedAt: { $lte: fetchedAt } }],
+  };
+  if (owner.userId) {
+    // And re-assert ownership inside the write: if another account bound the
+    // token between our read and this write, the filter misses, the upsert
+    // collides with the unique index, and the race branch below re-checks
+    // ownership against the row that won. A binding can never be overwritten.
+    filter.user = { $in: [null, owner.userId] };
+  }
+
   let record;
   try {
-    record = await PlaySubscription.findOneAndUpdate(
-      {
-        purchaseToken,
-        // Re-assert the ordering guard inside the write so two concurrent
-        // handlers cannot both pass the read-time check above.
-        $or: [{ lastSyncedAt: null }, { lastSyncedAt: { $lte: fetchedAt } }],
-      },
-      update,
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    record = await PlaySubscription.findOneAndUpdate(filter, update, {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    });
   } catch (error) {
     if (error?.code === 11000) {
       // The upsert lost a race: another handler inserted the row between our
       // read and our write, so the filter's ordering clause no longer matched
       // and Mongo tried a fresh insert against the unique index. The winner's
-      // snapshot is at least as fresh as ours, so adopting it is correct.
+      // snapshot is at least as fresh as ours, so adopting it is correct —
+      // but the winner may have been an RTDN with no user, so the claiming
+      // account still has to be bound.
       logger.info("PLAY_SYNC_LOST_UPSERT_RACE", { purchaseRef: tokenFingerprint, source });
       const current = await PlaySubscription.findOne({ purchaseToken }).lean();
-      return { stale: true, record: current, entitled: isRecordEntitling(current) };
+      return settleStaleSync({ current, claimingUserId: userId, purchase, tokenFingerprint, source });
     }
     throw error;
   }
 
   // An upgrade or downgrade does not mutate the old token — Google issues a new
   // one and points it back. Retire the predecessor so the user does not appear
-  // to hold two live subscriptions.
+  // to hold two live subscriptions. Its owner is normally this user, but the
+  // entitlement of whoever it was is recomputed below either way.
+  let supersededOwnerId = null;
   if (purchase.linkedPurchaseToken) {
-    await PlaySubscription.updateOne(
-      { purchaseToken: purchase.linkedPurchaseToken, supersededAt: null },
-      { $set: { supersededAt: new Date(), state: SUBSCRIPTION_STATES.EXPIRED } }
-    ).catch((error) => {
+    try {
+      const superseded = await PlaySubscription.findOneAndUpdate(
+        { purchaseToken: purchase.linkedPurchaseToken, supersededAt: null },
+        { $set: { supersededAt: new Date(), state: SUBSCRIPTION_STATES.EXPIRED } },
+        { new: true, lean: true }
+      );
+      if (superseded?.user && String(superseded.user) !== String(owner.userId || "")) {
+        supersededOwnerId = superseded.user;
+      }
+    } catch (error) {
       logger.warn("PLAY_SUPERSEDE_FAILED", { purchaseRef: tokenFingerprint, error: error?.message });
-    });
+    }
   }
 
   // Acknowledge BEFORE granting, so that a purchase we are about to honour is
@@ -435,21 +519,26 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
   // rather than blocking the entitlement the user has already paid for.
   const ack = await acknowledgeIfNeeded({ record, purchase, tokenFingerprint });
 
+  let userEntitled = false;
   if (owner.userId) {
-    await applyPlayEntitlement({
-      userId: owner.userId,
-      entitled,
-      expiryTime: purchase.expiryTime,
-      basePlan,
-    });
+    // Entitlement is derived from EVERY row this user owns, never from this
+    // token alone — see recomputePlayEntitlement.
+    const projection = await recomputePlayEntitlement(owner.userId);
+    userEntitled = projection.entitled;
     emitTelemetry({ owner, existing, purchase, basePlan, entitled, source, tokenFingerprint });
   } else {
     logger.info("PLAY_SYNC_UNBOUND", {
       purchaseRef: tokenFingerprint,
       source,
       state: purchase.state,
-      note: "No Edgecipline account is linked to this purchase yet; the next restore will bind it.",
+      detached: owner.identity === "detached",
+      note: owner.identity === "detached"
+        ? "Owner deleted their account; the token stays spent."
+        : "No Edgecipline account is linked to this purchase yet; the next verify or restore will bind it.",
     });
+  }
+  if (supersededOwnerId) {
+    await recomputePlayEntitlement(supersededOwnerId);
   }
 
   logger.info("PLAY_VERIFICATION_SUCCEEDED", {
@@ -458,17 +547,88 @@ async function syncPurchase({ purchaseToken, userId = null, source = "verify", n
     userId: owner.userId ? String(owner.userId) : null,
     state: purchase.state,
     entitled,
+    userEntitled,
     acknowledged: ack.acknowledged,
     expiryTime: purchase.expiryTime ? purchase.expiryTime.toISOString() : null,
     testPurchase: purchase.testPurchase,
   });
 
-  return { stale: false, record, purchase, basePlan, entitled, acknowledged: ack.acknowledged };
+  return {
+    stale: false,
+    record,
+    purchase,
+    basePlan,
+    // `entitled` is THIS token's entitlement (what the verify response reports
+    // for the purchase just made); `userEntitled` is the account's overall
+    // Play entitlement after the recompute.
+    entitled,
+    userEntitled,
+    acknowledged: ack.acknowledged,
+  };
+}
+
+/**
+ * The tail of a sync that did not get to write because a fresher snapshot
+ * already exists (read-time stale check, or a lost upsert race).
+ *
+ * The fresher row is authoritative for STATE, but it may have been written by
+ * an RTDN — which has no user — while this call comes from an authenticated
+ * account. Returning "stale" without binding would leave a paying user's
+ * purchase ownerless and their next restore refused, so the claiming account
+ * is bound here under the same ownership rules as the main path.
+ */
+async function settleStaleSync({ current, claimingUserId, purchase, tokenFingerprint, source }) {
+  if (!current) {
+    return { stale: true, record: null, entitled: false, userEntitled: false };
+  }
+
+  // Throws PLAY_PURCHASE_ALREADY_CLAIMED / DETACHED / ACCOUNT_MISMATCH exactly
+  // as the main path would, against the row that actually won.
+  const owner = resolvePurchaseOwner({ existing: current, claimingUserId, purchase, tokenFingerprint });
+
+  let record = current;
+  if (owner.userId && !current.user) {
+    const bound = await PlaySubscription.findOneAndUpdate(
+      { purchaseToken: current.purchaseToken, user: null, detachedAt: null },
+      {
+        $set: {
+          user: owner.userId,
+          ...(owner.identity === "absent" ? { accountMismatchAt: null } : {}),
+        },
+      },
+      { new: true, lean: true }
+    );
+    if (bound) {
+      record = bound;
+      logger.info("PLAY_SYNC_BOUND_AFTER_RACE", {
+        purchaseRef: tokenFingerprint,
+        source,
+        userId: String(owner.userId),
+      });
+    } else {
+      // Somebody bound it between our read and this write. Re-check against
+      // the latest row; a different owner throws, the same owner proceeds.
+      const latest = await PlaySubscription.findOne({ purchaseToken: current.purchaseToken }).lean();
+      resolvePurchaseOwner({ existing: latest, claimingUserId, purchase, tokenFingerprint });
+      record = latest || current;
+    }
+  }
+
+  let userEntitled = false;
+  if (record?.user) {
+    // Idempotent: the winner already did this for its own view; doing it
+    // again from the rows guarantees the binding above is reflected.
+    const projection = await recomputePlayEntitlement(record.user);
+    userEntitled = projection.entitled;
+  }
+
+  return { stale: true, record, entitled: isRecordEntitling(record), userEntitled };
 }
 
 function isRecordEntitling(record) {
   if (!record) return false;
   if (record.supersededAt) return false;
+  if (record.detachedAt) return false;
   return grantsEntitlement(record.state, record.expiryTime);
 }
 
@@ -602,11 +762,19 @@ async function handleSubscriptionNotification({ purchaseToken, notificationType,
  * MongoDB, never from anything the device believes.
  */
 async function getPlaySubscriptionSummary(userId) {
-  const record = await PlaySubscription.findOne({ user: userId, supersededAt: null })
-    .sort({ expiryTime: -1 })
-    .lean();
+  const rows = await PlaySubscription.find({ user: userId, supersededAt: null, detachedAt: null }).lean();
+  if (!rows?.length) return null;
 
-  if (!record) return null;
+  // The row the user would call "my subscription": a live one first, then a
+  // purchase Google is still confirming (a pending row has no expiryTime and
+  // would otherwise lose to any long-expired row), then whatever ran last.
+  // At most a handful of rows per user, so sorting in JS is fine.
+  const rank = (row) => (isRecordEntitling(row) ? 2 : row.state === SUBSCRIPTION_STATES.PENDING ? 1 : 0);
+  const record = [...rows].sort((a, b) => {
+    const byRank = rank(b) - rank(a);
+    if (byRank !== 0) return byRank;
+    return new Date(b.expiryTime || 0).getTime() - new Date(a.expiryTime || 0).getTime();
+  })[0];
 
   return {
     state: record.state,
@@ -617,8 +785,12 @@ async function getPlaySubscriptionSummary(userId) {
     expiresAt: record.expiryTime || null,
     autoRenewing: record.autoRenewing,
     cancelAtPeriodEnd: record.cancelAtPeriodEnd,
-    // Never expose purchaseToken, latestOrderId or obfuscatedAccountId. The UI
-    // has no use for them and they are credentials/identifiers.
+    // A non-reversible fingerprint of the purchase token. The Android paywall
+    // compares it against the fingerprint of the purchases the DEVICE holds so
+    // a plan change replaces THIS subscription and not, on a shared phone,
+    // somebody else's. Never expose purchaseToken, latestOrderId or
+    // obfuscatedAccountId themselves — they are credentials/identifiers.
+    purchaseRef: fingerprintPurchaseToken(record.purchaseToken),
   };
 }
 
@@ -630,7 +802,16 @@ async function getPlaySubscriptionSummary(userId) {
  */
 function isPlayBillingAvailable() {
   const config = appConfig.googlePlay;
-  return Boolean(config?.enabled && config.packageName && config.clientEmail && config.privateKey);
+  return Boolean(
+    config?.enabled &&
+      config.packageName &&
+      config.clientEmail &&
+      config.privateKey &&
+      // The boot-time credential check (server.js → assertCredentialsUsable)
+      // flips this off when Google rejects the key, so a misconfigured deploy
+      // shows "temporarily unavailable" instead of charging and then failing.
+      areCredentialsUsable()
+  );
 }
 
 module.exports = {
@@ -640,9 +821,11 @@ module.exports = {
   getPlaySubscriptionSummary,
   isPlayBillingAvailable,
   syncPurchase,
+  recomputePlayEntitlement,
   // Exported for testing
   normalizePlayPurchase,
   resolvePurchaseOwner,
   applyPlayEntitlement,
   isRecordEntitling,
+  settleStaleSync,
 };

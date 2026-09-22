@@ -8,8 +8,12 @@ jest.mock("../../models/Users", () => ({ findById: jest.fn() }));
 jest.mock("../../utils/logger", () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
 }));
+jest.mock("../../services/googlePlayBillingService", () => ({
+  getPlaySubscriptionSummary: jest.fn().mockResolvedValue(null),
+}));
 
 const User = require("../../models/Users");
+const { getPlaySubscriptionSummary } = require("../../services/googlePlayBillingService");
 const { logger } = require("../../utils/logger");
 const { getMe } = require("../../controllers/authController");
 
@@ -131,5 +135,66 @@ describe("the extra lookup can never break the profile", () => {
     const body = await call(baseUser());
     expect(body.createdAt).toBeNull();
     expect(body.lastLogin).toBeNull();
+  });
+});
+
+describe("Google Play detail on the resolved subscription object", () => {
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  test("getMe.subscription carries cancelAtPeriodEnd/state/planType for a Play subscriber", async () => {
+    const expiry = new Date(Date.now() + 20 * ONE_DAY);
+    getPlaySubscriptionSummary.mockResolvedValueOnce({
+      state: "cancelled",
+      active: true,
+      basePlanId: "edgecipline-pro-6month",
+      planType: "6_months",
+      expiresAt: expiry,
+      autoRenewing: false,
+      cancelAtPeriodEnd: true,
+      purchaseRef: "abcdef0123456789",
+    });
+
+    const body = await call(baseUser({ subscriptionPlan: "monthly", playEntitlementExpiry: expiry }));
+
+    expect(body.subscription).toMatchObject({
+      status: "active",
+      provider: "google_play",
+      planLabel: "6-month Pro",
+      cancelAtPeriodEnd: true,
+      state: "cancelled",
+      basePlanId: "edgecipline-pro-6month",
+      planType: "6_months",
+      purchaseRef: "abcdef0123456789",
+    });
+    expect(body.subscription.expiresAt).toEqual(expiry);
+    expect(JSON.stringify(body)).not.toMatch(/purchaseToken/);
+  });
+
+  test("a pending Play purchase is visible even before any entitlement exists", async () => {
+    getPlaySubscriptionSummary.mockResolvedValueOnce({
+      state: "pending", active: false, basePlanId: "edgecipline-pro-monthly", planType: "monthly",
+      expiresAt: null, autoRenewing: false, cancelAtPeriodEnd: false, purchaseRef: "abcdef0123456789",
+    });
+
+    const body = await call(baseUser());
+
+    expect(body.subscription.status).toBe("inactive");
+    expect(body.subscription.state).toBe("pending");
+    expect(body.isPremium).toBe(false);
+  });
+
+  test("a Razorpay-only subscriber gets no Play detail and never 'Renews' semantics", async () => {
+    const body = await call(baseUser({
+      subscriptionStatus: "active", subscriptionPlan: "monthly",
+      subscriptionExpiry: new Date(Date.now() + 10 * ONE_DAY),
+    }));
+    expect(body.subscription).toMatchObject({ provider: "razorpay", cancelAtPeriodEnd: false, state: null, planLabel: "Monthly Pro" });
+  });
+
+  test("a failed Play lookup degrades to nulls instead of a 500", async () => {
+    getPlaySubscriptionSummary.mockRejectedValueOnce(new Error("mongo down"));
+    const body = await call(baseUser());
+    expect(body.subscription.state).toBeNull();
+    expect(logger.warn).toHaveBeenCalledWith("GET_ME_PLAY_LOOKUP_FAILED", expect.any(Object));
   });
 });

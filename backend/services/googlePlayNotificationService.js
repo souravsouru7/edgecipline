@@ -20,12 +20,88 @@ const WebhookEvent = require("../models/WebhookEvent");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
 const { appConfig, assertGooglePlayRtdnConfig } = require("../config");
+const { captureOperationalError } = require("../config/sentry");
 const { describeRtdnType } = require("../constants/googlePlay");
 const { fingerprintPurchaseToken } = require("../utils/playAccountIdentity");
 const { handleSubscriptionNotification } = require("./googlePlayBillingService");
 
 const PROVIDER = "google_play";
 const STALE_LOCK_MS = 10 * 60 * 1000;
+
+// ─── Failure classification (Phase 8) ───────────────────────────────────────
+//
+// Pub/Sub redelivers anything that is not answered 2xx, for up to seven days,
+// and the reconciliation cron burns its attempt budget on the same event. Both
+// are right for a Google outage and wrong for everything else:
+//
+//   non-retryable — Google itself says the token is not ours / not real / not
+//                   a plan we sell. No number of retries changes that. The
+//                   event is closed as permanently failed (a human looks at it)
+//                   and Pub/Sub is told "delivered".
+//   deferred      — billing is switched off or unconfigured on THIS deploy.
+//                   The event is real and must be processed later, so the
+//                   lock is released WITHOUT spending an attempt and Pub/Sub
+//                   gets a 503 so it keeps redelivering.
+//   retryable     — Play 5xx / 429 / timeout / auth. Non-2xx, attempt spent,
+//                   Pub/Sub and the cron both retry.
+const NON_RETRYABLE_CODES = new Set([
+  "PLAY_PRODUCT_NOT_ALLOWED",
+  "PLAY_BASE_PLAN_UNKNOWN",
+  "PLAY_PURCHASE_TOKEN_INVALID",
+  "GOOGLE_PLAY_PURCHASE_NOT_FOUND",
+]);
+const DEFERRED_CODES = new Set(["GOOGLE_PLAY_DISABLED", "GOOGLE_PLAY_CONFIG_MISSING"]);
+
+function classifyProcessingError(error) {
+  const code = error?.errorCode || error?.code || null;
+  if (DEFERRED_CODES.has(code)) return { kind: "deferred", code };
+  if (error?.retryable === false || NON_RETRYABLE_CODES.has(code)) {
+    return { kind: "non_retryable", code };
+  }
+  return { kind: "retryable", code };
+}
+
+// ─── Token redaction (Phase 14) ─────────────────────────────────────────────
+//
+// A purchase token is a bearer credential — anyone holding it can query the
+// subscription and it is the key our verify endpoint accepts. It must not sit
+// in the WebhookEvent collection for 90 days (or forever, for permanently
+// failed events). The stored payload carries the 16-char fingerprint instead,
+// and the raw token is kept beside it in `payloadSecrets` only for as long as
+// a replay might need it.
+function redactNotification(notification) {
+  const secrets = {};
+  const clone = JSON.parse(JSON.stringify(notification || {}));
+
+  for (const key of ["subscriptionNotification", "voidedPurchaseNotification"]) {
+    const token = clone?.[key]?.purchaseToken;
+    if (token) {
+      secrets.purchaseToken = token;
+      clone[key].purchaseToken = fingerprintPurchaseToken(token);
+      clone[key].purchaseTokenRedacted = true;
+    }
+  }
+
+  return { payload: clone, payloadSecrets: Object.keys(secrets).length ? secrets : undefined };
+}
+
+function rehydrateNotification(payload, payloadSecrets) {
+  const clone = JSON.parse(JSON.stringify(payload || {}));
+  const token = payloadSecrets?.purchaseToken;
+  for (const key of ["subscriptionNotification", "voidedPurchaseNotification"]) {
+    if (clone?.[key]?.purchaseTokenRedacted) {
+      if (!token) {
+        const error = new Error("Stored notification has no purchase token left to replay");
+        error.code = "PLAY_RTDN_SECRETS_PRUNED";
+        error.retryable = false;
+        throw error;
+      }
+      clone[key].purchaseToken = token;
+      delete clone[key].purchaseTokenRedacted;
+    }
+  }
+  return clone;
+}
 
 // Verifying Google's signature needs Google's public keys; the client caches
 // them internally, so this is built once.
@@ -127,7 +203,7 @@ function parseNotification(rawBody) {
  * Atomically create-or-claim the event. Identical contract to the Razorpay
  * equivalent: exactly one caller ever gets `locked: true` for a given event.
  */
-async function upsertAndLockEvent({ eventId, eventType, payload }) {
+async function upsertAndLockEvent({ eventId, eventType, payload, payloadSecrets }) {
   const staleBefore = new Date(Date.now() - STALE_LOCK_MS);
   const now = new Date();
 
@@ -149,6 +225,7 @@ async function upsertAndLockEvent({ eventId, eventType, payload }) {
           provider: PROVIDER,
           processed: false,
           payload,
+          ...(payloadSecrets ? { payloadSecrets } : {}),
         },
         $set: { processing: true, processingStartedAt: now, processingError: null },
         $inc: { deliveryAttempts: 1, processingAttempts: 1 },
@@ -269,10 +346,12 @@ async function processGooglePlayNotification({ rawBody, authorizationHeader }) {
     ),
   });
 
+  const redacted = redactNotification(notification);
   const claim = await upsertAndLockEvent({
     eventId: messageId,
     eventType,
-    payload: notification,
+    payload: redacted.payload,
+    payloadSecrets: redacted.payloadSecrets,
   });
 
   if (!claim.locked) {
@@ -299,19 +378,76 @@ async function processGooglePlayNotification({ rawBody, authorizationHeader }) {
     logger.info("PLAY_RTDN_PROCESSED", { eventId: messageId, eventType, ...result });
     return { processed: true, result };
   } catch (error) {
-    // Release the lock so a retry (Pub/Sub's or the cron's) can claim it.
-    // Leaving `processed` false is what makes the event recoverable.
-    await WebhookEvent.updateOne(
-      { eventId: messageId },
-      { processing: false, processingError: error?.message || "Unknown error" }
-    ).catch(() => {});
-    logger.error("PLAY_RTDN_PROCESSING_FAILED", {
-      eventId: messageId,
-      eventType,
-      error: error?.message,
-    });
+    const outcome = await settleProcessingFailure({ eventId: messageId, eventType, error });
+    if (outcome.kind === "non_retryable") {
+      // Closed. 2xx so Pub/Sub stops redelivering something that can never
+      // succeed; the permanentlyFailed flag is what gets it looked at.
+      return { processed: true, permanentlyFailed: true, code: outcome.code };
+    }
+    if (outcome.kind === "deferred") {
+      const unavailable = new ApiError(
+        503,
+        "Google Play billing is not enabled on this server",
+        "PLAY_RTDN_DEFERRED"
+      );
+      unavailable.retryable = true;
+      throw unavailable;
+    }
     throw error;
   }
+}
+
+/**
+ * Record a processing failure according to its class (see the top of this
+ * file). Returns the classification so the caller can pick the HTTP answer.
+ */
+async function settleProcessingFailure({ eventId, eventType, error }) {
+  const classified = classifyProcessingError(error);
+  const message = error?.message || "Unknown error";
+
+  if (classified.kind === "non_retryable") {
+    await WebhookEvent.updateOne(
+      { eventId },
+      {
+        processed: true,
+        processing: false,
+        processedAt: new Date(),
+        permanentlyFailed: true,
+        permanentlyFailedAt: new Date(),
+        processingError: message,
+        processingResult: { skipped: true, reason: "non_retryable", code: classified.code },
+      }
+    ).catch(() => {});
+    logger.error("PLAY_RTDN_PERMANENTLY_FAILED", { eventId, eventType, code: classified.code, error: message });
+    captureOperationalError(error, {
+      level: "error",
+      subsystem: "google_play",
+      tags: { operation: "rtdn", event_type: eventType, code: classified.code || "unknown" },
+      extra: { eventId },
+    });
+    return classified;
+  }
+
+  if (classified.kind === "deferred") {
+    // Release the lock and hand the attempt back: this deploy cannot process
+    // Play events at all, and burning the budget here would let the cron
+    // give up on a real cancellation or refund before billing is re-enabled.
+    await WebhookEvent.updateOne(
+      { eventId },
+      { $set: { processing: false, processingError: message }, $inc: { processingAttempts: -1 } }
+    ).catch(() => {});
+    logger.warn("PLAY_RTDN_DEFERRED_DISABLED", { eventId, eventType, code: classified.code });
+    return classified;
+  }
+
+  // Release the lock so a retry (Pub/Sub's or the cron's) can claim it.
+  // Leaving `processed` false is what makes the event recoverable.
+  await WebhookEvent.updateOne(
+    { eventId },
+    { processing: false, processingError: message }
+  ).catch(() => {});
+  logger.error("PLAY_RTDN_PROCESSING_FAILED", { eventId, eventType, code: classified.code, error: message });
+  return classified;
 }
 
 /**
@@ -345,7 +481,11 @@ async function reprocessStoredPlayEvent(eventId, maxAttempts) {
   if (!claimed) return null;
 
   try {
-    const result = await processNotification(claimed.payload);
+    // Stored payloads carry only the token's fingerprint; the raw token is
+    // re-injected from payloadSecrets for the replay (and is itself pruned
+    // by the retention cron, at which point the event can no longer replay).
+    const notification = rehydrateNotification(claimed.payload, claimed.payloadSecrets);
+    const result = await processNotification(notification);
     await WebhookEvent.updateOne(
       { eventId },
       {
@@ -359,23 +499,46 @@ async function reprocessStoredPlayEvent(eventId, maxAttempts) {
     logger.info("PLAY_RTDN_RECONCILED", { eventId, eventType: claimed.eventType });
     return { recovered: true, eventId, eventType: claimed.eventType, result };
   } catch (error) {
-    const exhausted = claimed.processingAttempts >= maxAttempts;
+    const classified = classifyProcessingError(error);
+    const message = error?.message || "Unknown reconciliation error";
+
+    if (classified.kind === "deferred") {
+      await WebhookEvent.updateOne(
+        { eventId },
+        { $set: { processing: false, processingError: message }, $inc: { processingAttempts: -1 } }
+      );
+      logger.warn("PLAY_RTDN_DEFERRED_DISABLED", { eventId, eventType: claimed.eventType, code: classified.code });
+      return { recovered: false, deferred: true, eventId, eventType: claimed.eventType, exhausted: false };
+    }
+
+    // Non-retryable failures are closed on the spot; retryable ones only once
+    // the attempt budget is gone. Both surface through the cron's alert.
+    const exhausted = classified.kind === "non_retryable" || claimed.processingAttempts >= maxAttempts;
     await WebhookEvent.updateOne(
       { eventId },
       {
         processing: false,
-        processingError: error?.message || "Unknown reconciliation error",
-        ...(exhausted ? { permanentlyFailed: true, permanentlyFailedAt: new Date() } : {}),
+        processingError: message,
+        ...(exhausted
+          ? {
+              processed: true,
+              processedAt: new Date(),
+              permanentlyFailed: true,
+              permanentlyFailedAt: new Date(),
+              processingResult: { skipped: true, reason: classified.kind, code: classified.code },
+            }
+          : {}),
       }
     );
     logger.error("PLAY_RTDN_RECONCILE_FAILED", {
       eventId,
       eventType: claimed.eventType,
       attempt: claimed.processingAttempts,
+      code: classified.code,
       exhausted,
-      error: error?.message,
+      error: message,
     });
-    return { recovered: false, eventId, eventType: claimed.eventType, exhausted };
+    return { recovered: false, eventId, eventType: claimed.eventType, exhausted, error: message };
   }
 }
 
@@ -386,4 +549,7 @@ module.exports = {
   parseNotification,
   processNotification,
   verifyPushAuthentication,
+  classifyProcessingError,
+  redactNotification,
+  rehydrateNotification,
 };

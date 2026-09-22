@@ -20,6 +20,12 @@ import {
 import FocusTrap from "@/features/shared/components/FocusTrap";
 import RecentTradeCards, { LockedInsightTeaser } from "@/features/trade/components/RecentTradeCards";
 import PremiumWelcome from "@/features/premium/components/PremiumWelcome";
+import {
+  BASE_PLAN_LABELS,
+  resolveReplacementMode,
+  selectSellableOffers,
+  findCurrentDevicePurchase,
+} from "@/features/premium/utils/playBillingPlan.mjs";
 
 // The Android paywall. Google Play Billing only — this component contains no
 // Razorpay code and must never gain any: a third-party processor for digital
@@ -43,61 +49,11 @@ const PHASE = {
   ERROR: "error",
 };
 
-// Ordered cheapest-first, matching the web catalogue. Play returns offers in no
-// guaranteed order, so the paywall imposes one.
-const BASE_PLAN_ORDER = [
-  "edgecipline-pro-monthly",
-  "edgecipline-pro-3month",
-  "edgecipline-pro-6month",
-];
-
-const BASE_PLAN_LABELS = {
-  "edgecipline-pro-monthly": "1 month",
-  "edgecipline-pro-3month": "3 months",
-  "edgecipline-pro-6month": "6 months",
-};
-
 const GREEN = "#0D9E6E";
 
-// Play purchase states, from Purchase.getPurchaseState().
-const PURCHASE_STATE_PURCHASED = 1;
-
-// How a plan change is charged. The choice is a product decision, so it lives
-// here in one place rather than in the native plugin:
-//
-//   Longer plan  -> CHARGE_FULL_PRICE. The new plan starts now and is charged
-//                   now; whatever was left on the old plan is carried over on
-//                   top. The user sees exactly one charge for exactly the
-//                   price shown, which is what "upgrade" should feel like.
-//   Shorter plan -> WITH_TIME_PRORATION. Switch now, and the unused value of
-//                   the longer plan becomes time on the shorter one. Nobody
-//                   pays twice for the same days, and Play still issues a new
-//                   purchase token immediately, so the verify path is the same
-//                   as for a first purchase. (DEFERRED would be the classic
-//                   "downgrade at period end", but its client callback shape
-//                   is inconsistent across Play Store versions.)
-//
-// Both modes return a new purchase token in onPurchasesUpdated, and Play
-// links it to the old one; the backend supersedes the old row from that link.
-function resolveReplacementMode(fromBasePlanId, toBasePlanId) {
-  const from = BASE_PLAN_ORDER.indexOf(fromBasePlanId);
-  const to = BASE_PLAN_ORDER.indexOf(toBasePlanId);
-  if (from === -1 || to === -1) return "WITH_TIME_PRORATION";
-  return to > from ? "CHARGE_FULL_PRICE" : "WITH_TIME_PRORATION";
-}
-
-// The device-side purchase that backs the server's idea of the current plan.
-// Play's Purchase does not name a base plan, but a user holds at most one
-// subscription per product, so the single PURCHASED entry for our product is
-// it. Only the server decides whether that purchase *entitles* anything; this
-// merely finds the token Play needs in order to replace it.
-function findCurrentDevicePurchase(purchases, productId) {
-  return (purchases || []).find(
-    (purchase) =>
-      purchase?.purchaseState === PURCHASE_STATE_PURCHASED &&
-      (purchase.products || []).includes(productId)
-  ) || null;
-}
+// Plan ordering, replacement-mode policy and the purchaseRef pairing live in
+// features/premium/utils/playBillingPlan.mjs so they can be unit-tested under
+// node:test without React.
 
 export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant = "upgrade" }) {
   const queryClient = useQueryClient();
@@ -216,6 +172,13 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         return;
       }
 
+      if (result?.subscription?.state === "pending") {
+        // Found, verified, and Google has not taken the money yet. Neither a
+        // success nor a failure — the same panel the purchase path shows.
+        setPhase(PHASE.PENDING);
+        return;
+      }
+
       setPhase(PHASE.READY);
       // The most useful failure to name explicitly: the purchase on this
       // device belongs to a different Edgecipline account. Anything else stays
@@ -270,11 +233,16 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         // first-purchase flow, and a mis-guess is caught by ITEM_ALREADY_OWNED.
         const serverSub = billingConfig.currentSubscription;
         let resolvedCurrent = null;
-        if (serverSub?.active && serverSub.basePlanId) {
+        if (serverSub?.active && serverSub.basePlanId && serverSub.purchaseRef) {
           try {
             const { purchases } = await getDevicePurchases();
             if (cancelled) return;
-            const devicePurchase = findCurrentDevicePurchase(purchases, billingConfig.productId);
+            const devicePurchase = await findCurrentDevicePurchase(
+              purchases,
+              billingConfig.productId,
+              serverSub.purchaseRef
+            );
+            if (cancelled) return;
             if (devicePurchase?.purchaseToken) {
               resolvedCurrent = {
                 basePlanId: serverSub.basePlanId,
@@ -289,13 +257,9 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         }
         setCurrentPlan(resolvedCurrent);
 
-        // Base plans only. An offer with an offerId is a promotional or
-        // free-trial variant of a base plan; showing both would list the same
-        // tier twice at two different prices.
-        const basePlanOffers = (playOffers || []).filter((offer) => !offer.offerId);
-        const ordered = [...basePlanOffers].sort(
-          (a, b) => BASE_PLAN_ORDER.indexOf(a.basePlanId) - BASE_PLAN_ORDER.indexOf(b.basePlanId)
-        );
+        // Base plans only, only the ones we sell, cheapest first. See
+        // selectSellableOffers for why unknown base plans are dropped.
+        const ordered = selectSellableOffers(playOffers);
 
         if (!ordered.length) {
           setPhase(PHASE.UNAVAILABLE);
@@ -386,6 +350,16 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
 
   const isSwitch = Boolean(currentPlan) && selectedOffer?.basePlanId !== currentPlan?.basePlanId;
   const isCurrentSelected = Boolean(currentPlan) && selectedOffer?.basePlanId === currentPlan?.basePlanId;
+  // null when either side is a plan we do not sell — the switch copy is then
+  // hidden and the tap is refused in handleSubscribe rather than guessed.
+  const switchMode = (() => {
+    if (!isSwitch || !selectedOffer) return null;
+    try {
+      return resolveReplacementMode(currentPlan.basePlanId, selectedOffer.basePlanId);
+    } catch {
+      return null;
+    }
+  })();
 
   const handleSubscribe = useCallback(async () => {
     if (!selectedOffer || !config) return;
@@ -665,9 +639,9 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
               </p>
             )}
 
-            {isSwitch && selectedOffer && !busy && (
+            {isSwitch && selectedOffer && switchMode && !busy && (
               <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, margin: "0 0 10px" }}>
-                {resolveReplacementMode(currentPlan.basePlanId, selectedOffer.basePlanId) === "CHARGE_FULL_PRICE"
+                {switchMode === "CHARGE_FULL_PRICE"
                   ? `You'll be charged ${selectedOffer.formattedPrice} now. Any time left on your current plan is added on top.`
                   : "Switches now. The unused part of your current plan is credited as time on the new one — you won't pay twice."}
               </p>

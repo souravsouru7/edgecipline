@@ -34,6 +34,16 @@ const playSubscriptionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // Set by accountDeletionService when the owner deletes their account. This
+    // is what tells a "spent forever" row apart from a row that is merely
+    // UNBOUND — an RTDN can land before the app's verify call and create the
+    // row with no user, and that row must still be bindable by the buyer.
+    // Without this flag the two were indistinguishable and an RTDN-first
+    // purchase was refused as "owner deleted".
+    detachedAt: {
+      type: Date,
+      default: null,
+    },
 
     // Google's unique handle for this purchase. THE idempotency key.
     purchaseToken: {
@@ -219,8 +229,9 @@ playSubscriptionSchema.index(
   }
 );
 
-// Reconciliation sweep: purchases that were verified but never acknowledged.
-// Google refunds these after 3 days, so they need to be found quickly.
+// Reconciliation sweep (jobs/playAcknowledgementSweepCron): purchases that
+// were verified but never acknowledged. Google refunds these after 3 days, so
+// they need to be found quickly.
 playSubscriptionSchema.index(
   { acknowledged: 1, createdAt: 1 },
   {

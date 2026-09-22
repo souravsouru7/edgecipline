@@ -22,7 +22,18 @@ const {
   REFRESH_COOKIE_NAME,
 } = require("../services/tokenService");
 const { invalidateAuthCache } = require("../services/authCacheService");
-const { buildTrialStart, TRIAL_DAYS, TRIAL_ENABLED, isPremium, getTrialState } = require("../utils/premium");
+const {
+  buildTrialStart,
+  TRIAL_DAYS,
+  TRIAL_ENABLED,
+  isPremium,
+  getTrialState,
+  getEffectiveSubscriptionStatus,
+  getEffectiveExpiry,
+  getBillingProvider,
+  getPlanLabel,
+} = require("../utils/premium");
+const { getPlaySubscriptionSummary } = require("../services/googlePlayBillingService");
 const analytics = require("../services/analyticsEventService");
 const attribution = require("../services/attribution.service");
 const { invalidateTradeCaches } = require("../utils/cacheUtils");
@@ -601,6 +612,22 @@ exports.getMe = asyncHandler(async (req, res) => {
   // that live in utils/premium.
   const trial = getTrialState(req.user);
 
+  // The Play-specific detail the settings card needs (renewal vs cancelled,
+  // grace period, pending payment, which base plan). One lean read on an
+  // indexed partial (user, supersededAt) key — a Razorpay-only account costs
+  // an empty result. A PENDING purchase has no playEntitlementExpiry yet, so
+  // this cannot be gated on that field. Degrades to null like `details`.
+  let playSummary = null;
+  try {
+    playSummary = await getPlaySubscriptionSummary(req.user._id);
+  } catch (error) {
+    logger.warn("GET_ME_PLAY_LOOKUP_FAILED", {
+      userId: String(req.user._id),
+      error: error?.message,
+    });
+  }
+  const provider = getBillingProvider(req.user);
+
   res.json({
     _id: req.user._id,
     name: req.user.name,
@@ -613,6 +640,24 @@ exports.getMe = asyncHandler(async (req, res) => {
     subscriptionPlan: req.user.subscriptionPlan || "free",
     subscriptionExpiry: req.user.subscriptionExpiry || null,
     isPremium: isPremium(req.user),
+    // Resolved across BOTH ledgers. The three raw fields above are the
+    // Razorpay ledger only, so a Play subscriber reads "inactive" there with no
+    // expiry while isPremium is true. The settings page renders this object;
+    // the raw fields stay for older clients and the admin screens.
+    subscription: {
+      status: getEffectiveSubscriptionStatus(req.user),
+      plan: req.user.subscriptionPlan || "free",
+      planLabel: getPlanLabel(req.user, playSummary),
+      provider,
+      expiresAt: getEffectiveExpiry(req.user),
+      // Play lifecycle detail. Null for Razorpay-only accounts; a Razorpay
+      // purchase simply ends on expiresAt and has no cancel/grace/pending.
+      cancelAtPeriodEnd: provider === "google_play" ? Boolean(playSummary?.cancelAtPeriodEnd) : false,
+      state: playSummary?.state || null,
+      basePlanId: playSummary?.basePlanId || null,
+      planType: playSummary?.planType || null,
+      purchaseRef: playSummary?.purchaseRef || null,
+    },
     trial: trial
       ? { active: trial.active, used: trial.used, endsAt: trial.endsAt, daysRemaining: trial.daysRemaining }
       : null,
@@ -1151,6 +1196,11 @@ exports.deleteMyAccount = asyncHandler(async (req, res) => {
     data: {
       collectionsCleared: Object.keys(summary.documentsDeleted).length,
       imagesDeleted: summary.images.destroyed,
+      // Deleting the account does not cancel a Google Play subscription —
+      // Google keeps charging the Google account that bought it. The client
+      // shows the manage link so the user can cancel it themselves.
+      playSubscriptionActive: Boolean(summary.playSubscriptionActive),
+      manageUrl: summary.playManageUrl || null,
     },
   });
 });

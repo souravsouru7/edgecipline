@@ -56,6 +56,54 @@ function resetAuthClient() {
   cachedClientEmail = null;
 }
 
+// Set at boot by assertCredentialsUsable(). `null` = never checked (treated
+// as usable so a test or a non-production box without the check still
+// works), `false` = the key material was rejected by Google's token endpoint.
+let credentialsUsable = null;
+
+function areCredentialsUsable() {
+  return credentialsUsable !== false;
+}
+
+/**
+ * Prove the service-account key actually works BEFORE the first customer
+ * pays. `assertGooglePlayConfig()` only checks the variables are present; a
+ * key with a bad `\n` escape, a revoked key, or a service account that lost
+ * Play Console access all pass that check and only surface as a 502 on the
+ * first verify — after Google has taken the money.
+ *
+ * Fetches one access token (cheap, cached by the JWT client afterwards).
+ * Never logs the key. Throws on failure; the caller decides whether that
+ * kills the process (production) or just disables the paywall (elsewhere).
+ */
+async function assertCredentialsUsable() {
+  const config = assertGooglePlayConfig();
+  const client = getAuthClient();
+  try {
+    await client.getRequestHeaders();
+    credentialsUsable = true;
+    logger.info("GOOGLE_PLAY_CREDENTIALS_OK", { clientEmail: config.clientEmail });
+    return true;
+  } catch (error) {
+    credentialsUsable = false;
+    logger.error("GOOGLE_PLAY_CREDENTIALS_INVALID", {
+      clientEmail: config.clientEmail,
+      error: error?.message,
+    });
+    captureOperationalError(error, {
+      subsystem: "google_play",
+      tags: { operation: "boot_credential_check" },
+    });
+    const wrapped = new Error(
+      `Google Play service-account credentials were rejected (${error?.message || "unknown"}). ` +
+        "Check GOOGLE_PLAY_PRIVATE_KEY (must be the full PEM with \\n escapes) and " +
+        "GOOGLE_PLAY_CLIENT_EMAIL."
+    );
+    wrapped.code = "GOOGLE_PLAY_CREDENTIALS_INVALID";
+    throw wrapped;
+  }
+}
+
 /**
  * Classify a Play API failure so callers can decide whether to retry.
  *
@@ -103,11 +151,13 @@ async function callPlayApi(path, { method = "GET", body, operation } = {}) {
       clientEmail: config.clientEmail,
       error: error?.message,
     });
-    throw new ApiError(
+    const authError = new ApiError(
       502,
       "Unable to reach Google Play for verification",
       "GOOGLE_PLAY_AUTH_FAILED"
     );
+    authError.retryable = true;
+    throw authError;
   }
 
   // AbortSignal.timeout keeps a hung Google connection from holding an Express
@@ -138,11 +188,13 @@ async function callPlayApi(path, { method = "GET", body, operation } = {}) {
       timedOut,
       error: error?.message,
     });
-    throw new ApiError(
+    const transportError = new ApiError(
       502,
       "Google Play verification is temporarily unavailable",
       timedOut ? "GOOGLE_PLAY_TIMEOUT" : "GOOGLE_PLAY_UNAVAILABLE"
     );
+    transportError.retryable = true;
+    throw transportError;
   }
 
   if (response.status === 204) return {};
@@ -232,6 +284,8 @@ async function acknowledgeSubscriptionPurchase(productId, purchaseToken) {
 module.exports = {
   getSubscriptionPurchase,
   acknowledgeSubscriptionPurchase,
+  assertCredentialsUsable,
+  areCredentialsUsable,
   // Exported for testing
   classifyPlayError,
   resetAuthClient,

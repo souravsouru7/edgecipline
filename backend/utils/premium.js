@@ -116,6 +116,69 @@ function getBillingProvider(user) {
   return null;
 }
 
+// The status a user would expect to read on their settings page, resolved
+// across both ledgers. `subscriptionStatus` alone is the RAZORPAY status: a
+// Play subscriber keeps "inactive" there forever (see the schema comment), so
+// showing it raw labelled a paying Android user "Inactive" next to a "Monthly
+// Pro" plan badge and a "Full access enabled" tick.
+//
+//   active   — paid access right now, from either provider
+//   expired  — had paid access from either provider and it has lapsed
+//   inactive — never paid (or only a trial)
+//
+// Trial is deliberately not folded in: the UI already renders it as its own
+// badge from getTrialState, and "active" here must mean "paid".
+function getEffectiveSubscriptionStatus(user, now = Date.now()) {
+  if (!user) return "inactive";
+  if (hasActiveSubscription(user, now) || hasActivePlaySubscription(user, now)) {
+    return "active";
+  }
+  if (user.subscriptionStatus === "expired") return "expired";
+  // Razorpay "active" whose expiry has passed but the hourly cron hasn't
+  // flipped it yet, or a Play agreement that ran out / was revoked: both are
+  // "you had this and it lapsed", which is what "expired" tells the user.
+  if (user.subscriptionStatus === "active" && user.subscriptionExpiry) return "expired";
+  if (user.playEntitlementExpiry) return "expired";
+  return "inactive";
+}
+
+// The badge text for the settings page. `User.subscriptionPlan` only knows
+// monthly/yearly/custom (it is the Razorpay label, and every Play base plan is
+// written there as "monthly" because that enum has no 3/6-month value), so a
+// six-month Android subscriber used to read "Monthly Pro". When Play is the
+// governing provider the Play summary's planType wins.
+const PLAN_LABELS = Object.freeze({
+  free: "Free",
+  monthly: "Monthly Pro",
+  yearly: "Annual Pro",
+  custom: "Custom Pro",
+});
+const PLAY_PLAN_LABELS = Object.freeze({
+  monthly: "Monthly Pro",
+  "3_months": "3-month Pro",
+  "6_months": "6-month Pro",
+});
+
+function getPlanLabel(user, playSummary = null) {
+  if (!user) return PLAN_LABELS.free;
+  const provider = getBillingProvider(user);
+  if (provider === "google_play" && playSummary?.planType && PLAY_PLAN_LABELS[playSummary.planType]) {
+    return PLAY_PLAN_LABELS[playSummary.planType];
+  }
+  if (provider === null && !hasActiveSubscription(user) && !hasActivePlaySubscription(user)) {
+    // Lapsed or never paid: the stored label is history, not a current plan.
+    // A lapsed Play plan still names what they had, for the "expired" card.
+    if (playSummary?.planType && PLAY_PLAN_LABELS[playSummary.planType] && user.playEntitlementExpiry) {
+      return PLAY_PLAN_LABELS[playSummary.planType];
+    }
+    if (user.subscriptionStatus === "expired" || user.subscriptionStatus === "active") {
+      return PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
+    }
+    return PLAN_LABELS.free;
+  }
+  return PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
+}
+
 // UI-facing trial snapshot. Returns null for users who never had a trial
 // (legacy accounts pre-feature). Callers can treat null as "not in trial".
 function getTrialState(user) {
@@ -173,6 +236,7 @@ function describePlan(user) {
     trial:   getTrialState(user),
     provider: getBillingProvider(user),
     expiresAt: getEffectiveExpiry(user),
+    effectiveStatus: getEffectiveSubscriptionStatus(user),
   };
 }
 
@@ -205,7 +269,9 @@ module.exports = {
   hasActiveSubscription,
   hasActivePlaySubscription,
   getEffectiveExpiry,
+  getEffectiveSubscriptionStatus,
   getBillingProvider,
+  getPlanLabel,
   getTrialState,
   getPlanSource,
   buildTrialStart,

@@ -196,6 +196,21 @@ const appConfig = {
     schedule: process.env.WEBHOOK_RECONCILIATION_CRON || "*/15 * * * *",
     batchSize: readNumber("WEBHOOK_RECONCILIATION_BATCH_SIZE", 50),
   },
+  // Google auto-refunds a subscription purchase that is not acknowledged
+  // within three days. The verify path acknowledges inline; this sweep is
+  // the retry for the ones where that call failed and nothing (no RTDN, no
+  // app open) has re-synced the token since.
+  playAckSweep: {
+    enabled: readBoolean("ENABLE_PLAY_ACK_SWEEP_CRON", true),
+    schedule: process.env.PLAY_ACK_SWEEP_SCHEDULE || "*/30 * * * *",
+    batchSize: readNumber("PLAY_ACK_SWEEP_BATCH_SIZE", 100),
+    // Leave freshly verified rows alone: the inline acknowledgement may still
+    // be in flight, and Google needs a moment before the purchase is visible.
+    minAgeMinutes: readNumber("PLAY_ACK_SWEEP_MIN_AGE_MINUTES", 30),
+    // Past this age a row is one retry away from Google's 72h refund, so it
+    // pages someone rather than just being retried again.
+    alertAfterHours: readNumber("PLAY_ACK_SWEEP_ALERT_AFTER_HOURS", 48),
+  },
   // Drops stored webhook payloads after the retention window. Never deletes
   // the event document itself — eventId is the replay-protection key.
   webhookRetention: {
@@ -203,6 +218,9 @@ const appConfig = {
     schedule: process.env.WEBHOOK_RETENTION_CRON || "30 3 * * *",
     days: readNumber("WEBHOOK_RETENTION_DAYS", 90),
     batchSize: readNumber("WEBHOOK_RETENTION_BATCH_SIZE", 500),
+    // Bearer material (Play purchase tokens) on PERMANENTLY FAILED events,
+    // which keep their payload forever. Much shorter than `days`.
+    secretsDays: readNumber("WEBHOOK_SECRETS_RETENTION_DAYS", 30),
   },
   // Hourly rescue funnel — checks all 7 touchpoint windows on each run.
   // Idempotency is enforced by the RescueDispatch unique index, so multiple

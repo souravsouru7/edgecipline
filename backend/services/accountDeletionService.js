@@ -41,6 +41,13 @@ const PlaySubscription = require("../models/PlaySubscription");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
 const { logger } = require("../utils/logger");
+const { grantsEntitlement } = require("../constants/googlePlay");
+const { fingerprintPurchaseToken } = require("../utils/playAccountIdentity");
+
+// Where a user cancels a Play subscription. Deep-links straight to our product
+// in the Play Store's Subscriptions screen.
+const PLAY_MANAGE_SUBSCRIPTION_URL =
+  "https://play.google.com/store/account/subscriptions?sku=edgecipline_pro&package=com.edgecipline";
 
 // Every collection that stores data belonging to a user, paired with the field
 // that holds the owner's _id.
@@ -188,8 +195,13 @@ async function deleteFirebaseUser(email) {
  * Erasing the user id is what satisfies the deletion request — nothing
  * personal survives, and the row is anonymous afterwards. Keeping the row is
  * what keeps the purchase token spent forever: googlePlayBillingService
- * refuses to bind a token whose PlaySubscription exists with a null user, so a
+ * refuses to bind a token whose PlaySubscription carries `detachedAt`, so a
  * device that still holds the purchase cannot re-attach it to a new account.
+ *
+ * `detachedAt` is load-bearing, not bookkeeping. A row with a null user and NO
+ * detachedAt is a purchase we first heard about from Google (RTDN before the
+ * app's verify call) and it must remain bindable by the buyer. Nulling the
+ * user alone would make the two cases identical.
  *
  * Deleting the rows instead would mean a user could delete their account, sign
  * up again, hit "Restore purchases", and reclaim a subscription that Google
@@ -199,9 +211,23 @@ async function deleteFirebaseUser(email) {
 async function detachPlaySubscriptions(userId) {
   const result = await PlaySubscription.updateMany(
     { user: userId },
-    { $set: { user: null } }
+    { $set: { user: null, detachedAt: new Date() } }
   );
   return result.modifiedCount || result.nModified || 0;
+}
+
+/**
+ * Whether this user still holds a live Google Play subscription. Deleting the
+ * Edgecipline account does NOT cancel it — Google keeps charging the Google
+ * account that bought it — so the caller surfaces a warning with the Play
+ * "manage subscriptions" link instead of silently orphaning a paid agreement.
+ */
+async function findLivePlaySubscription(userId) {
+  const now = Date.now();
+  const rows = await PlaySubscription.find({ user: userId, supersededAt: null })
+    .select("purchaseToken state expiryTime")
+    .lean();
+  return rows.find((row) => grantsEntitlement(row.state, row.expiryTime, now)) || null;
 }
 
 async function purgeUserDocuments(userId) {
@@ -230,6 +256,23 @@ async function deleteAccount(userId) {
   }
 
   logger.info("Account deletion started", { userId: String(userId) });
+
+  // 0. A live Play subscription survives the account. Google keeps billing the
+  //    Google account that bought it and nobody can restore it (the row is
+  //    detached below), so record it loudly and tell the caller so the UI can
+  //    point the user at Play's cancel screen. Never blocks the deletion —
+  //    the store policies require deletion to succeed regardless.
+  const livePlaySubscription = await findLivePlaySubscription(userId).catch(() => null);
+  if (livePlaySubscription) {
+    logger.warn("PLAY_SUBSCRIPTION_ORPHANED_ON_DELETE", {
+      userId: String(userId),
+      purchaseRef: fingerprintPurchaseToken(livePlaySubscription.purchaseToken),
+      state: livePlaySubscription.state,
+      expiryTime: livePlaySubscription.expiryTime
+        ? new Date(livePlaySubscription.expiryTime).toISOString()
+        : null,
+    });
+  }
 
   // 1. Lock the account out immediately. If anything below fails, the user
   //    cannot keep using a partially-erased account.
@@ -277,9 +320,23 @@ async function deleteAccount(userId) {
     firebaseDeleted: firebase.deleted,
   });
 
-  return { email: user.email, documentsDeleted, playSubscriptionsDetached, images, firebase };
+  return {
+    email: user.email,
+    documentsDeleted,
+    playSubscriptionsDetached,
+    playSubscriptionActive: Boolean(livePlaySubscription),
+    playManageUrl: livePlaySubscription ? PLAY_MANAGE_SUBSCRIPTION_URL : null,
+    images,
+    firebase,
+  };
 }
 
 // USER_OWNED_COLLECTIONS is exported for the coverage guard in the unit tests,
 // which asserts every model referenced here is real and purged on the right field.
-module.exports = { deleteAccount, USER_OWNED_COLLECTIONS, detachPlaySubscriptions };
+module.exports = {
+  deleteAccount,
+  USER_OWNED_COLLECTIONS,
+  detachPlaySubscriptions,
+  findLivePlaySubscription,
+  PLAY_MANAGE_SUBSCRIPTION_URL,
+};

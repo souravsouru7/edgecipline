@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import Link from "next/link";
@@ -8,6 +8,12 @@ import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, LifeBuoy, Upload } from "lucide-react";
 import { canShowPurchaseUI } from "@/config/payments";
+import {
+  PLAY_MANAGE_URL,
+  resolveExpiryLabel,
+  describePlayLifecycle,
+  showsPlayActions,
+} from "@/features/premium/utils/subscriptionCard.mjs";
 import DeleteAccountSection from "@/components/DeleteAccountSection";
 // Same upgrade surface the header uses. PricingModal is a shim over
 // PaywallGate, so the whole chunk is dropped when payments are disabled
@@ -41,6 +47,9 @@ const STATUS_CONFIG = {
   expired: { label: "Expired", color: C.red, bg: "#FEE2E2" },
   trial: { label: "Trial", color: "#0369A1", bg: "#E0F2FE" },
 };
+
+// Play lifecycle copy, the Renews/Ends/Expires rule and the manage link live
+// in features/premium/utils/subscriptionCard.mjs (unit-tested under node:test).
 
 function Badge({ label, color, bg }) {
   return (
@@ -119,21 +128,36 @@ export default function SettingsPage() {
   const [replayingTutorial, setReplayingTutorial] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
 
+  const loadProfile = useCallback(async () => {
+    try {
+      const data = await getProfile();
+      if (data?.message === "Not authorized") { router.push("/login"); return; }
+      if (data && !data.message) setProfile(data);
+    } catch (e) {
+      console.error("Failed to load profile", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
   useEffect(() => {
     if (!ready) return;
+    loadProfile();
+  }, [ready, loadProfile]);
 
-    (async () => {
-      try {
-        const data = await getProfile();
-        if (data?.message === "Not authorized") { router.push("/login"); return; }
-        if (data && !data.message) setProfile(data);
-      } catch (e) {
-        console.error("Failed to load profile", e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [router, ready]);
+  // The subscription card was a one-shot read, so after a purchase it kept
+  // saying "Inactive" until the user left and came back. Re-read whenever the
+  // app returns to the foreground too: a Play purchase finishes in Google's
+  // own sheet, and renewals/cancellations arrive from Google's server later,
+  // so the page cannot know when the answer changed without asking again.
+  useEffect(() => {
+    if (!ready) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadProfile();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [ready, loadProfile]);
 
   const initials = profile?.name
     ? profile.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -147,20 +171,45 @@ export default function SettingsPage() {
     ? new Date(profile.lastLogin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
     : "-";
 
-  const expiryDate = profile?.subscriptionExpiry
-    ? new Date(profile.subscriptionExpiry).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : null;
+  // `subscription` is resolved on the server across both processors. The raw
+  // subscriptionStatus/subscriptionExpiry fields are the Razorpay ledger only:
+  // a Google Play subscriber has "inactive" and no date there while paying,
+  // which is exactly what this card used to show them. Fall back to the raw
+  // fields only for a server that predates the resolved object.
+  const subscription = profile?.subscription || {
+    status: profile?.subscriptionStatus,
+    plan: profile?.subscriptionPlan,
+    provider: null,
+    expiresAt: profile?.subscriptionExpiry,
+  };
 
-  // A trial user is premium with subscriptionStatus "inactive", so reading
+  const expiryDate = subscription.expiresAt
+    ? new Date(subscription.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+  // Play subscriptions renew on that date unless cancelled in the Play Store,
+  // in which case access simply ends there; Razorpay purchases always just
+  // end. "Expires" on a renewing plan reads like a warning and "Renews" on a
+  // cancelled one is a lie, so name the date for what it is.
+  const expiryLabel = resolveExpiryLabel(subscription);
+  const lifecycleNotice = describePlayLifecycle(subscription, expiryDate);
+  const playActions = showsPlayActions(subscription, profile?.isPremium);
+
+  // A trial user is premium with subscription status "inactive", so reading
   // status alone would label someone with full access "Free / Inactive".
   // The server resolves entitlement for us — trust it over the raw status.
-  const onTrial = Boolean(profile?.trial?.active) && profile?.subscriptionStatus !== "active";
+  const onTrial = Boolean(profile?.trial?.active) && subscription.status !== "active";
+  // The server resolves the label across both processors (a six-month Play
+  // plan is stored as "monthly" in the Razorpay-shaped plan field); fall back
+  // to the local table only for a server that predates `planLabel`.
+  const basePlanCfg = PLAN_CONFIG[subscription.plan] || PLAN_CONFIG.free;
   const planCfg = onTrial
     ? { label: "Premium Trial", color: "#0369A1", bg: "#E0F2FE" }
-    : (PLAN_CONFIG[profile?.subscriptionPlan] || PLAN_CONFIG.free);
+    : subscription.planLabel
+      ? { ...basePlanCfg, label: subscription.planLabel, ...(subscription.planLabel === "Free" ? PLAN_CONFIG.free : {}) }
+      : basePlanCfg;
   const statusCfg = onTrial
     ? STATUS_CONFIG.trial
-    : (STATUS_CONFIG[profile?.subscriptionStatus] || STATUS_CONFIG.inactive);
+    : (STATUS_CONFIG[subscription.status] || STATUS_CONFIG.inactive);
 
   const authProvider = profile?.authProvider === "google" ? "Google" : "Email & Password";
 
@@ -357,7 +406,64 @@ export default function SettingsPage() {
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                   {expiryDate && (
                     <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
-                      Expires <span style={{ color: C.navy, fontWeight: 600 }}>{expiryDate}</span>
+                      {expiryLabel} <span style={{ color: C.navy, fontWeight: 600 }}>{expiryDate}</span>
+                    </div>
+                  )}
+                  {lifecycleNotice && (
+                    <div
+                      role="status"
+                      style={{
+                        marginTop: 6,
+                        marginBottom: 8,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        background: lifecycleNotice.tone === "warn" ? "#FEF3C7" : "#E0F2FE",
+                        color: lifecycleNotice.tone === "warn" ? "#92400E" : "#075985",
+                      }}
+                    >
+                      {lifecycleNotice.text}
+                    </div>
+                  )}
+                  {playActions && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => window.open(PLAY_MANAGE_URL, "_blank", "noopener")}
+                        style={{
+                          padding: "7px 12px",
+                          background: "#FFFFFF",
+                          color: C.navy,
+                          border: `1px solid ${C.borderDark}`,
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Manage subscription
+                      </button>
+                      {canShowPurchaseUI() && (
+                        <button
+                          type="button"
+                          onClick={() => setPricingOpen(true)}
+                          style={{
+                            padding: "7px 12px",
+                            background: "#FFFFFF",
+                            color: C.green,
+                            border: `1px solid ${C.green}`,
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Change plan
+                        </button>
+                      )}
                     </div>
                   )}
                   {!profile?.isPremium && canShowPurchaseUI() && (
@@ -468,11 +574,15 @@ export default function SettingsPage() {
 
         {/* Play User Data policy / Apple 5.1.1(v): account deletion must be
             reachable from inside the app. */}
-        <DeleteAccountSection email={profile?.email} />
+        <DeleteAccountSection email={profile?.email} subscription={subscription} />
 
       </main>
 
-      <PricingModal isOpen={pricingOpen} onClose={() => setPricingOpen(false)} />
+      <PricingModal
+        isOpen={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        onSuccess={loadProfile}
+      />
     </div>
   );
 }

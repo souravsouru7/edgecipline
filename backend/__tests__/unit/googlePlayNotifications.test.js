@@ -308,3 +308,175 @@ describe("duplicate delivery (Phase 8)", () => {
     expect(update.processingError).toBe("Play 503");
   });
 });
+
+// ─── Failure classification (Phase 8) ──────────────────────────────────────
+//
+// Pub/Sub redelivers anything not answered 2xx for up to seven days and the
+// reconciliation cron burns its attempt budget on the same event. That is the
+// right behaviour for a Google outage and the wrong one for an event that can
+// never succeed, or for a deploy that simply has billing switched off.
+
+describe("failure classification (Phase 8)", () => {
+  const ApiError = require("../../utils/ApiError");
+
+  it("returns 2xx and marks permanentlyFailed for non-retryable Play errors", async () => {
+    const notOurs = new ApiError(400, "not ours", "PLAY_PRODUCT_NOT_ALLOWED");
+    billing.handleSubscriptionNotification.mockRejectedValue(notOurs);
+
+    const result = await service.processGooglePlayNotification({
+      rawBody: pushBody(subscriptionNotification()),
+      authorizationHeader: GOOD_AUTH,
+    });
+
+    expect(result).toMatchObject({ processed: true, permanentlyFailed: true, code: "PLAY_PRODUCT_NOT_ALLOWED" });
+    const [, update] = WebhookEvent.updateOne.mock.calls.at(-1);
+    expect(update.processed).toBe(true);
+    expect(update.permanentlyFailed).toBe(true);
+    expect(update.processing).toBe(false);
+  });
+
+  it("treats Google's purchase-not-found (retryable: false) the same way", async () => {
+    const gone = new ApiError(400, "gone", "GOOGLE_PLAY_PURCHASE_NOT_FOUND");
+    gone.retryable = false;
+    billing.handleSubscriptionNotification.mockRejectedValue(gone);
+
+    const result = await service.processGooglePlayNotification({
+      rawBody: pushBody(subscriptionNotification()),
+      authorizationHeader: GOOD_AUTH,
+    });
+    expect(result.permanentlyFailed).toBe(true);
+  });
+
+  it("does not burn processingAttempts while billing is disabled", async () => {
+    const disabled = Object.assign(new Error("Google Play billing is disabled."), { code: "GOOGLE_PLAY_DISABLED" });
+    billing.handleSubscriptionNotification.mockRejectedValue(disabled);
+
+    await expect(
+      service.processGooglePlayNotification({
+        rawBody: pushBody(subscriptionNotification()),
+        authorizationHeader: GOOD_AUTH,
+      })
+    ).rejects.toMatchObject({ statusCode: 503, errorCode: "PLAY_RTDN_DEFERRED" });
+
+    const [, update] = WebhookEvent.updateOne.mock.calls.at(-1);
+    // Lock released, attempt handed back, event still recoverable.
+    expect(update.$set.processing).toBe(false);
+    expect(update.$inc.processingAttempts).toBe(-1);
+    expect(update.$set.processed).toBeUndefined();
+    expect(update.$set.permanentlyFailed).toBeUndefined();
+  });
+
+  it("still throws for retryable 5xx", async () => {
+    const outage = new ApiError(502, "Google Play verification is temporarily unavailable", "GOOGLE_PLAY_UNAVAILABLE");
+    outage.retryable = true;
+    billing.handleSubscriptionNotification.mockRejectedValue(outage);
+
+    await expect(
+      service.processGooglePlayNotification({
+        rawBody: pushBody(subscriptionNotification()),
+        authorizationHeader: GOOD_AUTH,
+      })
+    ).rejects.toMatchObject({ errorCode: "GOOGLE_PLAY_UNAVAILABLE" });
+
+    const [, update] = WebhookEvent.updateOne.mock.calls.at(-1);
+    expect(update.processing).toBe(false);
+    expect(update.permanentlyFailed).toBeUndefined();
+  });
+
+  it("classifies by code and by the retryable flag", () => {
+    expect(service.classifyProcessingError({ errorCode: "PLAY_BASE_PLAN_UNKNOWN" }).kind).toBe("non_retryable");
+    expect(service.classifyProcessingError({ errorCode: "PLAY_PURCHASE_TOKEN_INVALID" }).kind).toBe("non_retryable");
+    expect(service.classifyProcessingError({ retryable: false }).kind).toBe("non_retryable");
+    expect(service.classifyProcessingError({ code: "GOOGLE_PLAY_CONFIG_MISSING" }).kind).toBe("deferred");
+    expect(service.classifyProcessingError({ errorCode: "GOOGLE_PLAY_TIMEOUT", retryable: true }).kind).toBe("retryable");
+    expect(service.classifyProcessingError(new Error("boom")).kind).toBe("retryable");
+  });
+
+  describe("reconciliation replay", () => {
+    function claimedEvent(overrides = {}) {
+      const { payload, payloadSecrets } = service.redactNotification(subscriptionNotification());
+      return { eventId: "evt", eventType: "SUBSCRIPTION_RENEWED", processingAttempts: 1, payload, payloadSecrets, ...overrides };
+    }
+
+    it("re-injects the purchase token from payloadSecrets before replaying", async () => {
+      WebhookEvent.findOneAndUpdate = jest.fn().mockResolvedValue(claimedEvent());
+
+      const outcome = await service.reprocessStoredPlayEvent("evt", 6);
+
+      expect(outcome.recovered).toBe(true);
+      expect(billing.handleSubscriptionNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ purchaseToken: TOKEN })
+      );
+    });
+
+    it("closes a non-retryable failure immediately rather than after six attempts", async () => {
+      WebhookEvent.findOneAndUpdate = jest.fn().mockResolvedValue(claimedEvent());
+      billing.handleSubscriptionNotification.mockRejectedValue(new ApiError(400, "no plan", "PLAY_BASE_PLAN_UNKNOWN"));
+
+      const outcome = await service.reprocessStoredPlayEvent("evt", 6);
+
+      expect(outcome).toMatchObject({ recovered: false, exhausted: true });
+      const [, update] = WebhookEvent.updateOne.mock.calls.at(-1);
+      expect(update.permanentlyFailed).toBe(true);
+    });
+
+    it("defers without spending an attempt while billing is disabled", async () => {
+      WebhookEvent.findOneAndUpdate = jest.fn().mockResolvedValue(claimedEvent({ processingAttempts: 6 }));
+      billing.handleSubscriptionNotification.mockRejectedValue(
+        Object.assign(new Error("disabled"), { code: "GOOGLE_PLAY_DISABLED" })
+      );
+
+      const outcome = await service.reprocessStoredPlayEvent("evt", 6);
+
+      expect(outcome).toMatchObject({ recovered: false, deferred: true, exhausted: false });
+      const [, update] = WebhookEvent.updateOne.mock.calls.at(-1);
+      expect(update.$inc.processingAttempts).toBe(-1);
+    });
+
+    it("cannot replay once the secrets were pruned, and says so permanently", async () => {
+      WebhookEvent.findOneAndUpdate = jest.fn().mockResolvedValue(claimedEvent({ payloadSecrets: undefined }));
+
+      const outcome = await service.reprocessStoredPlayEvent("evt", 6);
+
+      expect(outcome.exhausted).toBe(true);
+      expect(billing.handleSubscriptionNotification).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ─── No raw tokens at rest (Phase 14) ──────────────────────────────────────
+
+describe("purchase tokens are never stored in the event payload", () => {
+  it("stores a fingerprint in payload and the raw token in payloadSecrets", async () => {
+    await service.processGooglePlayNotification({
+      rawBody: pushBody(subscriptionNotification()),
+      authorizationHeader: GOOD_AUTH,
+    });
+
+    const [, update] = WebhookEvent.findOneAndUpdate.mock.calls[0];
+    const stored = update.$setOnInsert;
+    expect(JSON.stringify(stored.payload)).not.toContain(TOKEN);
+    expect(stored.payload.subscriptionNotification.purchaseToken).toHaveLength(16);
+    expect(stored.payload.subscriptionNotification.purchaseTokenRedacted).toBe(true);
+    expect(stored.payloadSecrets).toEqual({ purchaseToken: TOKEN });
+    // The live path still processes the REAL notification.
+    expect(billing.handleSubscriptionNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ purchaseToken: TOKEN })
+    );
+  });
+
+  it("redacts voided-purchase notifications too", () => {
+    const { payload, payloadSecrets } = service.redactNotification({
+      packageName: "com.edgecipline",
+      voidedPurchaseNotification: { purchaseToken: TOKEN, orderId: "GPA.1", productType: 1, refundType: 1 },
+    });
+    expect(JSON.stringify(payload)).not.toContain(TOKEN);
+    expect(payloadSecrets.purchaseToken).toBe(TOKEN);
+    expect(service.rehydrateNotification(payload, payloadSecrets).voidedPurchaseNotification.purchaseToken).toBe(TOKEN);
+  });
+
+  it("stores nothing secret for a test notification", () => {
+    const { payloadSecrets } = service.redactNotification({ testNotification: { version: "1.0" } });
+    expect(payloadSecrets).toBeUndefined();
+  });
+});

@@ -48,13 +48,52 @@ async function pruneProcessedPayloads(now = new Date(), batchSize) {
 
   const result = await WebhookEvent.updateMany(
     { _id: { $in: stale.map((doc) => doc._id) } },
-    { $set: { payload: PRUNED_PAYLOAD, payloadPrunedAt: new Date() } }
+    {
+      $set: { payload: PRUNED_PAYLOAD, payloadPrunedAt: new Date(), payloadSecretsPrunedAt: new Date() },
+      // Bearer material stored beside the payload (Google Play purchase
+      // tokens) goes with it — there is nothing left to replay.
+      $unset: { payloadSecrets: 1 },
+    }
   );
 
   return {
     matched: stale.length,
     pruned: result.modifiedCount || result.nModified || 0,
     retentionDays,
+  };
+}
+
+/**
+ * Permanently-failed events keep their payload forever as evidence, but the
+ * bearer material beside it must not: a purchase token is a credential, and
+ * an event nobody is going to replay has no use for it. Pruned on a much
+ * shorter clock than the payload itself.
+ */
+async function prunePermanentlyFailedSecrets(now = new Date(), batchSize) {
+  const secretsDays = Math.max(1, appConfig.webhookRetention?.secretsDays || 30);
+  const cutoff = new Date(now.getTime() - secretsDays * 24 * 60 * 60 * 1000);
+
+  const stale = await WebhookEvent.find({
+    permanentlyFailed: true,
+    payloadSecrets: { $exists: true },
+    payloadSecretsPrunedAt: { $exists: false },
+    permanentlyFailedAt: { $lt: cutoff },
+  })
+    .select("_id")
+    .limit(batchSize)
+    .lean();
+
+  if (!stale.length) return { matched: 0, pruned: 0, secretsDays };
+
+  const result = await WebhookEvent.updateMany(
+    { _id: { $in: stale.map((doc) => doc._id) } },
+    { $set: { payloadSecretsPrunedAt: new Date() }, $unset: { payloadSecrets: 1 } }
+  );
+
+  return {
+    matched: stale.length,
+    pruned: result.modifiedCount || result.nModified || 0,
+    secretsDays,
   };
 }
 
@@ -82,6 +121,20 @@ async function runWebhookRetentionJob(now = new Date()) {
           totalPruned += batch.pruned;
           batches += 1;
           if (batch.matched < batchSize) break;
+        }
+
+        let secretsPruned = 0;
+        while (true) {
+          const batch = await prunePermanentlyFailedSecrets(now, batchSize);
+          if (!batch.matched) break;
+          secretsPruned += batch.pruned;
+          if (batch.matched < batchSize) break;
+        }
+        if (secretsPruned > 0) {
+          logger.info(`[${CRON_NAME}] pruned secrets from permanently-failed events`, {
+            secretsPruned,
+            secretsDays: appConfig.webhookRetention?.secretsDays || 30,
+          });
         }
 
         if (totalPruned > 0) {
@@ -159,6 +212,7 @@ module.exports = {
   PRUNED_PAYLOAD,
   dailyKey,
   pruneProcessedPayloads,
+  prunePermanentlyFailedSecrets,
   runWebhookRetentionJob,
   startWebhookRetentionCron,
 };

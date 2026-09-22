@@ -118,7 +118,9 @@ describe('account deletion covers every user-owned collection', () => {
     // ever becomes a deleteMany, a user could delete their account, sign up
     // again, hit "Restore purchases" and reclaim the subscription.
     expect(service).toContain('PlaySubscription.updateMany');
-    expect(service).toContain('$set: { user: null }');
+    // detachedAt is load-bearing: without it a row an RTDN created before
+    // the buyer's verify call is indistinguishable from a deleted owner's.
+    expect(service).toContain('$set: { user: null, detachedAt: new Date() }');
     expect(service).not.toMatch(/PlaySubscription\.deleteMany/);
     // ...and it must actually be called during deletion, not merely defined.
     expect(service).toContain('await detachPlaySubscriptions(userId)');

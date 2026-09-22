@@ -80,6 +80,15 @@ describe("account deletion storage cleanup", () => {
     const PlaySubscription = {
       modelName: "PlaySubscription",
       updateMany: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
+      // The pre-deletion "is a Play subscription still live?" check. One
+      // active row here means the response must carry the manage link.
+      find: jest.fn(() => ({
+        select: () => ({
+          lean: () => Promise.resolve([
+            { purchaseToken: "edgecipline-test-purchase-token-000000000000000000", state: "active", expiryTime: new Date(Date.now() + 86400000) },
+          ]),
+        }),
+      })),
     };
     const OCRJob = makeModel("OCRJob");
     // Support attachments are private customer data stored on Cloudinary under
@@ -118,12 +127,18 @@ describe("account deletion storage cleanup", () => {
     const result = await deleteAccount(userId);
 
     // Detached, never deleted — the row is what keeps the purchase token spent.
+    // `detachedAt` is what tells a deleted owner's row apart from a row an
+    // RTDN created before the buyer verified (which must stay bindable).
     expect(PlaySubscription.updateMany).toHaveBeenCalledWith(
       { user: userId },
-      { $set: { user: null } }
+      { $set: { user: null, detachedAt: expect.any(Date) } }
     );
     expect(PlaySubscription.deleteMany).toBeUndefined();
     expect(result.playSubscriptionsDetached).toBe(2);
+    // A live Play subscription outlives the account; the caller is told so it
+    // can point the user at Play's cancel screen.
+    expect(result.playSubscriptionActive).toBe(true);
+    expect(result.playManageUrl).toContain("play.google.com/store/account/subscriptions");
 
     expect(Trade.find).toHaveBeenCalledWith({ user: userId });
     expect(IndianTrade.find).toHaveBeenCalledWith({ user: userId });

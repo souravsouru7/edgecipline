@@ -156,10 +156,22 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
                 // Not an error on its own — the library reconnects by itself
                 // (enableAutoServiceReconnection) and the next call retries.
                 // Play disconnects routinely when the Store app updates itself.
+                //
+                // But anyone still queued behind THIS setup attempt would
+                // otherwise wait forever: onBillingSetupFinished is not
+                // guaranteed to follow a disconnect. Fail them now so the JS
+                // promise settles and the paywall can show "unavailable"
+                // instead of a spinner that never ends.
+                List<ConnectionCallback> stranded;
                 synchronized (waitingForConnection) {
                     connecting = false;
+                    stranded = new ArrayList<>(waitingForConnection);
+                    waitingForConnection.clear();
                 }
                 Log.i(TAG, "Billing service disconnected; will reconnect on next call");
+                for (ConnectionCallback waiting : stranded) {
+                    waiting.onFailure("Billing service disconnected");
+                }
             }
         });
     }
@@ -178,7 +190,10 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
      * charges the user differently from what the UI promised.
      */
     private static Integer mapReplacementMode(String mode) {
-        if (mode == null) return SubscriptionUpdateParams.ReplacementMode.WITH_TIME_PRORATION;
+        // No mode is not "the default mode". The JS layer must say how the
+        // user is charged; silently prorating an upgrade would charge them
+        // differently from what the paywall promised.
+        if (mode == null) return null;
         switch (mode) {
             case "WITH_TIME_PRORATION":
                 return SubscriptionUpdateParams.ReplacementMode.WITH_TIME_PRORATION;
@@ -275,6 +290,28 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
                     }
 
                     List<ProductDetails> productDetailsList = queryResult.getProductDetailsList();
+
+                    if (productDetailsList == null || productDetailsList.isEmpty()) {
+                        // Nothing resolved. Name what Play could not find so a
+                        // Console misconfiguration (inactive base plans, wrong
+                        // product id, app not yet published to the track) is
+                        // diagnosable from the client log rather than a bare
+                        // "no options available".
+                        StringBuilder unfetched = new StringBuilder();
+                        for (com.android.billingclient.api.UnfetchedProduct product : queryResult.getUnfetchedProductList()) {
+                            if (unfetched.length() > 0) unfetched.append(", ");
+                            unfetched.append(product.getProductId())
+                                    .append(" (status ").append(product.getStatusCode()).append(")");
+                        }
+                        Log.w(TAG, "No product details for " + productId
+                                + (unfetched.length() > 0 ? "; unfetched: " + unfetched : ""));
+                        call.reject(
+                                "Play returned no details for " + productId
+                                        + (unfetched.length() > 0 ? ". Unfetched: " + unfetched : ""),
+                                "PRODUCT_NOT_FOUND"
+                        );
+                        return;
+                    }
 
                     JSArray offers = new JSArray();
                     productCache.clear();
@@ -408,18 +445,25 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
                     );
                 }
 
-                BillingResult result = billingClient.launchBillingFlow(
-                        getActivity(), builder.build()
-                );
+                final BillingFlowParams params = builder.build();
 
-                if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                    call.reject(describeResult(result), String.valueOf(result.getResponseCode()));
-                    return;
-                }
+                // Capacitor runs plugin methods on a background thread, and when
+                // the client is already connected withConnection() calls back
+                // synchronously on it. launchBillingFlow must be invoked from
+                // the main thread (it starts Play's Activity) — otherwise it
+                // fails intermittently on some devices.
+                getActivity().runOnUiThread(() -> {
+                    BillingResult result = billingClient.launchBillingFlow(getActivity(), params);
 
-                JSObject response = new JSObject();
-                response.put("launched", true);
-                call.resolve(response);
+                    if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+                        call.reject(describeResult(result), String.valueOf(result.getResponseCode()));
+                        return;
+                    }
+
+                    JSObject response = new JSObject();
+                    response.put("launched", true);
+                    call.resolve(response);
+                });
             }
 
             @Override

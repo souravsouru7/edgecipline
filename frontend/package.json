@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/test-notification-routes.mjs scripts/test-mobile-shell.mjs features/trade/data/demoExtractionFixtures.test.mjs features/onboarding/utils/*.test.mjs",
+    "test": "node --test scripts/test-notification-routes.mjs scripts/test-mobile-shell.mjs features/trade/data/demoExtractionFixtures.test.mjs features/onboarding/utils/*.test.mjs features/premium/utils/*.test.mjs",
     "test:notifications": "node --test scripts/test-notification-routes.mjs",
     "android": "npm run build:mobile && npx cap sync android && npx cap open android",
     "android:sync": "npm run build:mobile && npx cap sync android",

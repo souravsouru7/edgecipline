@@ -90,6 +90,15 @@ async function reconcileWebhookEvents(now = new Date()) {
   let skipped = 0;
 
   for (const candidate of candidates) {
+    if (candidate.provider === "google_play" && !appConfig.googlePlay?.enabled) {
+      // Billing is switched off on this deploy. The event is real (a
+      // cancellation or refund Google told us about) and must be replayed
+      // once billing is back — spending attempts on it now would let the
+      // budget run out and the event be closed as permanently failed.
+      skipped += 1;
+      continue;
+    }
+
     // Sequential on purpose. These call out to the payment provider's API and
     // write subscriptions; a burst of parallel retries would both hammer the
     // provider and widen the window for lock contention.
@@ -97,9 +106,10 @@ async function reconcileWebhookEvents(now = new Date()) {
       ? await reprocessStoredPlayEvent(candidate.eventId, MAX_PROCESSING_ATTEMPTS)
       : await reprocessStoredWebhookEvent(candidate.eventId);
 
-    if (!outcome) {
+    if (!outcome || outcome.deferred) {
       // Claimed by a live delivery or a peer instance between the query and
-      // the claim. Correct outcome — leave it to whoever holds it.
+      // the claim, or deferred because the provider is disabled. Correct
+      // outcome — leave it to whoever holds it / to a later run.
       skipped += 1;
       continue;
     }

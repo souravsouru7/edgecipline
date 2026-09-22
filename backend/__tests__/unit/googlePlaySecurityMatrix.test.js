@@ -32,6 +32,7 @@ const {
   fingerprintPurchaseToken,
 } = require("../../utils/playAccountIdentity");
 const { SUBSCRIPTION_STATES } = require("../../constants/googlePlay");
+const { isPremium } = require("../../utils/premium");
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const USER_A = new mongoose.Types.ObjectId();
@@ -63,12 +64,33 @@ function playResponse(overrides = {}) {
   };
 }
 
+/**
+ * Entitlement is recomputed from every row the user owns
+ * (recomputePlayEntitlement), so `find` has to answer. By default it returns
+ * whatever the last upsert wrote, which is what a real database would hold.
+ */
+let lastUpsertedRow = null;
+function mockUserRows(rows) {
+  const resolve = () => Promise.resolve(rows);
+  PlaySubscription.find = jest.fn().mockReturnValue({
+    select: () => ({ lean: resolve }),
+    lean: resolve,
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+  lastUpsertedRow = null;
   PlaySubscription.findOne = jest.fn().mockReturnValue({ lean: () => Promise.resolve(null) });
-  PlaySubscription.findOneAndUpdate = jest.fn().mockImplementation((_filter, update) =>
-    Promise.resolve({ _id: new mongoose.Types.ObjectId(), purchaseToken: TOKEN, ...update.$set })
-  );
+  PlaySubscription.findOneAndUpdate = jest.fn().mockImplementation((_filter, update) => {
+    const row = { _id: new mongoose.Types.ObjectId(), purchaseToken: TOKEN, ...update.$set };
+    if (update.$setOnInsert) lastUpsertedRow = row;
+    return Promise.resolve(row);
+  });
+  PlaySubscription.find = jest.fn().mockImplementation(() => {
+    const resolve = () => Promise.resolve(lastUpsertedRow ? [lastUpsertedRow] : []);
+    return { select: () => ({ lean: resolve }), lean: resolve };
+  });
   PlaySubscription.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
   User.findById = jest.fn().mockReturnValue({
     select: () => ({ lean: () => ({ session: () => Promise.resolve({ subscriptionPlan: "free" }) }) }),
@@ -171,7 +193,27 @@ describe("entitlement is written only from verified state", () => {
     const result = await verifyPurchase({ userId: USER_A, purchaseToken: TOKEN });
 
     expect(result.entitled).toBe(false);
-    expect(User.updateOne.mock.calls[0][1].$set.playEntitlementExpiry).toBeNull();
+    // The field keeps a PAST date (so the settings page can say "expired"
+    // rather than "never paid") but must never be in the future — even though
+    // Google's snapshot still carries a future expiryTime on this row.
+    const written = User.updateOne.mock.calls[0][1].$set.playEntitlementExpiry;
+    expect(written).toBeInstanceOf(Date);
+    expect(written.getTime()).toBeLessThan(Date.now());
+    expect(isPremium({ playEntitlementExpiry: written })).toBe(false);
+  });
+
+  it("carries the paid-through date, not a future one, when a held subscription lapses", async () => {
+    // ON_HOLD reports a future expiryTime. Writing it verbatim would grant
+    // access; the recompute caps it at now.
+    playApi.getSubscriptionPurchase.mockResolvedValue(
+      playResponse({ subscriptionState: "SUBSCRIPTION_STATE_ON_HOLD" })
+    );
+
+    const result = await verifyPurchase({ userId: USER_A, purchaseToken: TOKEN });
+
+    expect(result.entitled).toBe(false);
+    const written = User.updateOne.mock.calls[0][1].$set.playEntitlementExpiry;
+    expect(written.getTime()).toBeLessThan(Date.now());
   });
 
   it("does not acknowledge a purchase that grants nothing", async () => {
@@ -242,17 +284,112 @@ describe("a purchase can never move between accounts (Phase 9)", () => {
     expect(String(owner.userId)).toBe(String(USER_A));
   });
 
-  it("refuses a token whose owner deleted their account", () => {
-    // Account deletion nulls the user but keeps the row precisely so the token
-    // stays spent. Re-binding it would resurrect a subscription onto a stranger.
+  it("still refuses a deletion-detached row (detachedAt set)", () => {
+    // Account deletion nulls the user AND stamps detachedAt, and keeps the row
+    // precisely so the token stays spent. Re-binding it would resurrect a
+    // subscription onto a stranger.
     expect(() =>
       resolvePurchaseOwner({
-        existing: { ...bound, user: null },
+        existing: { ...bound, user: null, detachedAt: new Date() },
         claimingUserId: USER_B,
-        purchase: {},
+        purchase: { obfuscatedAccountId: buildObfuscatedAccountId(USER_B) },
         tokenFingerprint: "x",
       })
     ).toThrow(expect.objectContaining({ errorCode: "PLAY_PURCHASE_DETACHED" }));
+  });
+
+  it("does not throw for an RTDN on a detached row — it just grants nobody", () => {
+    const owner = resolvePurchaseOwner({
+      existing: { ...bound, user: null, detachedAt: new Date() },
+      claimingUserId: null,
+      purchase: {},
+      tokenFingerprint: "x",
+    });
+    expect(owner.userId).toBeNull();
+    expect(owner.identity).toBe("detached");
+  });
+
+  it("binds a token whose row was created unbound by an earlier RTDN", async () => {
+    // The routine race: Google's SUBSCRIPTION_PURCHASED notification lands
+    // before the app's verify call and creates the row with no user. That
+    // row is NOT "owner deleted" — the buyer must be able to claim it.
+    const rtdnRow = {
+      _id: "row",
+      user: null,
+      detachedAt: null,
+      purchaseToken: TOKEN,
+      state: SUBSCRIPTION_STATES.ACTIVE,
+      expiryTime: new Date(Date.now() + 30 * ONE_DAY),
+      lastSyncedAt: new Date(Date.now() - 5_000),
+    };
+    PlaySubscription.findOne = jest.fn().mockReturnValue({ lean: () => Promise.resolve(rtdnRow) });
+
+    const result = await verifyPurchase({ userId: USER_A, purchaseToken: TOKEN });
+
+    expect(result.stale).toBe(false);
+    expect(result.entitled).toBe(true);
+    const [filter, update] = PlaySubscription.findOneAndUpdate.mock.calls[0];
+    expect(String(update.$set.user)).toBe(String(USER_A));
+    // Ownership is re-asserted inside the write, so a concurrent bind to a
+    // different account can never be overwritten.
+    expect(filter.user).toEqual({ $in: [null, USER_A] });
+    expect(User.updateOne).toHaveBeenCalled();
+    expect(invalidateAuthCache).toHaveBeenCalledWith(USER_A);
+  });
+
+  it("RTDN-first then a DIFFERENT user restores → PLAY_PURCHASE_ACCOUNT_MISMATCH when the echoed id belongs to someone else", async () => {
+    const rtdnRow = {
+      _id: "row",
+      user: null,
+      detachedAt: null,
+      purchaseToken: TOKEN,
+      state: SUBSCRIPTION_STATES.ACTIVE,
+      lastSyncedAt: new Date(Date.now() - 5_000),
+    };
+    PlaySubscription.findOne = jest.fn().mockReturnValue({ lean: () => Promise.resolve(rtdnRow) });
+    // Google echoes USER_A's identifier (playResponse default); USER_B claims.
+    await expect(verifyPurchase({ userId: USER_B, purchaseToken: TOKEN })).rejects.toMatchObject({
+      errorCode: "PLAY_PURCHASE_ACCOUNT_MISMATCH",
+    });
+    expect(PlaySubscription.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(User.updateOne).not.toHaveBeenCalled();
+  });
+
+  it("binds the user when verify loses the upsert race to an RTDN", async () => {
+    const duplicate = Object.assign(new Error("dup"), { code: 11000 });
+    const winnerRow = {
+      _id: "row",
+      user: null,
+      detachedAt: null,
+      purchaseToken: TOKEN,
+      state: SUBSCRIPTION_STATES.ACTIVE,
+      expiryTime: new Date(Date.now() + 30 * ONE_DAY),
+      lastSyncedAt: new Date(Date.now() + 1_000),
+    };
+    PlaySubscription.findOneAndUpdate = jest
+      .fn()
+      // The upsert collides with the RTDN's freshly inserted row.
+      .mockRejectedValueOnce(duplicate)
+      // The follow-up bind of the claiming user succeeds.
+      .mockImplementationOnce((_filter, update) =>
+        Promise.resolve({ ...winnerRow, ...update.$set })
+      );
+    PlaySubscription.findOne = jest
+      .fn()
+      .mockReturnValueOnce({ lean: () => Promise.resolve(null) })
+      .mockReturnValueOnce({ lean: () => Promise.resolve(winnerRow) });
+    mockUserRows([{ ...winnerRow, user: USER_A }]);
+
+    const result = await verifyPurchase({ userId: USER_A, purchaseToken: TOKEN });
+
+    expect(result.stale).toBe(true);
+    expect(result.entitled).toBe(true);
+    expect(result.userEntitled).toBe(true);
+    const [bindFilter, bindUpdate] = PlaySubscription.findOneAndUpdate.mock.calls[1];
+    expect(bindFilter).toEqual({ purchaseToken: TOKEN, user: null, detachedAt: null });
+    expect(String(bindUpdate.$set.user)).toBe(String(USER_A));
+    expect(User.updateOne).toHaveBeenCalled();
+    expect(invalidateAuthCache).toHaveBeenCalledWith(USER_A);
   });
 
   it("refuses a new token whose Google identifier belongs to someone else", () => {
@@ -367,11 +504,28 @@ describe("idempotency and out-of-order delivery (Phases 7 and 8)", () => {
         }),
     });
 
+    // The stored rows say EXPIRED; the (stale) fetch says ACTIVE.
+    mockUserRows([
+      {
+        user: USER_A,
+        purchaseToken: TOKEN,
+        state: SUBSCRIPTION_STATES.EXPIRED,
+        expiryTime: new Date(Date.now() - ONE_DAY),
+      },
+    ]);
+
     const result = await verifyPurchase({ userId: USER_A, purchaseToken: TOKEN });
 
     expect(result.stale).toBe(true);
+    // The stale snapshot is never written to the row...
     expect(PlaySubscription.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(User.updateOne).not.toHaveBeenCalled();
+    // ...and the entitlement that IS written comes from the stored rows, not
+    // from the stale fetch.
+    expect(result.entitled).toBe(false);
+    for (const [, update] of User.updateOne.mock.calls) {
+      const written = update.$set.playEntitlementExpiry;
+      expect(written === null || written.getTime() < Date.now()).toBe(true);
+    }
   });
 
   it("re-asserts the ordering guard inside the write, not just before it", async () => {

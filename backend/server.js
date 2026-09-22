@@ -81,6 +81,7 @@ const { startSubscriptionRescueCron } = require("./jobs/subscriptionRescueCron")
 const { startFreeTierNudgeCron } = require("./jobs/freeTierNudgeCron");
 const { startWebhookReconciliationCron } = require("./jobs/webhookReconciliationCron");
 const { startWebhookRetentionCron } = require("./jobs/webhookRetentionCron");
+const { startPlayAcknowledgementSweepCron } = require("./jobs/playAcknowledgementSweepCron");
 const { startStreakProtectorCron } = require("./jobs/streakProtectorCron");
 const { startReflectionReminderCron } = require("./jobs/reflectionReminderCron");
 const { startMissionProgressCron } = require("./jobs/missionProgressCron");
@@ -152,6 +153,31 @@ if (enableSmartWorker && process.env.DISABLE_EMBEDDED_SMART_NOTIFICATION_WORKER 
   for (const warning of getRazorpayConfigWarnings()) logger.warn(`[Razorpay] ${warning}`);
 }
 
+// Google Play. Presence of the env vars is asserted lazily by the service;
+// what that cannot catch is a key Google rejects (bad `
+` escaping, revoked
+// key, service account removed from Play Console). Fetch one access token at
+// boot so that surfaces here and not on a customer's first purchase — in
+// production that is fatal; elsewhere the paywall simply reports unavailable.
+if (appConfig.googlePlay.enabled) {
+  const { assertGooglePlayConfig } = require("./config");
+  const { assertCredentialsUsable } = require("./services/googlePlayApiService");
+  try {
+    assertGooglePlayConfig();
+  } catch (error) {
+    logger.error("[GooglePlay] Configuration invalid", { error: error.message, code: error.code });
+    if (appConfig.env === "production") process.exit(1);
+  }
+  assertCredentialsUsable().catch((error) => {
+    logger.error("[GooglePlay] Credential check failed", { error: error.message, code: error.code });
+    if (appConfig.env === "production") {
+      // Fail closed: nothing downstream of this can grant a paid entitlement
+      // correctly, and a half-working billing path costs customers money.
+      process.exit(1);
+    }
+  });
+}
+
 logger.info("[Timezone] Server timezone configuration", {
   timezoneOffsetHours: appConfig.timezoneOffsetHours,
   currentUtc: new Date().toISOString(),
@@ -168,6 +194,7 @@ startSubscriptionRescueCron();
 startFreeTierNudgeCron();
 startWebhookReconciliationCron();
 startWebhookRetentionCron();
+startPlayAcknowledgementSweepCron();
 startStreakProtectorCron();
 startReflectionReminderCron();
 startMissionProgressCron();

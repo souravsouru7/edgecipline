@@ -114,7 +114,10 @@ exports.verifyGooglePlayPurchase = asyncHandler(async (req, res) => {
     // verifies fine and grants nothing — the client must render that as
     // "waiting for Google", never as a failure and never as success.
     entitled: Boolean(result.entitled),
-    pending: subscription?.state === "pending",
+    // From the row that was just synced, not the summary: the summary picks
+    // the user's most relevant subscription, which for a resubscribe with a
+    // slow payment method could still be the old, expired one.
+    pending: result.record?.state === "pending",
     acknowledged: Boolean(result.acknowledged),
     subscription,
   });

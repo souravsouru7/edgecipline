@@ -202,8 +202,33 @@ async function secureRemoveToken() {
   }
 }
 
+// Listeners for the in-memory token changing hands. This is the ONE place a
+// token is written (setAuthToken, clearAuthToken and hydration all funnel
+// through rememberToken), so it is where "the user just signed in / out" is
+// observable. Play billing's launch reconcile subscribes here: a purchase
+// completed while signed out must be verified as soon as someone signs in.
+const _tokenListeners = new Set();
+
+export function subscribeAuthToken(listener) {
+  if (typeof listener !== "function") return () => {};
+  _tokenListeners.add(listener);
+  return () => {
+    _tokenListeners.delete(listener);
+  };
+}
+
 function rememberToken(token) {
+  const previous = _memoryToken;
   _memoryToken = token || null;
+  if (previous !== _memoryToken) {
+    for (const listener of _tokenListeners) {
+      try {
+        listener({ token: _memoryToken, previous });
+      } catch {
+        // A listener must never be able to break auth itself.
+      }
+    }
+  }
   return _memoryToken;
 }
 

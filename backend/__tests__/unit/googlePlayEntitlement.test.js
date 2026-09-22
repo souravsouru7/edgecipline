@@ -12,6 +12,8 @@ const {
   getEffectiveExpiry,
   getBillingProvider,
   getPlanSource,
+  getPlanLabel,
+  getEffectiveSubscriptionStatus,
 } = require("../../utils/premium");
 
 const {
@@ -243,5 +245,42 @@ describe("effective expiry", () => {
       playEntitlementExpiry: live,
     };
     expect(getEffectiveExpiry(user).getTime()).toBe(live.getTime());
+  });
+});
+
+describe("plan label", () => {
+  it("getPlanLabel maps 3/6-month plans", () => {
+    const user = { subscriptionPlan: "monthly", playEntitlementExpiry: future() };
+    expect(getPlanLabel(user, { planType: "3_months" })).toBe("3-month Pro");
+    expect(getPlanLabel(user, { planType: "6_months" })).toBe("6-month Pro");
+    expect(getPlanLabel(user, { planType: "monthly" })).toBe("Monthly Pro");
+  });
+
+  it("uses the Razorpay label when Razorpay is the governing provider", () => {
+    const user = {
+      subscriptionStatus: "active",
+      subscriptionPlan: "yearly",
+      subscriptionExpiry: future(400 * ONE_DAY),
+      playEntitlementExpiry: future(10 * ONE_DAY),
+    };
+    expect(getPlanLabel(user, { planType: "monthly" })).toBe("Annual Pro");
+  });
+
+  it("names the lapsed Play plan on an expired card, and Free for a never-paid account", () => {
+    expect(getPlanLabel({ subscriptionPlan: "monthly", playEntitlementExpiry: past() }, { planType: "6_months" })).toBe("6-month Pro");
+    expect(getPlanLabel({ subscriptionPlan: "free", subscriptionStatus: "inactive" }, null)).toBe("Free");
+    expect(getPlanLabel(null)).toBe("Free");
+  });
+});
+
+describe("effective status for a lapsed Play subscriber", () => {
+  it("getEffectiveSubscriptionStatus returns \"expired\" for a lapsed Play subscriber", () => {
+    // recomputePlayEntitlement keeps the paid-through date (capped at now)
+    // when nothing entitles, so a lapsed Android subscriber reads "expired".
+    expect(getEffectiveSubscriptionStatus({ subscriptionStatus: "inactive", playEntitlementExpiry: past() })).toBe("expired");
+  });
+
+  it("still reads inactive for an account that never paid", () => {
+    expect(getEffectiveSubscriptionStatus({ subscriptionStatus: "inactive", playEntitlementExpiry: null })).toBe("inactive");
   });
 });

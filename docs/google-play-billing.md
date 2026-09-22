@@ -104,7 +104,7 @@ For each base plan: **Auto-renewing**, grace period **7 days**, account hold
 Base plan IDs must match `BASE_PLANS` in
 [backend/constants/googlePlay.js](../backend/constants/googlePlay.js) and
 `BASE_PLAN_ORDER` in
-[frontend/components/PlayBillingPaywall.js](../frontend/components/PlayBillingPaywall.js).
+[frontend/features/premium/utils/playBillingPlan.mjs](../frontend/features/premium/utils/playBillingPlan.mjs).
 
 ### 2.3 Activate
 
@@ -165,6 +165,17 @@ All backend-only. **Never** `NEXT_PUBLIC_*`, never in the APK/AAB, never in git.
 | `GOOGLE_PLAY_RTDN_AUDIENCE` | for RTDN | The exact push endpoint URL. |
 | `GOOGLE_PLAY_ACCOUNT_SALT` | recommended | HMAC key binding a purchase to an account. Falls back to `ADMIN_JWT_SECRET`. **Append-only — see §6.** |
 | `GOOGLE_PLAY_API_TIMEOUT_MS` | no | Default 15000. |
+| `ENABLE_PLAY_ACK_SWEEP_CRON` | no | Default `true`. The acknowledgement retry sweep (§8). Only scheduled when billing is enabled. |
+| `PLAY_ACK_SWEEP_SCHEDULE` / `_BATCH_SIZE` / `_MIN_AGE_MINUTES` / `_ALERT_AFTER_HOURS` | no | Defaults `*/30 * * * *`, 100, 30, 48. |
+| `WEBHOOK_SECRETS_RETENTION_DAYS` | no | Default 30. How long a purchase token stays beside a **permanently failed** RTDN event before it is pruned (§12). |
+
+**Boot check.** When `GOOGLE_PLAY_BILLING_ENABLED=true`, `server.js` fetches one
+access token with the service-account key before listening
+(`googlePlayApiService.assertCredentialsUsable`). A key Google rejects — bad
+`\n` escaping, revoked key, service account removed from Play Console — is
+fatal in production and, elsewhere, logs `GOOGLE_PLAY_CREDENTIALS_INVALID` and
+makes `isPlayBillingAvailable()` false so the paywall says "temporarily
+unavailable" instead of charging and then failing to verify.
 
 Missing credentials **fail closed**: `assertGooglePlayConfig()` throws
 `GOOGLE_PLAY_CONFIG_MISSING`, the endpoint returns 503, and no entitlement is
@@ -210,19 +221,39 @@ not PII (Google's docs require that) and it discloses nothing about the account.
 |---|---|
 | Token already bound to this user | ✅ re-verify, refresh state |
 | Token already bound to a **different** user | ❌ `PLAY_PURCHASE_ALREADY_CLAIMED` (409). Never transferred. |
-| Token bound to **nobody** (owner deleted their account) | ❌ `PLAY_PURCHASE_DETACHED` (409). Spent forever. |
+| Token **detached** (`detachedAt` set — owner deleted their account) | ❌ `PLAY_PURCHASE_DETACHED` (409). Spent forever. An RTDN for it is still synced for bookkeeping but grants nobody anything. |
+| Token seen only via RTDN (`user: null`, **no** `detachedAt`) | ✅ treated as a new token for the first account to claim it — the echoed-id rules below apply, then it binds. This is the routine case: Google's `SUBSCRIPTION_PURCHASED` notification usually lands before the app's verify call, and always does when the app was killed in the Play sheet, the buyer was signed out, or they resubscribed from the Play Store. |
 | New token, echoed id **matches** | ✅ bind |
 | New token, echoed id **mismatches** | ❌ `PLAY_PURCHASE_ACCOUNT_MISMATCH` (409) |
 | New token, **no** echoed id | ✅ bind + log (pre-dates the feature; the token still came from Play on a device this user is signed into, and refusing would strand a real subscriber) |
-| RTDN for an unknown token | recorded, left unbound — the next restore binds it |
+| RTDN for an unknown token | recorded, left unbound — the next verify or restore binds it (row above) |
 
 Once bound, the unique index on `PlaySubscription.purchaseToken` is the real
-guarantee; the HMAC only guards the first binding.
+guarantee; the HMAC only guards the first binding. The write that binds also
+re-asserts ownership inside its filter (`user ∈ {null, me}`), so two accounts
+racing on the same token can never overwrite each other, and a verify that
+loses the write race to an RTDN still binds the claiming account afterwards
+(`settleStaleSync`).
 
 **Account deletion detaches, never deletes.** `detachPlaySubscriptions()` nulls
-the user and keeps the row, because the row is what keeps the token spent.
-Deleting it would let someone delete their account, sign up again, hit "Restore
-purchases", and reclaim the subscription.
+the user, stamps `detachedAt`, and keeps the row, because the row is what keeps
+the token spent. Deleting it would let someone delete their account, sign up
+again, hit "Restore purchases", and reclaim the subscription. `detachedAt` is
+what tells this row apart from an RTDN-first row — without it the two were
+identical and the buyer of an RTDN-first purchase was refused as "owner deleted".
+
+> **Migration for deployments that predate `detachedAt`:** rows detached by a
+> deletion before this field existed have `user: null` and no `detachedAt`, so
+> they would become bindable again. Run
+> `node backend/scripts/backfillPlayDetachedAt.js --before=<deploy time ISO>`
+> (dry-run), then again with `--apply`. The script header explains the one
+> judgement it makes.
+
+**Deleting an account does not cancel the Play subscription.** Google keeps
+charging the Google account that bought it. The deletion service logs
+`PLAY_SUBSCRIPTION_ORPHANED_ON_DELETE`, the API response carries
+`playSubscriptionActive` + `manageUrl`, and the in-app deletion dialog warns and
+links to Play Store › Subscriptions before the user confirms.
 
 **Rotating `GOOGLE_PLAY_ACCOUNT_SALT`** invalidates the binding check for
 purchases not yet in the database. Already-bound tokens keep working. Treat it as
@@ -251,6 +282,24 @@ Both the state **and** a future expiry must hold — a stale `ACTIVE` snapshot
 whose expiry has passed grants nothing, and `ON_HOLD` grants nothing even when
 Play still reports a future expiry.
 
+**Entitlement is recomputed from every row the user owns**
+(`recomputePlayEntitlement`), never projected from the token that happened to
+trigger the sync. A user legitimately holds several rows — after a plan change
+the superseded token gets its own `SUBSCRIPTION_EXPIRED` notification, a
+restore batch can carry a pending token next to the live one, a resubscribe
+leaves the old expired row behind — and `playEntitlementExpiry` is the furthest
+expiry among the rows that entitle (excluding superseded and detached rows).
+When nothing entitles, the field keeps the most recent paid-through date
+**capped at now** (so a held/paused row's future `expiryTime` can never read as
+active) so the settings page says "expired" rather than "never paid"; a
+PENDING-only account keeps `null` and reads "inactive".
+
+**Unknown base plans are refused.** A base plan that exists in Play Console but
+not in `BASE_PLANS` fails verification with `PLAY_BASE_PLAN_UNKNOWN` (400)
+before anything is written or acknowledged; the paywall never lists it either.
+Add it to `BASE_PLANS` / `BASE_PLAN_ORDER` and the purchase verifies on the next
+restore — Google's ledger still has it.
+
 **Every RTDN is handled identically**: re-read the authoritative state from the
 Play API and recompute. Branching per notification type is how these
 integrations end up handling most cases and silently mishandling the rest.
@@ -269,13 +318,15 @@ therefore performing a **replacement**, not a second purchase — without
 `SubscriptionUpdateParams` Play answers `ITEM_ALREADY_OWNED` and the user can
 never switch.
 
-`GET /google-play/config` now returns `currentSubscription` (from
-`getPlaySubscriptionSummary`, token-free). The paywall pairs that with the
-device's own `PURCHASED` entry for the product from `getPurchases()`; only when
-**both** halves exist does it treat the tap as a switch and pass
-`oldPurchaseToken` + `replacementMode` to `EdgeBillingPlugin.purchase()`.
-Either half missing → ordinary purchase flow, and a wrong guess is still caught
-by `ITEM_ALREADY_OWNED` → restore.
+`GET /google-play/config` returns `currentSubscription` (from
+`getPlaySubscriptionSummary`, token-free) including `purchaseRef`, the 16-hex
+SHA-256 fingerprint of its purchase token. The paywall fingerprints the
+device's `PURCHASED` entries for the product with `crypto.subtle` and treats
+the tap as a switch **only** when one of them matches `purchaseRef`; that is
+what stops a shared phone from replacing a *different* Edgecipline user's
+subscription (Play returns whatever the signed-in Google account owns). No
+match → ordinary purchase flow, and a wrong guess is still caught by
+`ITEM_ALREADY_OWNED` → restore.
 
 | Direction | `ReplacementMode` | What the user experiences |
 |---|---|---|
@@ -289,8 +340,10 @@ purchase and the backend stamps `supersededAt` on the old row from that link
 callback shape is inconsistent across Play Store versions.
 
 The policy lives in `resolveReplacementMode()` in
-[frontend/components/PlayBillingPaywall.js](../frontend/components/PlayBillingPaywall.js);
-the plugin only maps names to constants and rejects unknown ones.
+[frontend/features/premium/utils/playBillingPlan.mjs](../frontend/features/premium/utils/playBillingPlan.mjs);
+it throws for a base plan outside `BASE_PLAN_ORDER`, and the plugin only maps
+names to constants and rejects unknown or missing ones (`INVALID_REPLACEMENT_MODE`).
+Nothing defaults.
 
 ---
 
@@ -309,8 +362,14 @@ unacknowledged for **three days**.
 - A failure does **not** fail the request: the user has paid and Google
   confirmed it, so entitlement is granted, the error is recorded on the row, and
   the `play_unacknowledged` partial index exists to find it.
+- **The sweep is the guarantee.** `jobs/playAcknowledgementSweepCron` runs every
+  30 minutes (env in §4), pushes every unacknowledged row older than 30 minutes
+  back through `syncPurchase` — which acknowledges only if Google still reports
+  the purchase as entitling — and raises `PLAY_ACK_SWEEP_AT_RISK` (Sentry +
+  log) for rows still unacknowledged after 48 hours, i.e. one retry away from
+  the refund. It skips detached rows and does nothing while billing is disabled.
 
-Find at-risk purchases:
+Find at-risk purchases by hand:
 
 ```js
 db.playsubscriptions.find({ acknowledged: false, createdAt: { $lt: new Date(Date.now() - 864e5) } })
@@ -370,7 +429,7 @@ NEXT_PUBLIC_PAYMENTS_ENABLED=false NEXT_PUBLIC_PLAY_BILLING_ENABLED=true npm run
 Automated coverage:
 
 ```bash
-cd backend && npx jest googlePlay     # 81 tests
+cd backend && npx jest googlePlay playAcknowledgementSweep getMeProfile premium
 ```
 
 - `googlePlayEntitlement.test.js` — the state machine, the allowlist, and proof
@@ -378,7 +437,13 @@ cd backend && npx jest googlePlay     # 81 tests
 - `googlePlaySecurityMatrix.test.js` — forged product IDs, tampered expiry,
   account-transfer attempts, replay, out-of-order writes, restore
 - `googlePlayNotifications.test.js` — OIDC forgery, wrong principal, duplicate
-  delivery, lock release on failure
+  delivery, lock release on failure, failure classification, token redaction
+- `googlePlayLifecycle.test.js` — plan change with the superseded token's
+  EXPIRED notification, restore with a pending token beside a live one,
+  max-across-rows recompute, unknown base plan refusal, summary ranking
+- `playAcknowledgementSweep.test.js` — the 72-hour refund backstop
+- `getMeProfile.test.js` — the resolved `subscription` object the settings page
+  renders (labels, cancel/grace/pending detail)
 
 Manual matrix worth walking before release: monthly/3-month/6-month purchase,
 cancel, restore, reinstall, log out → log in as another account (must refuse),
@@ -395,17 +460,38 @@ Structured log events, all safe to ship to Sentry:
 `PLAY_PURCHASE_ACCOUNT_MISMATCH` · `PLAY_ACKNOWLEDGEMENT_OK` ·
 `PLAY_ACKNOWLEDGEMENT_FAILED` · `PLAY_SYNC_SKIPPED_STALE` ·
 `PLAY_RTDN_RECEIVED` · `PLAY_RTDN_PROCESSED` · `PLAY_RTDN_DUPLICATE_IGNORED` ·
-`PLAY_RTDN_UNAUTHORIZED` · `PLAY_RTDN_WRONG_PRINCIPAL`
+`PLAY_RTDN_UNAUTHORIZED` · `PLAY_RTDN_WRONG_PRINCIPAL` ·
+`PLAY_RTDN_PERMANENTLY_FAILED` · `PLAY_RTDN_DEFERRED_DISABLED` ·
+`PLAY_SYNC_BOUND_AFTER_RACE` · `PLAY_ACK_SWEEP_AT_RISK` ·
+`PLAY_SUBSCRIPTION_ORPHANED_ON_DELETE` · `GOOGLE_PLAY_CREDENTIALS_INVALID`
 
 **Never logged:** purchase tokens, the service-account private key, the
 obfuscated account id. Logs carry `purchaseRef` — a 16-char truncated SHA-256 of
 the token — which correlates a purchase across verify → acknowledge → RTDN
 without being reversible.
 
-Alert on: `PLAY_ACKNOWLEDGEMENT_FAILED` (3-day refund clock),
-`PLAY_RTDN_WRONG_PRINCIPAL` (someone is probing the webhook), and
-`GOOGLE_PLAY_AUTH_FAILED` (service-account permissions lost — every purchase is
-failing verification).
+**Never stored in `WebhookEvent.payload` either.** The stored RTDN payload
+carries the fingerprint (`purchaseTokenRedacted: true`); the raw token lives in
+`payloadSecrets`, which the retention cron prunes together with the payload
+after `WEBHOOK_RETENTION_DAYS` and — because permanently-failed events keep
+their payload forever — prunes on its own after `WEBHOOK_SECRETS_RETENTION_DAYS`
+(30). A permanently-failed event whose secrets are pruned can no longer be
+replayed; that is intended.
+
+**RTDN failures are classified.** A Google outage (5xx/429/timeout/auth) is
+answered non-2xx so Pub/Sub retries and the reconciliation cron backstops.
+A notification that can never succeed (`PLAY_PRODUCT_NOT_ALLOWED`,
+`PLAY_BASE_PLAN_UNKNOWN`, token not found) is closed as `permanentlyFailed`
+with a 2xx so Pub/Sub stops redelivering, and raised to Sentry. A deploy with
+billing switched off answers 503 **without** spending a processing attempt
+(`PLAY_RTDN_DEFERRED_DISABLED`), and the cron skips Play events entirely while
+disabled, so cancellations and refunds are replayed intact once it is back on.
+
+Alert on: `PLAY_ACKNOWLEDGEMENT_FAILED` / `PLAY_ACK_SWEEP_AT_RISK` (3-day
+refund clock), `PLAY_RTDN_WRONG_PRINCIPAL` (someone is probing the webhook),
+`GOOGLE_PLAY_AUTH_FAILED` / `GOOGLE_PLAY_CREDENTIALS_INVALID` (service-account
+permissions lost — every purchase is failing verification), and
+`PLAY_RTDN_PERMANENTLY_FAILED` (a real notification we could not act on).
 
 ---
 
@@ -418,6 +504,12 @@ failing verification).
 | `GOOGLE_PLAY_AUTH_FAILED` (502) | Service account lacks Play Console permission, or permissions not yet propagated | Re-check §3.1; wait up to 24h |
 | `GOOGLE_PLAY_PURCHASE_NOT_FOUND` (400) | Token from another app/product, or long expired | Confirm `GOOGLE_PLAY_PACKAGE_NAME` matches the APK |
 | `PLAY_PRODUCT_NOT_ALLOWED` | Console product ID ≠ `PRODUCT_ID` | Align them; the Console ID cannot be renamed |
+| `PLAY_BASE_PLAN_UNKNOWN` (400) | A base plan exists in Console that is not in `BASE_PLANS` / `BASE_PLAN_ORDER` | Add it to both (same id) and redeploy; the purchase verifies on the next restore |
+| `PLAY_ACK_SWEEP_AT_RISK` | A purchase has been unacknowledged for 48h+; Google refunds at 72h | Read `lastAcknowledgementError` on the row; usually `GOOGLE_PLAY_AUTH_FAILED` — fix §3.1 permissions, the next sweep acknowledges it |
+| `PLAY_RTDN_DEFERRED_DISABLED` | RTDNs arriving while `GOOGLE_PLAY_BILLING_ENABLED=false` | Expected during a rollback; they replay once re-enabled. Not expected in steady state — check the env |
+| `PLAY_RTDN_PERMANENTLY_FAILED` | Google sent a notification for a product/plan/token we refuse | Read `processingError` on the event; if it is a plan gap, fix `BASE_PLANS` and re-run reconciliation by clearing `permanentlyFailed` |
+| `GOOGLE_PLAY_CREDENTIALS_INVALID` at boot | The private key is malformed or revoked | Re-copy `private_key` from the JSON key with `\n` escapes intact; check the service account still exists |
+| Paying user gets `PLAY_PURCHASE_DETACHED` on a purchase they just made | A deployment predating `detachedAt` left deletion-detached rows unstamped **or** the backfill was run with too late a cutoff | Inspect the row: if `detachedAt` is set on a row whose buyer is present, clear it and have them restore |
 | `PLAY_PURCHASE_ALREADY_CLAIMED` (409) | Purchase belongs to another Edgecipline account | Working as designed — sign in with that account |
 | RTDN 401s | Push subscription auth off, or `RTDN_AUDIENCE` ≠ endpoint URL | Re-check §3.2 |
 | No RTDNs at all | `google-play-developer-notifications@system.gserviceaccount.com` lacks Publisher on the topic | Grant it, re-send a test notification |
@@ -432,9 +524,13 @@ The integration is **entirely additive** — no existing column changed meaning,
 no data migrated.
 
 1. **Disable** — set `GOOGLE_PLAY_BILLING_ENABLED=false`. Endpoints 503,
-   RTDNs stop being processed, `PlaySubscription` rows are untouched. Users with
-   a live `playEntitlementExpiry` **keep** PRO until it lapses; Razorpay is
-   entirely unaffected.
+   `PlaySubscription` rows are untouched. Users with a live
+   `playEntitlementExpiry` **keep** PRO until it lapses; Razorpay is entirely
+   unaffected. RTDNs are **deferred, not lost**: the webhook answers 503 without
+   spending a processing attempt and the reconciliation cron skips Play events,
+   so every cancellation/refund that arrives while disabled is replayed once
+   billing is re-enabled (Pub/Sub keeps redelivering for up to 7 days; the
+   stored event is the backstop after that).
 2. **Revert the app** — rebuild with `NEXT_PUBLIC_PLAY_BILLING_ENABLED=false`
    and roll back the release track. Existing subscriptions keep renewing at
    Google and keep being honoured, because RTDNs are what maintain them.
