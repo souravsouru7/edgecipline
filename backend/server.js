@@ -154,8 +154,8 @@ if (enableSmartWorker && process.env.DISABLE_EMBEDDED_SMART_NOTIFICATION_WORKER 
 }
 
 // Google Play. Presence of the env vars is asserted lazily by the service;
-// what that cannot catch is a key Google rejects (bad `
-` escaping, revoked
+// what that cannot catch is a key Google rejects (bad newline escaping,
+// revoked
 // key, service account removed from Play Console). Fetch one access token at
 // boot so that surfaces here and not on a customer's first purchase — in
 // production that is fatal; elsewhere the paywall simply reports unavailable.
