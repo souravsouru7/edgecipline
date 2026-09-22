@@ -77,8 +77,22 @@ export async function getBillingProducts(productId) {
  * Resolves as soon as the sheet is up, NOT when the purchase completes — Play's
  * flow can outlive the app. Subscribe with onPurchaseUpdated() before calling.
  */
-export async function startPurchase({ productId, offerToken, obfuscatedAccountId }) {
-  return getPlugin().purchase({ productId, offerToken, obfuscatedAccountId });
+export async function startPurchase({
+  productId,
+  offerToken,
+  obfuscatedAccountId,
+  // Plan change. All tiers are base plans of one product and Play allows one
+  // subscription per product, so switching tiers is a replacement of the
+  // existing purchase, not a second purchase. Both are required together.
+  oldPurchaseToken = null,
+  replacementMode = null,
+}) {
+  return getPlugin().purchase({
+    productId,
+    offerToken,
+    obfuscatedAccountId,
+    ...(oldPurchaseToken ? { oldPurchaseToken, replacementMode } : {}),
+  });
 }
 
 /** Every subscription purchase Play associates with this device. */

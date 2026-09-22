@@ -12,6 +12,7 @@ import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryPurchasesParams;
+import com.android.billingclient.api.BillingFlowParams.SubscriptionUpdateParams;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -58,6 +59,17 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
     private boolean connecting = false;
 
     /**
+     * Callers that arrived while a connection was being opened. On launch the
+     * silent reconcile (getPurchases) and a paywall opening (isAvailable ->
+     * getProducts) can land within the same few milliseconds; the first one
+     * used to win and the rest were rejected with "connection already in
+     * progress", which surfaced as "billing unavailable" for a reason that
+     * had nothing to do with the device. Everyone now waits for the single
+     * in-flight setup and is released together.
+     */
+    private final List<ConnectionCallback> waitingForConnection = new ArrayList<>();
+
+    /**
      * ProductDetails cannot be constructed by us — it must come from Play — and
      * launchBillingFlow needs the exact instance that was queried. Cached from
      * the last getProducts() call so purchase() does not have to re-query.
@@ -78,6 +90,10 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
                                 .enableOneTimeProducts()
                                 .build()
                 )
+                // Billing 8: the library re-establishes the service binding by
+                // itself after Play disconnects (Store update, low memory), so
+                // a call that lands in that window retries instead of failing.
+                .enableAutoServiceReconnection()
                 .build();
     }
 
@@ -111,29 +127,38 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
             callback.onReady();
             return;
         }
-        if (connecting) {
-            callback.onFailure("Billing connection already in progress");
-            return;
+
+        synchronized (waitingForConnection) {
+            waitingForConnection.add(callback);
+            if (connecting) return;
+            connecting = true;
         }
 
-        connecting = true;
         billingClient.startConnection(new BillingClientStateListener() {
             @Override
             public void onBillingSetupFinished(BillingResult result) {
-                connecting = false;
-                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    callback.onReady();
-                } else {
-                    Log.w(TAG, "Billing setup failed: " + result.getDebugMessage());
-                    callback.onFailure(describeResult(result));
+                List<ConnectionCallback> released;
+                synchronized (waitingForConnection) {
+                    connecting = false;
+                    released = new ArrayList<>(waitingForConnection);
+                    waitingForConnection.clear();
+                }
+                boolean ok = result.getResponseCode() == BillingClient.BillingResponseCode.OK;
+                if (!ok) Log.w(TAG, "Billing setup failed: " + result.getDebugMessage());
+                for (ConnectionCallback waiting : released) {
+                    if (ok) waiting.onReady();
+                    else waiting.onFailure(describeResult(result));
                 }
             }
 
             @Override
             public void onBillingServiceDisconnected() {
-                connecting = false;
-                // Not an error on its own — the next call reconnects. Play
-                // disconnects routinely when the Store app updates itself.
+                // Not an error on its own — the library reconnects by itself
+                // (enableAutoServiceReconnection) and the next call retries.
+                // Play disconnects routinely when the Store app updates itself.
+                synchronized (waitingForConnection) {
+                    connecting = false;
+                }
                 Log.i(TAG, "Billing service disconnected; will reconnect on next call");
             }
         });
@@ -144,6 +169,30 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
         return (message == null || message.isEmpty())
                 ? ("Billing error " + result.getResponseCode())
                 : message;
+    }
+
+    /**
+     * String -> Play constant for a plan change. Names mirror the library's own
+     * so the JS side reads like the Play docs. Unknown names return null and
+     * the call is rejected — a typo must not silently become a default that
+     * charges the user differently from what the UI promised.
+     */
+    private static Integer mapReplacementMode(String mode) {
+        if (mode == null) return SubscriptionUpdateParams.ReplacementMode.WITH_TIME_PRORATION;
+        switch (mode) {
+            case "WITH_TIME_PRORATION":
+                return SubscriptionUpdateParams.ReplacementMode.WITH_TIME_PRORATION;
+            case "CHARGE_FULL_PRICE":
+                return SubscriptionUpdateParams.ReplacementMode.CHARGE_FULL_PRICE;
+            case "CHARGE_PRORATED_PRICE":
+                return SubscriptionUpdateParams.ReplacementMode.CHARGE_PRORATED_PRICE;
+            case "WITHOUT_PRORATION":
+                return SubscriptionUpdateParams.ReplacementMode.WITHOUT_PRORATION;
+            case "DEFERRED":
+                return SubscriptionUpdateParams.ReplacementMode.DEFERRED;
+            default:
+                return null;
+        }
     }
 
     // ─── Availability ──────────────────────────────────────────────────────
@@ -292,15 +341,39 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
      * the signed-in Edgecipline account. It is what stops a purchase made by
      * one user from being claimed by whoever signs in next on this device.
      */
+    /**
+     * Open Play's purchase sheet.
+     *
+     * With `oldPurchaseToken` this becomes a plan change rather than a new
+     * purchase. All three tiers are base plans of ONE product, and Play allows
+     * one subscription per product per user — so without SubscriptionUpdateParams
+     * a subscriber choosing a different tier gets ITEM_ALREADY_OWNED and can
+     * never switch. The JS layer decides the replacement mode (see
+     * PlayBillingPaywall.resolveReplacementMode); this method only maps it.
+     */
     @PluginMethod
     public void purchase(final PluginCall call) {
         final String productId = call.getString("productId");
         final String offerToken = call.getString("offerToken");
         final String obfuscatedAccountId = call.getString("obfuscatedAccountId");
+        final String oldPurchaseToken = call.getString("oldPurchaseToken");
+        final String replacementMode = call.getString("replacementMode");
 
         if (productId == null || offerToken == null) {
             call.reject("productId and offerToken are required");
             return;
+        }
+
+        final int replacement;
+        if (oldPurchaseToken != null && !oldPurchaseToken.isEmpty()) {
+            Integer mapped = mapReplacementMode(replacementMode);
+            if (mapped == null) {
+                call.reject("Unknown replacementMode: " + replacementMode, "INVALID_REPLACEMENT_MODE");
+                return;
+            }
+            replacement = mapped;
+        } else {
+            replacement = -1;
         }
 
         final ProductDetails details = productCache.get(productId);
@@ -324,6 +397,15 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
 
                 if (obfuscatedAccountId != null && !obfuscatedAccountId.isEmpty()) {
                     builder.setObfuscatedAccountId(obfuscatedAccountId);
+                }
+
+                if (replacement >= 0) {
+                    builder.setSubscriptionUpdateParams(
+                            SubscriptionUpdateParams.newBuilder()
+                                    .setOldPurchaseToken(oldPurchaseToken)
+                                    .setSubscriptionReplacementMode(replacement)
+                                    .build()
+                    );
                 }
 
                 BillingResult result = billingClient.launchBillingFlow(
@@ -428,6 +510,7 @@ public class EdgeBillingPlugin extends Plugin implements PurchasesUpdatedListene
             // "waiting for payment" rather than "you're subscribed".
             entry.put("purchaseState", purchase.getPurchaseState());
             entry.put("isAcknowledged", purchase.isAcknowledged());
+            entry.put("isAutoRenewing", purchase.isAutoRenewing());
             entry.put("purchaseTime", purchase.getPurchaseTime());
 
             JSArray products = new JSArray();

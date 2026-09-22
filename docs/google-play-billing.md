@@ -261,6 +261,39 @@ Play response *lands*, and every write is conditional on it not going backwards
 
 ---
 
+## 7b. Plan changes (upgrade / downgrade)
+
+All three tiers are base plans of **one** product, and Play permits one
+subscription per product per user. A subscriber who picks a different tier is
+therefore performing a **replacement**, not a second purchase — without
+`SubscriptionUpdateParams` Play answers `ITEM_ALREADY_OWNED` and the user can
+never switch.
+
+`GET /google-play/config` now returns `currentSubscription` (from
+`getPlaySubscriptionSummary`, token-free). The paywall pairs that with the
+device's own `PURCHASED` entry for the product from `getPurchases()`; only when
+**both** halves exist does it treat the tap as a switch and pass
+`oldPurchaseToken` + `replacementMode` to `EdgeBillingPlugin.purchase()`.
+Either half missing → ordinary purchase flow, and a wrong guess is still caught
+by `ITEM_ALREADY_OWNED` → restore.
+
+| Direction | `ReplacementMode` | What the user experiences |
+|---|---|---|
+| Shorter → longer (e.g. monthly → 6-month) | `CHARGE_FULL_PRICE` | Charged the full new price now; time left on the old plan is added on top |
+| Longer → shorter (e.g. 6-month → monthly) | `WITH_TIME_PRORATION` | Switches now; unused value of the old plan becomes time on the new one |
+
+Both modes issue a **new purchase token immediately**, so the verify path is
+identical to a first purchase. Play sets `linkedPurchaseToken` on the new
+purchase and the backend stamps `supersededAt` on the old row from that link
+(`syncPurchase`). `DEFERRED` was deliberately not used: its client-side
+callback shape is inconsistent across Play Store versions.
+
+The policy lives in `resolveReplacementMode()` in
+[frontend/components/PlayBillingPaywall.js](../frontend/components/PlayBillingPaywall.js);
+the plugin only maps names to constants and rejects unknown ones.
+
+---
+
 ## 8. Acknowledgement
 
 Google **auto-refunds and revokes** any subscription purchase left
@@ -310,8 +343,8 @@ NEXT_PUBLIC_PAYMENTS_ENABLED=false NEXT_PUBLIC_PLAY_BILLING_ENABLED=true npm run
 
 - Play Billing Library is pinned by `playBillingVersion` in
   [frontend/android/variables.gradle](../frontend/android/variables.gradle)
-  (currently `7.1.1`). **Play enforces a minimum version for new uploads and
-  raises it roughly annually — check the current floor in Play Console before
+  (currently `8.0.0` — Play rejected `7.1.1` on 2026-09-20). **Play enforces a
+  minimum version for new uploads and raises it roughly annually — check the current floor in Play Console before
   each release rather than assuming the pin still qualifies.**
 - `EdgeBillingPlugin` is registered in `MainActivity.onCreate()`.
 - `com.android.vending.BILLING` is declared in the manifest.

@@ -58,10 +58,16 @@ function requireBillingConfigured() {
 exports.getBillingConfig = asyncHandler(async (req, res) => {
   const available = isPlayBillingAvailable();
 
+  // The user's current Play subscription, if any, so the paywall can render
+  // "current plan" and offer a switch instead of a second purchase. Derived
+  // from MongoDB, never from what the device claims; carries no token.
+  const currentSubscription = available ? await getPlaySubscriptionSummary(req.user._id) : null;
+
   res.json({
     available,
     productId: PRODUCT_ID,
     basePlanIds: BASE_PLAN_IDS,
+    currentSubscription,
     // Opaque HMAC, not a user id — safe to hand to the client because that is
     // exactly where it has to go (into Play's billing flow), and it discloses
     // nothing about the account. See utils/playAccountIdentity.

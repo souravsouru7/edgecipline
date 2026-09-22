@@ -59,6 +59,46 @@ const BASE_PLAN_LABELS = {
 
 const GREEN = "#0D9E6E";
 
+// Play purchase states, from Purchase.getPurchaseState().
+const PURCHASE_STATE_PURCHASED = 1;
+
+// How a plan change is charged. The choice is a product decision, so it lives
+// here in one place rather than in the native plugin:
+//
+//   Longer plan  -> CHARGE_FULL_PRICE. The new plan starts now and is charged
+//                   now; whatever was left on the old plan is carried over on
+//                   top. The user sees exactly one charge for exactly the
+//                   price shown, which is what "upgrade" should feel like.
+//   Shorter plan -> WITH_TIME_PRORATION. Switch now, and the unused value of
+//                   the longer plan becomes time on the shorter one. Nobody
+//                   pays twice for the same days, and Play still issues a new
+//                   purchase token immediately, so the verify path is the same
+//                   as for a first purchase. (DEFERRED would be the classic
+//                   "downgrade at period end", but its client callback shape
+//                   is inconsistent across Play Store versions.)
+//
+// Both modes return a new purchase token in onPurchasesUpdated, and Play
+// links it to the old one; the backend supersedes the old row from that link.
+function resolveReplacementMode(fromBasePlanId, toBasePlanId) {
+  const from = BASE_PLAN_ORDER.indexOf(fromBasePlanId);
+  const to = BASE_PLAN_ORDER.indexOf(toBasePlanId);
+  if (from === -1 || to === -1) return "WITH_TIME_PRORATION";
+  return to > from ? "CHARGE_FULL_PRICE" : "WITH_TIME_PRORATION";
+}
+
+// The device-side purchase that backs the server's idea of the current plan.
+// Play's Purchase does not name a base plan, but a user holds at most one
+// subscription per product, so the single PURCHASED entry for our product is
+// it. Only the server decides whether that purchase *entitles* anything; this
+// merely finds the token Play needs in order to replace it.
+function findCurrentDevicePurchase(purchases, productId) {
+  return (purchases || []).find(
+    (purchase) =>
+      purchase?.purchaseState === PURCHASE_STATE_PURCHASED &&
+      (purchase.products || []).includes(productId)
+  ) || null;
+}
+
 export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant = "upgrade" }) {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState(PHASE.LOADING);
@@ -67,6 +107,13 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
   const [selectedBasePlanId, setSelectedBasePlanId] = useState(null);
   const [config, setConfig] = useState(null);
   const [ctx, setCtx] = useState(null);
+  // Set only when the server reports a live Play subscription AND the device
+  // holds a matching purchase. Either half missing means "treat as a first
+  // purchase": without the server half we do not know the plan, without the
+  // device half Play cannot perform a replacement anyway (a different phone,
+  // a different Google account) — and a plain purchase on that device gets
+  // ITEM_ALREADY_OWNED, which the listener already turns into a restore.
+  const [currentPlan, setCurrentPlan] = useState(null);
   const [celebrating, setCelebrating] = useState(null);
 
   // Guards against a listener firing after unmount, and against the purchase
@@ -218,6 +265,30 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         const { offers: playOffers } = await getBillingProducts(billingConfig.productId);
         if (cancelled) return;
 
+        // Existing subscriber? Pair the server's plan with the device's token.
+        // Best-effort: if getPurchases fails the paywall still works as a
+        // first-purchase flow, and a mis-guess is caught by ITEM_ALREADY_OWNED.
+        const serverSub = billingConfig.currentSubscription;
+        let resolvedCurrent = null;
+        if (serverSub?.active && serverSub.basePlanId) {
+          try {
+            const { purchases } = await getDevicePurchases();
+            if (cancelled) return;
+            const devicePurchase = findCurrentDevicePurchase(purchases, billingConfig.productId);
+            if (devicePurchase?.purchaseToken) {
+              resolvedCurrent = {
+                basePlanId: serverSub.basePlanId,
+                purchaseToken: devicePurchase.purchaseToken,
+                expiresAt: serverSub.expiresAt || null,
+                cancelAtPeriodEnd: Boolean(serverSub.cancelAtPeriodEnd),
+              };
+            }
+          } catch {
+            // fall through: first-purchase flow
+          }
+        }
+        setCurrentPlan(resolvedCurrent);
+
         // Base plans only. An offer with an offerId is a promotional or
         // free-trial variant of a base plan; showing both would list the same
         // tier twice at two different prices.
@@ -235,7 +306,11 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         }
 
         setOffers(ordered);
-        setSelectedBasePlanId(ordered[0].basePlanId);
+        // Pre-select something they can actually act on: the first tier that
+        // is not the one they already hold.
+        const firstSelectable =
+          ordered.find((offer) => offer.basePlanId !== resolvedCurrent?.basePlanId) || ordered[0];
+        setSelectedBasePlanId(firstSelectable.basePlanId);
         setPhase(PHASE.READY);
       } catch (err) {
         if (cancelled) return;
@@ -309,10 +384,16 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
   const selectedOffer =
     offers.find((offer) => offer.basePlanId === selectedBasePlanId) || offers[0] || null;
 
+  const isSwitch = Boolean(currentPlan) && selectedOffer?.basePlanId !== currentPlan?.basePlanId;
+  const isCurrentSelected = Boolean(currentPlan) && selectedOffer?.basePlanId === currentPlan?.basePlanId;
+
   const handleSubscribe = useCallback(async () => {
     if (!selectedOffer || !config) return;
     // Guard against a double tap opening two Play sheets.
     if (phase === PHASE.PURCHASING || phase === PHASE.VERIFYING) return;
+    // Re-buying the plan you already hold is not a thing Play can do; the
+    // button is disabled for this, this is the belt to that brace.
+    if (isCurrentSelected) return;
 
     try {
       setPhase(PHASE.PURCHASING);
@@ -332,6 +413,14 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         // Binds the purchase to this Edgecipline account so it cannot later be
         // claimed by whoever signs in next on this device.
         obfuscatedAccountId: config.obfuscatedAccountId,
+        // Plan change: replace the live purchase instead of adding a second
+        // one, which Play would refuse with ITEM_ALREADY_OWNED.
+        ...(isSwitch
+          ? {
+              oldPurchaseToken: currentPlan.purchaseToken,
+              replacementMode: resolveReplacementMode(currentPlan.basePlanId, selectedOffer.basePlanId),
+            }
+          : {}),
       });
       // Resolves once Play's sheet is on screen. The outcome arrives on the
       // purchaseUpdated listener above — including if the app is killed and
@@ -340,7 +429,7 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
       setPhase(PHASE.ERROR);
       setError(err?.message || "Couldn't open Google Play. Please try again.");
     }
-  }, [selectedOffer, config, phase, variant, ctx]);
+  }, [selectedOffer, config, phase, variant, ctx, isSwitch, isCurrentSelected, currentPlan]);
 
   const handleClose = useCallback(() => {
     recordTrialEvent("paywall_dismissed", { variant, provider: "google_play" });
@@ -505,12 +594,14 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
               >
                 {offers.map((offer) => {
                   const isSelected = offer.basePlanId === selectedOffer?.basePlanId;
+                  const isCurrent = offer.basePlanId === currentPlan?.basePlanId;
                   return (
                     <button
                       key={offer.basePlanId}
                       type="button"
                       role="radio"
                       aria-checked={isSelected}
+                      aria-current={isCurrent ? "true" : undefined}
                       disabled={busy}
                       onClick={() => setSelectedBasePlanId(offer.basePlanId)}
                       style={{
@@ -526,8 +617,27 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
                         background: isSelected ? "rgba(13,158,110,0.06)" : "#FFFFFF",
                       }}
                     >
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>
-                        {BASE_PLAN_LABELS[offer.basePlanId] || offer.basePlanId}
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>
+                          {BASE_PLAN_LABELS[offer.basePlanId] || offer.basePlanId}
+                        </span>
+                        {isCurrent && (
+                          <span
+                            style={{
+                              fontSize: "var(--fs-2xs)",
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                              color: GREEN,
+                              background: "rgba(13,158,110,0.12)",
+                              borderRadius: 999,
+                              padding: "3px 8px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {currentPlan?.cancelAtPeriodEnd ? "Current · ends soon" : "Current plan"}
+                          </span>
+                        )}
                       </span>
                       <span style={{ fontSize: 16, fontWeight: 800, color: "#0F1923" }}>
                         {offer.formattedPrice}
@@ -555,30 +665,40 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
               </p>
             )}
 
+            {isSwitch && selectedOffer && !busy && (
+              <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, margin: "0 0 10px" }}>
+                {resolveReplacementMode(currentPlan.basePlanId, selectedOffer.basePlanId) === "CHARGE_FULL_PRICE"
+                  ? `You'll be charged ${selectedOffer.formattedPrice} now. Any time left on your current plan is added on top.`
+                  : "Switches now. The unused part of your current plan is credited as time on the new one — you won't pay twice."}
+              </p>
+            )}
+
             {phase !== PHASE.UNAVAILABLE && phase !== PHASE.PENDING && (
               <button
                 type="button"
                 onClick={handleSubscribe}
-                disabled={busy || !selectedOffer}
+                disabled={busy || !selectedOffer || isCurrentSelected}
                 style={{
                   width: "100%",
                   padding: "15px 20px",
                   borderRadius: 16,
                   border: "none",
-                  background: busy || !selectedOffer ? "#94A3B8" : GREEN,
+                  background: busy || !selectedOffer || isCurrentSelected ? "#94A3B8" : GREEN,
                   color: "#FFFFFF",
                   fontSize: 15,
                   fontWeight: 800,
-                  cursor: busy || !selectedOffer ? "default" : "pointer",
+                  cursor: busy || !selectedOffer || isCurrentSelected ? "default" : "pointer",
                 }}
               >
                 {phase === PHASE.VERIFYING
                   ? "Confirming your subscription…"
                   : phase === PHASE.PURCHASING
                     ? "Opening Google Play…"
-                    : selectedOffer
-                      ? `Subscribe · ${selectedOffer.formattedPrice}`
-                      : "Subscribe"}
+                    : isCurrentSelected
+                      ? "This is your current plan"
+                      : selectedOffer
+                        ? `${isSwitch ? "Switch to" : "Subscribe ·"} ${isSwitch ? BASE_PLAN_LABELS[selectedOffer.basePlanId] : selectedOffer.formattedPrice}`
+                        : "Subscribe"}
               </button>
             )}
 
