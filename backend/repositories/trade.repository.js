@@ -159,6 +159,41 @@ async function countForexTradesByUser(userId, { dateFrom } = {}) {
   return Trade.countDocuments(query);
 }
 
+/**
+ * Totals over EVERY visible trade in the window, not just one page. The trade
+ * log's header boxes used to be summed on the client from the rows it had
+ * loaded, so a user with 53 trades saw the numbers for the first 50 and a
+ * different figure from the dashboard, which asks the server. One aggregate
+ * beside the count keeps the two screens on the same maths.
+ */
+async function summarizeForexTradesByUser(userId, { dateFrom } = {}) {
+  const query = visibleForexQuery(userId);
+  if (dateFrom instanceof Date) {
+    query.effectiveTradeDate = { $gte: dateFrom };
+  }
+  const [row] = await Trade.aggregate([
+    { $match: query },
+    {
+      $group: {
+        _id: null,
+        totalTrades: { $sum: 1 },
+        grossPnL: { $sum: { $ifNull: ["$profit", 0] } },
+        wins: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$profit", 0] }, 0] }, 1, 0] } },
+        losses: { $sum: { $cond: [{ $lt: [{ $ifNull: ["$profit", 0] }, 0] }, 1, 0] } },
+      },
+    },
+  ]);
+  const totalTrades = row?.totalTrades ?? 0;
+  const wins = row?.wins ?? 0;
+  return {
+    totalTrades,
+    wins,
+    losses: row?.losses ?? 0,
+    grossPnL: Math.round((row?.grossPnL ?? 0) * 100) / 100,
+    winRate: totalTrades ? Math.round((wins / totalTrades) * 1000) / 10 : 0,
+  };
+}
+
 async function countTradesDebug(userId) {
   const visibleQuery = visibleForexQuery(userId);
   const [total, forexOnly, forexNotDeleted, forexVisible, marketTypes, ghostCount, deletedCount] = await Promise.all([
@@ -238,5 +273,6 @@ module.exports = {
   findForexTradesByUser,
   findTradeByIdAndUser,
   findTradesForWeeklyWindow,
+  summarizeForexTradesByUser,
   updateForexTradeByUser,
 };

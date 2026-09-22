@@ -64,7 +64,7 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
 
 exports.getTrades = asyncHandler(async (req, res) => {
   const result = await tradeService.getTrades(req.user._id, req.validated.query);
-  paginated(res, result.items, result.pagination);
+  paginated(res, result.items, result.pagination, { summary: result.summary });
 });
 
 exports.getTrade = asyncHandler(async (req, res) => {

@@ -65,6 +65,8 @@ export const getTradesPage = async (marketType = 'Forex', { period, after = null
         next: hasNextPage ? { cursor: res.nextCursor, cursorId: String(res.nextCursorId) } : null,
         total: null,
       },
+      // { EQUITY, OPTION } totals over the whole period; first page only.
+      summary: res?.summary || null,
     };
   }
 
@@ -82,6 +84,9 @@ export const getTradesPage = async (marketType = 'Forex', { period, after = null
       next: p.hasNextPage ? { page: (Number(p.page) || page) + 1 } : null,
       total: Number.isFinite(p.total) ? p.total : items.length,
     },
+    // Totals over the whole filtered list, not just this page. Absent from
+    // servers that predate it; callers fall back to summing loaded rows.
+    summary: envelope?.summary || null,
   };
 };
 

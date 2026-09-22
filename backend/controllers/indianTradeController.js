@@ -500,6 +500,76 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   }, funnel));
 });
 
+// Same maths as tradeRepository.summarizeForexTradesByUser and the client's
+// calculatePerformanceMetrics (win = profit > 0, loss < 0), split the way the
+// trade log's header is: one block for equity, one for options. The
+// equity/option decision mirrors the page's isEquityTrade() — instrumentType
+// when present, otherwise option markers (CE/PE, a strike, CE|PE|CALL|PUT|FUT
+// in the symbol) mean option — so the server's box matches what the rows
+// underneath it would have summed to.
+const EQUITY_CLASSIFIER = {
+  $cond: [
+    { $eq: ["$instrumentType", "EQUITY"] },
+    "EQUITY",
+    {
+      $cond: [
+        { $eq: ["$instrumentType", "OPTION"] },
+        "OPTION",
+        {
+          $cond: [
+            {
+              $or: [
+                { $in: [{ $toUpper: { $ifNull: ["$optionType", ""] } }, ["CE", "PE"]] },
+                { $ne: [{ $ifNull: ["$strikePrice", null] }, null] },
+                {
+                  $regexMatch: {
+                    input: { $toUpper: { $ifNull: ["$pair", ""] } },
+                    regex: "\\b(CE|PE|CALL|PUT|FUT)\\b",
+                  },
+                },
+              ],
+            },
+            "OPTION",
+            "EQUITY",
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+function finishSummary(row) {
+  const totalTrades = row?.totalTrades ?? 0;
+  const wins = row?.wins ?? 0;
+  return {
+    totalTrades,
+    wins,
+    losses: row?.losses ?? 0,
+    grossPnL: Math.round((row?.grossPnL ?? 0) * 100) / 100,
+    winRate: totalTrades ? Math.round((wins / totalTrades) * 1000) / 10 : 0,
+  };
+}
+
+async function summarizeIndianTrades(match) {
+  const rows = await IndianTrade.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: EQUITY_CLASSIFIER,
+        totalTrades: { $sum: 1 },
+        grossPnL: { $sum: { $ifNull: ["$profit", 0] } },
+        wins: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$profit", 0] }, 0] }, 1, 0] } },
+        losses: { $sum: { $cond: [{ $lt: [{ $ifNull: ["$profit", 0] }, 0] }, 1, 0] } },
+      },
+    },
+  ]);
+  const byType = Object.fromEntries(rows.map((r) => [r._id, r]));
+  return {
+    EQUITY: finishSummary(byType.EQUITY),
+    OPTION: finishSummary(byType.OPTION),
+  };
+}
+
 // Cursor pagination on (effectiveTradeDate DESC, _id DESC).
 //
 // Client passes ?cursor=<ISO-date>&cursorId=<ObjectId> from the previous
@@ -534,17 +604,32 @@ exports.getTrades = asyncHandler(async (req, res) => {
     ];
   }
 
-  const rows = await IndianTrade.find(query)
-    .sort({ effectiveTradeDate: -1, _id: -1 })
-    .limit(limit + 1)
-    .select(INDIAN_TRADE_LIST_PROJECTION)
-    .lean();
+  const clientWantsCursor = req.query.cursor !== undefined || req.query.cursorId !== undefined;
+  const isFirstPage = !(cursorDate && cursorId);
+
+  // Whole-period totals for the header boxes. The client used to sum the
+  // rows it had loaded, so past one page its numbers drifted from the
+  // dashboard's. Only the first page pays for the aggregate; the cursor
+  // predicate is left out so it covers every trade in the period.
+  const summaryQuery = { user: query.user, deletedAt: null };
+  if (query.effectiveTradeDate) summaryQuery.effectiveTradeDate = query.effectiveTradeDate;
+  const summaryPromise = clientWantsCursor && isFirstPage
+    ? summarizeIndianTrades(summaryQuery)
+    : Promise.resolve(null);
+
+  const [rows, summary] = await Promise.all([
+    IndianTrade.find(query)
+      .sort({ effectiveTradeDate: -1, _id: -1 })
+      .limit(limit + 1)
+      .select(INDIAN_TRADE_LIST_PROJECTION)
+      .lean(),
+    summaryPromise,
+  ]);
   const hasMore = rows.length > limit;
   const trades = hasMore ? rows.slice(0, limit) : rows;
 
   // Backward compat: legacy clients omit ?cursor — return the bare array,
   // matching the previous response shape exactly.
-  const clientWantsCursor = req.query.cursor !== undefined || req.query.cursorId !== undefined;
   if (!clientWantsCursor) {
     return res.json(trades);
   }
@@ -555,6 +640,7 @@ exports.getTrades = asyncHandler(async (req, res) => {
     nextCursor:    hasMore && tail ? (tail.effectiveTradeDate || tail.tradeDate || tail.createdAt) : null,
     nextCursorId:  hasMore && tail ? tail._id : null,
     hasMore,
+    ...(summary ? { summary } : {}),
   });
 });
 

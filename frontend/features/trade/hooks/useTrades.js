@@ -65,7 +65,14 @@ export function useTrades() {
         if (!old?.pages) return old;
         return {
           ...old,
-          pages: old.pages.map((p) => ({ ...p, items: (p?.items || []).filter((t) => t._id !== id) })),
+          // Drop the server summary with the row: it counted this trade, and
+          // the refetch in onSettled brings a fresh one. Meanwhile the header
+          // falls back to summing the rows that are actually on screen.
+          pages: old.pages.map((p) => ({
+            ...p,
+            summary: null,
+            items: (p?.items || []).filter((t) => t._id !== id),
+          })),
         };
       });
       return { previous };
@@ -116,11 +123,20 @@ export function useTrades() {
     });
   }, [trades, filter, debouncedSearch]);
 
-  const performance = useMemo(() => calculatePerformanceMetrics(trades), [trades]);
+  // Header boxes must describe the WHOLE period, not the pages fetched so
+  // far: with 53 trades and a 50-row page the client-side sum showed 50
+  // trades and a P&L that disagreed with the dashboard until the user
+  // scrolled. The server now sends totals for the full filtered list; the
+  // local sum is only the fallback for an older API.
+  const serverSummary = pages?.pages?.[0]?.summary || null;
+  const performance = useMemo(
+    () => serverSummary || calculatePerformanceMetrics(trades),
+    [serverSummary, trades]
+  );
 
   const summaryStats = useMemo(() => {
-    const totalPnl = performance.grossPnL;
-    const winRate = performance.winRate.toFixed(1);
+    const totalPnl = Number(performance.grossPnL) || 0;
+    const winRate = (Number(performance.winRate) || 0).toFixed(1);
     const totalBull = totalPnl >= 0;
     return [
       { label: "TOTAL TRADES", val: performance.totalTrades, bull: true },

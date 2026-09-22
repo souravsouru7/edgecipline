@@ -354,9 +354,11 @@ async function getTrades(userId, query) {
   const key = buildCacheKey("trades", userId, `version=${version}`, "list", `period=${period}&page=${page}&limit=${limit}`);
   const startedAt = Date.now();
   const { data: result } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
-    const [rows, total] = await Promise.all([
+    const [rows, summary] = await Promise.all([
       tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit }),
-      tradeRepository.countForexTradesByUser(userId, { dateFrom: periodStart }),
+      // Count and totals come from one aggregate so the page count and the
+      // header boxes can never disagree with each other.
+      tradeRepository.summarizeForexTradesByUser(userId, { dateFrom: periodStart }),
     ]);
     return {
       items: rows.map((trade) => ({
@@ -364,7 +366,8 @@ async function getTrades(userId, query) {
         symbol: trade.pair ?? null,
         pnl: trade.profit ?? 0,
       })),
-      pagination: buildPagination({ page, limit, total }),
+      pagination: buildPagination({ page, limit, total: summary.totalTrades }),
+      summary,
     };
   });
   const duration = Date.now() - startedAt;

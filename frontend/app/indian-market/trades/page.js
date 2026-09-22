@@ -50,8 +50,12 @@ const isEquityTrade = (trade) => {
   );
 };
 // Section
-function StatBar({ trades }) {
-  const performance = calculatePerformanceMetrics(trades);
+// `summary` is the server's whole-period total for this instrument type.
+// Summing `trades` only covers the pages loaded so far, which showed the
+// first 50 trades' numbers next to a dashboard that counts all of them; the
+// local sum remains as the fallback for an older API.
+function StatBar({ trades, summary }) {
+  const performance = summary || calculatePerformanceMetrics(trades);
   const total = performance.totalTrades;
   const wins  = performance.wins;
   const wr    = performance.winRate.toFixed(0);
@@ -519,12 +523,14 @@ export default function IndianTradesPage() {
   // Paged: the API returns 50 per page; more pages are appended on demand.
   const [pageInfo, setPageInfo] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [summary, setSummary] = useState(null);
   const fetchTrades = async () => {
     setLoading(true);
     try {
-      const { items, pagination } = await getTradesPage(MARKETS.INDIAN_MARKET, { period });
+      const { items, pagination, summary: totals } = await getTradesPage(MARKETS.INDIAN_MARKET, { period });
       setTrades(items);
       setPageInfo(pagination);
+      setSummary(totals);
     } finally { setLoading(false); }
   };
   const loadMore = async () => {
@@ -551,6 +557,10 @@ export default function IndianTradesPage() {
       await deleteTrade(id, MARKETS.INDIAN_MARKET);
       invalidateTradeDependentQueries(queryClient);
       setTrades(t => t.filter(x => x._id !== id));
+      // The server totals no longer include this trade; until the next
+      // fetch, let the header fall back to summing the rows on screen
+      // rather than show a count that is one too high.
+      setSummary(null);
     } finally {
       setDeleting(false);
       setDeletingId(null);
@@ -656,7 +666,9 @@ export default function IndianTradesPage() {
         </div>
 
         {/* Stats bar */}
-        {!loading && trades.length > 0 && <StatBar trades={instrumentTrades} />}
+        {!loading && trades.length > 0 && (
+          <StatBar trades={instrumentTrades} summary={summary?.[instrumentType] || null} />
+        )}
 
         {/* Filters */}
         {!loading && trades.length > 0 && (
