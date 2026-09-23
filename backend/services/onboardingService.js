@@ -119,13 +119,19 @@ async function getState(user) {
   // nothing to do (cheap pre-check inside the service).
   // Required separately from ensureStartedAt because the backfill can derive
   // startedAt from the earliest trade rather than "now".
+  // These two write disjoint fields (the funnel flags vs. startedAt) and
+  // neither reads the other's result, so they ran in series for no reason —
+  // a full round-trip added to the endpoint that gates the post-login
+  // redirect AND the first screen a new user ever sees.
   const backfillService = require("./onboardingBackfillService");
-  await backfillService.backfillUserOnboarding(user._id).catch((error) => {
-    logger.warn("ONBOARDING_BACKFILL_LAZY_FAILED", {
-      userId: String(user._id), error: error?.message,
-    });
-  });
-  await ensureStartedAt(user._id);
+  await Promise.all([
+    backfillService.backfillUserOnboarding(user._id).catch((error) => {
+      logger.warn("ONBOARDING_BACKFILL_LAZY_FAILED", {
+        userId: String(user._id), error: error?.message,
+      });
+    }),
+    ensureStartedAt(user._id),
+  ]);
 
   // Read fresh because the cached lean user may not have the new fields the
   // first time this endpoint fires for an existing user.

@@ -157,7 +157,49 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
     const result = await backfill.backfillUserOnboarding("u1");
     expect(result.changed).toBe(false);
     expect(result.reason).toBe("no_signals");
+    // No funnel flags are touched — but the run IS stamped, so the five
+    // signal queries never repeat for this user on the next screen.
+    expect(User.updateOne).toHaveBeenCalledTimes(1);
+    const [, update] = User.updateOne.mock.calls[0];
+    expect(Object.keys(update.$set)).toEqual(["onboarding.backfilledAt"]);
+    expect(update.$set["onboarding.backfilledAt"]).toBeInstanceOf(Date);
+  });
+
+  it("skips entirely once backfilledAt is stamped — no signal queries at all", async () => {
+    mockUser({
+      preferredMarket: "Forex",
+      onboarding: { welcomeSeen: true, backfilledAt: new Date("2026-03-01") },
+      isOnboardingCompleted: false,
+    });
+
+    const result = await backfill.backfillUserOnboarding("u-stamped");
+
+    expect(result.changed).toBe(false);
+    expect(result.reason).toBe("already_backfilled");
     expect(User.updateOne).not.toHaveBeenCalled();
+    // The five queries this endpoint used to pay for on every request.
+    expect(Trade.countDocuments).not.toHaveBeenCalled();
+    expect(SetupStrategy.countDocuments).not.toHaveBeenCalled();
+    expect(Trade.findOne).not.toHaveBeenCalled();
+  });
+
+  it("force=true re-evaluates a stamped user and does not re-stamp", async () => {
+    mockUser({
+      preferredMarket: "Forex",
+      onboarding: { welcomeSeen: true, backfilledAt: new Date("2026-03-01") },
+      isOnboardingCompleted: false,
+      createdAt: new Date("2026-01-01"),
+    });
+    Trade.countDocuments.mockResolvedValue(15);
+    SetupStrategy.countDocuments.mockResolvedValue(2);
+    mockTradesEarliest({ effectiveTradeDate: new Date("2026-02-15"), ocrJobId: null });
+
+    const result = await backfill.backfillUserOnboarding("u-forced", { force: true });
+
+    expect(result.changed).toBe(true);
+    expect(Trade.countDocuments).toHaveBeenCalled();
+    const [, update] = User.updateOne.mock.calls[0];
+    expect(update.$set["onboarding.backfilledAt"]).toBeUndefined();
   });
 
   it("writes the migration update for a pre-existing trader", async () => {
@@ -187,6 +229,8 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
     expect(update.$set.isOnboardingCompleted).toBe(true);
     expect(update.$min["onboarding.firstTradeAt"]).toBeInstanceOf(Date);
     expect(update.$min["onboarding.firstScreenshotUploadAt"]).toBeInstanceOf(Date);
+    // Stamped in the SAME write, not a second round-trip.
+    expect(update.$set["onboarding.backfilledAt"]).toBeInstanceOf(Date);
   });
 
   it("is idempotent — re-running after a successful backfill produces no further writes", async () => {
@@ -209,7 +253,10 @@ describe("onboardingBackfillService.backfillUserOnboarding", () => {
     const result = await backfill.backfillUserOnboarding("u-already-done");
     expect(result.changed).toBe(false);
     expect(result.reason).toBe("already_consistent");
-    expect(User.updateOne).not.toHaveBeenCalled();
+    // Stamp only — the funnel flags are already right and are left alone.
+    expect(User.updateOne).toHaveBeenCalledTimes(1);
+    const [, update] = User.updateOne.mock.calls[0];
+    expect(Object.keys(update.$set)).toEqual(["onboarding.backfilledAt"]);
   });
 
   it("dryRun mode computes the update but never writes", async () => {

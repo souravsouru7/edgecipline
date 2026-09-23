@@ -86,8 +86,20 @@ export function usePlayBillingReconcile({ enabled = true } = {}) {
   useEffect(() => {
     if (!enabled || !isAndroidApp()) return undefined;
 
-    // Cold start — covers reinstall, new device, and re-login.
-    reconcile({ force: true });
+    // Cold start — covers reinstall, new device, and re-login. Deferred to
+    // idle (same treatment as push registration): binding the Play Billing
+    // service and calling our verify endpoint competed with the first
+    // screen's own fetch on exactly the frames that decide whether the app
+    // feels fast. Nothing on screen waits for this, and the timeout keeps it
+    // honest on a device that never goes idle.
+    let idleId = null;
+    let timerId = null;
+    const startColdReconcile = () => reconcile({ force: true });
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(startColdReconcile, { timeout: 3000 });
+    } else {
+      timerId = window.setTimeout(startColdReconcile, 1200);
+    }
 
     // Resume. The WebView's own visibilitychange fires when the Android
     // activity comes back to the foreground, so this needs no extra native
@@ -109,6 +121,10 @@ export function usePlayBillingReconcile({ enabled = true } = {}) {
     });
 
     return () => {
+      if (idleId !== null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId !== null) window.clearTimeout(timerId);
       document.removeEventListener("visibilitychange", onVisibility);
       unsubscribe();
     };

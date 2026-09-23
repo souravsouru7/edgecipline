@@ -29,10 +29,15 @@ async function loadFunnelSignals(userId) {
     Trade.countDocuments({ user: userId, deletedAt: null, "parsedData.multiTradeGhost": { $ne: true } }),
     IndianTrade.countDocuments({ user: userId, deletedAt: null }).catch(() => 0),
     SetupStrategy.countDocuments({ user: userId }),
+    // Sorted on { effectiveTradeDate, _id } to ride the existing
+    // { user, deletedAt, effectiveTradeDate, _id } index. Sorting by
+    // createdAt as the tiebreak left that key out of the index and forced a
+    // blocking in-memory SORT of the user's whole trade set — free at two
+    // trades, a real cost at five hundred (confirmed via explain()).
     Trade.findOne({ user: userId, deletedAt: null }, { tradeDate: 1, createdAt: 1, effectiveTradeDate: 1, ocrJobId: 1 })
-      .sort({ effectiveTradeDate: 1, createdAt: 1 }).lean(),
+      .sort({ effectiveTradeDate: 1, _id: 1 }).lean(),
     IndianTrade.findOne({ user: userId, deletedAt: null }, { tradeDate: 1, createdAt: 1, effectiveTradeDate: 1, ocrJobId: 1 })
-      .sort({ effectiveTradeDate: 1, createdAt: 1 }).lean()
+      .sort({ effectiveTradeDate: 1, _id: 1 }).lean()
       .catch(() => null),
   ]);
 
@@ -122,6 +127,16 @@ function buildBackfillUpdate({ user, signals }) {
 
 // Idempotent. Safe to call from any read path. Returns whether anything
 // actually changed so callers can decide whether to invalidate the auth cache.
+// Records that the one-time migration has run for this user. Never stamps on
+// a forced (bulk-script) pass: that path is explicitly asking to recompute.
+async function stampBackfilled(userId, opts = {}) {
+  if (opts.force || opts.dryRun) return;
+  await User.updateOne(
+    { _id: userId },
+    { $set: { "onboarding.backfilledAt": new Date() } }
+  ).catch(() => {});
+}
+
 async function backfillUserOnboarding(userId, opts = {}) {
   if (!userId) return { changed: false, reason: "no_user" };
 
@@ -130,15 +145,28 @@ async function backfillUserOnboarding(userId, opts = {}) {
     .lean();
   if (!user) return { changed: false, reason: "user_missing" };
 
+  const o = user.onboarding || {};
+
+  // Already migrated. This is a ONE-TIME mirror of pre-funnel data, not a
+  // reconciliation loop: every flag it writes is also written live by the
+  // flow that earns it (a setup save sets setupAdded, a trade save sets
+  // tradeAdded). Re-running it bought nothing and cost five queries —
+  // two counts, a count, and two sorted findOnes — on every single
+  // /onboarding and /dashboard/snapshot request. The bulk migration script
+  // passes force:true and still re-reads the canonical signals.
+  if (o.backfilledAt && !opts.force) {
+    return { changed: false, reason: "already_backfilled" };
+  }
+
   // Cheap pre-check: if the user already shows up as fully activated AND has
   // a startedAt or firstTradeAt stamp, skip the trade/setup count queries.
-  // Self-healing on subsequent calls if data shifts later.
-  const o = user.onboarding || {};
   const alreadyConsistent =
     user.isOnboardingCompleted &&
     o.tradeAdded && o.setupAdded && o.journalSeen && o.welcomeSeen &&
     (o.firstTradeAt || !opts.force);
   if (alreadyConsistent && !opts.force) {
+    // Stamp so the next request skips even the pre-check's user read path.
+    await User.updateOne({ _id: userId }, { $set: { "onboarding.backfilledAt": new Date() } }).catch(() => {});
     return { changed: false, reason: "already_consistent" };
   }
 
@@ -153,6 +181,10 @@ async function backfillUserOnboarding(userId, opts = {}) {
     !user.preferredMarket &&
     !opts.force
   ) {
+    // A genuinely new account has nothing to mirror and never will — the
+    // live flows own its flags from here. Stamping stops this request's five
+    // queries from repeating on every screen the user opens next.
+    await stampBackfilled(userId, opts);
     return { changed: false, reason: "no_signals", signals };
   }
 
@@ -163,6 +195,7 @@ async function backfillUserOnboarding(userId, opts = {}) {
   if (Object.keys(min).length) update.$min = min;
 
   if (!update.$set && !update.$min) {
+    await stampBackfilled(userId, opts);
     return { changed: false, reason: "no_changes", signals };
   }
 
@@ -170,6 +203,10 @@ async function backfillUserOnboarding(userId, opts = {}) {
     return { changed: true, dryRun: true, set, min, signals };
   }
 
+  // Fold the stamp into the same write rather than paying a second one.
+  if (!opts.force) {
+    update.$set = { ...(update.$set || {}), "onboarding.backfilledAt": new Date() };
+  }
   await User.updateOne({ _id: userId }, update);
   await invalidateAuthCache(userId).catch(() => {});
 

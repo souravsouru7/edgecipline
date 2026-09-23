@@ -207,6 +207,15 @@ const userSchema = new mongoose.Schema(
       firstScreenshotUploadAt: { type: Date, default: null },
       firstInsightAt:          { type: Date, default: null },
       completedAt:             { type: Date, default: null },
+      // When onboardingBackfillService last mirrored this account's real data
+      // (trades / setups / preferredMarket) onto the funnel flags. That
+      // migration is for accounts created before the funnel shipped, so it
+      // only ever needs to run once — but it used to re-run on EVERY
+      // GET /onboarding and GET /dashboard/snapshot, five count/sort queries
+      // deep, because its short-circuit only covered fully-activated users.
+      // Mid-onboarding users — exactly the ones hitting these endpoints most
+      // — paid for it on every request. Set means "already migrated, skip".
+      backfilledAt:            { type: Date, default: null },
     },
     termsAcceptance: {
       acceptedTerms: { type: Boolean, default: false },

@@ -178,26 +178,39 @@ async function loadNotificationsSummary(userId) {
 exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
   const generatedAt = new Date().toISOString();
   let dashboardUser = req.user;
-  try {
-    const backfillService = require("../services/onboardingBackfillService");
-    const result = await backfillService.backfillUserOnboarding(req.user._id);
-    if (result?.changed) {
-      dashboardUser = await User.findById(req.user._id).lean() || req.user;
-    }
-  } catch (error) {
-    logger.warn("Dashboard onboarding backfill failed", {
-      userId: req.user?._id?.toString?.() || req.user?._id,
-      error: error.message,
-    });
-  }
 
-  const [analytics, notificationsSummary, onboardingProgress, streaks, reflection] = await Promise.all([
-    loadDashboardAnalytics(dashboardUser._id, req.query?.market),
-    loadNotificationsSummary(dashboardUser._id),
-    loadOnboardingProgress(dashboardUser._id),
-    loadStreakSnapshot(dashboardUser._id),
-    loadReflectionSnapshot(dashboardUser._id),
-  ]);
+  // The backfill used to run to completion BEFORE any of the real work
+  // started, adding its whole round-trip chain to the front of every
+  // dashboard load. It reads and writes only the user's onboarding flags, so
+  // nothing below depends on it except the flag reads — and those are
+  // reconciled from the counts we load anyway. Run it alongside the rest and
+  // re-read the user only in the rare pass that actually changed something.
+  const backfill = (async () => {
+    try {
+      const backfillService = require("../services/onboardingBackfillService");
+      return await backfillService.backfillUserOnboarding(req.user._id);
+    } catch (error) {
+      logger.warn("Dashboard onboarding backfill failed", {
+        userId: req.user?._id?.toString?.() || req.user?._id,
+        error: error.message,
+      });
+      return null;
+    }
+  })();
+
+  const [analytics, notificationsSummary, onboardingProgress, streaks, reflection, backfillResult] =
+    await Promise.all([
+      loadDashboardAnalytics(req.user._id, req.query?.market),
+      loadNotificationsSummary(req.user._id),
+      loadOnboardingProgress(req.user._id),
+      loadStreakSnapshot(req.user._id),
+      loadReflectionSnapshot(req.user._id),
+      backfill,
+    ]);
+
+  if (backfillResult?.changed) {
+    dashboardUser = await User.findById(req.user._id).lean() || req.user;
+  }
 
   const o = dashboardUser.onboarding || {};
   const setupAdded = Boolean(o.setupAdded) || onboardingProgress.setupCount > 0;
