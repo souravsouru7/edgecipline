@@ -28,6 +28,12 @@ export default function OnboardingShell({
       display: "flex",
       flexDirection: "column",
     }}>
+      <style>{`
+        @keyframes onboardingBtnSpin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="onboardingBtnSpin"] { animation: none !important; }
+        }
+      `}</style>
       <header style={{
         padding: "20px 24px 0",
         display: "flex",
@@ -131,12 +137,20 @@ export default function OnboardingShell({
                 {secondaryLabel}
               </button>
             )}
+            {/* The label stays put while loading and a spinner appears beside
+                it. Swapping the whole label for "Working…" resized the button
+                mid-tap and told the user nothing about what was happening. */}
             <button
               type="button"
               onClick={onPrimary}
               disabled={primaryDisabled || primaryLoading}
+              aria-busy={primaryLoading || undefined}
               style={{
                 flex: 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
                 padding: "12px 18px",
                 borderRadius: 12,
                 background: primaryDisabled
@@ -148,10 +162,28 @@ export default function OnboardingShell({
                 fontSize: 13,
                 cursor: primaryDisabled ? "not-allowed" : "pointer",
                 boxShadow: primaryDisabled ? "none" : "0 8px 20px rgba(13,158,110,0.35)",
-                opacity: primaryLoading ? 0.7 : 1,
+                opacity: primaryLoading ? 0.85 : 1,
+                // Acknowledge the tap itself, before any request answers.
+                transition: "transform 120ms ease, opacity 120ms ease",
+                transform: primaryLoading ? "scale(0.995)" : "none",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
-              {primaryLoading ? "Working…" : primaryLabel}
+              {primaryLoading && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: "50%",
+                    border: "2px solid rgba(255,255,255,0.35)",
+                    borderTopColor: "#FFFFFF",
+                    animation: "onboardingBtnSpin 0.75s linear infinite",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              {primaryLabel}
             </button>
           </div>
         </section>

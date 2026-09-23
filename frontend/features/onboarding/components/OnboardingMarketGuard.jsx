@@ -16,12 +16,17 @@ export default function OnboardingMarketGuard({ children }) {
   const onboardingMode = searchParams?.get("onboarding") === "1";
   const queryString = searchParams?.toString() || "";
 
+  // Shares the wizard's cache key on purpose. It used to force
+  // staleTime: 0 + refetchOnMount: "always", which threw away the state the
+  // wizard had just fetched and made every hop into a setup or upload page
+  // wait on a fresh request behind a full-screen placeholder. A few seconds
+  // of reuse is plenty: the only thing read here is preferredMarket, which
+  // the user has just chosen and cannot change from these pages.
   const marketQuery = useQuery({
     queryKey: ["onboarding", "state"],
     queryFn: ({ signal }) => getOnboardingState(signal),
     enabled: onboardingMode,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 15 * 1000,
     retry: 1,
   });
 
@@ -57,10 +62,35 @@ export default function OnboardingMarketGuard({ children }) {
     );
   }
 
+  // Only the FIRST load can have no answer yet. A cached one resolves in the
+  // same tick, so this placeholder stops flashing between onboarding pages.
   if (marketQuery.isPending || shouldRedirect) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", color: "#64748B", fontFamily: "var(--font-plus-jakarta-sans)", fontSize: 13, fontWeight: 700 }}>
-        Opening your selected market...
+      <main
+        role="status"
+        aria-live="polite"
+        style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "var(--font-plus-jakarta-sans)" }}
+      >
+        <div style={{ display: "grid", gap: 12, justifyItems: "center" }}>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              border: "2px solid rgba(13,158,110,0.25)",
+              borderTopColor: "#0D9E6E",
+              animation: "marketGuardSpin 0.8s linear infinite",
+            }}
+          />
+          <p style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 700 }}>Opening your market…</p>
+        </div>
+        <style>{`
+          @keyframes marketGuardSpin { to { transform: rotate(360deg); } }
+          @media (prefers-reduced-motion: reduce) {
+            [style*="marketGuardSpin"] { animation: none !important; }
+          }
+        `}</style>
       </main>
     );
   }

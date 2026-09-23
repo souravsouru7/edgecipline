@@ -8,7 +8,11 @@
 // settled (success or error — an error state is still content). The gate is
 // one-shot per page load: later client-side navigations never re-arm it.
 
-const STARTUP_GATED_ROUTES = new Set(["/", "/dashboard", "/indian-market"]);
+// /onboarding is gated too: it is the FIRST screen a new user ever sees, and
+// its content depends on a request. Without the gate the opener handed over to
+// a full-screen "Loading your onboarding…" — a second loading screen in a row,
+// which reads as the app being stuck.
+const STARTUP_GATED_ROUTES = new Set(["/", "/dashboard", "/indian-market", "/onboarding"]);
 
 let ready = false;
 const listeners = new Set();

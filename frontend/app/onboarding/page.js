@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useMarket } from "@/context/MarketContext";
 import { getOnboardingSetupsUrl } from "@/utils/marketNavigation";
-import { markOnboardingStep, setPreferredMarket as setPreferredMarketLocal } from "@/services/api";
+import { markOnboardingStep } from "@/services/api";
+import { markStartupContentReady } from "@/utils/startupGate";
 import OnboardingShell from "@/features/onboarding/components/OnboardingShell";
 import WelcomeStep from "@/features/onboarding/components/WelcomeStep";
 import MarketStep from "@/features/onboarding/components/MarketStep";
@@ -38,6 +39,14 @@ function Page() {
 
   const state = stateQuery.data;
   const funnel = state?.funnel;
+
+  // Release the brand opener once this screen has something real to show —
+  // success or error, both are content. Until this fires the opener stays up,
+  // so the user never sees a loading screen hand off to another loading
+  // screen on a cold start into onboarding.
+  useEffect(() => {
+    if (stateQuery.isSuccess || stateQuery.isError) markStartupContentReady();
+  }, [stateQuery.isSuccess, stateQuery.isError]);
 
   // Resume on the first incomplete step. We allow known `?step=` values to
   // override, and ignore stale links from older onboarding routes.
@@ -81,10 +90,35 @@ function Page() {
   // dashboard hides FirstLoginWelcome via the existing welcomeSeen flag.
   useEffect(() => {
     if (activeKey !== "done") return;
-    complete.mutate(undefined, {
-      onSettled: () => router.replace("/dashboard?onboarded=1"),
-    });
+    // Navigate first. The dashboard reads the funnel itself, so holding the
+    // user on a loading screen for the length of this request bought nothing
+    // — and on a failed request it stranded them there completely.
+    complete.mutate();
+    router.replace("/dashboard?onboarded=1");
   }, [activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Start" used to await markOnboardingStep AND a refetch of the whole
+  // onboarding state before moving — two round-trips during which the button
+  // showed no loading state at all, so on a slow connection the first tap in
+  // the app looked like it did nothing. The step is recorded in the
+  // background; nothing on the next screen depends on the answer, and the
+  // funnel trail is corrected by the next natural refetch if it fails.
+  const advanceFromWelcome = useCallback(() => {
+    markOnboardingStep("welcomeSeen", true).catch(() => {});
+    setActiveKey("marketSelected");
+  }, []);
+
+  // router.push on a heavy route can take a moment to paint. Without this the
+  // button looked inert and users tapped it again.
+  const [navigating, setNavigating] = useState(false);
+  const navigateTo = useCallback((href) => {
+    if (navigating) return;
+    setNavigating(true);
+    router.push(href);
+  }, [navigating, router]);
+  // A back gesture returns to this screen without unmounting it, so the
+  // button has to become tappable again.
+  useEffect(() => { setNavigating(false); }, [activeKey]);
 
   function gotoNext() {
     const idx = STEPS.indexOf(activeKey);
@@ -95,11 +129,12 @@ function Page() {
     setActiveKey(STEPS[Math.max(idx - 1, 0)] || "welcomeSeen");
   }
 
-  async function handleSkip() {
+  function handleSkip() {
     // Skip = mark the user as having seen the welcome and let them into the
     // dashboard. Their getting-started card will still nudge them through the
-    // remaining steps.
-    try { await markOnboardingStep("welcomeSeen", true); } catch {/* non-blocking */}
+    // remaining steps. Fire-and-forget: awaiting it only delayed the exit the
+    // user just asked for, and the dashboard re-reads this flag anyway.
+    markOnboardingStep("welcomeSeen", true).catch(() => {});
     router.replace("/dashboard?onboarding=skipped");
   }
 
@@ -107,6 +142,27 @@ function Page() {
 
   if (isLoadingState) {
     return <ShellLoading />;
+  }
+
+  // Offline or a failing API used to fall through to the welcome step with an
+  // empty funnel: the progress trail vanished, and a user resuming halfway
+  // was silently sent back to the beginning. Say what happened and offer a
+  // real retry instead.
+  if (stateQuery.isError && !state) {
+    return (
+      <OnboardingShell
+        funnel={null}
+        title="We couldn't load your setup."
+        subtitle="Check your connection and try again. Nothing you've done so far is lost."
+        primaryLabel="Try again"
+        primaryLoading={stateQuery.isFetching}
+        onPrimary={() => stateQuery.refetch()}
+        secondaryLabel="Go to dashboard"
+        onSecondary={() => router.replace("/dashboard")}
+      >
+        <OnboardingError error={stateQuery.error} />
+      </OnboardingShell>
+    );
   }
 
   // Each step gets its own primary action + content. We share the shell so the
@@ -121,11 +177,7 @@ function Page() {
         skipLabel="Skip"
         onSkip={handleSkip}
         primaryLabel="Start"
-        onPrimary={async () => {
-          try { await markOnboardingStep("welcomeSeen", true); } catch {/* non-blocking */}
-          await stateQuery.refetch();
-          gotoNext();
-        }}
+        onPrimary={advanceFromWelcome}
       >
         <WelcomeStep />
       </OnboardingShell>
@@ -146,9 +198,12 @@ function Page() {
         primaryDisabled={!marketChoice}
         primaryLoading={selectMarket.isPending}
         onPrimary={async () => {
-          if (!marketChoice) return;
+          if (!marketChoice || selectMarket.isPending) return;
           toggleMarket(marketChoice);
-          setPreferredMarketLocal(marketChoice).catch(() => {});
+          // No separate PATCH /auth/me/preferences here: the onboarding
+          // market endpoint writes preferredMarket itself (see
+          // onboardingService.selectMarket), so the second request only added
+          // latency and a chance of the two disagreeing.
           try {
             await selectMarket.mutateAsync(marketChoice);
             router.push(getOnboardingSetupsUrl(marketChoice));
@@ -156,9 +211,11 @@ function Page() {
         }}
       >
         <MarketStep value={marketChoice} onChange={setMarketChoice} />
+        {/* Retry re-sends the request. It used to call reset(), which only
+            cleared the banner and left the step unsaved. */}
         <OnboardingError
           error={selectMarket.error}
-          onRetry={() => selectMarket.reset()}
+          onRetry={() => marketChoice && selectMarket.mutate(marketChoice)}
           retrying={selectMarket.isPending}
         />
       </OnboardingShell>
@@ -166,7 +223,7 @@ function Page() {
   }
 
   if (activeKey === "setupAdded") {
-    return <ShellLoading />;
+    return <ShellLoading label="Opening your setups" />;
   }
 
   if (activeKey === "tradeAdded") {
@@ -181,9 +238,10 @@ function Page() {
         secondaryLabel="← Back"
         onSecondary={gotoPrev}
         primaryLabel="Open import"
+        primaryLoading={navigating}
         onPrimary={() => {
           const marketRoot = market === "Indian_Market" ? "/indian-market" : "";
-          router.push(`${marketRoot}/upload-trade?onboarding=1`);
+          navigateTo(`${marketRoot}/upload-trade?onboarding=1`);
         }}
       >
         <TradeStep market={market} />
@@ -202,7 +260,8 @@ function Page() {
         secondaryLabel="← Back"
         onSecondary={gotoPrev}
         primaryLabel="Open trade log"
-        onPrimary={() => router.push(`${marketRoot}/trades?onboarding=1`)}
+        primaryLoading={navigating}
+        onPrimary={() => navigateTo(`${marketRoot}/trades?onboarding=1`)}
       >
         <div style={{
           padding: "14px",
@@ -220,20 +279,81 @@ function Page() {
   }
 
   // "done" intermediate state — handled by the useEffect above.
-  return <ShellLoading />;
+  return <ShellLoading label="Finishing setup" />;
 }
 
-function ShellLoading() {
+// A skeleton of the shell rather than a line of centred text. The card, the
+// header and the progress trail are already in their final positions, so when
+// the data lands the page fills in instead of replacing one screen with a
+// completely different one.
+function ShellLoading({ label = "Getting your setup ready" }) {
+  const bar = (width, height = 12, extra = {}) => ({
+    width,
+    height,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.07)",
+    animation: "onboardingPulse 1.4s ease-in-out infinite",
+    ...extra,
+  });
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(180deg, #0F1923 0%, #182333 100%)",
-      color: "#F1F5F9",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "var(--font-plus-jakarta-sans)",
-      fontSize: 13,
-    }}>
-      Loading your onboarding…
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(180deg, #0F1923 0%, #182333 100%)",
+        color: "#F1F5F9",
+        fontFamily: "var(--font-plus-jakarta-sans)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <style>{`
+        @keyframes onboardingPulse {
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0.45; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-onboarding-skeleton] * { animation: none !important; }
+        }
+      `}</style>
+      <div data-onboarding-skeleton style={{ display: "contents" }}>
+        {/* Header: icon tile + two lines, same box as OnboardingShell's. */}
+        <header style={{ padding: "20px 24px 0", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 10, background: "rgba(34,199,142,0.18)" }} />
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={bar(72, 9)} />
+            <div style={bar(96, 12)} />
+          </div>
+        </header>
+
+        {/* Progress trail pills. */}
+        <div style={{ padding: "16px 24px 0", display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+          {[68, 82, 74, 90, 70].map((width, index) => (
+            <div key={index} style={bar(width, 24, { borderRadius: 999 })} />
+          ))}
+        </div>
+
+        <main style={{ flex: 1, padding: "20px 20px 32px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <section style={{
+            width: "100%",
+            maxWidth: 520,
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 18,
+            padding: "26px 24px 24px",
+            display: "grid",
+            gap: 14,
+          }}>
+            <div style={bar("70%", 22)} />
+            <div style={bar("100%", 12)} />
+            <div style={bar("85%", 12)} />
+            <div style={bar("100%", 84, { borderRadius: 12, marginTop: 6 })} />
+            <div style={bar("100%", 44, { borderRadius: 12, marginTop: 8 })} />
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

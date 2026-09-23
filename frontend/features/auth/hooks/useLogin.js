@@ -48,6 +48,14 @@ function hasCompletedActivation(state = {}) {
   );
 }
 
+// The onboarding page and OnboardingMarketGuard both read this key. Seeding it
+// with the payload resolveLandingPath already fetched means the wizard paints
+// its first real step immediately instead of after a second identical request.
+function seedOnboardingCache(queryClient, state) {
+  if (!state) return;
+  queryClient.setQueryData(["onboarding", "state"], state);
+}
+
 function clearFreshStartClientState() {
   if (typeof window === "undefined") return;
   try {
@@ -58,12 +66,17 @@ function clearFreshStartClientState() {
   }
 }
 
+// Returns { path, state } — `state` is the /onboarding payload this function
+// already paid for, so the caller can seed React Query with it. Without that
+// seed, /onboarding mounts with an empty cache and fetches the SAME endpoint a
+// second time, and the user stares at a full-screen "Loading your onboarding…"
+// for the length of that round-trip immediately after signing in.
 async function resolveLandingPath() {
   try {
     const state = await apiClient.get("/onboarding");
-    if (hasCompletedActivation(state)) return "/dashboard";
+    if (hasCompletedActivation(state)) return { path: "/dashboard", state };
     clearFreshStartClientState();
-    return "/onboarding";
+    return { path: "/onboarding", state };
   } catch {
     // Onboarding endpoint failed — try the lighter preferences endpoint so
     // existing users who don't hit /onboarding still skip the wizard.
@@ -74,12 +87,12 @@ async function resolveLandingPath() {
         o.welcomeSeen && o.marketSelected &&
         o.setupAdded && (o.tradeAdded || o.tradeSkipped) && o.journalSeen;
       const hasCompletionStamp = Boolean(o.completedAt || o.tourCompleted);
-      if (prefs?.isOnboardingCompleted && hasCompletionStamp) return "/dashboard";
-      if (corePassed) return "/dashboard";
+      if (prefs?.isOnboardingCompleted && hasCompletionStamp) return { path: "/dashboard", state: null };
+      if (corePassed) return { path: "/dashboard", state: null };
       clearFreshStartClientState();
-      return "/onboarding";
+      return { path: "/onboarding", state: null };
     } catch {
-      return "/dashboard";
+      return { path: "/dashboard", state: null };
     }
   }
 }
@@ -204,7 +217,13 @@ export function useLogin() {
         try {
           const profile = await getProfile();
           if (!cancelled) {
-            router.push(profile?.requiresTermsAcceptance ? "/accept-terms" : await resolveLandingPath());
+            if (profile?.requiresTermsAcceptance) {
+              router.push("/accept-terms");
+            } else {
+              const landing = await resolveLandingPath();
+              seedOnboardingCache(queryClient, landing.state);
+              router.push(landing.path);
+            }
           }
           return;
         } catch (err) {
@@ -248,20 +267,26 @@ export function useLogin() {
           ? sessionStorage.getItem("auth_redirect")
           : null;
         try {
-          const profile = await getProfile();
-          const landingPath = await resolveLandingPath();
+          // Both requests answer independent questions; running them in
+          // series added a whole round-trip to every restored session.
+          const [profile, landing] = await Promise.all([
+            getProfile(),
+            resolveLandingPath(),
+          ]);
+          seedOnboardingCache(queryClient, landing.state);
           if (profile?.requiresTermsAcceptance) {
             router.push("/accept-terms");
-          } else if (savedRedirect && landingPath !== "/onboarding") {
+          } else if (savedRedirect && landing.path !== "/onboarding") {
             sessionStorage.removeItem("auth_redirect");
             router.push(savedRedirect);
           } else {
             if (savedRedirect) sessionStorage.removeItem("auth_redirect");
-            router.push(landingPath);
+            router.push(landing.path);
           }
         } catch {
-          const landingPath = await resolveLandingPath();
-          router.push(savedRedirect && landingPath !== "/onboarding" ? savedRedirect : landingPath);
+          const landing = await resolveLandingPath();
+          seedOnboardingCache(queryClient, landing.state);
+          router.push(savedRedirect && landing.path !== "/onboarding" ? savedRedirect : landing.path);
           if (savedRedirect) sessionStorage.removeItem("auth_redirect");
         }
         return;
@@ -317,15 +342,16 @@ export function useLogin() {
     const savedRedirect = typeof window !== "undefined"
       ? sessionStorage.getItem("auth_redirect")
       : null;
-    const landingPath = await resolveLandingPath();
-    if (savedRedirect && landingPath !== "/onboarding") {
+    const landing = await resolveLandingPath();
+    seedOnboardingCache(queryClient, landing.state);
+    if (savedRedirect && landing.path !== "/onboarding") {
       sessionStorage.removeItem("auth_redirect");
       router.push(savedRedirect);
     } else {
       if (savedRedirect) sessionStorage.removeItem("auth_redirect");
       // New users go to /onboarding; returning users go straight to /dashboard.
       // resolveLandingPath() reads the user's onboarding state from the server.
-      router.push(landingPath);
+      router.push(landing.path);
     }
   };
 
