@@ -40,7 +40,7 @@ That probe order is unpaid and expires on its own; it has no effect on the datab
 
 | Variable | Location | State | Effect |
 |---|---|---|---|
-| `RAZORPAY_KEY_ID` | `backend/.env` | ✅ `rzp_test_TRY1kdKakXfbBa` | real order creation works |
+| `RAZORPAY_KEY_ID` | `backend/.env` | ✅ `rzp_test_<redacted>` | real order creation works |
 | `RAZORPAY_KEY_SECRET` | `backend/.env` | ✅ set, **authenticates** | signature verification works |
 | `RAZORPAY_WEBHOOK_SECRET` | `backend/.env` | 🔴 **empty** | every webhook 503s |
 | `ALLOW_SANDBOX_PAYMENTS` | `backend/.env` | ✅ `false` | sandbox unreachable |

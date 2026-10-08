@@ -51,16 +51,30 @@ beforeEach(() => {
 
 describe("subscription state reaches the client", () => {
   test("a paying customer is reported active, not free", async () => {
+    // Relative to now, not a fixed date. A hardcoded expiry turned this into a
+    // time bomb: it passed until that day arrived, then failed every CI run
+    // because the "paying" customer had quietly expired.
+    const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const body = await call(baseUser({
       subscriptionStatus: "active",
       subscriptionPlan: "monthly",
-      subscriptionExpiry: new Date("2026-09-25T11:12:18.305Z"),
+      subscriptionExpiry: expiry,
     }));
 
     expect(body.subscriptionStatus).toBe("active");
     expect(body.subscriptionPlan).toBe("monthly");
-    expect(body.subscriptionExpiry).toEqual(new Date("2026-09-25T11:12:18.305Z"));
+    expect(body.subscriptionExpiry).toEqual(expiry);
     expect(body.isPremium).toBe(true);
+  });
+
+  test("an expired subscription is not premium, whatever the status says", async () => {
+    const body = await call(baseUser({
+      subscriptionStatus: "active",
+      subscriptionPlan: "monthly",
+      subscriptionExpiry: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    }));
+
+    expect(body.isPremium).toBe(false);
   });
 
   test("a free user is reported free and not premium", async () => {
