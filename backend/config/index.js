@@ -288,8 +288,12 @@ const appConfig = {
     openaiApiKey: process.env.OPENAI_API_KEY || "",
     openaiModel: process.env.OPENAI_TRADE_MODEL || "gpt-4o-mini",
     geminiApiKey: process.env.GEMINI_API_KEY || "",
-    geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    geminiTradeModel: process.env.GEMINI_TRADE_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    // gemini-2.5-flash is closed to new API projects: a fresh key gets a 404
+    // telling it to move on. gemini-3.8-flash is the name Google suggests but
+    // it returned 503 "high demand" on 1 of every 5 calls in testing, where
+    // gemini-3.5-flash answered 5/5 at roughly half the latency.
+    geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+    geminiTradeModel: process.env.GEMINI_TRADE_MODEL || process.env.GEMINI_MODEL || "gemini-3.5-flash",
   },
   trial: {
     // The 7-day free trial is retired: the free tier is now the 2-trades-per-

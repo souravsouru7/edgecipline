@@ -36,6 +36,10 @@ async function readUsage(userId, weekKey) {
   const count = await CoachMessage.countDocuments({
     user: userId,
     role: "user",
+    // A refunded turn (the reply failed upstream) and a superseded one (the
+    // user retried it) are explicitly flagged, so they drop out of the count.
+    billable: { $ne: false },
+    superseded: { $ne: true },
     createdAt: { $gte: sevenDaysAgo },
   });
 
@@ -107,10 +111,33 @@ async function incrementUsage(user) {
   return used + 1;
 }
 
+// Give back a slot when the question never produced an answer. Mongo is the
+// authority (the caller clears `billable` on the user turn); this just keeps
+// the Redis cache from lagging a week behind that correction.
+//
+// Floors at zero: a decrement that races a week rollover must never push the
+// counter negative, or the user would silently get a sixth free question.
+async function refundUsage(user) {
+  const weekKey = isoWeekKey(new Date());
+  if (!isRedisReady()) return null;
+  try {
+    const next = await redis.decr(quotaKey(user._id, weekKey));
+    if (next < 0) {
+      await redis.set(quotaKey(user._id, weekKey), "0", "EX", QUOTA_TTL_SECONDS);
+      return 0;
+    }
+    return next;
+  } catch (error) {
+    logger.warn("COACH_QUOTA_REDIS_REFUND_FAILED", { userId: String(user._id), error: error?.message });
+    return null;
+  }
+}
+
 module.exports = {
   FREE_WEEKLY_LIMIT,
   getQuota,
   incrementUsage,
   readUsage,
+  refundUsage,
   weekStartFromKey,
 };

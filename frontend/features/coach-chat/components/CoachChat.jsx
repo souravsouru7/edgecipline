@@ -22,6 +22,32 @@ import {
 // When `conversationId` is provided we open an existing thread; otherwise the
 // first send call creates a new conversation server-side using the supplied
 // `anchor` (insight, trade, reflection, etc.).
+// A failure that happened in this session carries everything a retry needs on
+// the message itself. One loaded from the server after a reopen doesn't, so
+// rebuild it: the question to re-ask is the user turn right above the failed
+// reply, and the code is the prefix we persist in `error`.
+const RETRYABLE_CODES = ["COACH_UNAVAILABLE", "COACH_BUSY", "COACH_STREAM_ERROR", "COACH_EMPTY_RESPONSE"];
+
+function withRetryContext(messages) {
+  if (!messages?.some((m) => m.status === "error" && !m.retryPrompt)) return messages;
+  let lastUser = null;
+  return messages.map((m) => {
+    if (m.role === "user") {
+      lastUser = m;
+      return m;
+    }
+    if (m.status !== "error" || m.retryPrompt || !lastUser) return m;
+    const code = String(m.error || "").split(":")[0].trim() || "COACH_STREAM_ERROR";
+    return {
+      ...m,
+      errorCode: code,
+      retryable: RETRYABLE_CODES.includes(code),
+      retryPrompt: lastUser.content,
+      retryUserMessageId: lastUser._id,
+    };
+  });
+}
+
 export default function CoachChat({
   open = true,
   onClose,
@@ -145,11 +171,22 @@ export default function CoachChat({
         {stream.messages.length === 0 && (
           <EmptyState anchor={anchor} />
         )}
-        {stream.messages.map((m) => (
-          <CoachMessage key={m._id} message={m} streaming={stream.streaming} />
+        {withRetryContext(stream.messages).map((m) => (
+          <CoachMessage
+            key={m._id}
+            message={m}
+            streaming={stream.streaming}
+            onRetry={stream.retry}
+          />
         ))}
-        {stream.error && stream.error.code !== "COACH_QUOTA_EXHAUSTED" && (
-          <div style={{ fontSize: 11, color: "#D63B3B", textAlign: "center" }}>
+        {/* The failure is stated once, inside the assistant bubble that failed.
+            A centered banner here repeated the same sentence directly under it.
+            The one case with no bubble to carry it is a send that never
+            started, so that alone still needs a line of its own. */}
+        {stream.error
+          && stream.error.code !== "COACH_QUOTA_EXHAUSTED"
+          && !stream.messages.some((m) => m.status === "error") && (
+          <div style={{ fontSize: 12, color: "#D63B3B", textAlign: "center" }} role="alert">
             {stream.error.message}
           </div>
         )}

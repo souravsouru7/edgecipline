@@ -133,12 +133,24 @@ exports.deleteConversation = asyncHandler(async (req, res) => {
 // response when `?stream=false` (used by clients that don't speak SSE — e.g.
 // tests and lightweight admin tooling).
 exports.sendMessage = asyncHandler(async (req, res) => {
-  const { content, stream = true, anchor } = req.validated?.body || req.body || {};
+  const { content, stream = true, anchor, retryOfUserMessageId } =
+    req.validated?.body || req.body || {};
   const conversation = await coachChatService.ensureConversation({
     user: req.user,
     conversationId: req.params.id,
     anchor,
   });
+
+  // A retry replaces the turn that failed rather than appending to it, so the
+  // thread doesn't accumulate the same question next to a stack of errors.
+  // Done before the quota check so the retired turn stops counting first.
+  if (retryOfUserMessageId) {
+    await coachChatService.supersedeTurn({
+      user: req.user,
+      conversationId: conversation._id,
+      userMessageId: retryOfUserMessageId,
+    });
+  }
 
   // Quota enforcement happens BEFORE we open the SSE pipe so the response
   // shape (JSON 402 vs. event-stream 200) is unambiguous.
@@ -201,9 +213,13 @@ exports.sendMessage = asyncHandler(async (req, res) => {
       });
     } catch (error) {
       logger.warn("COACH_SYNC_REPLY_FAILED", { error: error?.message });
+      const code = error?.errorCode || "COACH_STREAM_ERROR";
+      if (coachChatService.isRefundable(code)) {
+        await coachChatService.refundTurn({ user: req.user, userMessageId: userMessage._id });
+      }
       res.status(error?.statusCode || 502).json({
         success: false,
-        error: { code: error?.errorCode || "COACH_STREAM_ERROR", message: error?.message },
+        error: { code, message: error?.message, retryable: coachChatService.isRefundable(code) },
       });
     }
     return;
@@ -234,10 +250,20 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     });
     if (!closed) sseSend(res, "done", { ok: true });
   } catch (error) {
+    const code = error?.errorCode || "COACH_STREAM_ERROR";
+    // The charge is cleared even when the client already hung up — otherwise
+    // closing the sheet mid-failure would quietly cost a free question.
+    if (coachChatService.isRefundable(code)) {
+      await coachChatService.refundTurn({ user: req.user, userMessageId: userMessage._id });
+    }
     if (!closed) {
       sseSend(res, "error", {
-        code:    error?.errorCode || "COACH_STREAM_ERROR",
+        code,
         message: error?.message || "Coach response failed",
+        // Drives the "Try again" affordance: only our failures are worth one.
+        retryable: coachChatService.isRefundable(code),
+        userMessageId: String(userMessage._id),
+        quota: await coachQuotaService.getQuota(req.user).catch(() => null),
       });
     }
   } finally {

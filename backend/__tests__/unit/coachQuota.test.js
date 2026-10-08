@@ -3,7 +3,7 @@ jest.mock("@google/generative-ai", () => ({
 }));
 
 jest.mock("../../config/redis", () => ({
-  client: { get: jest.fn(), set: jest.fn(), incr: jest.fn(), expire: jest.fn() },
+  client: { get: jest.fn(), set: jest.fn(), incr: jest.fn(), decr: jest.fn(), expire: jest.fn() },
   isRedisReady: jest.fn(() => false),
 }));
 
@@ -69,5 +69,54 @@ describe("coachQuotaService.getQuota", () => {
     expect(quota.limit).toBeNull();
     expect(quota.remaining).toBeNull();
     expect(quota.used).toBe(50);
+  });
+});
+
+describe("coachQuotaService quota counting excludes refunded turns", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("counts only billable, non-superseded user turns", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(1);
+    await coachQuotaService.getQuota({ _id: "user-1", subscriptionPlan: "free" });
+
+    const filter = CoachMessage.countDocuments.mock.calls[0][0];
+    expect(filter.role).toBe("user");
+    // A question whose reply died upstream was refunded and must not count.
+    expect(filter.billable).toEqual({ $ne: false });
+    // Nor may a question the user retried.
+    expect(filter.superseded).toEqual({ $ne: true });
+  });
+});
+
+describe("coachQuotaService.refundUsage", () => {
+  const { client: redis, isRedisReady } = require("../../config/redis");
+  const user = { _id: "user-1" };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it("decrements the cached counter when Redis is available", async () => {
+    isRedisReady.mockReturnValue(true);
+    redis.decr.mockResolvedValue(2);
+    await expect(coachQuotaService.refundUsage(user)).resolves.toBe(2);
+    expect(redis.decr).toHaveBeenCalledTimes(1);
+  });
+
+  it("floors at zero so a refund racing a week rollover can't hand out a sixth question", async () => {
+    isRedisReady.mockReturnValue(true);
+    redis.decr.mockResolvedValue(-1);
+    await expect(coachQuotaService.refundUsage(user)).resolves.toBe(0);
+    expect(redis.set).toHaveBeenCalledWith(expect.any(String), "0", "EX", expect.any(Number));
+  });
+
+  it("is a no-op without Redis, since Mongo is the authority", async () => {
+    isRedisReady.mockReturnValue(false);
+    await expect(coachQuotaService.refundUsage(user)).resolves.toBeNull();
+    expect(redis.decr).not.toHaveBeenCalled();
+  });
+
+  it("never throws when Redis errors mid-refund", async () => {
+    isRedisReady.mockReturnValue(true);
+    redis.decr.mockRejectedValue(new Error("connection lost"));
+    await expect(coachQuotaService.refundUsage(user)).resolves.toBeNull();
   });
 });

@@ -67,19 +67,116 @@ function isRetryableError(error) {
   return /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|network error/i.test(message);
 }
 
+// The SDK puts the HTTP status on the error for most failures and only in the
+// "[403 Forbidden] ..." message prefix for others, so check both.
+function statusOf(error) {
+  const direct = Number(error?.status ?? error?.statusCode);
+  if (Number.isFinite(direct) && direct >= 400) return direct;
+  const match = /\[(\d{3})\s/.exec(String(error?.message || ""));
+  return match ? Number(match[1]) : 0;
+}
+
+// Failures that are our fault, not the trader's. These refund the quota slot
+// and are worth a retry button; everything else is not.
+const REFUNDABLE_CODES = new Set([
+  "COACH_UNAVAILABLE",
+  "COACH_BUSY",
+  "COACH_STREAM_ERROR",
+  "COACH_EMPTY_RESPONSE",
+]);
+
+// Operator-actionable failures: a dead API key or a model name that no longer
+// exists is a config problem that will break every request until someone fixes
+// it, so it must page louder than a one-off upstream blip.
+const ALERTING_CODES = new Set(["COACH_UNAVAILABLE"]);
+
+// A credential or billing problem reads identically to the trader whether it's
+// a revoked key, a disabled project, or a model that was retired — there is
+// nothing they can do, so say so without leaking which it was.
+const UNAVAILABLE_MESSAGE = "Coach is unavailable right now. We're on it.";
+
 // Turn an upstream failure into something the trader can act on. Everything
 // used to surface as a flat "Coach response failed", which told them nothing
 // about whether to retry, rephrase, or wait.
 function describeFailure(error) {
   if (error instanceof ApiError) return error;
   const message = String(error?.message || "");
+  const status = statusOf(error);
+
   if (/SAFETY|RECITATION|blocked/i.test(message)) {
     return new ApiError(502, "Coach couldn't answer that one. Try rephrasing the question.", "COACH_BLOCKED");
   }
+  // Checked before the hard-status branches: 429 and 5xx are transient.
   if (isRetryableError(error)) {
     return new ApiError(503, "Coach is busy right now. Try again in a moment.", "COACH_BUSY");
   }
+  // 401/403: revoked or restricted key, or a project denied access to the API.
+  if (status === 401 || status === 403 ||
+      /API[_ ]?key|permission denied|denied access|PERMISSION_DENIED|UNAUTHENTICATED/i.test(message)) {
+    return new ApiError(503, UNAVAILABLE_MESSAGE, "COACH_UNAVAILABLE", null, true);
+  }
+  // 404: the configured model name was retired or never existed.
+  if (status === 404 || /no longer available|is not found for API version|NOT_FOUND/i.test(message)) {
+    return new ApiError(503, UNAVAILABLE_MESSAGE, "COACH_UNAVAILABLE", null, true);
+  }
+  // 400: we built a request this model won't accept. The trader's wording is
+  // the only part they control, so point at that.
+  if (status === 400 || /invalid[_ ]argument|INVALID_ARGUMENT/i.test(message)) {
+    return new ApiError(400, "Coach couldn't process that question. Try rephrasing it.", "COACH_BAD_REQUEST");
+  }
   return new ApiError(502, "Coach response failed", "COACH_STREAM_ERROR");
+}
+
+function isRefundable(errorCode) {
+  return REFUNDABLE_CODES.has(String(errorCode || ""));
+}
+
+// Clear the quota charge for a question that never got an answer. Mongo is the
+// authority for the weekly count, so flipping `billable` is what actually
+// refunds it; the Redis decrement just stops the cached number reading one too
+// high until the key expires.
+async function refundTurn({ user, userMessageId }) {
+  if (!userMessageId) return false;
+  try {
+    await CoachMessage.updateOne({ _id: userMessageId, user: user._id }, { $set: { billable: false } });
+    await coachQuotaService.refundUsage(user);
+    return true;
+  } catch (error) {
+    // A failed refund must never mask the original failure the caller is
+    // reporting, so log and move on.
+    logger.warn("COACH_QUOTA_REFUND_FAILED", {
+      userId: String(user._id),
+      userMessageId: String(userMessageId),
+      error: error?.message,
+    });
+    return false;
+  }
+}
+
+// Retiring the failed pair behind a retry. They stay in the collection for
+// debugging but drop out of the thread, the model's history window, and the
+// quota count.
+async function supersedeTurn({ user, conversationId, userMessageId }) {
+  if (!userMessageId) return false;
+  const original = await CoachMessage.findOne({
+    _id: userMessageId,
+    user: user._id,
+    conversation: conversationId,
+  }).lean();
+  if (!original) return false;
+
+  await CoachMessage.updateMany(
+    {
+      conversation: conversationId,
+      user: user._id,
+      createdAt: { $gte: original.createdAt },
+      // Only the failed tail of the thread is retired. A successful turn that
+      // happened to come later must never be swept up by a retry.
+      $or: [{ _id: original._id }, { role: "assistant", status: "error" }],
+    },
+    { $set: { superseded: true, billable: false } }
+  );
+  return true;
 }
 
 // One retry, and only when the failure happened before any token reached the
@@ -134,7 +231,10 @@ async function recordAssistantMessage({ conversationId, userId, content, status,
 
 async function loadHistory(conversationId, { limit = HISTORY_TURNS } = {}) {
   // Last N turns of either role, chronological.
-  const messages = await CoachMessage.find({ conversation: conversationId })
+  const messages = await CoachMessage.find({
+    conversation: conversationId,
+    superseded: { $ne: true },
+  })
     .sort({ createdAt: -1, _id: -1 })
     .limit(limit * 2)
     .lean();
@@ -309,10 +409,20 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
     // Only a stream failure carries partial text; a later persistence failure
     // must not discard what the client already saw.
     if (typeof error?.partialText === "string") fullText = error.partialText;
-    logger.warn("COACH_STREAM_FAILED", {
+
+    const described = describeFailure(error);
+    // The raw upstream text never reaches the client, so this log is the only
+    // place the real cause ("[403] project denied", a retired model name) is
+    // recorded. Config failures break every request until an operator acts, so
+    // they go out at error level where alerting can see them.
+    const logFailure = ALERTING_CODES.has(described.errorCode) ? logger.error : logger.warn;
+    logFailure.call(logger, "COACH_STREAM_FAILED", {
       userId: String(user._id),
       conversationId: String(conversation._id),
       market,
+      model: appConfig.ai.geminiModel,
+      errorCode: described.errorCode,
+      status: statusOf(error),
       error: error?.message,
     });
 
@@ -321,16 +431,16 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
     await recordAssistantMessage({
       conversationId: conversation._id,
       userId: user._id,
-      content: fullText.trim() || "I hit an error while reading your data. Try again in a moment.",
+      content: fullText.trim() || described.message,
       status: "error",
-      error: error?.message || "unknown",
+      error: `${described.errorCode}: ${error?.message || "unknown"}`,
       model: appConfig.ai.geminiModel,
       latencyMs: Date.now() - started,
       streamed: true,
       contextDigest: digest,
     });
 
-    throw describeFailure(error);
+    throw described;
   }
 }
 
@@ -342,10 +452,15 @@ module.exports = {
   loadHistory,
   persistUserMessage,
   streamCompletion,
+  isRefundable,
+  refundTurn,
+  supersedeTurn,
+  ALERTING_CODES,
   // Exported for testing
   buildGenerationConfig,
   describeFailure,
   isRetryableError,
+  statusOf,
   streamWithRetry,
   supportsThinkingConfig,
 };

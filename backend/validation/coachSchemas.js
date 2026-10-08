@@ -42,6 +42,10 @@ const coachSchemas = {
       content: z.string().trim().min(1).max(1200),
       stream: z.coerce.boolean().optional().default(true),
       anchor: anchor.optional(),
+      // Set when the user taps "Try again" on a failed reply: the id of the
+      // question that failed, so the server retires that turn instead of
+      // leaving a duplicate question in the thread.
+      retryOfUserMessageId: objectId.optional(),
     }),
     query: emptyObj,
     params: z.object({ id: objectId }),

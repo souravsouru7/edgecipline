@@ -44,6 +44,15 @@ const coachMessageSchema = new mongoose.Schema(
       default: "",
     },
 
+    // A user turn only counts against the weekly quota once it actually
+    // produced an answer. A reply that died upstream (bad key, model outage)
+    // is refunded by clearing this, so a broken coach can't eat the free five.
+    billable: { type: Boolean, default: true },
+    // Set on the failed user+assistant pair when the user hits "Try again", so
+    // the retried turn doesn't leave a duplicate question in the thread or in
+    // the model's history window.
+    superseded: { type: Boolean, default: false },
+
     model: { type: String, default: "" },
     tokensIn:  { type: Number, default: 0 },
     tokensOut: { type: Number, default: 0 },
@@ -64,6 +73,8 @@ const coachMessageSchema = new mongoose.Schema(
 
 coachMessageSchema.index({ conversation: 1, createdAt: 1, _id: 1 });
 coachMessageSchema.index({ user: 1, createdAt: -1 });
+// Quota counting reads user turns in a week window, billable only.
+coachMessageSchema.index({ user: 1, role: 1, billable: 1, createdAt: -1 });
 
 module.exports = mongoose.model("CoachMessage", coachMessageSchema);
 module.exports.MESSAGE_ROLES = MESSAGE_ROLES;

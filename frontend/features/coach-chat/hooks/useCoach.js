@@ -103,7 +103,7 @@ export function useCoachStream(initialConversation) {
     setStreaming(false);
   }, []);
 
-  const send = useCallback(async ({ conversationId, content, anchor, market }) => {
+  const send = useCallback(async ({ conversationId, content, anchor, market, retryOfUserMessageId }) => {
     setError(null);
     let id = conversationId || conversation?.conversation?._id;
     if (!id) {
@@ -121,7 +121,11 @@ export function useCoachStream(initialConversation) {
     const localUserId = `optimistic-user-${Date.now()}`;
     const localAssistantId = `optimistic-assistant-${Date.now() + 1}`;
     setMessages((prev) => ([
-      ...prev,
+      // On a retry the server retires the failed pair, so drop it here too
+      // instead of stacking a second copy of the same question.
+      ...(retryOfUserMessageId
+        ? prev.filter((m) => m.serverUserMessageId !== retryOfUserMessageId && m.retryUserMessageId !== retryOfUserMessageId)
+        : prev),
       { _id: localUserId, role: "user", content, status: "complete", createdAt: new Date().toISOString() },
       { _id: localAssistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() },
     ]));
@@ -139,6 +143,15 @@ export function useCoachStream(initialConversation) {
           if (data?.quota) {
             setQuota(data.quota);
             qc.setQueryData(KEYS.quota, { quota: data.quota });
+          }
+          // Remember the server's id for this question: a later retry has to
+          // name the turn it is replacing.
+          if (data?.userMessageId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m._id === localUserId ? { ...m, serverUserMessageId: data.userMessageId } : m
+              )
+            );
           }
         },
         onDelta: (chunk) => {
@@ -161,10 +174,28 @@ export function useCoachStream(initialConversation) {
         },
         onError: (err) => {
           setError(err);
+          // A refunded failure hands back the slot, so trust the server's
+          // fresh count over the optimistic one we showed on send.
+          if (err?.quota) {
+            setQuota(err.quota);
+            qc.setQueryData(KEYS.quota, { quota: err.quota });
+          }
           setMessages((prev) =>
             prev.map((m) =>
               m._id === localAssistantId
-                ? { ...m, status: "error", content: m.content || err.message }
+                ? {
+                    ...m,
+                    status: "error",
+                    content: m.content || err.message,
+                    errorCode: err.code || "COACH_STREAM_ERROR",
+                    retryable: Boolean(err.retryable),
+                    // Everything a retry needs, carried on the failed bubble.
+                    retryPrompt: content,
+                    retryUserMessageId:
+                      err.userMessageId ||
+                      prev.find((p) => p._id === localUserId)?.serverUserMessageId ||
+                      null,
+                  }
                 : m
             )
           );
@@ -180,6 +211,18 @@ export function useCoachStream(initialConversation) {
     }
   }, [conversation?.conversation?._id, qc]);
 
+  // Re-ask the question from a failed bubble. The server retires the old turn,
+  // so this reads as the same question answering on the second go rather than
+  // a new one appended underneath.
+  const retry = useCallback((failedMessage) => {
+    const prompt = failedMessage?.retryPrompt;
+    if (!prompt) return;
+    return send({
+      content: prompt,
+      retryOfUserMessageId: failedMessage.retryUserMessageId || undefined,
+    });
+  }, [send]);
+
   return useMemo(() => ({
     conversation,
     messages,
@@ -187,8 +230,9 @@ export function useCoachStream(initialConversation) {
     error,
     quota,
     send,
+    retry,
     stop,
     setConversation,
     setMessages,
-  }), [conversation, messages, streaming, error, quota, send, stop]);
+  }), [conversation, messages, streaming, error, quota, send, retry, stop]);
 }

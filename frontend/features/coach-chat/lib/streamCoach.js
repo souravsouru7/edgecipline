@@ -60,6 +60,7 @@ function parseSseChunk(buffer, onEvent) {
 export async function streamCoachMessage({
   conversationId,
   content,
+  retryOfUserMessageId,
   signal,
   onMeta,
   onContext,
@@ -74,7 +75,11 @@ export async function streamCoachMessage({
     method: "POST",
     headers: buildHeaders(token),
     credentials: "include",
-    body: JSON.stringify({ content, stream: true }),
+    body: JSON.stringify({
+      content,
+      stream: true,
+      ...(retryOfUserMessageId ? { retryOfUserMessageId } : {}),
+    }),
     signal,
   });
 
@@ -90,7 +95,13 @@ export async function streamCoachMessage({
   }
   if (!response.ok || !response.body) {
     const body = await response.text().catch(() => "");
-    const err = new Error(`Coach stream failed (${response.status})`);
+    const err = new Error(
+      response.status >= 500
+        ? "Coach is unavailable right now. We're on it."
+        : "Coach couldn't process that question. Try rephrasing it."
+    );
+    err.code = response.status >= 500 ? "COACH_UNAVAILABLE" : "COACH_BAD_REQUEST";
+    err.retryable = response.status >= 500;
     err.status = response.status;
     err.body = body;
     onError?.(err);
@@ -114,6 +125,11 @@ export async function streamCoachMessage({
         else if (eventName === "error") {
           const err = new Error(data?.message || "Coach error");
           err.code = data?.code || "COACH_STREAM_ERROR";
+          // The server decides what's worth retrying — a blocked question or
+          // an exhausted quota isn't, however the stream ended.
+          err.retryable = Boolean(data?.retryable);
+          err.userMessageId = data?.userMessageId || null;
+          err.quota = data?.quota || null;
           onError?.(err);
         }
       });
