@@ -60,6 +60,11 @@ logs/
 *.swp
 *.swo
 
+# Locally installed coding-agent skills and machine-specific permissions
+/.agents/skills/
+/.claude/skills/
+/.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db
@@ -79,6 +84,20 @@ scratch/
 backups/
 *.bak
 
+# Local media renders and throwaway inputs
+/input/
+/output/
+*.mp4
+*.mov
+*.webm
+*.avi
+*.mkv
+
+# Scratch files left by local debugging
+/image.png
+/frontend/image.png
+/backend/trades_output.txt
+
 # Google/Firebase service-account material
 backend/*firebase-adminsdk*.json
 backend/google-services.json
@@ -88,3 +107,6 @@ backend/config/*.json
 
 # Nested git worktrees created by subagent sessions — never real repo content
 .claude/worktrees/
+
+# Local Remotion promo workspace (bundles its own node_modules)
+/promo/
