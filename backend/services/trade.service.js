@@ -345,37 +345,96 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
   };
 }
 
+function logSlowList(duration) {
+  if (duration > 500) {
+    console.warn(`[Performance] Slow DB query detected in getTrades: ${duration}ms`);
+  }
+}
+
+const DIRECTIONS = new Set(["LONG", "SHORT"]);
+
+function decodeCursor(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf8"));
+    return parsed?.date && parsed?.id ? { date: parsed.date, id: String(parsed.id) } : null;
+  } catch {
+    // An unreadable cursor means a stale or hand-edited link. Starting from
+    // the top beats a 400 the user can do nothing about.
+    return null;
+  }
+}
+
+function encodeCursor(cursor) {
+  if (!cursor) return null;
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function presentTrade(trade) {
+  return { ...trade, symbol: trade.pair ?? null, pnl: trade.profit ?? 0 };
+}
+
 async function getTrades(userId, query) {
   const period = String(query.period || "all").toLowerCase();
-  const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 50;
   const periodStart = getPeriodStart(period);
+  const direction = DIRECTIONS.has(String(query.direction || "").toUpperCase())
+    ? String(query.direction).toUpperCase()
+    : null;
+  const search = String(query.q || "").trim().slice(0, 64);
+  const cursor = decodeCursor(query.cursor);
   const version = await getTradeCacheVersion(userId);
-  const key = buildCacheKey("trades", userId, `version=${version}`, "list", `period=${period}&page=${page}&limit=${limit}`);
+  const filters = `period=${period}&dir=${direction || "ALL"}&q=${search.toLowerCase()}`;
   const startedAt = Date.now();
+
+  // Cursor mode: keyset paging, and the totals ride along on the first page
+  // only. The client reads them from page one and ignores every later copy,
+  // so recomputing the aggregate per page was pure waste.
+  if (query.cursor !== undefined) {
+    const key = buildCacheKey(
+      "trades", userId, `version=${version}`, "keyset",
+      `${filters}&limit=${limit}&cursor=${query.cursor || "start"}`
+    );
+    const { data: result } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
+      const isFirstPage = !cursor;
+      const [page, summary] = await Promise.all([
+        tradeRepository.findForexTradePage(userId, { limit, dateFrom: periodStart, direction, search, cursor }),
+        isFirstPage
+          ? tradeRepository.summarizeForexTradesByUser(userId, { dateFrom: periodStart, direction, search })
+          : Promise.resolve(null),
+      ]);
+      return {
+        items: page.items.map(presentTrade),
+        pagination: {
+          limit,
+          hasNextPage: page.hasMore,
+          nextCursor: encodeCursor(page.nextCursor),
+          total: summary ? summary.totalTrades : null,
+        },
+        summary,
+      };
+    });
+    logSlowList(Date.now() - startedAt);
+    return result;
+  }
+
+  // Offset mode, kept for older clients that still send ?page=N.
+  const page = Number(query.page) || 1;
+  const key = buildCacheKey("trades", userId, `version=${version}`, "list", `${filters}&page=${page}&limit=${limit}`);
   const { data: result } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
     const [rows, summary] = await Promise.all([
-      tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit }),
+      tradeRepository.findForexTradesByUser(userId, { dateFrom: periodStart, page, limit, direction, search }),
       // Count and totals come from one aggregate so the page count and the
       // header boxes can never disagree with each other.
-      tradeRepository.summarizeForexTradesByUser(userId, { dateFrom: periodStart }),
+      tradeRepository.summarizeForexTradesByUser(userId, { dateFrom: periodStart, direction, search }),
     ]);
     return {
-      items: rows.map((trade) => ({
-        ...trade,
-        symbol: trade.pair ?? null,
-        pnl: trade.profit ?? 0,
-      })),
+      items: rows.map(presentTrade),
       pagination: buildPagination({ page, limit, total: summary.totalTrades }),
       summary,
     };
   });
-  const duration = Date.now() - startedAt;
-
-  if (duration > 500) {
-    console.warn(`[Performance] Slow DB query detected in getTrades: ${duration}ms`);
-  }
-
+  logSlowList(Date.now() - startedAt);
   return result;
 }
 

@@ -1,7 +1,9 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Skeleton } from "@/features/shared";
+import useIsNarrow from "@/features/shared/hooks/useIsNarrow";
 import TradeRow from "./TradeRow";
 import TradeCard from "./TradeCard";
 
@@ -9,19 +11,77 @@ const TABLE_HEADERS = ["DATE", "PAIR", "TYPE", "BASIS", "P&L", "ACTIONS"];
 const DESKTOP_SKELETON_ROWS = Array.from({ length: 5 });
 const MOBILE_SKELETON_ROWS = Array.from({ length: 3 });
 
+// Measured from the rendered list; the virtualiser corrects itself per row, so
+// these only have to be close enough to size the scrollbar before first paint.
+const DESKTOP_ROW_PX = 57;
+const MOBILE_CARD_PX = 104;
+
 function TradeTable({ trades, loading, onDelete, deletingId }) {
+  const isNarrow = useIsNarrow(640);
+  const listRef = useRef(null);
+  // Read on mount and on resize rather than during render: on the first pass
+  // the node does not exist yet, and a stale offset puts the first rows
+  // behind the page header.
+  const [listTop, setListTop] = useState(0);
+
+  useEffect(() => {
+    const measure = () => setListTop(listRef.current?.offsetTop ?? 0);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isNarrow, trades.length === 0]);
+
+  // The page itself is the scroll container, so the virtualiser watches the
+  // window. `scrollMargin` tells it how far down the document the list starts,
+  // otherwise the first rows are positioned behind the header.
+  const virtualizer = useWindowVirtualizer({
+    count: trades.length,
+    estimateSize: () => (isNarrow ? MOBILE_CARD_PX : DESKTOP_ROW_PX),
+    overscan: 8,
+    scrollMargin: listTop,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalHeight = virtualizer.getTotalSize();
+  // Rather than absolutely positioning rows (which a <table> fights), pad the
+  // list with the height of everything scrolled past and everything still
+  // below. The rows in between are the only ones in the DOM.
+  const padTop = virtualItems.length ? virtualItems[0].start - listTop : 0;
+  const padBottom = virtualItems.length
+    ? totalHeight - virtualItems[virtualItems.length - 1].end
+    : 0;
+
   const desktopRows = useMemo(
-    () => trades.map((trade, idx) => (
-      <TradeRow key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
-    )),
-    [trades, onDelete, deletingId],
+    () => virtualItems.map((virtualRow) => {
+      const trade = trades[virtualRow.index];
+      if (!trade) return null;
+      return (
+        // Table rows are a single line of fixed-height content, so the
+        // estimate is exact and they need no per-row measurement. That also
+        // keeps TradeRow a plain memo instead of a forwardRef.
+        <TradeRow
+          key={trade._id}
+          trade={trade}
+          onDelete={onDelete}
+          idx={virtualRow.index}
+          isDeleting={trade._id === deletingId}
+        />
+      );
+    }),
+    [virtualItems, trades, onDelete, deletingId, virtualizer],
   );
 
   const mobileCards = useMemo(
-    () => trades.map((trade, idx) => (
-      <TradeCard key={trade._id} trade={trade} onDelete={onDelete} idx={idx} isDeleting={trade._id === deletingId} />
-    )),
-    [trades, onDelete, deletingId],
+    () => virtualItems.map((virtualRow) => {
+      const trade = trades[virtualRow.index];
+      if (!trade) return null;
+      return (
+        <div key={trade._id} ref={virtualizer.measureElement} data-index={virtualRow.index}>
+          <TradeCard trade={trade} onDelete={onDelete} idx={virtualRow.index} isDeleting={trade._id === deletingId} />
+        </div>
+      );
+    }),
+    [virtualItems, trades, onDelete, deletingId, virtualizer],
   );
 
   return (
@@ -72,26 +132,39 @@ function TradeTable({ trades, loading, onDelete, deletingId }) {
           </div>
         </div>
       ) : trades.length === 0 ? null : (
-        <>
-          <div className="hidden-mobile" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8F6F2" }}>
-                  {TABLE_HEADERS.map((h, i) => (
-                    <th key={h} style={{ padding: "14px 16px", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", textAlign: i === 5 ? "right" : "left", fontWeight: 700 }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>{desktopRows}</tbody>
-            </table>
-          </div>
-
-          <div className="show-mobile" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {mobileCards}
-          </div>
-        </>
+        // One variant, not both. This used to render a row AND a card for
+        // every trade and hide one with CSS, doubling the nodes on screen.
+        <div ref={listRef}>
+          {isNarrow ? (
+            <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {padTop > 0 && <div style={{ height: padTop }} aria-hidden />}
+              {mobileCards}
+              {padBottom > 0 && <div style={{ height: padBottom }} aria-hidden />}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8F6F2" }}>
+                    {TABLE_HEADERS.map((h, i) => (
+                      <th key={h} style={{ padding: "14px 16px", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", textAlign: i === 5 ? "right" : "left", fontWeight: 700 }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Spacer rows stand in for everything scrolled past and
+                      everything still below, so the scrollbar stays honest
+                      while only the visible rows exist in the DOM. */}
+                  {padTop > 0 && <tr style={{ height: padTop }} aria-hidden><td colSpan={TABLE_HEADERS.length} /></tr>}
+                  {desktopRows}
+                  {padBottom > 0 && <tr style={{ height: padBottom }} aria-hidden><td colSpan={TABLE_HEADERS.length} /></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       <style jsx>{`

@@ -40,8 +40,16 @@ export function useTrades() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["trades", period],
-    queryFn: ({ pageParam, signal }) => getTradesPage("Forex", { period, after: pageParam, signal }),
+    // Filters are part of the key: changing one starts a fresh cursor instead
+    // of appending rows from a different query onto the old ones.
+    queryKey: ["trades", period, filter, debouncedSearch],
+    queryFn: ({ pageParam, signal }) => getTradesPage("Forex", {
+      period,
+      after: pageParam,
+      direction: filter,
+      search: debouncedSearch,
+      signal,
+    }),
     initialPageParam: null,
     getNextPageParam: (last) => (last?.pagination?.hasNextPage ? last.pagination.next : undefined),
     // Start only after client auth check to avoid hydration mismatch.
@@ -51,17 +59,26 @@ export function useTrades() {
   });
   const trades = useMemo(() => (pages?.pages || []).flatMap((p) => p?.items || []), [pages]);
   const totalTrades = pages?.pages?.[0]?.pagination?.total ?? trades.length;
+
   const loadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // The active query's exact key. Optimistic updates have to name it in full
+  // now that the filters are part of it; a prefix would read back undefined
+  // and wipe the list.
+  const activeKey = useMemo(
+    () => ["trades", period, filter, debouncedSearch],
+    [period, filter, debouncedSearch]
+  );
 
   // 2. Data Deletion via useMutation
   const deleteMutation = useMutation({
     mutationFn: (id) => deleteTrade(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ["trades", period] });
-      const previous = queryClient.getQueryData(["trades", period]);
-      queryClient.setQueryData(["trades", period], (old) => {
+      await queryClient.cancelQueries({ queryKey: activeKey });
+      const previous = queryClient.getQueryData(activeKey);
+      queryClient.setQueryData(activeKey, (old) => {
         if (!old?.pages) return old;
         return {
           ...old,
@@ -78,7 +95,7 @@ export function useTrades() {
       return { previous };
     },
     onError: (err, id, context) => {
-      queryClient.setQueryData(["trades", period], context?.previous);
+      queryClient.setQueryData(activeKey, context?.previous);
       setDeleteTarget(null);
       setDeletingId(null);
       addToast(err.message || "Couldn't delete this trade. Please try again.", "error");
@@ -107,21 +124,10 @@ export function useTrades() {
 
   const cancelDelete = useCallback(() => setDeleteTarget(null), []);
 
-  const filtered = useMemo(() => {
-    return trades.filter((t) => {
-      const direction = t.type?.toUpperCase() === "BUY" ? "LONG"
-                      : t.type?.toUpperCase() === "SELL" ? "SHORT"
-                      : t.type?.toUpperCase();
-      if (filter !== "ALL" && direction !== filter) return false;
-      if (!debouncedSearch) return true;
-
-      const pairText = (t.pair || "").toLowerCase();
-      if (pairText.includes(debouncedSearch)) return true;
-
-      const dateText = new Date(t.tradeDate || t.createdAt).toLocaleDateString().toLowerCase();
-      return dateText.includes(debouncedSearch);
-    });
-  }, [trades, filter, debouncedSearch]);
+  // The database already applied the direction filter and the search, so the
+  // rows that arrived are the rows to show. Re-filtering here would only hide
+  // matches that the server deliberately included.
+  const filtered = trades;
 
   // Header boxes must describe the WHOLE period, not the pages fetched so
   // far: with 53 trades and a 50-row page the client-side sum showed 50
@@ -129,10 +135,14 @@ export function useTrades() {
   // scrolled. The server now sends totals for the full filtered list; the
   // local sum is only the fallback for an older API.
   const serverSummary = pages?.pages?.[0]?.summary || null;
+  // `total` is only sent with that first page, so hold on to it rather than
+  // reading it off whichever page happens to be last.
+  const totalForFilters = serverSummary?.totalTrades ?? null;
   const performance = useMemo(
     () => serverSummary || calculatePerformanceMetrics(trades),
     [serverSummary, trades]
   );
+
 
   const summaryStats = useMemo(() => {
     const totalPnl = Number(performance.grossPnL) || 0;
@@ -168,7 +178,7 @@ export function useTrades() {
     error,
     handlers,
     // Paging
-    totalTrades,
+    totalTrades: totalForFilters ?? totalTrades,
     hasMore: Boolean(hasNextPage),
     loadingMore: isFetchingNextPage,
     loadMore,

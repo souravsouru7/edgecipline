@@ -44,11 +44,19 @@ export const getTrades = async (marketType = 'Forex', options = {}) => {
 //
 // `pagination.next` is an opaque token to pass back as `after` for the next
 // page (page number for Forex, cursor pair for Indian).
-export const getTradesPage = async (marketType = 'Forex', { period, after = null, limit = 50, signal } = {}) => {
+export const getTradesPage = async (
+  marketType = 'Forex',
+  { period, after = null, limit = 50, direction = null, search = "", signal } = {}
+) => {
   const path = getMarketPath(marketType);
   const params = new URLSearchParams();
   if (period) params.set("period", period);
   params.set("limit", String(limit));
+  // Direction and symbol search are resolved in the database. Filtering in the
+  // browser only ever saw the pages already scrolled in, so a search for an
+  // old pair came back empty until the user scrolled to it.
+  if (direction && direction !== "ALL") params.set("direction", direction);
+  if (search) params.set("q", search);
   const opts = signal ? { signal } : {};
 
   if (marketType === 'Indian_Market') {
@@ -70,8 +78,10 @@ export const getTradesPage = async (marketType = 'Forex', { period, after = null
     };
   }
 
-  const page = Number(after?.page) || 1;
-  params.set("page", String(page));
+  // Forex now uses the same keyset cursor as the Indian list. Sending the
+  // (possibly empty) cursor is what opts into it; `page` stays supported
+  // server-side for clients that predate this.
+  params.set("cursor", after?.cursor || "");
   const envelope = await apiClient.get(`${path}/trades?${params.toString()}`, { rawEnvelope: true, ...opts });
   // Tolerate a bare array (older responses).
   if (Array.isArray(envelope)) return { items: envelope, pagination: { hasNextPage: false, next: null, total: envelope.length } };
@@ -81,8 +91,8 @@ export const getTradesPage = async (marketType = 'Forex', { period, after = null
     items,
     pagination: {
       hasNextPage: Boolean(p.hasNextPage),
-      next: p.hasNextPage ? { page: (Number(p.page) || page) + 1 } : null,
-      total: Number.isFinite(p.total) ? p.total : items.length,
+      next: p.hasNextPage && p.nextCursor ? { cursor: p.nextCursor } : null,
+      total: Number.isFinite(p.total) ? p.total : null,
     },
     // Totals over the whole filtered list, not just this page. Absent from
     // servers that predate it; callers fall back to summing loaded rows.

@@ -363,6 +363,12 @@ tradeSchema.index({ user: 1, marketType: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, createdAt: -1, _id: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, tradeDate: -1, _id: -1 });
 tradeSchema.index({ user: 1, deletedAt: 1, effectiveTradeDate: -1, _id: -1 });
+// Backs symbol search in the trade log: the anchored ^PAIR match is bounded by
+// this index instead of scanning the user's whole history, and the trailing
+// date key keeps the result already in list order.
+tradeSchema.index({ user: 1, deletedAt: 1, pair: 1, effectiveTradeDate: -1 });
+// Backs the LONG/SHORT filter at the same sort order.
+tradeSchema.index({ user: 1, deletedAt: 1, type: 1, effectiveTradeDate: -1, _id: -1 });
 tradeSchema.index({ user: 1, marketType: 1, deletedAt: 1, status: 1, tradeDate: -1 });
 tradeSchema.index({ user: 1, deletedAt: 1, tradeDate: 1, createdAt: 1 });
 tradeSchema.index({ user: 1, deletedAt: 1, setupScore: 1, tradeDate: 1 });

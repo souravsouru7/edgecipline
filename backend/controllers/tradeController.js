@@ -64,6 +64,8 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
 
 exports.getTrades = asyncHandler(async (req, res) => {
   const result = await tradeService.getTrades(req.user._id, req.validated.query);
+  // `summary` is null on cursor pages after the first; the client keeps the
+  // copy it got from page one rather than expecting it on every response.
   paginated(res, result.items, result.pagination, { summary: result.summary });
 });
 

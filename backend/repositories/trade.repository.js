@@ -129,12 +129,62 @@ function visibleForexQuery(userId, extra = {}) {
   };
 }
 
-async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
-  const query = visibleForexQuery(userId);
+function escapeRegex(value) {
+  // Escapes every non-alphanumeric character, so a symbol a trader types
+  // ("EUR/USD", "GBP+") can never act as a regex operator.
+  return String(value)
+    .split("")
+    .map((ch) => (/[A-Za-z0-9]/.test(ch) ? ch : "\\" + ch))
+    .join("");
+}
 
-  if (dateFrom instanceof Date) {
-    query.effectiveTradeDate = { $gte: dateFrom };
+// Only an unambiguous ISO day counts as a date search. "10/08" could be either
+// order depending on the reader's locale, and guessing wrong silently returns
+// the wrong month of trades.
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function parseSearchDay(term) {
+  if (!ISO_DAY.test(term)) return null;
+  const day = new Date(`${term}T00:00:00.000Z`);
+  return Number.isNaN(day.getTime()) ? null : day;
+}
+
+/**
+ * The one place the trade log's filters turn into a query. Period, direction
+ * and search all narrow the same base query, so the list, the count and the
+ * header totals can never be computed over different sets of trades.
+ */
+function buildForexListQuery(userId, { dateFrom, direction, search } = {}) {
+  const query = visibleForexQuery(userId);
+  const range = {};
+  if (dateFrom instanceof Date) range.$gte = dateFrom;
+
+  if (direction === "LONG") query.type = "BUY";
+  else if (direction === "SHORT") query.type = "SELL";
+
+  const term = String(search || "").trim();
+  if (term) {
+    const day = parseSearchDay(term);
+    if (day) {
+      // The period filter still applies: searching a day outside the selected
+      // period correctly returns nothing rather than silently widening it.
+      const next = new Date(day.getTime() + 24 * 60 * 60 * 1000);
+      range.$gte = range.$gte && range.$gte > day ? range.$gte : day;
+      range.$lt = next;
+    } else {
+      // Anchored so the index on `pair` bounds the scan. Case-insensitive
+      // because older rows were stored however the broker spelled them, and
+      // the match is already confined to one user's trades.
+      query.pair = { $regex: `^${escapeRegex(term)}`, $options: "i" };
+    }
   }
+
+  if (Object.keys(range).length) query.effectiveTradeDate = range;
+  return query;
+}
+
+async function findForexTradesByUser(userId, { page, limit, dateFrom, direction, search } = {}) {
+  const query = buildForexListQuery(userId, { dateFrom, direction, search });
 
   const hasPagination = typeof page === "number" && typeof limit === "number";
   const tradeQuery = Trade.find(query)
@@ -151,12 +201,59 @@ async function findForexTradesByUser(userId, { page, limit, dateFrom } = {}) {
     .lean();
 }
 
-async function countForexTradesByUser(userId, { dateFrom } = {}) {
-  const query = visibleForexQuery(userId);
-  if (dateFrom instanceof Date) {
-    query.effectiveTradeDate = { $gte: dateFrom };
+/**
+ * Keyset page of the trade log. Unlike skip/limit this costs the same at row
+ * 10,000 as at row 0, because the index seeks straight to the cursor instead
+ * of walking and discarding everything before it. It is also stable while the
+ * user adds or deletes trades mid-scroll, where an offset would duplicate or
+ * skip a row.
+ *
+ * The sort key is (effectiveTradeDate, _id). The date alone is not unique, so
+ * _id breaks ties and keeps the cursor from stalling on same-day trades.
+ */
+async function findForexTradePage(userId, { limit = 50, dateFrom, direction, search, cursor } = {}) {
+  const query = buildForexListQuery(userId, { dateFrom, direction, search });
+  const size = Math.max(1, Math.min(Number(limit) || 50, 200));
+
+  if (cursor?.date && cursor?.id && mongoose.Types.ObjectId.isValid(cursor.id)) {
+    const at = new Date(cursor.date);
+    if (!Number.isNaN(at.getTime())) {
+      // Kept in $and so it composes with the period/search range already on
+      // effectiveTradeDate instead of overwriting it.
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { effectiveTradeDate: { $lt: at } },
+            { effectiveTradeDate: at, _id: { $lt: new mongoose.Types.ObjectId(cursor.id) } },
+          ],
+        },
+      ];
+    }
   }
-  return Trade.countDocuments(query);
+
+  // One extra row answers "is there another page" without a second query.
+  const rows = await Trade.find(query)
+    .sort({ effectiveTradeDate: -1, _id: -1 })
+    .limit(size + 1)
+    .select(TRADE_LIST_PROJECTION)
+    .lean();
+
+  const hasMore = rows.length > size;
+  const items = hasMore ? rows.slice(0, size) : rows;
+  const last = items[items.length - 1];
+
+  return {
+    items,
+    hasMore,
+    nextCursor: hasMore && last
+      ? { date: new Date(last.effectiveTradeDate).toISOString(), id: String(last._id) }
+      : null,
+  };
+}
+
+async function countForexTradesByUser(userId, { dateFrom, direction, search } = {}) {
+  return Trade.countDocuments(buildForexListQuery(userId, { dateFrom, direction, search }));
 }
 
 /**
@@ -166,11 +263,8 @@ async function countForexTradesByUser(userId, { dateFrom } = {}) {
  * different figure from the dashboard, which asks the server. One aggregate
  * beside the count keeps the two screens on the same maths.
  */
-async function summarizeForexTradesByUser(userId, { dateFrom } = {}) {
-  const query = visibleForexQuery(userId);
-  if (dateFrom instanceof Date) {
-    query.effectiveTradeDate = { $gte: dateFrom };
-  }
+async function summarizeForexTradesByUser(userId, { dateFrom, direction, search } = {}) {
+  const query = buildForexListQuery(userId, { dateFrom, direction, search });
   const [row] = await Trade.aggregate([
     { $match: query },
     {
@@ -270,6 +364,8 @@ module.exports = {
   createTrades,
   deleteForexTradeByUser,
   findForexTradeByUser,
+  buildForexListQuery,
+  findForexTradePage,
   findForexTradesByUser,
   findTradeByIdAndUser,
   findTradesForWeeklyWindow,

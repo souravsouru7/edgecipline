@@ -105,6 +105,14 @@ const tradeSchemas = {
     body: emptyBody,
     query: paginationQuery.extend({
       period: z.enum(["all", "1w", "1m", "3m", "1y"]).default("all"),
+      // Direction and search are applied in the database, so the header
+      // totals and the rows always describe the same set of trades. Doing
+      // them in the browser only ever filtered the pages already scrolled in.
+      direction: z.enum(["ALL", "LONG", "SHORT"]).optional(),
+      q: z.string().trim().max(64).optional(),
+      // Opaque keyset cursor. Present (even empty) opts into cursor paging;
+      // absent keeps the old ?page=N behaviour for older clients.
+      cursor: z.string().max(256).optional(),
     }),
     params: emptyQuery,
   }),

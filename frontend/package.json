@@ -36,6 +36,7 @@
     "@tanstack/query-sync-storage-persister": "^5.103.1",
     "@tanstack/react-query": "^5.96.2",
     "@tanstack/react-query-persist-client": "^5.103.1",
+    "@tanstack/react-virtual": "^3.14.13",
     "axios": "^1.14.0",
     "axios-retry": "^4.5.0",
     "firebase": "^11.10.0",
