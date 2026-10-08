@@ -502,7 +502,16 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
 
   let derivedProfit;
   if (shouldDeriveProfit) {
-    derivedProfit = deriveForexProfit({ ...(existing || {}), ...update });
+    const computedProfit = deriveForexProfit({ ...(existing || {}), ...update });
+    // deriveForexProfit returns null for instruments whose P&L can't be
+    // computed in USD (e.g. non-USD crosses like GBPJPY, where the quote
+    // currency needs a live conversion rate). Only override when derivation
+    // actually produced a number — otherwise keep the profit the client sent
+    // (already in `update`) and, failing that, the stored value, rather than
+    // clobbering a real OCR/user-provided P&L with null.
+    if (computedProfit !== null) {
+      derivedProfit = computedProfit;
+    }
   }
 
   // If client is replacing the tradeImages array, diff against the existing

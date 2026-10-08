@@ -449,6 +449,160 @@ exports.googleLogin = asyncHandler(async (req, res) => {
 });
 
 /**
+ * POST /api/auth/apple
+ *
+ * Sign in with Apple. Deliberately NOT a second authentication system: it
+ * verifies a Firebase ID token with the same Admin SDK helper as googleLogin,
+ * upserts the same User, and issues the same access/refresh pair through the
+ * same issueTokenPair(), so terms acceptance, trial grants, attribution and
+ * onboarding all behave identically.
+ *
+ * A separate route rather than widening /auth/google, because that endpoint is
+ * live on Android and its provider check is load-bearing — a Google token must
+ * never be accepted as an Apple one or vice versa.
+ *
+ * What makes Apple different from Google
+ * --------------------------------------
+ * Apple hands over name and email ONLY at the first authorization. On every
+ * later sign-in it may send neither, so email cannot identify the account:
+ * the lookup is by appleId (Apple's stable subject), with email used only to
+ * link an Apple identity onto an account that already exists.
+ */
+exports.appleLogin = asyncHandler(async (req, res) => {
+  const { idToken, credential } = req.body || {};
+  const authToken = idToken || credential;
+
+  if (!authToken) {
+    throw new ApiError(400, "Missing Apple or Firebase ID token", "VALIDATION_ERROR");
+  }
+
+  // No raw-Apple fallback equivalent to verifyGoogleIdToken(): Apple's identity
+  // token is nonce-bound to the client that requested it, so re-verifying it
+  // server-side without that nonce proves less than Firebase already has.
+  const decodedToken = await verifyFirebaseToken(authToken);
+
+  const signInProvider = decodedToken.firebase?.sign_in_provider;
+  if (signInProvider !== "apple.com") {
+    throw new ApiError(401, "Unsupported Firebase sign-in provider", "AUTH_FAILED");
+  }
+
+  const identities = decodedToken.firebase?.identities || {};
+  const appleId = identities["apple.com"]?.[0] || decodedToken.uid;
+  if (!appleId) {
+    throw new ApiError(401, "Apple authentication failed", "AUTH_FAILED");
+  }
+
+  const rawEmail = identities.email?.[0] || decodedToken.email || null;
+  const email = rawEmail ? normalizeEmail(rawEmail) : null;
+  // A Hide My Email relay is a real, deliverable address that Apple verifies and
+  // forwards. Rejecting it would lock out every privacy-conscious user, and
+  // Apple forbids treating it as second class (Guideline 5.1.1(ix)).
+  const isPrivateRelay = Boolean(email && email.endsWith("@privaterelay.appleid.com"));
+
+  // Apple only sends a name on first authorization, and only the scopes the
+  // client asked for. Never overwrite a stored name with a placeholder.
+  const appleName =
+    decodedToken.name ||
+    (decodedToken.given_name
+      ? `${decodedToken.given_name} ${decodedToken.family_name || ""}`.trim()
+      : null);
+
+  const now = new Date();
+
+  // 1. The account this Apple identity is already attached to.
+  let user = await User.findOne({ appleId });
+
+  // 2. Otherwise an existing account with the same email, which this Apple
+  //    identity should be linked onto rather than duplicated.
+  if (!user && email) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      if (existingUser.authProvider === "local") {
+        throw new ApiError(
+          409,
+          "This email is already registered with a password. Please sign in with your password instead.",
+          "AUTH_PROVIDER_CONFLICT"
+        );
+      }
+      if (existingUser.authProvider === "google") {
+        throw new ApiError(
+          409,
+          "This email is already registered with Google. Please continue with Google instead.",
+          "AUTH_PROVIDER_CONFLICT"
+        );
+      }
+      user = existingUser;
+    }
+  }
+
+  if (user) {
+    // Returning user. Fill in only what we did not already have: a later Apple
+    // sign-in usually carries no name and no email, and a blank must never
+    // overwrite a value captured at first authorization.
+    const updates = { appleId, authProvider: "apple", lastLogin: now };
+    if (appleName && !user.name) updates.name = appleName;
+    if (email && !user.email) {
+      updates.email = email;
+      updates.appleEmailIsPrivateRelay = isPrivateRelay;
+    }
+    user = await User.findOneAndUpdate(
+      { _id: user._id },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+  } else {
+    // First sign-in. Email is the account key in this schema, so without one
+    // there is nothing to create. This only happens when the client did not
+    // request the email scope, or the user revoked access and Apple withheld it.
+    if (!email) {
+      throw new ApiError(
+        401,
+        "Apple did not share an email address with Edgecipline. Please allow email sharing and try again, or sign in with another method.",
+        "APPLE_EMAIL_UNAVAILABLE"
+      );
+    }
+
+    // Trial is NOT granted here, matching googleLogin: the user has not accepted
+    // terms yet, and acceptTerms() applies the trial once they consent.
+    try {
+      user = await User.create({
+        email,
+        name: appleName || "Trader",
+        appleId,
+        authProvider: "apple",
+        appleEmailIsPrivateRelay: isPrivateRelay,
+        lastLogin: now,
+        termsAcceptance: {
+          acceptedTerms: false,
+          acceptedPrivacy: false,
+          acceptedAt: null,
+          termsVersion: null,
+        },
+      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+      // Two concurrent first sign-ins; whichever lost the race reads the winner.
+      user = await User.findOne({ $or: [{ appleId }, { email }] });
+      if (!user) throw error;
+    }
+  }
+
+  const needsTerms = needsTermsAcceptance(user);
+  const token = await issueTokenPair(user, req, res);
+  bindAttribution(req, user._id);
+
+  res.json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    token,
+    requiresTermsAcceptance: needsTerms || undefined,
+    trial: user?.trial?.endsAt ? { endsAt: user.trial.endsAt } : undefined,
+  });
+});
+
+/**
  * POST /api/auth/refresh
  *
  * Silent token refresh — client sends the httpOnly refresh-token cookie,

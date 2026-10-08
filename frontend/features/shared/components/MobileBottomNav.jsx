@@ -81,10 +81,10 @@ function MobileBottomNav() {
           boxShadow: "0 -12px 34px rgba(15,25,35,0.12)",
           // Frosted-glass blur is applied by CSS on non-Android platforms
           // only (see mobile-optimizations.css) — never inline.
-          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
           justifyContent: "space-around",
           alignItems: "stretch",
-          height: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom))`,
+          height: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         {TABS.map(({ href, label, Icon, primary }) => {
@@ -217,7 +217,7 @@ function MobileBottomNav() {
           }
           .mobile-bottom-nav-spacer {
             display: block;
-            height: calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom));
+            height: calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px));
           }
         }
       `}</style>

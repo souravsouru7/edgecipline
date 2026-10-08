@@ -1,15 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { googleLogin, registerUser, testConnection as apiTestConnection } from "@/services/api";
+import { googleLogin, appleLogin, registerUser, testConnection as apiTestConnection } from "@/services/api";
 import {
   signInWithFirebaseGoogle,
-  handleGoogleRedirectResult,
+  signInWithFirebaseApple,
+  isAppleSignInAvailable,
+  handleFirebaseRedirectResult,
   getGoogleAuthErrorMessage,
+  getAppleAuthErrorMessage,
+  isAuthCancellation,
   clearRedirectPending,
   signOutFirebase,
 } from "@/services/firebaseAuth";
 import { clearAuthToken, setAuthToken } from "@/utils/auth";
+import { useToast } from "@/features/shared/components/ui/Toast";
+import { getUserMessage, reportUserError } from "@/utils/userMessage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TickerTape from "@/features/shared/components/TickerTape";
@@ -109,7 +115,12 @@ export default function RegisterPage() {
   const [form, setForm]         = useState({ name:"", email:"", password:"" });
   const [focused, setFocused]   = useState(null);
   const [loading, setLoading]   = useState(false);
+  const { addToast } = useToast();
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  // Resolved after mount, so the button is absent from the prerendered HTML and
+  // there is no hydration mismatch.
+  const [showAppleSignIn, setShowAppleSignIn] = useState(false);
   const [strength, setStrength] = useState(0);
   const [mounted, setMounted]   = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -117,17 +128,31 @@ export default function RegisterPage() {
 
   useEffect(() => {
     setMounted(true);
+    setShowAppleSignIn(isAppleSignInAvailable());
 
-    // Pick up idToken after mobile redirect Google sign-in on register page
-    handleGoogleRedirectResult()
-      .then(idToken => { if (idToken) return googleLogin(idToken); })
+    // Pick up the idToken after a mobile redirect sign-in. One read serves both
+    // providers — getRedirectResult() is consumed once per page load — and the
+    // result says which endpoint to exchange it at.
+    handleFirebaseRedirectResult()
+      .then(redirect => {
+        if (!redirect?.idToken) return undefined;
+        return redirect.providerId === "apple.com"
+          ? appleLogin(redirect.idToken)
+          : googleLogin(redirect.idToken);
+      })
       .then(async data => {
         if (!data?.token) return;
         resetFreshStartState();
         await setAuthToken(data.token);
         router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/onboarding");
       })
-      .catch(err => alert("Google login failed: " + getGoogleAuthErrorMessage(err)));
+      .catch(err => {
+        if (isAuthCancellation(err)) return;
+        addToast(
+          reportUserError("register_redirect_exchange_failed", err, getGoogleAuthErrorMessage(err)),
+          "error"
+        );
+      });
   }, [router]);
 
   const handleChange = (e) => {
@@ -166,21 +191,68 @@ export default function RegisterPage() {
           router.push("/onboarding");
         }
       } else {
-        alert(data.message);
+        addToast(getUserMessage(data, "We couldn't create your account. Please try again."), "error");
       }
     } catch (err) {
-      alert("Registration Error: " + (err.message || JSON.stringify(err)));
+      // Was "Registration Error: " + (err.message || JSON.stringify(err)) —
+      // which on an unexpected shape printed a serialised error object. A 409
+      // here is the common real case and deserves its own sentence.
+      const fallback = err?.status === 409
+        ? "An account with this email already exists. Sign in instead."
+        : "We couldn't create your account. Please try again.";
+      addToast(reportUserError("registration_failed", err, fallback), "error");
     } finally {
       setLoading(false);
     }
   };
 
+  // Development diagnostic. It names the API host, which is not something to put
+  // in front of a user, so both the handler and its button are gated on
+  // NODE_ENV — the button was previously visible on the production register page.
   const testConnection = async () => {
+    if (process.env.NODE_ENV === "production") return;
     try {
       await apiTestConnection();
-      alert("Connection test to " + process.env.NEXT_PUBLIC_API_URL + " : SUCCESS");
+      addToast("Backend reachable: " + process.env.NEXT_PUBLIC_API_URL, "success");
     } catch (err) {
-      alert("Connection test ERROR: " + err.message);
+      addToast("Backend unreachable: " + (err?.message || "unknown"), "error");
+    }
+  };
+
+  // Mirrors handleGoogleSignIn, including the terms gate: account creation on
+  // this page requires consent first, whichever provider does the signing in.
+  const handleAppleSignIn = async () => {
+    if (!termsAccepted) {
+      setTermsError("You must accept the Terms & Privacy Policy to continue");
+      return;
+    }
+    if (appleLoading) return;
+    setTermsError("");
+    setAppleLoading(true);
+    try {
+      const idToken = await signInWithFirebaseApple();
+      // null means a web redirect was started; the effect above finishes it.
+      if (!idToken) return;
+      const data = await appleLogin(idToken);
+      if (data.token) {
+        resetFreshStartState();
+        await setAuthToken(data.token);
+        router.push(data.requiresTermsAcceptance ? "/accept-terms" : "/onboarding");
+      } else {
+        addToast(getUserMessage(data, "Could not complete Sign in with Apple."), "error");
+      }
+    } catch (err) {
+      // Dismissing the Apple sheet is not an error worth reporting.
+      if (isAuthCancellation(err)) return;
+      clearRedirectPending();
+      await clearAuthToken().catch(() => {});
+      await signOutFirebase().catch(() => {});
+      addToast(
+        reportUserError("register_apple_failed", err, getAppleAuthErrorMessage(err)),
+        "error"
+      );
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -205,13 +277,16 @@ export default function RegisterPage() {
           router.push("/onboarding");
         }
       } else {
-        alert(data.message || "Google login failed.");
+        addToast(getUserMessage(data, "Could not complete Google sign-in."), "error");
       }
     } catch (err) {
       clearRedirectPending();
       await clearAuthToken().catch(() => {});
       await signOutFirebase().catch(() => {});
-      alert("Google Login Error: " + getGoogleAuthErrorMessage(err));
+      addToast(
+        reportUserError("register_google_failed", err, getGoogleAuthErrorMessage(err)),
+        "error"
+      );
     } finally {
       setGoogleLoading(false);
     }
@@ -263,10 +338,12 @@ export default function RegisterPage() {
       </div>
 
       {/* ── HEADER ── */}
+      {/* Topmost element on the register screen, so it owns the top inset. */}
       <header style={{
         position:"relative", zIndex:20,
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        padding:"0 24px", height:60,
+        padding: "env(safe-area-inset-top, 0px) calc(24px + env(safe-area-inset-right, 0px)) 0 calc(24px + env(safe-area-inset-left, 0px))",
+        height: "calc(60px + env(safe-area-inset-top, 0px))",
         background:"rgba(240,238,233,0.97)",
         borderBottom:"1px solid var(--color-border)",
         boxShadow:"0 1px 12px rgba(15,25,35,0.06)",
@@ -508,6 +585,44 @@ export default function RegisterPage() {
                     Google login is not configured (missing <b>NEXT_PUBLIC_FIREBASE_API_KEY</b>).
                   </div>
                 )}
+
+                {/* Sign in with Apple — same width and height as the Google
+                    button, stacked directly beneath it, and subject to the same
+                    terms gate. Rendered only where it can complete (native iOS
+                    today), so Android and web never show a dead control. */}
+                {showAppleSignIn && (
+                  <button
+                    type="button"
+                    onClick={handleAppleSignIn}
+                    disabled={appleLoading || googleLoading || loading}
+                    aria-label="Sign in with Apple"
+                    style={{
+                      width: "100%",
+                      marginTop: 10,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      padding: "11px 16px",
+                      border: `1.5px solid ${!termsAccepted ? "#E2E8F0" : "#0F1923"}`,
+                      borderRadius: 8,
+                      background: !termsAccepted ? "#F8FAFC" : "#0F1923",
+                      cursor: !termsAccepted || appleLoading || googleLoading || loading ? "not-allowed" : "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: !termsAccepted ? "#94A3B8" : "#FFFFFF",
+                      fontFamily: "'Plus Jakarta Sans',sans-serif",
+                      opacity: appleLoading ? 0.7 : 1,
+                      boxShadow: "0 1px 6px rgba(15,25,35,0.08)",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill={!termsAccepted ? "#94A3B8" : "#FFFFFF"} aria-hidden="true">
+                      <path d="M17.05 12.73c.02 2.4 2.1 3.2 2.13 3.21-.02.06-.34 1.15-1.11 2.28-.67.98-1.36 1.95-2.46 1.97-1.07.02-1.42-.63-2.65-.63-1.23 0-1.61.61-2.63.65-1.05.04-1.85-1.05-2.52-2.02-1.46-2.11-2.58-5.97-1.08-8.58.74-1.3 2.07-2.12 3.51-2.14 1.04-.02 2.02.7 2.65.7.63 0 1.82-.86 3.07-.74.52.02 1.99.19 2.93 1.42-.08.05-1.73 1.01-1.71 3.01M14.9 4.6c.56-.68.94-1.62.84-2.56-.83.03-1.83.55-2.41 1.23-.52.6-.98 1.56-.86 2.48.92.07 1.87-.47 2.43-1.15"/>
+                    </svg>
+                    {appleLoading ? "Signing in..." : "Sign in with Apple"}
+                  </button>
+                )}
               </div>
 
               {/* Divider */}
@@ -620,11 +735,13 @@ export default function RegisterPage() {
                 )}
               </button>
 
-              <div style={{ textAlign:"center", marginTop:10 }}>
-                <button type="button" onClick={testConnection} style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
-                  Test Backend Connection
-                </button>
-              </div>
+              {process.env.NODE_ENV !== "production" && (
+                <div style={{ textAlign:"center", marginTop:10 }}>
+                  <button type="button" onClick={testConnection} style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
+                    Test Backend Connection
+                  </button>
+                </div>
+              )}
 
               {/* Sign in link */}
               <div style={{ textAlign:"center", marginTop:20, fontSize:12, color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>

@@ -295,7 +295,7 @@ export default function AppLoadingShell({
           .app-loading-header {
             height: 58px !important;
             padding: 0 16px !important;
-            padding-top: env(safe-area-inset-top) !important;
+            padding-top: env(safe-area-inset-top, 0px) !important;
           }
           .app-loading-nav,
           .app-loading-actions,
@@ -303,7 +303,7 @@ export default function AppLoadingShell({
             display: none !important;
           }
           .app-loading-main {
-            padding: 16px 14px calc(96px + env(safe-area-inset-bottom)) !important;
+            padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
           }
           .app-loading-kpis {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

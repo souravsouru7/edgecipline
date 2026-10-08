@@ -62,7 +62,7 @@ const clientRateLimiter = new SlidingWindowLimiter();
 
 // Credential-submitting routes that must NOT be silently retried on 401
 // (they are the auth entry points — a 401 there means bad creds, not expired session).
-const AUTH_ENTRY_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/auth/refresh'];
+const AUTH_ENTRY_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/auth/apple', '/auth/refresh'];
 
 const isAuthEntryPath = (url = '') =>
   AUTH_ENTRY_PATHS.some((p) => url.includes(p));
@@ -102,8 +102,11 @@ const isNoRateLimitRetryPath = (url = '') =>
 // "Request timed out. Please try again." on a login that had actually worked,
 // and retrying produced the same result.
 //
+// /auth/apple shares the same Admin SDK verification and the same user upsert,
+// so it gets the same budget.
+//
 // 30s is deliberately generous: on this path a slow success beats a fast lie.
-const SLOW_AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/google'];
+const SLOW_AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/auth/apple'];
 const SLOW_AUTH_TIMEOUT_MS = 30000;
 
 const isSlowAuthPath = (url = '') =>

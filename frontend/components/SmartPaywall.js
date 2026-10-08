@@ -333,7 +333,11 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
         position: "fixed", inset: 0, zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "rgba(10, 15, 20, 0.78)",
-        padding: 20,
+        // max(), not a sum: the 20px gutter is already most of what a notch
+        // needs, so adding the inset on top would over-pad. This keeps the
+        // dialog clear of the Island when it is tall enough to reach the edge
+        // (short viewport, landscape) and stays exactly 20px off iOS.
+        padding: "max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px))",
       }}
     >
       <FocusTrap>

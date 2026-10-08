@@ -46,20 +46,33 @@ video {
   max-width: 100%;
 }
 
+/* Safe-area helpers for edge-touching layouts.
+   viewport-fit=cover (app/layout.tsx) lets the iOS WebView run under the status
+   bar, Dynamic Island and home indicator, so anything pinned to a device edge
+   needs one of these — or an inline env() when it also needs max().
+
+   Apply an inset ONCE per edge per visual stack. If a parent already pads an
+   edge, the child must not pad it again; see PageHeader, where a single spacer
+   owns inset-top for the banners and the sticky header together.
+
+   The 0px fallback matters: without it, a browser that does not understand env()
+   treats the whole declaration as invalid and drops the padding instead of
+   resolving it to nothing. On Android the status bar does not overlay the
+   WebView, so every inset is 0 and these are no-ops. */
 .safe-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .safe-left {
-  padding-left: env(safe-area-inset-left);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .safe-right {
-  padding-right: env(safe-area-inset-right);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .sticky-header {

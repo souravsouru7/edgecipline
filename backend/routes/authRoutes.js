@@ -5,6 +5,7 @@ const {
   registerUser,
   loginUser,
   googleLogin,
+  appleLogin,
   getMe,
   getMyPreferences,
   updateMyPreferences,
@@ -35,6 +36,9 @@ const {
 router.post("/register",         authRateLimiter, registerUser);
 router.post("/login",            authRateLimiter, loginUser);
 router.post("/google",           authRateLimiter, googleLogin);
+// Same rate limiter and same shape as /google — one federated-login path, two
+// providers. See appleLogin for why Apple is its own route.
+router.post("/apple",            authRateLimiter, appleLogin);
 // Two reset-specific limiters: one caps a caller cycling emails, the other caps
 // how often any one inbox can be mailed no matter how many IPs ask.
 router.post("/forgot-password",  passwordResetRequestRateLimiter, passwordResetEmailRateLimiter, forgotPassword);

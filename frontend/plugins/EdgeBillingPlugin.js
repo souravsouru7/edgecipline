@@ -1,18 +1,27 @@
 "use client";
 
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { registerPlugin } from "@capacitor/core";
+import { isAndroidNative } from "@/utils/platform";
 
 // JS bridge for the native EdgeBillingPlugin.
 //
-// Mirrors the ChecklistNotificationPlugin pattern: a web fallback that reports
+// EdgeBilling is an ANDROID-ONLY plugin: it wraps Google Play Billing, which has
+// no iOS equivalent (iOS would need StoreKit and a separate backend verifier).
+//
+// Mirrors the ChecklistNotificationPlugin pattern: a fallback that reports
 // "unavailable" rather than throwing, so every caller can be written once and
-// run on web, on a device without Play Services, and on a real Android phone.
+// run on web, on iOS, on a device without Play Services, and on a real Android
+// phone.
+//
+// The gate below was Capacitor.isNativePlatform(), which is true on iOS too, so
+// iOS got the real bridge proxy and every call rejected with "EdgeBilling plugin
+// is not implemented on ios". The gate is isAndroidNative().
 //
 // Nothing here decides entitlement. The plugin returns purchase TOKENS; those
 // go to the backend, and the backend's answer is the only source of truth.
 
-const WebFallback = {
-  isAvailable: async () => ({ available: false, reason: "not_native" }),
+const UnsupportedFallback = {
+  isAvailable: async () => ({ available: false, reason: "not_android" }),
   getProducts: async () => ({ offers: [] }),
   purchase: async () => {
     throw new Error("In-app purchases are only available in the Android app.");
@@ -25,28 +34,24 @@ let _plugin = null;
 
 function getPlugin() {
   if (_plugin) return _plugin;
-  if (typeof window === "undefined") return WebFallback;
+  if (!isAndroidNative()) return UnsupportedFallback;
 
   try {
-    if (!Capacitor.isNativePlatform()) return WebFallback;
     _plugin = registerPlugin("EdgeBilling", {
-      web: () => Promise.resolve(WebFallback),
+      web: () => Promise.resolve(UnsupportedFallback),
     });
     return _plugin;
   } catch {
-    return WebFallback;
+    return UnsupportedFallback;
   }
 }
 
-/** True only inside the native Android app. */
-export function isAndroidApp() {
-  if (typeof window === "undefined") return false;
-  try {
-    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
-  } catch {
-    return false;
-  }
-}
+/**
+ * True only inside the native Android app — the gate every Play Billing call and
+ * every piece of Play-specific UI must pass. Re-exported from utils/platform so
+ * existing billing callers keep importing it from here.
+ */
+export const isAndroidApp = isAndroidNative;
 
 /**
  * Can this device actually transact? False on web, on devices without the Play

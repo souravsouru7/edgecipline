@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Sparkles, Plus, Trash2, MessageSquare, ChevronLeft } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { useToast } from "@/features/shared/components/ui/Toast";
+import { reportUserError } from "@/utils/userMessage";
 import CoachChat from "@/features/coach-chat/components/CoachChat";
 import CoachQuotaPill from "@/features/coach-chat/components/CoachQuotaPill";
 import {
@@ -15,6 +17,7 @@ import {
 } from "@/features/coach-chat/hooks/useCoach";
 
 function Page() {
+  const { addToast } = useToast();
   const conversationsQuery = useCoachConversations();
   const quotaQuery = useCoachQuota();
   const createConversation = useCreateConversation();
@@ -49,8 +52,23 @@ function Page() {
   };
 
   const handleDelete = async (id, title) => {
+    // confirm() is kept deliberately. It is a destructive, irreversible action,
+    // and Capacitor renders this as a native UIAlertController / AlertDialog with
+    // no title and no origin shown — so it does not read as a web artifact. The
+    // app has no dialog component to replace it with, and inventing one here
+    // would risk weakening a confirmation that matters.
     if (!confirm(`Delete "${title || "this conversation"}"? This cannot be undone.`)) return;
-    await deleteConversation.mutateAsync(id);
+    try {
+      await deleteConversation.mutateAsync(id);
+    } catch (err) {
+      // Previously unhandled: a failed delete rejected into nothing, so the row
+      // stayed and the user was told neither that it failed nor why.
+      addToast(
+        reportUserError("coach_conversation_delete_failed", err, "We couldn't delete this conversation. Please try again."),
+        "error"
+      );
+      return;
+    }
     if (selectedId === id) {
       setSelectedId(null);
       setMobilePane("list");

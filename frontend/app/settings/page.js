@@ -8,6 +8,7 @@ import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, LifeBuoy, Upload } from "lucide-react";
 import { canShowPurchaseUI } from "@/config/payments";
+import { isAndroidNative } from "@/utils/platform";
 import {
   PLAY_MANAGE_URL,
   resolveExpiryLabel,
@@ -192,7 +193,10 @@ export default function SettingsPage() {
   // cancelled one is a lie, so name the date for what it is.
   const expiryLabel = resolveExpiryLabel(subscription);
   const lifecycleNotice = describePlayLifecycle(subscription, expiryDate);
-  const playActions = showsPlayActions(subscription, profile?.isPremium);
+  // isAndroidNative() is the third argument: "Manage subscription" opens
+  // play.google.com, so it is offered only where Google owns the purchase —
+  // never inside the iOS app, where an external payment link is a 3.1.1 risk.
+  const playActions = showsPlayActions(subscription, profile?.isPremium, isAndroidNative());
 
   // A trial user is premium with subscription status "inactive", so reading
   // status alone would label someone with full access "Free / Inactive".
@@ -578,11 +582,16 @@ export default function SettingsPage() {
 
       </main>
 
-      <PricingModal
-        isOpen={pricingOpen}
-        onClose={() => setPricingOpen(false)}
-        onSuccess={loadProfile}
-      />
+      {/* Every button that can open this is already behind canShowPurchaseUI(),
+          so on iOS nothing sets pricingOpen. Gating the mount too means the
+          paywall chunk is never even requested there. */}
+      {canShowPurchaseUI() && (
+        <PricingModal
+          isOpen={pricingOpen}
+          onClose={() => setPricingOpen(false)}
+          onSuccess={loadProfile}
+        />
+      )}
     </div>
   );
 }

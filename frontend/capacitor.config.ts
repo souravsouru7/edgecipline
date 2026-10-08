@@ -13,8 +13,30 @@ const config: CapacitorConfig = {
     // The boot splash is the AndroidX one: AppTheme.NoActionBarLaunch in
     // styles.xml, dismissed by installSplashScreen() in MainActivity.
     FirebaseAuthentication: {
+      // Keep false. The plugin signs into the NATIVE Firebase SDK, but the
+      // `firebase` npm package inside the WebView is a separate instance, and
+      // the backend only ever accepts a Firebase ID token — so
+      // services/firebaseAuth.js re-exchanges every provider credential through
+      // the JS SDK. Setting this true would skip the native sign-in that
+      // exchange depends on.
       skipNativeAuth: false,
-      providers: ['google.com'],
+      // Which provider SDKs the plugin loads natively. The only two options this
+      // plugin version exposes are this and skipNativeAuth above.
+      //
+      // apple.com is here for iOS: it is what makes
+      // FirebaseAuthentication.signInWithApple() available, and the native Apple
+      // sheet additionally needs the "Sign In with Apple" capability on the App
+      // ID and Apple enabled in the Firebase console.
+      //
+      // Harmless on Android, where it only registers Apple's web-flow provider
+      // and nothing invokes it — isAppleSignInAvailable() renders the button on
+      // native iOS only. Google is unaffected either way.
+      //
+      // `cap sync` is what copies this into each platform's generated
+      // capacitor.config.json, which is the file the device actually reads. A
+      // platform that has not been synced since this changed still carries the
+      // old list.
+      providers: ['google.com', 'apple.com'],
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],

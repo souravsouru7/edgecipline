@@ -38,7 +38,9 @@ function LoginPageContent() {
       </div>
 
       {/* Header */}
-      <header style={{ position: "relative", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 60, background: "rgba(240,238,233,0.97)", borderBottom: "1px solid var(--color-border)", boxShadow: "0 1px 12px rgba(15,25,35,0.06)" }}>
+      {/* Topmost element on the login screen, so it owns the top inset. Nothing
+          above it on this page, and nothing below re-applies it. 0px off iOS. */}
+      <header style={{ position: "relative", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "env(safe-area-inset-top, 0px) calc(24px + env(safe-area-inset-right, 0px)) 0 calc(24px + env(safe-area-inset-left, 0px))", height: "calc(60px + env(safe-area-inset-top, 0px))", background: "rgba(240,238,233,0.97)", borderBottom: "1px solid var(--color-border)", boxShadow: "0 1px 12px rgba(15,25,35,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 168, height: 44, display: "flex", alignItems: "center" }}>
             <img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} />

@@ -444,7 +444,8 @@ export default function PlayBillingPaywall({ isOpen, onClose, onSuccess, variant
         alignItems: "center",
         justifyContent: "center",
         background: "rgba(10, 15, 20, 0.78)",
-        padding: 20,
+        // max(), not a sum — see SmartPaywall. 20px off iOS, unchanged on Android.
+        padding: "max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px))",
       }}
     >
       <FocusTrap>

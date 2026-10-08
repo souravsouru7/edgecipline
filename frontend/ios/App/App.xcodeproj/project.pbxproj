@@ -17,6 +17,8 @@
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 		ED11A00000000000000000A2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ED11A00000000000000000A1 /* PrivacyInfo.xcprivacy */; };
 		ED11A00000000000000000B2 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = ED11A00000000000000000B1 /* GoogleService-Info.plist */; };
+		ED11A00000000000000000D2 /* EdgeAuthStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED11A00000000000000000D1 /* EdgeAuthStoragePlugin.swift */; };
+		ED11A00000000000000000E2 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED11A00000000000000000E1 /* MainViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 		ED11A00000000000000000A1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED11A00000000000000000B1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		ED11A00000000000000000C1 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		ED11A00000000000000000D1 /* EdgeAuthStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeAuthStoragePlugin.swift; sourceTree = "<group>"; };
+		ED11A00000000000000000E1 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -80,6 +84,8 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				ED11A00000000000000000E1 /* MainViewController.swift */,
+				ED11A00000000000000000D1 /* EdgeAuthStoragePlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -220,6 +226,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				ED11A00000000000000000E2 /* MainViewController.swift in Sources */,
+				ED11A00000000000000000D2 /* EdgeAuthStoragePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

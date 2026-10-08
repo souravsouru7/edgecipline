@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
+import { useToast } from "@/features/shared/components/ui/Toast";
+import { reportUserError } from "@/utils/userMessage";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MARKETS } from "@/context/MarketContext";
@@ -153,6 +155,7 @@ function PriceGrid({ entry, exit, sl, tp, type }) {
 function IndianTradeDetailContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   const id = searchParams.get("id");
   const [trade, setTrade] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -184,8 +187,11 @@ function IndianTradeDetailContent() {
       setTrade(t => t ? { ...t, notes: notesEdit } : null);
       setNoteSaved(true);
       setTimeout(() => setNoteSaved(false), 2000);
-    } catch {
-      alert("Failed to save note.");
+    } catch (err) {
+      addToast(
+        reportUserError("trade_note_save_failed", err, "We couldn't save your note. Please try again."),
+        "error"
+      );
     } finally {
       setSavingNote(false);
     }

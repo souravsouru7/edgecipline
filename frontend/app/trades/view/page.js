@@ -191,8 +191,13 @@ function TradeDetailContent() {
     return () => clearTimeout(timer);
   }, [fetchTrade]);
 
-  const bull = trade ? parseFloat(trade.profit) >= 0 : true;
+  // Direction is stored as BUY/SELL — map to LONG/SHORT the same way the trade
+  // list does, so the detail badge and the list never disagree.
+  const isLong = ["BUY", "LONG"].includes(trade?.type?.toUpperCase());
+  const hasProfit = trade != null && trade.profit != null && Number.isFinite(parseFloat(trade.profit));
+  const bull = hasProfit ? parseFloat(trade.profit) >= 0 : true;
   const profitCol = bull ? "#0D9E6E" : "#D63B3B";
+  const profitDisplay = hasProfit ? `${bull ? "+" : ""}${trade.profit}` : "—";
   const rr = trade?.stopLoss && trade?.entryPrice && trade?.takeProfit
     ? Math.abs((parseFloat(trade.takeProfit) - parseFloat(trade.entryPrice)) /
                (parseFloat(trade.entryPrice) - parseFloat(trade.stopLoss))).toFixed(2)
@@ -243,13 +248,13 @@ function TradeDetailContent() {
               </div>
               <span style={{
                 fontSize: 11, letterSpacing: "0.1em", flexShrink: 0,
-                color: trade.type?.toUpperCase() === "LONG" ? "#0D9E6E" : "#D63B3B",
-                background: trade.type?.toUpperCase() === "LONG" ? "rgba(13,158,110,0.1)" : "rgba(214,59,59,0.1)",
-                border: `1px solid ${trade.type?.toUpperCase() === "LONG" ? "rgba(13,158,110,0.3)" : "rgba(214,59,59,0.3)"}`,
+                color: isLong ? "#0D9E6E" : "#D63B3B",
+                background: isLong ? "rgba(13,158,110,0.1)" : "rgba(214,59,59,0.1)",
+                border: `1px solid ${isLong ? "rgba(13,158,110,0.3)" : "rgba(214,59,59,0.3)"}`,
                 borderRadius: 20, padding: "5px 14px",
                 fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
               }}>
-                {trade.type?.toUpperCase() === "LONG" ? "▲ LONG" : "▼ SHORT"}
+                {isLong ? "▲ LONG" : "▼ SHORT"}
               </span>
             </div>
 
@@ -263,7 +268,7 @@ function TradeDetailContent() {
               />
               <StatCard
                 label="PROFIT / LOSS"
-                value={`${bull ? "+" : ""}${trade.profit}`}
+                value={profitDisplay}
                 accent={profitCol}
                 delay={0.05}
               />
@@ -300,8 +305,8 @@ function TradeDetailContent() {
                 <span style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
                   TRADE TRAJECTORY
                 </span>
-                <span style={{ fontSize: "var(--fs-2xs)", color: profitCol, letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>
-                  {bull ? "▲ PROFITABLE" : "▼ LOSS"}
+                <span style={{ fontSize: "var(--fs-2xs)", color: hasProfit ? profitCol : "#94A3B8", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>
+                  {!hasProfit ? "— P&L N/A" : bull ? "▲ PROFITABLE" : "▼ LOSS"}
                 </span>
               </div>
               <TradeSparkline bull={bull}/>
@@ -337,13 +342,13 @@ function TradeDetailContent() {
                 </div>
                 <div style={{ padding: "6px 20px 18px" }}>
                   <InfoRow label="PAIR" value={trade.pair} icon={icons.pair} valueColor="#0F1923" delay={0.15}/>
-                  <InfoRow label="TYPE" value={trade.type?.toUpperCase()} icon={icons.type} valueColor={profitCol} delay={0.18}/>
+                  <InfoRow label="TYPE" value={isLong ? "LONG" : "SHORT"} icon={icons.type} valueColor={isLong ? "#0D9E6E" : "#D63B3B"} delay={0.18}/>
                   <InfoRow label="LOT SIZE" value={trade.lotSize} icon={icons.lot} delay={0.21}/>
                   <InfoRow label="ENTRY PRICE" value={trade.entryPrice} icon={icons.entry} delay={0.24}/>
                   <InfoRow label="EXIT PRICE" value={trade.exitPrice} icon={icons.exit} valueColor={profitCol} delay={0.27}/>
                   <InfoRow label="STOP LOSS" value={trade.stopLoss} icon={icons.sl} valueColor="#D63B3B" delay={0.30}/>
                   <InfoRow label="TAKE PROFIT" value={trade.takeProfit} icon={icons.tp} valueColor="#0D9E6E" delay={0.33}/>
-                  <InfoRow label="PROFIT / LOSS" value={`${bull ? "+" : ""}${trade.profit}`} icon={icons.pair} valueColor={profitCol} delay={0.36}/>
+                  <InfoRow label="PROFIT / LOSS" value={profitDisplay} icon={icons.pair} valueColor={profitCol} delay={0.36}/>
                 </div>
               </div>
 

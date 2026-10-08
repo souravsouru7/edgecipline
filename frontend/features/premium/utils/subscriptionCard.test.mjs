@@ -28,9 +28,18 @@ test("cancelled, grace, on-hold and pending Play states each get a notice; Razor
   assert.equal(describePlayLifecycle(null), null);
 });
 
-test("settings shows a Manage/Change plan entry for a google_play subscriber", () => {
-  assert.equal(showsPlayActions(play(), true), true);
-  assert.equal(showsPlayActions(razorpay(), true), false);
-  assert.equal(showsPlayActions(play({ status: "expired" }), false), false);
+test("settings shows a Manage/Change plan entry for a google_play subscriber on Android", () => {
+  assert.equal(showsPlayActions(play(), true, true), true);
+  assert.equal(showsPlayActions(razorpay(), true, true), false);
+  assert.equal(showsPlayActions(play({ status: "expired" }), false, true), false);
   assert.match(PLAY_MANAGE_URL, /^https:\/\/play\.google\.com\/store\/account\/subscriptions\?sku=edgecipline_pro&package=com\.edgecipline$/);
+});
+
+test("the Play Store link is withheld off Android, including from Play subscribers", () => {
+  // The same account opens the app on iOS; PLAY_MANAGE_URL is an external
+  // purchase-management link and must not be offered there.
+  assert.equal(showsPlayActions(play(), true, false), false);
+  // Fail-closed when a caller forgets to pass the platform at all.
+  assert.equal(showsPlayActions(play(), true), false);
+  assert.equal(showsPlayActions(play(), true, "android"), false);
 });

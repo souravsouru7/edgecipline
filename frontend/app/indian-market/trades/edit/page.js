@@ -11,6 +11,8 @@ import { MARKETS } from "@/context/MarketContext";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { useToast } from "@/features/shared/components/ui/Toast";
+import { reportUserError } from "@/utils/userMessage";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
 import {
@@ -102,6 +104,7 @@ function hasPositiveNumber(value) {
 function IndianEditTradeContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const { accountCreatedDate } = useUserProfile();
   const id = searchParams.get("id");
@@ -164,51 +167,51 @@ function IndianEditTradeContent() {
     }
     setDateError("");
     if (!hasPositiveNumber(formData.entryPrice)) {
-      alert("Entry price is required.");
+      addToast("Entry price is required.", "error");
       return;
     }
     if (!hasPositiveNumber(formData.exitPrice)) {
-      alert("Exit price is required.");
+      addToast("Exit price is required.", "error");
       return;
     }
     if (!hasNumber(formData.profit)) {
-      alert("P&L is required.");
+      addToast("P&L is required.", "error");
       return;
     }
     if (equityTrade) {
       if (!hasPositiveNumber(formData.sharesQty)) {
-        alert("Shares quantity is required.");
+        addToast("Shares quantity is required.", "error");
         return;
       }
     } else {
       if (!hasPositiveNumber(formData.quantity)) {
-        alert("Quantity/lots is required.");
+        addToast("Quantity/lots is required.", "error");
         return;
       }
       if (!hasPositiveNumber(formData.lotSize)) {
-        alert("Lot size is required.");
+        addToast("Lot size is required.", "error");
         return;
       }
     }
     if (!formData.riskRewardRatio) {
-      alert("Select risk : reward ratio.");
+      addToast("Select a risk : reward ratio.", "error");
       return;
     }
     if (!formData.mood) {
-      alert("Select your mood.");
+      addToast("Select your mood.", "error");
       return;
     }
     if (!formData.confidence) {
-      alert("Select your confidence level.");
+      addToast("Select your confidence level.", "error");
       return;
     }
     const _emotionalTagsArr = String(formData.emotionalTags || "").split(",").map(t => t.trim()).filter(Boolean);
     if (_emotionalTagsArr.length === 0) {
-      alert("Add at least one emotional tag.");
+      addToast("Add at least one emotional tag.", "error");
       return;
     }
     if (!formData.tradeQuality) {
-      alert("Select trade quality.");
+      addToast("Select trade quality.", "error");
       return;
     }
 
@@ -276,7 +279,10 @@ function IndianEditTradeContent() {
       invalidateTradeDependentQueries(queryClient);
       router.push(`/indian-market/trades/view?id=${id}`);
     } catch (err) {
-      alert(err?.message || "Failed to update trade.");
+      addToast(
+        reportUserError("trade_update_failed", err, "We couldn't save your changes. Please try again."),
+        "error"
+      );
     } finally {
       setSaving(false);
     }

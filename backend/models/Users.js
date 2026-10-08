@@ -20,11 +20,27 @@ const userSchema = new mongoose.Schema(
     },
     authProvider: {
       type: String,
-      enum: ["local", "google"],
+      enum: ["local", "google", "apple"],
       default: "local"
     },
     googleId: {
       type: String
+    },
+    // Apple's stable subject for this user, from the Firebase identity for
+    // apple.com. This is the ONLY reliable key for an Apple account: Apple
+    // returns name and email just once, at first authorization, and on later
+    // sign-ins may send neither — so email cannot be relied on to find them
+    // again. See appleLogin in controllers/authController.js.
+    appleId: {
+      type: String
+    },
+    // True when the address on this account is one of Apple's Hide My Email
+    // relays (@privaterelay.appleid.com). Mail to it reaches the user, but it is
+    // specific to this app and the user can disable forwarding at any time, so
+    // it is worth knowing before treating the address as a durable contact.
+    appleEmailIsPrivateRelay: {
+      type: Boolean,
+      default: false
     },
     role: {
       type: String,
@@ -336,6 +352,19 @@ userSchema.index(
     unique: true,
     partialFilterExpression: {
       googleId: { $type: "string" },
+    },
+  }
+);
+
+// Mirrors the googleId index. Partial rather than sparse so the uniqueness
+// applies only to documents that actually carry an appleId, and this is also the
+// lookup path for an Apple sign-in that arrives with no email.
+userSchema.index(
+  { appleId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      appleId: { $type: "string" },
     },
   }
 );

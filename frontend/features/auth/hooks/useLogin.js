@@ -3,18 +3,24 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProfile, loginUser, googleLogin } from "@/services/api";
+import { getProfile, loginUser, googleLogin, appleLogin } from "@/services/api";
 import apiClient from "@/services/apiClient";
 import { getDashboardSnapshot } from "@/features/dashboard/api/dashboardApi";
 import { clearAuthToken, getValidToken, hydrateAuthToken, setAuthToken } from "@/utils/auth";
+import { useToast } from "@/features/shared/components/ui/Toast";
+import { getUserMessage, reportUserError } from "@/utils/userMessage";
 import { isAuthRefreshTransientError, silentRefresh } from "@/services/apiClient";
 import {
   signInWithFirebaseGoogle,
-  handleGoogleRedirectResult,
+  signInWithFirebaseApple,
+  isAppleSignInAvailable,
+  handleFirebaseRedirectResult,
   recoverFirebaseSessionIdToken,
   hasRedirectPending,
   clearRedirectPending,
   getGoogleAuthErrorMessage,
+  getAppleAuthErrorMessage,
+  isAuthCancellation,
   signOutFirebase,
 } from "@/services/firebaseAuth";
 import {
@@ -159,6 +165,9 @@ const getAuthDebugInfo = () => {
 export function useLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // The app's own notification system, replacing the alert() dialogs this hook
+  // used to raise. ToastProvider wraps every route from app/providers.tsx.
+  const { addToast } = useToast();
 
   const [form, setForm]                   = useState({ email: "", password: "" });
   const [focused, setFocused]             = useState(null);
@@ -181,23 +190,35 @@ export function useLogin() {
     const checkFirebaseSession = async () => {
       const wasPending = hasRedirectPending();
       try {
-        let idToken = await handleGoogleRedirectResult();
+        // getRedirectResult() can only be read once per page load, so one call
+        // serves both providers and the result says which one signed in.
+        const redirect = await handleFirebaseRedirectResult();
+        let idToken = redirect?.idToken || null;
+        let providerId = redirect?.providerId || null;
+
         if (!idToken) {
           if (wasPending) {
             // Only recover a persisted Firebase session when the user explicitly
-            // initiated a Google OAuth redirect. Without a pending redirect flag,
+            // initiated an OAuth redirect. Without a pending redirect flag,
             // silently recovering a stale Firebase session would auto-login the user
             // and redirect them away from the login form without their intent.
             const recovered = await recoverFirebaseSessionIdToken();
             if (!recovered) {
               clearRedirectPending();
-              alert("Google Sign-In was interrupted or failed. Please try again or use a different browser.");
+              // "use a different browser" is meaningless in the app, and this
+              // path is reachable there via the web fallback.
+              addToast("Sign-in didn't finish. Please try again.", "error");
             }
             idToken = recovered;
+            // A recovered session carries no redirect result, so the provider is
+            // unknown; Google is the only one that reaches this path today.
+            providerId = providerId || "google.com";
           }
         }
         if (idToken) {
-          const data = await googleLogin(idToken);
+          const data = providerId === "apple.com"
+            ? await appleLogin(idToken)
+            : await googleLogin(idToken);
           if (data && !cancelled) {
             await handleAuthSuccess(data);
             return;
@@ -205,7 +226,10 @@ export function useLogin() {
         }
       } catch (err) {
         clearRedirectPending();
-        alert("Google login failed: " + getGoogleAuthErrorMessage(err));
+        addToast(
+          reportUserError("auth_redirect_exchange_failed", err, getGoogleAuthErrorMessage(err)),
+          "error"
+        );
       }
       showForm();
     };
@@ -312,7 +336,9 @@ export function useLogin() {
   const handleAuthSuccess = async (data) => {
     if (!data?.token) {
       triggerShake();
-      alert(data?.message || "Login failed");
+      // data.message comes from the API and is already written for users, but
+      // run it through the sanitiser so an unsanitised 500 cannot reach the UI.
+      addToast(getUserMessage(data, "We couldn't sign you in. Please try again."), "error");
       return;
     }
     await setAuthToken(data.token);
@@ -361,7 +387,13 @@ export function useLogin() {
     onSuccess: handleAuthSuccess,
     onError: (err) => {
       triggerShake();
-      alert("Login Error: " + (err.message || "Check your credentials."));
+      // Was "Login Error: " + err.message, which surfaced axios and backend
+      // internals such as "Request failed with status 500". A 401 here means
+      // the credentials were wrong, and saying so is more useful than a generic.
+      const fallback = err?.status === 401
+        ? "Incorrect email or password."
+        : "We couldn't sign you in. Please try again.";
+      addToast(reportUserError("login_failed", err, fallback), "error");
     },
   });
 
@@ -388,15 +420,46 @@ export function useLogin() {
       clearRedirectPending();
       clearAuthToken().catch(() => {});
       signOutFirebase().catch(() => {});
-      const msg = String(err?.message || "");
-      if (/disallowed_useragent/i.test(msg) || err?.code === "DISALLOWED_USER_AGENT") {
-        alert(
-          "Google blocked this browser (Error 403: disallowed_useragent).\n\n" +
-            "Fix: open the site in Safari (iPhone) or update Chrome + System WebView + Play Services (Android), then try again."
-        );
-        return;
-      }
-      alert("Google login failed: " + getGoogleAuthErrorMessage(err));
+      // The disallowed_useragent branch used to print the raw Google error code
+      // plus instructions to update the System WebView and Play Services —
+      // developer triage steps, not something to put in front of a user.
+      // getGoogleAuthErrorMessage() now covers that case with copy that only
+      // mentions the browser when there actually is one.
+      addToast(
+        reportUserError("google_signin_failed", err, getGoogleAuthErrorMessage(err)),
+        "error"
+      );
+    },
+  });
+
+  // Sign in with Apple. Everything after the Firebase token is the SAME path as
+  // Google and email/password: handleAuthSuccess owns token persistence, the
+  // query-cache reset, push registration, terms routing and onboarding routing.
+  const appleMutation = useMutation({
+    mutationFn: async () => {
+      const idToken = await signInWithFirebaseApple();
+      // null means a web redirect was started; the token is picked up on the
+      // next page load by checkFirebaseSession().
+      if (!idToken) return null;
+      return appleLogin(idToken);
+    },
+    onSuccess: async (data) => {
+      if (!data) return;
+      await handleAuthSuccess(data);
+    },
+    onError: (err) => {
+      // Backing out of the Apple sheet is not a failure. No shake, no alert.
+      if (isAuthCancellation(err)) return;
+      triggerShake();
+      clearRedirectPending();
+      clearAuthToken().catch(() => {});
+      signOutFirebase().catch(() => {});
+      // A server-side provider conflict already carries a sentence written for
+      // users ("already registered with Google"); prefer it over generic copy.
+      addToast(
+        reportUserError("apple_signin_failed", err, getAppleAuthErrorMessage(err)),
+        "error"
+      );
     },
   });
 
@@ -411,7 +474,7 @@ export function useLogin() {
 
     if (!credentials.email || !credentials.password) {
       triggerShake();
-      alert("Please enter your email and password.");
+      addToast("Enter your email and password to continue.", "error");
       return;
     }
 
@@ -423,6 +486,11 @@ export function useLogin() {
     googleMutation.mutate();
   };
 
+  const handleAppleSignIn = () => {
+    if (appleMutation.isPending) return;
+    appleMutation.mutate();
+  };
+
   return {
     form,
     handleChange,
@@ -430,6 +498,10 @@ export function useLogin() {
     setFocused,
     loading: loginMutation.isPending,
     googleLoading: googleMutation.isPending,
+    appleLoading: appleMutation.isPending,
+    // Resolved on the client only, so the button is absent from the prerendered
+    // HTML and appears after mount — never a hydration mismatch.
+    showAppleSignIn: mounted && isAppleSignInAvailable(),
     showPass,
     setShowPass,
     mounted,
@@ -438,5 +510,6 @@ export function useLogin() {
     authDebugInfo,
     handleSubmit,
     handleGoogleSignIn,
+    handleAppleSignIn,
   };
 }

@@ -28,6 +28,12 @@ jobs:
         run: node scripts/security-scan.js
       - name: Mojibake scan
         run: node scripts/check-mojibake.js
+      - name: Mobile auth storage check
+        run: node scripts/check-mobile-auth-storage.js
+      - name: Android-only plugin isolation check
+        run: node scripts/check-android-only-plugins.js
+      - name: Payment isolation check
+        run: node scripts/check-payment-isolation.js
       - name: Lint
         run: npm run lint --if-present
         working-directory: backend

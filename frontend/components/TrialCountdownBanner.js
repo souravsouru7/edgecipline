@@ -54,7 +54,10 @@ export default function TrialCountdownBanner({ initial = null, onUpgrade }) {
       aria-label="Premium trial status"
       style={{
         position: "sticky",
-        top: 0,
+        // Pins below the status bar, matching the sticky header. PageHeader's
+        // spacer handles the initial offset; this is only about where the banner
+        // comes to rest once the page scrolls. 0px everywhere but iOS.
+        top: "env(safe-area-inset-top, 0px)",
         zIndex: 50,
         background: tone.bg,
         color: tone.text,

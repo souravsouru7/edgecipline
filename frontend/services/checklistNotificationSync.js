@@ -1,6 +1,6 @@
 "use client";
 
-import { Capacitor } from "@capacitor/core";
+import { isAndroidNative } from "@/utils/platform";
 import { getChecklistNotificationSettings } from "@/services/checklistNotificationApi";
 import {
   configureChecklistNotification,
@@ -33,7 +33,7 @@ export function buildNotificationItems(rules = []) {
 /**
  * Re-push the checklist notification after setups changed.
  *
- * No-ops on web and when no notification is enabled for this market. If the
+ * No-ops off Android and when no notification is enabled for this market. If the
  * bound strategy was deleted the server has already cleared the binding, so
  * there is nothing left to refresh.
  *
@@ -41,7 +41,11 @@ export function buildNotificationItems(rules = []) {
  */
 export async function refreshChecklistNotificationFromSetups({ strategies, market }) {
   try {
-    if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+    // isAndroidNative, not isNativePlatform: the notification this refreshes only
+    // exists on Android, so on iOS this would spend a network round trip on
+    // settings it cannot use and then call a plugin that is not there.
+    // isAndroidNative() is false during SSR, so this covers the server too.
+    if (!isAndroidNative()) return;
 
     const settings = await getChecklistNotificationSettings(market);
     if (!settings?.enabled) return;

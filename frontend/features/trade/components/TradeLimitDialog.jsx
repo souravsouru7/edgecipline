@@ -1,22 +1,29 @@
 "use client";
 
-import SmartPaywall from "@/components/SmartPaywall";
+import PaywallGate from "@/components/PaywallGate";
 import { canShowPurchaseUI } from "@/config/payments";
 import { marketLabel } from "@/features/trade/lib/tradeLimit";
 
 // Shown when a create is refused for exceeding the free allowance.
 //
-// SmartPaywall renders NOTHING when the purchase surface is compiled out
-// (NEXT_PUBLIC_PAYMENTS_ENABLED=false, which the mobile store policies
-// require). Routing a blocked user straight there would leave them clicking
-// Save against total silence, so this component owns that fork explicitly:
-// offer checkout where checkout exists, and otherwise say plainly what
-// happened and what they can do instead.
+// The fork: offer checkout where checkout exists, and otherwise say plainly
+// what happened and what they can do instead. Routing a blocked user into a
+// paywall that is compiled out would leave them clicking Save against total
+// silence, so this component owns that decision explicitly.
+//
+// PaywallGate, not SmartPaywall. This imported SmartPaywall directly, which was
+// correct when Razorpay was the only processor and canShowPurchaseUI() meant
+// "Razorpay is available". Once Play Billing landed, canShowPurchaseUI() became
+// true on Android as well — while an Android build aliases SmartPaywall to its
+// inert stub, so Android users who hit the limit got an empty dialog. Going
+// through PaywallGate is what picks the processor per platform:
+//
+//   web      Razorpay      android  Play Billing      ios  the fork below
 export default function TradeLimitDialog({ open, onClose, quota, requested = null }) {
   if (!open) return null;
 
   if (canShowPurchaseUI()) {
-    return <SmartPaywall isOpen={open} onClose={onClose} variant="trade-limit" />;
+    return <PaywallGate isOpen={open} onClose={onClose} variant="trade-limit" />;
   }
 
   const label = marketLabel(quota?.market);
@@ -34,7 +41,8 @@ export default function TradeLimitDialog({ open, onClose, quota, requested = nul
         position: "fixed", inset: 0, zIndex: 1000,
         background: "rgba(15,25,35,0.55)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 20,
+        // See SmartPaywall: max() so a tall dialog cannot reach under the Island.
+        padding: "max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px))",
       }}
     >
       <div

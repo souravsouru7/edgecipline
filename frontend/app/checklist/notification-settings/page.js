@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Capacitor } from "@capacitor/core";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useMarket } from "@/context/MarketContext";
 import { fetchSetups } from "@/services/setupApi";
@@ -16,13 +15,42 @@ import {
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
 import { buildNotificationItems } from "@/services/checklistNotificationSync";
+import { isAndroidNative } from "@/utils/platform";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
 import { Bell, BellOff, Clock, RefreshCw, ChevronLeft, Save } from "lucide-react";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const isNative = () =>
-  typeof window !== "undefined" && Capacitor.isNativePlatform();
+
+// The interactive notification is Android-only (ChecklistNotificationPlugin.java,
+// with no Swift counterpart). This was isNativePlatform(), which is also true on
+// iOS — so iOS called the Android plugin, the rejection landed in the catch
+// below, and the user was shown "ChecklistNotification plugin is not implemented
+// on ios" in the error banner. iOS now takes the same path as web: settings save
+// to the backend, and the unsupported notice explains why nothing pops up.
+const supportsLiveNotification = isAndroidNative;
+
+// Capacitor bridge failures read like "ChecklistNotification plugin is not
+// implemented on ios" or "… not implemented". Those are implementation details,
+// never something to put in front of a user.
+const NATIVE_ERROR_PATTERN = /not implemented|plugin|bridge|capacitor/i;
+
+/**
+ * A message safe to show in the error banner.
+ *
+ * Prefers what the backend said — those strings are already written for users —
+ * and otherwise falls back to a generic line. Anything that smells like a native
+ * plugin error is replaced rather than displayed.
+ */
+function getSaveErrorMessage(error) {
+  const serverMessage = error?.data?.message || error?.response?.data?.message;
+  if (serverMessage && !NATIVE_ERROR_PATTERN.test(serverMessage)) return serverMessage;
+
+  const message = error?.message;
+  if (message && !NATIVE_ERROR_PATTERN.test(message)) return message;
+
+  return "Could not save your notification settings. Please try again.";
+}
 
 export default function ChecklistNotificationSettingsPage() {
   const router = useRouter();
@@ -121,7 +149,7 @@ export default function ChecklistNotificationSettingsPage() {
       await saveChecklistNotificationSettings(payload);
 
       // 2. Configure native plugin (Android only)
-      if (isNative()) {
+      if (supportsLiveNotification()) {
         if (enabled) {
           // Request POST_NOTIFICATIONS permission first (Android 13+)
           const { granted } = await requestChecklistNotificationPermission();
@@ -143,7 +171,11 @@ export default function ChecklistNotificationSettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
-      setError(e.message || "Failed to save settings");
+      // Never render a raw native/bridge message: strings like "… plugin is not
+      // implemented on ios" mean nothing to a user and read as a broken app.
+      // The technical detail goes to the console; the banner stays human.
+      console.warn("[ChecklistNotification] save failed", e?.message || e);
+      setError(getSaveErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -196,9 +228,9 @@ export default function ChecklistNotificationSettingsPage() {
           </div>
         )}
 
-        {!isNative() && (
+        {!supportsLiveNotification() && (
           <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(184,134,11,0.08)", border: "1px solid rgba(184,134,11,0.3)", fontSize: 12, color: "#B8860B" }}>
-            Interactive notifications are available on the Android app only. Settings are saved and will apply when you use the app.
+            Interactive notifications are available in the Android app only. Your settings are saved and will apply when you open Edgecipline on Android.
           </div>
         )}
 

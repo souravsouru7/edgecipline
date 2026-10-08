@@ -190,18 +190,31 @@ successful verification.
 | **Android** | **`false`** | **`true`** |
 | iOS | `false` | `false` |
 
-Never set both `true` in one build. Next inlines `NEXT_PUBLIC_*` at compile
-time, so each flag makes the other paywall **statically dead code that the
-bundler drops**. An Android build with `PAYMENTS_ENABLED=true` would ship a
-Razorpay checkout inside the AAB — a Play Payments violation even if it is never
-displayed.
+Never set both `true` in one build. An Android build with `PAYMENTS_ENABLED=true`
+would ship a Razorpay checkout inside the AAB — a Play Payments violation even if
+it is never displayed.
 
-Verify before uploading an AAB:
+What actually removes a paywall is the **`resolveAlias` in `next.config.ts`**,
+which points the module at an inert stub when its flag is off. Dead-branch
+elimination alone does not: `FLAG ? dynamic(() => import(...)) : null` leaves the
+import in the module graph, and Turbopack still emits the chunk. This was
+measured — before `PlayBillingPaywall.disabled.js` existed, a build with
+`PLAY_BILLING_ENABLED=false` still contained the Play purchase sheet. Both
+paywalls now have a stub and an alias.
+
+`npm run build:mobile:android` pins the flags and greps the export itself, so
+there is nothing to remember and nothing to verify by hand:
 
 ```bash
-cd frontend && NEXT_PUBLIC_PAYMENTS_ENABLED=false NEXT_PUBLIC_PLAY_BILLING_ENABLED=true npm run build:mobile
-grep -ri "razorpay" out/_next/static/ | head    # must return nothing
+cd frontend && npm run build:mobile:android   # pins flags, then scans out/
 ```
+
+It fails the build if the export contains a forbidden processor. A manual grep
+for `razorpay` is **not** a clean signal: `config/environment.js` keeps
+`NEXT_PUBLIC_RAZORPAY_KEY_ID` in its validation messages and `razorpayKeyId:""`
+in its frozen env object. Those are validator text and an empty value — no key,
+no SDK, no checkout URL. The build script looks for the mechanism instead:
+`checkout.razorpay.com`, a `Razorpay` SDK reference, and the sandbox mock.
 
 ---
 
@@ -397,7 +410,7 @@ signing back in.
 
 ```bash
 cd frontend
-NEXT_PUBLIC_PAYMENTS_ENABLED=false NEXT_PUBLIC_PLAY_BILLING_ENABLED=true npm run android:build
+npm run android:build   # build:mobile:android pins both flags
 ```
 
 - Play Billing Library is pinned by `playBillingVersion` in

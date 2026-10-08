@@ -2,7 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useSyncExternalStore } from "react";
-
+import { getNativePlatform } from "@/utils/platform";
+import {
+  choosePaywallProvider,
+  PROVIDER_PLAY,
+  PROVIDER_RAZORPAY,
+} from "@/features/premium/utils/paywallRouting.mjs";
 
 const PAYMENTS_ENABLED =
   String(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED || "").trim() === "true";
@@ -28,36 +33,47 @@ const PlayPaywall = PLAY_BILLING_ENABLED
 // a session — there is nothing to re-subscribe to.
 const NEVER_CHANGES = () => () => {};
 
-function detectNativeAndroid() {
-  const capacitor = typeof window === "undefined" ? null : window.Capacitor;
-  if (!capacitor) return false;
-  const native =
-    typeof capacitor.isNativePlatform === "function"
-      ? Boolean(capacitor.isNativePlatform())
-      : capacitor.getPlatform?.() !== "web";
-  if (!native) return false;
-  return typeof capacitor.getPlatform === "function"
-    ? capacitor.getPlatform() === "android"
-    : /Android/i.test(window.navigator?.userAgent || "");
-}
+// `null` during server render: "not known yet", which routes to no provider.
+// It used to be `false`-for-not-Android, which made "unknown" indistinguishable
+// from "web" and therefore mean Razorpay. Both paywalls are ssr:false dynamic
+// imports, so rendering nothing on the server costs web nothing.
+const UNKNOWN_PLATFORM = () => null;
 
+/**
+ * Renders the purchase surface this platform is allowed to use — or nothing.
+ *
+ * The routing rule itself lives in features/premium/utils/paywallRouting.mjs,
+ * where it is an allowlist and unit-tested. This component only maps its answer
+ * onto a component, so there is no second place for a fallthrough to reappear:
+ *
+ *   web      → Razorpay, if the web payment flag compiled it in
+ *   android  → Google Play Billing, if the Play flag compiled it in
+ *   ios      → nothing. No StoreKit in this release, so there is no provider.
+ *   unknown  → nothing. Never "whatever web uses".
+ *
+ * A null provider renders no modal at all rather than an empty one. Every
+ * upgrade CTA is independently gated on canShowPurchaseUI() (config/payments),
+ * so on iOS nothing should reach this component in the first place — this is the
+ * second line of defence, for the case where a CTA is missed or a mobile bundle
+ * ships with the web flags left on.
+ */
 export default function PaywallGate(props) {
-  // Server snapshot is `false` (web). That is safe in both builds: the Android
-  // bundle has RazorpayPaywall compiled out to null, so the pre-swap render
-  // shows nothing rather than the wrong processor.
-  const isNativeAndroid = useSyncExternalStore(
+  const platform = useSyncExternalStore(
     NEVER_CHANGES,
-    detectNativeAndroid,
-    () => false
+    getNativePlatform,
+    UNKNOWN_PLATFORM
   );
 
-  if (isNativeAndroid) {
-    // Native Android NEVER gets the Razorpay paywall, whatever the flags say.
-    // This is the belt-and-braces half of the guard: the build flags are what
-    // keep the code out of the bundle, and this is what keeps it off screen if
-    // someone ships a mobile bundle with the web flags left on.
+  const provider = choosePaywallProvider(platform);
+
+  if (provider === PROVIDER_PLAY) {
     return PlayPaywall ? <PlayPaywall {...props} /> : null;
   }
 
-  return RazorpayPaywall ? <RazorpayPaywall {...props} /> : null;
+  if (provider === PROVIDER_RAZORPAY) {
+    return RazorpayPaywall ? <RazorpayPaywall {...props} /> : null;
+  }
+
+  // iOS, and anything else we have not decided about, get no purchase surface.
+  return null;
 }

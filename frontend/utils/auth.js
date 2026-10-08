@@ -11,8 +11,27 @@
  *  - localStorage is used only as a one-time legacy migration source and is
  *    cleared immediately afterward.
  *
+ * Capacitor iOS:
+ *  - Same EdgeAuthStorage plugin name and contract, backed by the iOS Keychain.
+ *
+ * `utils/authStorage.js` picks the adapter per platform; this module never
+ * reaches for a native plugin itself.
+ *
  * Refresh tokens remain backend-owned httpOnly cookies.
+ *
+ * Persistence is best-effort by design
+ * ------------------------------------
+ * Memory is the source of truth for "is this request authenticated"; storage
+ * only decides whether the session survives a process kill. So every storage
+ * helper below reports failure as a value — `false` / `null` — and never by
+ * throwing. A device that cannot write to its own Keychain is still a device
+ * whose user just signed in successfully, and must still reach the dashboard.
+ *
+ * Genuine auth failures (bad credentials, 401, revoked refresh family) are not
+ * storage failures and keep flowing through the API layer untouched.
  */
+
+import { AUTH_STORAGE_KIND, getAuthStorage } from "./authStorage.js";
 
 const LEGACY_TOKEN_KEY = "token";
 const SECURE_TOKEN_KEY = "accessToken";
@@ -38,7 +57,26 @@ function authLog(level, event, meta = {}) {
 let _memoryToken = null;
 let _hydrated = false;
 let _hydratePromise = null;
-let _persistPromise = Promise.resolve();
+// Serialises writes to native storage so a logout cannot be overtaken by an
+// in-flight token write. INVARIANT: this promise never rejects. It only ever
+// holds the result of secureSetToken / secureRemoveToken, both of which report
+// failure as `false`. A rejected _persistPromise would poison every later
+// `await setAuthToken()` / `await clearAuthToken()` / flush for the lifetime of
+// the page, which is exactly how a storage hiccup used to become a dead login.
+let _persistPromise = Promise.resolve(true);
+
+// Belt and braces around the invariant above: anything assigned to
+// _persistPromise goes through here, so even a future caller that hands over a
+// rejecting promise cannot strand the auth lifecycle.
+function trackPersist(promise) {
+  _persistPromise = Promise.resolve(promise).catch((error) => {
+    authLog("warn", "secure_storage_persist_swallowed", {
+      error: error?.message || String(error),
+    });
+    return false;
+  });
+  return _persistPromise;
+}
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -53,9 +91,39 @@ export function isNativeCapacitor() {
   }
 }
 
-function getSecureStoragePlugin() {
+// Resolved storage adapter for this platform. `null` means "nothing persists the
+// access token here" — by design on web and during SSR, and as a degraded state
+// on a native build whose EdgeAuthStorage plugin is missing. Either way it is a
+// supported state, not an error. See utils/authStorage.js for the mapping.
+//
+// Memoised per kind only for logging; the adapter lookup itself is cheap and is
+// re-done every call so a plugin that registers late (native bridge still
+// settling during a cold start) is picked up rather than cached away as absent.
+let _loggedStorageKind = null;
+
+function getSecureStorage() {
   if (!isNativeCapacitor()) return null;
-  return window.Capacitor?.Plugins?.EdgeAuthStorage || null;
+  try {
+    const storage = getAuthStorage();
+    const kind = storage?.kind || AUTH_STORAGE_KIND.NONE;
+    if (kind !== _loggedStorageKind) {
+      _loggedStorageKind = kind;
+      // NONE on a native platform means the build is missing its EdgeAuthStorage
+      // plugin: the session will be memory-only until that is fixed.
+      if (kind === AUTH_STORAGE_KIND.NONE) {
+        authLog("warn", "secure_storage_unavailable", { kind });
+      } else {
+        authLog("info", "secure_storage_selected", { kind });
+      }
+    }
+    return storage;
+  } catch (error) {
+    // Resolving storage must never be able to fail a sign-in.
+    authLog("warn", "secure_storage_unavailable", {
+      error: error?.message || String(error),
+    });
+    return null;
+  }
 }
 
 function decodeJwtPayload(token) {
@@ -148,12 +216,10 @@ async function withSecureStorageRetry(operation, fn) {
   throw lastError;
 }
 
+/** @returns {Promise<string|null>} the stored token, or null. Never throws. */
 async function secureGetToken() {
-  const storage = getSecureStoragePlugin();
-  if (!storage?.get) {
-    authLog("warn", "secure_storage_unavailable");
-    return null;
-  }
+  const storage = getSecureStorage();
+  if (!storage?.get) return null;
   try {
     const result = await withSecureStorageRetry("get", () =>
       storage.get({ key: SECURE_TOKEN_KEY })
@@ -169,12 +235,18 @@ async function secureGetToken() {
   }
 }
 
+/**
+ * Persists the token for this platform.
+ *
+ * @returns {Promise<boolean>} true if it reached storage. NEVER throws and
+ * never rejects — a `false` here means "this session will not survive a process
+ * kill", not "this sign-in failed". The caller must keep going.
+ */
 async function secureSetToken(token) {
-  const storage = getSecureStoragePlugin();
-  if (!storage?.set) {
-    authLog("warn", "secure_storage_unavailable");
-    throw new Error("Secure authentication storage is unavailable");
-  }
+  const storage = getSecureStorage();
+  // No storage on this platform/build: memory-only session. The httpOnly
+  // refresh cookie still restores it on the next cold start.
+  if (!storage?.set) return false;
   try {
     await withSecureStorageRetry("set", () =>
       storage.set({ key: SECURE_TOKEN_KEY, value: token })
@@ -184,21 +256,32 @@ async function secureSetToken(token) {
   } catch {
     // Persistence failed even after retries — the in-memory token is the only
     // copy. Next process kill will lose it; the user will need to re-auth via
-    // the refresh cookie on next launch.
-    throw new Error("Secure authentication storage is temporarily unavailable");
+    // the refresh cookie on next launch. Already reported to Sentry by
+    // withSecureStorageRetry; swallowed here so login/refresh carry on.
+    return false;
   }
 }
 
+/**
+ * Deletes the persisted token.
+ *
+ * @returns {Promise<boolean>} true if storage confirmed the delete. NEVER
+ * throws: a device that cannot clear its Keychain must still be able to end
+ * the current session.
+ */
 async function secureRemoveToken() {
-  const storage = getSecureStoragePlugin();
-  if (!storage?.remove) return;
+  const storage = getSecureStorage();
+  if (!storage?.remove) return false;
   try {
     await withSecureStorageRetry("remove", () =>
       storage.remove({ key: SECURE_TOKEN_KEY })
     );
     authLog("info", "secure_remove_complete");
+    return true;
   } catch {
-    /* Already reported. */
+    // Already reported. The in-memory token is gone either way, so the session
+    // on this device is over; only "survives a relaunch" is at risk.
+    return false;
   }
 }
 
@@ -280,14 +363,17 @@ export async function hydrateAuthToken() {
         const legacy = readLegacyToken();
         clearLegacyToken();
         if (legacy && isTokenValid(legacy)) {
+          // Take the token into memory whether or not the migration write
+          // lands. A valid token we already hold is worth more than a tidy
+          // Keychain; if the write failed, the refresh cookie covers the next
+          // cold start.
           const persisted = await secureSetToken(legacy);
-          if (persisted) {
-            authLog("info", "AUTH_HYDRATE_SUCCESS", {
-              source: "legacy_migration",
-              tokenExpiresInMs: tokenExpiresInMs(legacy),
-            });
-            return rememberToken(legacy);
-          }
+          authLog("info", "AUTH_HYDRATE_SUCCESS", {
+            source: "legacy_migration",
+            persisted,
+            tokenExpiresInMs: tokenExpiresInMs(legacy),
+          });
+          return rememberToken(legacy);
         }
 
         authLog("info", "AUTH_HYDRATE_EMPTY", { source: "native" });
@@ -319,6 +405,17 @@ export async function hydrateAuthToken() {
   return _hydratePromise;
 }
 
+/**
+ * Ends the session on this device.
+ *
+ * Memory is cleared synchronously, so the user is signed out the instant this is
+ * called. The returned promise resolves `true` when the persisted copy was
+ * removed — or when there was never one to remove, as on web — and `false` when
+ * storage refused or was unavailable. It never rejects, so a Keychain / Keystore
+ * failure cannot leave the user stuck on a screen they just logged out of.
+ *
+ * @returns {Promise<boolean>} whether a persisted token was cleared.
+ */
 export function clearAuthToken() {
   // Whatever the previous account had cached must not survive into the next
   // sign-in on this device. Lazy import: persistedQueryCache is client-only.
@@ -331,39 +428,69 @@ export function clearAuthToken() {
     hydrated: _hydrated,
   });
   __authLog("clearAuthToken: called — wiping memory + Keystore");
+  // Memory first: the session is over the moment this returns, regardless of
+  // what storage does next.
   rememberToken(null);
   _hydrated = true;
   clearLegacyToken();
-  if (isNativeCapacitor()) {
-    _persistPromise = secureRemoveToken().catch(() => {});
-  }
-  return _persistPromise;
+  // Always reassign, including on web. Returning a *previous* _persistPromise
+  // would hand callers a promise that has nothing to do with this logout.
+  return trackPersist(isNativeCapacitor() ? secureRemoveToken() : Promise.resolve(true));
 }
 
+/**
+ * Makes `token` the active access token.
+ *
+ * The in-memory token — the one every API request actually uses — is set
+ * synchronously, before this function returns. Persistence happens afterwards
+ * and is reported, never thrown: the returned promise resolves `true` if the
+ * token reached secure storage and `false` if it did not, and never rejects.
+ *
+ * On web it always resolves `false`, because web deliberately keeps the token in
+ * memory only — that is the designed behaviour, not a failure.
+ *
+ * Callers may therefore navigate as soon as this returns. Awaiting it only buys
+ * the guarantee that the session will survive a process kill.
+ *
+ * @param {string|null} token
+ * @returns {Promise<boolean>} whether the token was persisted.
+ */
 export function setAuthToken(token) {
   authLog("info", "setAuthToken", {
     hasToken: Boolean(token),
     tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
   });
   __authLog("setAuthToken: storing new token, expires in", token ? tokenExpiresInMs(token) : "N/A", "ms");
+
+  // ── Memory first ────────────────────────────────────────────────────────
+  // Synchronous, before any await. By the time this line returns, getValidToken()
+  // answers with the new token and the apiClient request interceptor will attach
+  // it — so callers do not have to await persistence before making API calls.
   rememberToken(token);
   _hydrated = true;
   clearLegacyToken();
 
+  // ── Persistence after ───────────────────────────────────────────────────
+  // secureSetToken / secureRemoveToken handle their own retry + Sentry
+  // reporting and resolve `false` (never throw) on terminal failure, so the
+  // promise returned here never rejects. Awaiting it is therefore safe but
+  // optional: it only decides whether the session outlives a process kill.
   if (isNativeCapacitor()) {
-    // secureSetToken / secureRemoveToken handle their own retry + Sentry
-    // reporting. They resolve `false` (not throw) on terminal failure so the
-    // returned promise never rejects — preserving setAuthToken's contract.
-    _persistPromise = token ? secureSetToken(token) : secureRemoveToken();
-    return _persistPromise;
+    return trackPersist(token ? secureSetToken(token) : secureRemoveToken());
   }
 
-  _persistPromise = Promise.resolve();
-  return _persistPromise;
+  // Web: nothing was written, so say so rather than claiming a persisted copy
+  // exists. The httpOnly refresh cookie is what survives a reload here.
+  return trackPersist(Promise.resolve(false));
 }
 
+/**
+ * Waits for the most recent persistence attempt to settle.
+ *
+ * @returns {Promise<boolean>} the result of that attempt. Never rejects.
+ */
 export async function flushAuthTokenStorage() {
-  await _persistPromise;
+  return await _persistPromise;
 }
 
 export function getValidToken() {
@@ -403,6 +530,9 @@ export function getAuthDiagnostics() {
     hasValidToken: Boolean(token),
     tokenExpiresInMs: token ? tokenExpiresInMs(token) : 0,
     native: isNativeCapacitor(),
+    // Which backend persistence resolved to on the last storage call, so an
+    // iOS build that fell back off the Keychain is visible in every auth log.
+    storageKind: _loggedStorageKind || AUTH_STORAGE_KIND.NONE,
     appState: typeof document !== "undefined" ? document.visibilityState : "unknown",
   };
 }

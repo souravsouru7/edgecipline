@@ -7,14 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/test-notification-routes.mjs scripts/test-mobile-shell.mjs features/trade/data/demoExtractionFixtures.test.mjs features/onboarding/utils/*.test.mjs features/premium/utils/*.test.mjs",
+    "test": "node --test --import=./scripts/register-aliases.mjs scripts/test-notification-routes.mjs scripts/test-platform-gating.mjs scripts/test-user-message.mjs scripts/test-mobile-shell.mjs scripts/test-auth-storage.mjs features/trade/data/demoExtractionFixtures.test.mjs features/onboarding/utils/*.test.mjs features/premium/utils/*.test.mjs",
     "test:notifications": "node --test scripts/test-notification-routes.mjs",
-    "android": "npm run build:mobile && npx cap sync android && npx cap open android",
-    "android:sync": "npm run build:mobile && npx cap sync android",
-    "android:build": "npm run build:mobile && npx cap sync android && node scripts/run-gradle-release.mjs",
-    "ios": "npm run build:mobile && npx cap sync ios && npx cap open ios",
-    "ios:sync": "npm run build:mobile && npx cap sync ios",
-    "build:mobile": "next build && node scripts/prune-mobile-bundle.mjs"
+    "android": "npm run build:mobile:android && npx cap sync android && npx cap open android",
+    "android:sync": "npm run build:mobile:android && npx cap sync android",
+    "android:build": "npm run build:mobile:android && npx cap sync android && node scripts/run-gradle-release.mjs",
+    "ios": "npm run build:mobile:ios && npx cap sync ios && npx cap open ios",
+    "ios:sync": "npm run build:mobile:ios && npx cap sync ios",
+    "build:mobile": "next build && node scripts/prune-mobile-bundle.mjs",
+    "build:mobile:android": "node scripts/build-mobile.mjs android",
+    "build:mobile:ios": "node scripts/build-mobile.mjs ios"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^6.3.1",

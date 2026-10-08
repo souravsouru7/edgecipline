@@ -88,14 +88,51 @@ export default function PageHeader({
 
   return (
     <>
+      {/* ── Top safe area, owned here and only here ────────────────────────
+          viewport-fit=cover means the iOS WebView runs under the status bar and
+          Dynamic Island, so something has to account for inset-top. It used to be
+          the <header> below, via padding-top — which is correct ONLY while the
+          header is the topmost element. It is not: the two banners render above
+          it, so a user in trial or in the rescue funnel got banner text under the
+          Island AND a stray inset-sized gap inside the header further down.
+
+          The inset now belongs to a spacer that is unconditionally first in flow,
+          so exactly one element consumes it however many banners are visible.
+
+          Every value here is env(..., 0px): on Android the status bar does not
+          overlay the WebView (useSystemBars sets overlay:false) and on web there
+          is no inset, so all of this collapses to 0 and the rendered box is
+          identical to before. */}
+      <div
+        aria-hidden="true"
+        style={{
+          // Paints the strip behind the status bar so page content scrolling up
+          // underneath it is covered rather than showing through beside the clock
+          // and battery icons. z-index 999 keeps it below the sticky header
+          // (1000) and below every modal overlay (1000+), which would otherwise
+          // get a light strip across their top edge.
+          position: "fixed", top: 0, left: 0, right: 0,
+          height: "env(safe-area-inset-top, 0px)",
+          background: "rgba(240,238,233,0.97)",
+          zIndex: 999,
+          pointerEvents: "none",
+        }}
+      />
+      <div aria-hidden="true" style={{ height: "env(safe-area-inset-top, 0px)" }} />
+
       <TrialCountdownBanner onUpgrade={() => setPricingOpen(true)} />
       <RescueBanner onUpgrade={() => setPricingOpen(true)} />
       <header style={{
-        position: "sticky", top: 0, zIndex: 1000,
+        // Sticks BELOW the status bar, not under it. With top:0 the pinned header
+        // slid beneath the Island as soon as the page scrolled.
+        position: "sticky", top: "env(safe-area-inset-top, 0px)", zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "env(safe-area-inset-top, 0px) calc(20px + env(safe-area-inset-right, 0px)) 0 calc(20px + env(safe-area-inset-left, 0px))",
-        height: "calc(60px + env(safe-area-inset-top, 0px))",
-        minHeight: "calc(60px + env(safe-area-inset-top, 0px))",
+        // No top inset here any more — the spacer above owns it. Left/right stay:
+        // in landscape on a notched iPhone these are what keep the logo and the
+        // menu button clear of the rounded corners and the camera housing.
+        padding: "0 calc(20px + env(safe-area-inset-right, 0px)) 0 calc(20px + env(safe-area-inset-left, 0px))",
+        height: 60,
+        minHeight: 60,
         background: "rgba(240,238,233,0.97)",
         borderBottom: "1px solid var(--color-border-subtle)",
         boxShadow: "0 1px 0 rgba(15,25,35,0.06)",

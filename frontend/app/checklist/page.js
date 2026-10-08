@@ -17,6 +17,7 @@ import {
   addChecklistToggleListener,
 } from "@/plugins/ChecklistNotificationPlugin";
 import { ruleItemId, MAX_NOTIFICATION_ITEMS } from "@/services/checklistNotificationSync";
+import { isIOSNative } from "@/utils/platform";
 
 function ReferenceImageThumb({ image, alt, onOpen }) {
   const [loaded, setLoaded] = useState(false);
@@ -244,6 +245,14 @@ export default function PreTradeChecklistPage() {
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* The live checklist notification is Android-only
+                  (ChecklistNotificationPlugin.java, no Swift counterpart), so on
+                  iOS this leads to a screen that cannot do what it offers. Hidden
+                  on iOS only: on web the settings screen is still worth reaching,
+                  because what it saves applies on the user's Android device, and
+                  it says so. The page itself still shows that notice if anyone
+                  arrives by URL. */}
+              {!isIOSNative() && (
               <Link
                 href="/checklist/notification-settings"
                 style={{
@@ -266,6 +275,7 @@ export default function PreTradeChecklistPage() {
                 <Bell size={13} strokeWidth={2.4} />
                 NOTIFY
               </Link>
+              )}
               <Link
                 href="/checklist/psychology"
                 style={{

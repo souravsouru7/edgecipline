@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2, X } from "lucide-react";
 import { deleteMyAccount } from "@/services/api";
 import { clearAuthToken } from "@/utils/auth";
+import { reportUserError } from "@/utils/userMessage";
 import { signOutFirebase } from "@/services/firebaseAuth";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 import { PLAY_MANAGE_URL } from "@/features/premium/utils/subscriptionCard.mjs";
@@ -84,18 +85,22 @@ export default function DeleteAccountSection({ email, subscription = null }) {
       // The account is gone server-side; clear every local trace before
       // leaving. Failures here must not block the redirect — the session is
       // already invalid, so stranding the user on a dead screen is worse.
-      // try/catch rather than .catch(): clearAuthToken returns undefined on
-      // web (it only produces a promise on native Capacitor).
+      // clearAuthToken() clears memory synchronously and reports persistence
+      // failure as `false` rather than rejecting, so this cannot throw — the
+      // try/catch stays only so a future change to that contract cannot strand
+      // the user on a dead screen.
       try { await clearAuthToken(); } catch { /* already signing out */ }
       try { await signOutFirebase(); } catch { /* already signing out */ }
 
       router.replace("/login?deleted=1");
     } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.data?.message ||
-        err?.message ||
-        "Could not delete your account. Please try again or contact support.";
+      // The backend's own message is written for users; err.message is not —
+      // it can be axios text such as "Request failed with status 500".
+      const message = reportUserError(
+        "account_delete_failed",
+        err,
+        "Could not delete your account. Please try again or contact support."
+      );
       setError(message);
       setBusy(false);
     }

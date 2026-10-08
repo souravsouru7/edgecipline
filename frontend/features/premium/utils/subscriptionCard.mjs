@@ -51,8 +51,27 @@ export function describePlayLifecycle(subscription, expiryDate) {
   return null;
 }
 
-// Whether the card should offer the Play-specific actions ("Manage
-// subscription" in the Play Store, "Change plan" via the Play paywall).
-export function showsPlayActions(subscription, isPremium) {
-  return Boolean(isPremium) && subscription?.provider === "google_play";
+/**
+ * Whether the card should offer the Play-specific actions ("Manage
+ * subscription" in the Play Store, "Change plan" via the Play paywall).
+ *
+ * `platformAllowsPlayActions` is separate from the subscription data on purpose.
+ * A Play subscription belongs to the account, so the same user sees this card on
+ * web and on iOS — and "Manage subscription" opens play.google.com, an external
+ * purchase-management link. Inside an iOS app that is a Guideline 3.1.1 / 3.1.3
+ * problem, so the platform gets a vote, not just the provider.
+ *
+ * Fail-closed: omit the argument and the actions are hidden. A caller that
+ * forgets the platform check should lose a button, not ship an external payment
+ * link to App Review.
+ *
+ * The subscription's status and renewal date stay visible everywhere — showing
+ * what someone already pays for is not a purchase surface.
+ */
+export function showsPlayActions(subscription, isPremium, platformAllowsPlayActions) {
+  return (
+    Boolean(isPremium) &&
+    subscription?.provider === "google_play" &&
+    platformAllowsPlayActions === true
+  );
 }

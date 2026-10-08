@@ -10,6 +10,7 @@ import { Capacitor } from "@capacitor/core";
 import { getValidToken, hasValidAuthToken, hydrateAuthToken } from "@/utils/auth";
 import { silentRefresh } from "@/services/apiClient";
 import { getNotificationTarget } from "@/services/notificationRoutes";
+import { getNativePlatform } from "@/utils/platform";
 
 // ─── Structured logging ───────────────────────────────────────────────────────
 // All FCM lifecycle events go through this. Use grep on FCM_ prefix in
@@ -190,7 +191,11 @@ export async function registerDeviceTokenWithRetry(token, options = {}) {
       try {
         await registerDeviceToken({
           token,
-          platform: "android",
+          // Was hardcoded "android". The backend keys its "disable stale sibling
+          // tokens" sweep on user+platform, so an iPhone registering as android
+          // would knock out the user's real Android device and vice versa.
+          // DeviceToken.platform already accepts "android" | "ios" | "web".
+          platform: getNativePlatform() || "web",
           appVersion: process.env.NEXT_PUBLIC_APP_VERSION || "1.0",
           deviceId: getDeviceId(),
         });

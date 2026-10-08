@@ -11,12 +11,14 @@ export default function LoginForm({
   form, handleChange,
   focused, setFocused,
   loading, googleLoading,
+  appleLoading, showAppleSignIn,
   showPass, setShowPass,
   mounted, shake,
   inAppBrowser,
   authDebugInfo,
   handleSubmit,
   handleGoogleSignIn,
+  handleAppleSignIn,
   testConnection,
 }) {
   const fields = [
@@ -32,7 +34,7 @@ export default function LoginForm({
     },
   ];
 
-  const isAnyLoading = loading || googleLoading;
+  const isAnyLoading = loading || googleLoading || appleLoading;
 
   return (
     <div style={{ background: "#FFFFFF", borderRadius: 16, overflow: "hidden", border: "1px solid #E2E8F0", boxShadow: "0 8px 40px rgba(15,25,35,0.1), 0 2px 8px rgba(15,25,35,0.05)", animation: shake ? "shake 0.5s ease-in-out" : "none" }}>
@@ -137,6 +139,25 @@ export default function LoginForm({
             <div style={{ fontSize: 11, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", textAlign: "center", padding: "10px 12px", background: "#F8FAFC", border: "1px dashed #E2E8F0", borderRadius: 8 }}>
               Google login is not configured (missing <b>NEXT_PUBLIC_FIREBASE_API_KEY</b>).
             </div>
+          )}
+
+          {/* Sign in with Apple — equal prominence to Google: same width, same
+              height, same type scale, stacked directly beneath it. Rendered only
+              where it can actually complete (native iOS today), which keeps a
+              dead button off Android and web. Apple's guidelines ask for their
+              black-on-white or white-on-black treatment and the exact wording
+              "Sign in with Apple". */}
+          {showAppleSignIn && (
+            <button suppressHydrationWarning type="button" onClick={handleAppleSignIn}
+              disabled={isAnyLoading}
+              aria-label="Sign in with Apple"
+              style={{ width: "100%", marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "11px 16px", border: "1.5px solid #0F1923", borderRadius: 8, background: "#0F1923", cursor: isAnyLoading ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: "#FFFFFF", fontFamily: "'Plus Jakarta Sans',sans-serif", opacity: isAnyLoading ? 0.7 : 1, boxShadow: "0 1px 6px rgba(15,25,35,0.12)", transition: "all 0.2s" }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true">
+                <path d="M17.05 12.73c.02 2.4 2.1 3.2 2.13 3.21-.02.06-.34 1.15-1.11 2.28-.67.98-1.36 1.95-2.46 1.97-1.07.02-1.42-.63-2.65-.63-1.23 0-1.61.61-2.63.65-1.05.04-1.85-1.05-2.52-2.02-1.46-2.11-2.58-5.97-1.08-8.58.74-1.3 2.07-2.12 3.51-2.14 1.04-.02 2.02.7 2.65.7.63 0 1.82-.86 3.07-.74.52.02 1.99.19 2.93 1.42-.08.05-1.73 1.01-1.71 3.01M14.9 4.6c.56-.68.94-1.62.84-2.56-.83.03-1.83.55-2.41 1.23-.52.6-.98 1.56-.86 2.48.92.07 1.87-.47 2.43-1.15"/>
+              </svg>
+              {appleLoading ? "Signing in..." : "Sign in with Apple"}
+            </button>
           )}
         </div>
 

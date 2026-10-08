@@ -320,7 +320,9 @@ function ShellLoading({ label = "Getting your setup ready" }) {
       `}</style>
       <div data-onboarding-skeleton style={{ display: "contents" }}>
         {/* Header: icon tile + two lines, same box as OnboardingShell's. */}
-        <header style={{ padding: "20px 24px 0", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Topmost element of the full-screen skeleton, so it owns the top inset.
+            max() keeps the existing 20px rhythm off iOS. */}
+        <header style={{ padding: "max(20px, env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) 0 calc(24px + env(safe-area-inset-left, 0px))", display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ width: 30, height: 30, borderRadius: 10, background: "rgba(34,199,142,0.18)" }} />
           <div style={{ display: "grid", gap: 6 }}>
             <div style={bar(72, 9)} />

@@ -4,9 +4,14 @@
 // Both flags are deliberately build-time constants, not runtime lookups. Next
 // inlines NEXT_PUBLIC_* at compile time, so each `PAYMENTS_ENABLED` /
 // `PLAY_BILLING_ENABLED` collapses to a literal and every guard on it becomes
-// statically dead code — the paywall, the Razorpay SDK loader and the sandbox
-// mock are all DROPPED from the bundle rather than merely hidden. That
-// distinction is what the store policies actually care about:
+// statically dead code.
+//
+// Dead code is not enough on its own: a `FLAG ? dynamic(() => import(x)) : null`
+// still leaves x in the module graph, and Turbopack emits the chunk anyway. What
+// DROPS a paywall from the bundle rather than merely hiding it is the
+// resolveAlias in next.config.ts, which swaps the module for an inert stub when
+// its flag is off. Both paywalls have one. That distinction — absent, not
+// hidden — is what the store policies actually care about:
 //
 //   Apple 3.1.1  — a third-party payment processor inside the app is an
 //                  automatic rejection. It must not be reachable at all.

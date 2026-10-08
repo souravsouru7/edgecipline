@@ -13,6 +13,9 @@ const frontendRoot = dirname(fileURLToPath(import.meta.url));
 const paymentsEnabled =
   String(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED || "").trim() === "true";
 
+const playBillingEnabled =
+  String(process.env.NEXT_PUBLIC_PLAY_BILLING_ENABLED || "").trim() === "true";
+
 // M30: Security headers — applied by the dev server and any SSR deployment.
 // For the static export (output: "export") these must also be set at the CDN/Nginx layer.
 const securityHeaders = [
@@ -70,17 +73,27 @@ const nextConfig: NextConfig = {
   // are intentionally using Turbopack and silences the webpack-config warning.
   turbopack: {
     root: frontendRoot,
-    // Payments off -> resolve the paywall to an inert stub so the real
-    // component (and the Razorpay checkout URL inside it) never enters the
-    // module graph. A runtime guard is not sufficient: the bundler still
-    // emits the chunk, leaving third-party payment code in a store artifact.
-    ...(paymentsEnabled
-      ? {}
-      : {
-          resolveAlias: {
-            "@/components/SmartPaywall": "./components/SmartPaywall.disabled.js",
-          },
-        }),
+    // Each purchase surface off -> resolve it to an inert stub so the real
+    // component never enters the module graph. A runtime guard is not
+    // sufficient: the bundler still emits the chunk, leaving payment code in a
+    // store artifact.
+    //
+    //   Razorpay      stubbed unless NEXT_PUBLIC_PAYMENTS_ENABLED=true
+    //                 (so: absent from Android and iOS builds)
+    //   Play Billing  stubbed unless NEXT_PUBLIC_PLAY_BILLING_ENABLED=true
+    //                 (so: absent from web and iOS builds)
+    //
+    // An iOS build has both flags false, which is what leaves it with no
+    // purchase mechanism compiled in at all — the condition Apple 3.1.1 cares
+    // about, as distinct from a purchase surface that is merely hidden.
+    resolveAlias: {
+      ...(paymentsEnabled
+        ? {}
+        : { "@/components/SmartPaywall": "./components/SmartPaywall.disabled.js" }),
+      ...(playBillingEnabled
+        ? {}
+        : { "@/components/PlayBillingPaywall": "./components/PlayBillingPaywall.disabled.js" }),
+    },
   },
 };
 

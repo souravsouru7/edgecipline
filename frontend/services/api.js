@@ -17,6 +17,13 @@ export const googleLogin = async (idToken) => {
   return await apiClient.post(`/auth/google`, { idToken });
 };
 
+// Sign in with Apple. Takes a FIREBASE ID token, exactly like googleLogin — the
+// backend verifies both with the same Admin SDK and returns the same shape, so
+// the caller's success handling is identical for the two providers.
+export const appleLogin = async (idToken) => {
+  return await apiClient.post(`/auth/apple`, { idToken });
+};
+
 // Get basic profile of the logged-in user
 export const getProfile = async () => {
   return await apiClient.get(`/auth/me`);
