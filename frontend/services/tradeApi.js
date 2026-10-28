@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import { IDEMPOTENCY_HEADER } from "@/utils/idempotency";
 
 // Helper to get URL path prefix based on market
 const getMarketPath = (marketType) => {
@@ -8,15 +9,30 @@ const getMarketPath = (marketType) => {
   return ``;
 };
 
-export const createTrade = async (tradeData, marketType = 'Forex') => {
+// Attaches the dedupe header when the caller supplies a key. Optional on
+// purpose: the server treats a keyless request exactly as before, so no call
+// site breaks, but any path that can be submitted twice should pass one. See
+// utils/idempotency.js for the one-key-per-submission contract.
+const idempotent = (idempotencyKey) =>
+  idempotencyKey ? { headers: { [IDEMPOTENCY_HEADER]: idempotencyKey } } : undefined;
+
+export const createTrade = async (tradeData, marketType = 'Forex', { idempotencyKey } = {}) => {
   const path = getMarketPath(marketType);
   // apiClient handles the 'Authorization' header and response data returning!
-  return await apiClient.post(`${path}/trades`, tradeData);
+  return await apiClient.post(`${path}/trades`, tradeData, idempotent(idempotencyKey));
 };
 
-export const createTradesBatch = async ({ trades, ocrJobId } = {}, marketType = 'Forex') => {
+export const createTradesBatch = async (
+  { trades, ocrJobId } = {},
+  marketType = 'Forex',
+  { idempotencyKey } = {}
+) => {
   const path = getMarketPath(marketType);
-  return await apiClient.post(`${path}/trades/batch`, { trades, ocrJobId });
+  return await apiClient.post(
+    `${path}/trades/batch`,
+    { trades, ocrJobId },
+    idempotent(idempotencyKey)
+  );
 };
 
 // Remaining free-tier allowance for this market. Lets the form warn before a

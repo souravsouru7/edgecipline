@@ -34,6 +34,7 @@ describe("account deletion storage cleanup", () => {
       "DeviceToken",
       "ExtractionLog",
       "Feedback",
+      "IdempotencyRecord",
       "IssueReport",
       "MissionAssignment",
       "NotificationDebugLog",

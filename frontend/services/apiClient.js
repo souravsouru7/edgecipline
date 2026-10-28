@@ -115,10 +115,18 @@ const isSlowAuthPath = (url = '') =>
 // ---------------------------------------------------------------------------
 // Primary API client
 // ---------------------------------------------------------------------------
+// Must stay ABOVE the server's own request deadline (API_REQUEST_TIMEOUT_MS,
+// default 15000 — see backend/middleware/timeout.js, which answers 408 and
+// destroys the socket at that point). When this was 10s the client abandoned
+// requests the server went on to commit: the user was told the request timed
+// out while their trade was being written, and a retap wrote a second one.
+// Whoever changes either number must keep this one the larger.
+const REQUEST_TIMEOUT_MS = 20000;
+
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: REQUEST_TIMEOUT_MS,
   // Required so that the httpOnly refresh-token cookie is sent with /api/auth/* requests.
   // CORS credentials: true is already configured on the backend.
   withCredentials: true,
@@ -175,10 +183,10 @@ apiClient.interceptors.request.use((config) => {
   }
   const withHeaders = applyNativeClientHeaders(config);
   // Per-path timeout override — see SLOW_AUTH_PATHS. Only widens the budget for
-  // sign-in; every other endpoint keeps the 10s default.
+  // sign-in; every other endpoint keeps the REQUEST_TIMEOUT_MS default.
   //
   // Note: axios merges instance defaults before interceptors run, so
-  // config.timeout is already 10000 here — never undefined. Comparing against
+  // config.timeout is already REQUEST_TIMEOUT_MS here — never undefined. Comparing against
   // the target rather than checking for absence is what makes this take effect,
   // while still honouring a deliberately larger per-call value.
   if (isSlowAuthPath(withHeaders.url || '')) {

@@ -15,12 +15,14 @@ const {
 const { protect } = require("../middleware/authMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 const { validateNumbers } = require("../middleware/validateNumbers");
+const { idempotency } = require("../middleware/idempotency");
 const { validateObjectId } = require("../middleware/validateObjectId");
 
 // Indian Market only — uses IndianTrade model, no shared Forex logic
 router.get("/quota", protect, getTradeQuota);
-router.post("/", protect, validateNumbers, createTrade);
-router.post("/batch", protect, validateNumbers, createTradesBatch);
+// See tradeRoutes.js — same ordering rationale.
+router.post("/", protect, validateNumbers, idempotency, createTrade);
+router.post("/batch", protect, validateNumbers, idempotency, createTradesBatch);
 router.get(
   "/",
   protect,

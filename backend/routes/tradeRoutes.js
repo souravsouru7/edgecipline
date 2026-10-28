@@ -16,14 +16,17 @@ const {
 const { protect } = require("../middleware/authMiddleware");
 const { statusRateLimiter } = require("../middleware/rateLimiter");
 const { validateRequest } = require("../middleware/validateRequest");
+const { idempotency } = require("../middleware/idempotency");
 const { tradeSchemas } = require("../validation/schemas");
 
 // Lets the client show the remaining free allowance and open the paywall
 // before the user fills in a form that would be rejected on submit.
 router.get("/quota", protect, getTradeQuota);
 
-router.post("/", protect, validateRequest(tradeSchemas.create), createTrade);
-router.post("/batch", protect, validateRequest(tradeSchemas.batchCreate), createTradesBatch);
+// `idempotency` runs after validation so a malformed body never burns a key,
+// and before the controller so a replay never re-enters the quota gate.
+router.post("/", protect, validateRequest(tradeSchemas.create), idempotency, createTrade);
+router.post("/batch", protect, validateRequest(tradeSchemas.batchCreate), idempotency, createTradesBatch);
 
 router.get("/", protect, validateRequest(tradeSchemas.list), getTrades);
 

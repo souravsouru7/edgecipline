@@ -90,6 +90,10 @@ const USER_OWNED_COLLECTIONS = [
   ["user",   require("../models/DeviceToken")],
   ["user",   require("../models/ExtractionLog")],
   ["user",   require("../models/Feedback")],
+  // Write-dedupe keys. They hold a copy of the response body — which for a
+  // trade create is the trade itself — so they are user data, not plumbing,
+  // and they must not outlive the account.
+  ["user",   require("../models/IdempotencyRecord")],
   ["user",   IndianTrade],
   ["user",   require("../models/IssueReport")],
   ["user",   require("../models/MissionAssignment")],
