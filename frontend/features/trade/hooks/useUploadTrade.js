@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
@@ -14,6 +14,8 @@ import { useToast } from "@/features/shared/components/ui/Toast";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { getUserMessage } from "@/utils/userMessage";
+import { newIdempotencyKey } from "@/utils/idempotency";
 import { markOnboardingStep } from "@/services/api";
 import { getDemoExtraction, INDIAN_DEMO_BROKER } from "@/features/trade/data/demoExtractionFixtures.mjs";
 
@@ -71,6 +73,22 @@ function clearOcrBrowserStorage() {
 // managed explicitly at the call sites below.
 const ACTIVE_UPLOAD_JOB_STORAGE_KEY = "et_active_upload_job";
 const ACTIVE_UPLOAD_JOB_MAX_AGE_MS = 12 * 60 * 60 * 1000; // well under the 24h server-side OCRJob TTL
+
+// How long we keep polling a job that never reaches a terminal status.
+//
+// Comfortably above the server's own ceiling: PROCESSING_TIMEOUT_MS caps one
+// pipeline run at 5 min, and OCR_JOB_ATTEMPTS (3) × backoff can stretch a
+// legitimately-retrying job past that. Anything still non-terminal at 10 min
+// means nothing is consuming the queue -- most often no OCR worker is running,
+// which the server cannot detect from the status endpoint because the BullMQ
+// job still exists (it is `waiting`, just never picked up). Without this
+// ceiling the UI polls every 4s forever and the user watches a spinner with no
+// way out.
+const OCR_POLL_DEADLINE_MS = 10 * 60 * 1000;
+
+const OCR_STALLED_MESSAGE =
+  "Extraction is taking longer than expected and may not have started. "
+  + "Check again, or upload the screenshot once more.";
 
 function persistActiveUploadJob(jobId, marketType) {
   if (typeof window === "undefined" || !jobId) return;
@@ -415,15 +433,10 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
 }
 
 function getFriendlyUploadError(err) {
-  const status = err?.status;
-  const message = String(err?.message || "").trim();
-  const detail = String(err?.data?.detail || "").trim();
-
-  if (status === 403 && /subscription required/i.test(message)) {
-    return detail || "You have used your free upload. Please subscribe to continue uploading trade screenshots.";
-  }
-
-  return message || "Upload failed. Please try again.";
+  // A free-tier refusal arrives as 402 TRADE_LIMIT_REACHED and already carries
+  // a sentence naming the real numbers ("You've used your 2 free Forex
+  // trades..."), so there is nothing to substitute here.
+  return String(err?.message || "").trim() || "Upload failed. Please try again.";
 }
 
 function isTransientPollingError(error) {
@@ -509,7 +522,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // 2. Local UI/Form state
   const { ready: mounted }                    = useRequireAuth();
   const [file, setFile]                       = useState(null);
-  const [error, setError]                     = useState(null);
+  const [error, setErrorMessage]              = useState(null);
+  // The API error behind `error`, kept intact (status + body). The upload
+  // screen has to tell a free-tier refusal from any other failure, and the
+  // only reliable signal is the 402 TRADE_LIMIT_REACHED envelope — matching on
+  // the sentence is how the screen ended up contradicting the quota pill.
+  const [errorDetail, setErrorDetail]         = useState(null);
+  const setError = useCallback((message, detail = null) => {
+    setErrorMessage(message);
+    setErrorDetail(message ? detail : null);
+  }, []);
   // Non-null while a save is blocked by the free-tier allowance.
   const [limitBlock, setLimitBlock]           = useState(null);
   // Post-save "you've used your free trades" sheet. While it is up the
@@ -529,6 +551,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   };
   const [jobId, setJobId]                     = useState("");
   const [uploadedJobId, setUploadedJobId]     = useState(null);
+  // True once polling has passed OCR_POLL_DEADLINE_MS without a terminal
+  // status. Drives the "check again / re-upload" affordance instead of
+  // leaving the user on an endless spinner.
+  const [ocrStalled, setOcrStalled]           = useState(false);
   const [broker, setBroker]                   = useState("AUTO");
   const [tradeSubType, setTradeSubType]       = useState(
     searchParams?.get("type") === "EQUITY" ? "EQUITY" : "OPTION"
@@ -561,6 +587,32 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // Used to compute OCR_DURATION — set when the upload returns a jobId
   // (server-side OCR starts now), read when the polling reaches COMPLETED.
   const ocrStartedAtRef                       = useRef(null);
+  // Wall-clock start of the current polling run, against OCR_POLL_DEADLINE_MS.
+  // Deliberately separate from ocrStartedAtRef: that one is performance.now()
+  // for duration telemetry and is nulled on completion, while this must
+  // survive a resumed job and carry its *original* start so a 12h-old restored
+  // job does not get a fresh 10-minute budget.
+  const pollStartedAtRef                      = useRef(null);
+  const stalledNotifiedRef                    = useRef(false);
+  // One idempotency key per logical submission, held until that submission
+  // actually succeeds. Re-minting per attempt would make the header useless:
+  // the whole point is that a double-tap, an interceptor retry, and a manual
+  // retry after a false timeout all arrive carrying the SAME key, so the
+  // server writes once. Keyed per row because multi-trade saves each row
+  // separately. Cleared on success (a later deliberate re-save is a new write)
+  // and whenever the OCR session resets.
+  const submissionKeysRef                     = useRef(new Map());
+
+  const getSubmissionKey = (slot) => {
+    const existing = submissionKeysRef.current.get(slot);
+    if (existing) return existing;
+    const minted = newIdempotencyKey();
+    submissionKeysRef.current.set(slot, minted);
+    return minted;
+  };
+  const clearSubmissionKey = (slot) => {
+    submissionKeysRef.current.delete(slot);
+  };
 
   // Clamp preExtractDate to [accountCreatedDate, today] whenever accountCreatedDate
   // arrives late (profile query resolves after mount) or preExtractDate drifts out of range.
@@ -591,6 +643,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // have (see the duplicate branch in onError).
   const attachToUploadJob = (nextJobId, toastMessage) => {
     ocrStartedAtRef.current = performance.now();
+    pollStartedAtRef.current = Date.now();
+    stalledNotifiedRef.current = false;
+    setOcrStalled(false);
     processedTradeIdRef.current = null;
     userEditedFormRef.current = false;
     setVisibleOcrStage((current) => keepProgressMovingForward(current, "pending"));
@@ -736,7 +791,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       }
 
       const friendlyMessage = getFriendlyUploadError(err);
-      setError(friendlyMessage);
+      setError(friendlyMessage, err);
       addToast(friendlyMessage, "error");
     }
   });
@@ -749,6 +804,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     resetDate = false,
   } = {}) => {
     stopDemoExtraction();
+    // The form is being torn down, so no key here belongs to a submission that
+    // can still be retried. Holding them would dedupe a genuinely new trade
+    // against an abandoned one.
+    submissionKeysRef.current.clear();
     const activeJobId = uploadedJobIdRef.current || jobId;
     if (cancelJob && !activeJobId && uploadJobMutation.isPending) {
       pendingUploadCancelRef.current = { nextFile, keepFile, clearError, resetDate };
@@ -850,6 +909,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     const persisted = readActiveUploadJob(marketType);
     if (!persisted) return;
     ocrStartedAtRef.current = performance.now();
+    // Carry the original upload time, not now: a job resumed after the
+    // deadline has already elapsed must report as stalled immediately rather
+    // than earn another full polling budget on every remount.
+    pollStartedAtRef.current = Number(persisted.savedAt) || Date.now();
+    stalledNotifiedRef.current = false;
+    setOcrStalled(false);
     processedTradeIdRef.current = null;
     setJobId(persisted.jobId);
     setUploadedJobId(persisted.jobId);
@@ -1041,6 +1106,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     }
   };
 
+  const hasPassedPollDeadline = () => {
+    const startedAt = pollStartedAtRef.current;
+    if (!startedAt) return false;
+    return Date.now() - startedAt >= OCR_POLL_DEADLINE_MS;
+  };
+
   // 6. Polling Query for status
   const jobStatusQuery = useQuery({
     queryKey: ["uploadStatus", jobId],
@@ -1052,10 +1123,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 10000),
     refetchInterval: (query) => {
       if (query.state.error) {
-        return isTransientPollingError(query.state.error) ? 5000 : false;
+        if (!isTransientPollingError(query.state.error)) return false;
+        return hasPassedPollDeadline() ? false : 5000;
       }
       const status = query.state.data?.status;
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
+      // Nothing is moving this job along — stop rather than poll forever.
+      if (hasPassedPollDeadline()) return false;
       return 4000;
     },
   });
@@ -1064,6 +1138,16 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   useEffect(() => {
     const currentStatus = String(jobStatusQuery.data?.status || "").toUpperCase();
     const completedPayload = jobStatusQuery.data?.data;
+
+    // A terminal status arrived, so the watchdog is moot — retire it before
+    // any branch below returns, or a late timer would overwrite a real result
+    // with the stalled message.
+    if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED"].includes(currentStatus)) {
+      stalledNotifiedRef.current = true;
+      pollStartedAtRef.current = null;
+      setOcrStalled(false);
+    }
+
     if (currentStatus === "COMPLETED" && completedPayload) {
       const sourceId = uploadedJobId || jobId;
       if (!sourceId || processedTradeIdRef.current === sourceId) return;
@@ -1119,13 +1203,24 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         lc.includes("resource_exhausted") ||
         lc.includes("quota");
 
+      // Anything not matched above is unclassified. The backend maps what it
+      // can (see getFriendlyProcessingError), but this string is persisted
+      // server-side and rendered verbatim, so it gets the same guard every
+      // other surface uses rather than being trusted to be user-readable --
+      // that is how a raw provider error (e.g. a Gemini 403 naming the project
+      // and API) used to reach the screen.
+      const fallbackMessage = getUserMessage(
+        { message: normalizedRawError },
+        "We couldn't process this screenshot. Please try again, or upload a clearer broker screenshot."
+      );
+
       const userMessage = isWrongMarket
         ? normalizedRawError
         : isNotTradeImage
         ? "This doesn't look like a trade screenshot. Please upload a screenshot directly from your broker platform (MT5, Zerodha Kite, etc.) showing the trade details."
         : isSystemBusy
         ? "Our AI is currently busy due to high demand. Please wait a moment and try uploading again."
-        : normalizedRawError;
+        : fallbackMessage;
 
       clearOcrSession({ nextFile: null, clearError: false, cancelJob: false });
       setError(userMessage);
@@ -1136,12 +1231,60 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           ? "Not a valid trade screenshot — please upload from your broker app"
           : isSystemBusy
           ? "AI busy — please try again in a few minutes"
-          : normalizedRawError,
+          : fallbackMessage,
         "error"
       );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobStatusQuery.data?.status, jobStatusQuery.data?.data]);
+
+  // Deadline watchdog. refetchInterval stops the polling, but it is a pure
+  // scheduling callback — it cannot raise UI state, and nothing else observes
+  // that the loop went quiet. This timer is what turns the silence into a
+  // message and a retry affordance.
+  useEffect(() => {
+    if (!jobId || stalledNotifiedRef.current) return;
+
+    const announce = () => {
+      if (stalledNotifiedRef.current) return;
+      stalledNotifiedRef.current = true;
+      setOcrStalled(true);
+      setError(OCR_STALLED_MESSAGE);
+      if (activeToastId) {
+        removeToast(activeToastId);
+        setActiveToastId(null);
+      }
+      addToast("Extraction is taking longer than expected", "error");
+      console.warn("[OCR] polling deadline reached", {
+        jobId,
+        deadlineMs: OCR_POLL_DEADLINE_MS,
+        lastStatus: jobStatusQuery.data?.status || null,
+      });
+    };
+
+    if (hasPassedPollDeadline()) {
+      announce();
+      return;
+    }
+
+    const remaining = OCR_POLL_DEADLINE_MS - (Date.now() - (pollStartedAtRef.current || Date.now()));
+    const timer = setTimeout(announce, Math.max(0, remaining));
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
+  // Resume polling a job the deadline gave up on. Worth offering rather than
+  // forcing a re-upload: by now the server-side reaper has usually reconciled
+  // the job to FAILED, so one more fetch reveals the real outcome — and if the
+  // worker simply came back late, the extraction is sitting there COMPLETED.
+  const recheckOcrStatus = () => {
+    if (!jobId) return;
+    pollStartedAtRef.current = Date.now();
+    stalledNotifiedRef.current = false;
+    setOcrStalled(false);
+    setError(null);
+    jobStatusQuery.refetch();
+  };
 
   // Stop polling only for definitive status errors. Transient mobile/network
   // timeouts should not discard an active OCR job after upload has succeeded.
@@ -1163,7 +1306,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobStatusQuery.error]);
 
-  const loading = uploadJobMutation.isPending || !!jobId || isCancellingUpload || demoRunning;
+  // `!!jobId` keeps the spinner up for the whole life of a server-side job, so
+  // a stalled job has to drop out of it explicitly — otherwise the deadline
+  // fires, the message appears, and the spinner carries on underneath it.
+  const loading =
+    uploadJobMutation.isPending
+    || (!!jobId && !ocrStalled)
+    || isCancellingUpload
+    || demoRunning;
   const serverOcrStage = normalizeOcrStage(jobStatusQuery.data?.status, {
     isUploading: uploadJobMutation.isPending,
     hasJob: Boolean(jobId),
@@ -1187,13 +1337,18 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       const rules = setupRulesSnapshot ?? (idx !== null ? (t.setupRules || []) : setupRules);
       const selectedTradeDate = normalizeDateForInput(tradeDate ?? t?.tradeDate);
       const tradeData = buildTradePayload(t, isInd, rules, selectedTradeDate);
+      const slot = t?._rowId ? `row:${t._rowId}` : idx !== null ? `idx:${idx}` : "single";
       return createTrade({
         ...tradeData,
         ocrJobId: uploadedJobId || jobId || undefined,
-      }, marketType);
+      }, marketType, { idempotencyKey: getSubmissionKey(slot) });
     },
     onSuccess: (res, variables) => {
-      const { idx } = variables;
+      const { idx, tradeSnapshot } = variables;
+      // Retire the key: this submission is done, and any later save of this
+      // row is a new write that must not be deduplicated against it.
+      const t = tradeSnapshot ?? (idx !== null ? trades[idx] : trade);
+      clearSubmissionKey(t?._rowId ? `row:${t._rowId}` : idx !== null ? `idx:${idx}` : "single");
       invalidateTradeDependentQueries(queryClient);
 
       addToast("Trade saved to your trade log!", "success");
@@ -1245,9 +1400,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (!file) return setError("Select file");
     if (isInd && broker === "AUTO") return setError("Select broker");
 
-    // Demo runs entirely in the browser. Nothing is uploaded, so it can't spend
-    // the user's free upload, hit the paywall, collide with the duplicate-image
-    // check, or leave a screenshot in cloud storage.
+    // Demo runs entirely in the browser. Nothing is uploaded, so it can't count
+    // against the free trade allowance, hit the paywall, collide with the
+    // duplicate-image check, or leave a screenshot in cloud storage.
     if (isDemo) return runDemoExtraction();
 
     // Compress BEFORE upload. PDFs and small images pass through unchanged.
@@ -1506,7 +1661,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   };
 
   return {
-    file, setFile: handleFileSelect, trade, setTrade, trades, savedTrades, loading, error, setError,
+    file, setFile: handleFileSelect, trade, setTrade, trades, savedTrades, loading, error, errorDetail, setError,
     extractedText, extractionInsights, strategies, setupsLoading, jobId, processingStatus, mounted, saved, isRedirecting,
     showCustomRR, setShowCustomRR, broker, setBroker, setupRules, isInd, marketType,
     tradeCount, tradeSubType, setTradeSubType,
@@ -1520,6 +1675,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       if (dest) router.push(dest);
     },
     savingAll: saveTradeMutation.isPending || isBatchSaving,
+    // Polling gave up on a job that never reached a terminal status. The screen
+    // should offer recheckOcrStatus() instead of an indefinite spinner.
+    ocrStalled,
+    recheckOcrStatus,
     handleUpload,
     clearOcrSession: async () => {
       uploadSessionRef.current += 1;
@@ -1654,8 +1813,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           const batchRes = await createTradesBatch({
             trades: batchPayload,
             ocrJobId: uploadedJobId || jobId || undefined,
-          }, marketType);
+          }, marketType, { idempotencyKey: getSubmissionKey("batch") });
 
+          clearSubmissionKey("batch");
           setSavedTrades(prev => {
             const updated = [...prev];
             validIndices.forEach((i) => { updated[i] = true; });

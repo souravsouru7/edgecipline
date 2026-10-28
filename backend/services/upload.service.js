@@ -4,25 +4,10 @@ const ApiError = require("../utils/ApiError");
 const { cancelOcrJob, createOcrJob, getOcrJobStatus } = require("./ocrJob.service");
 const { OCRJob } = require("../models/OCRJob");
 const { ocrQueue } = require("../queues/ocrQueue");
-const userRepository = require("../repositories/user.repository");
 const { logger } = require("../utils/logger");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { isRedisReady } = require("../config/redis");
-const { isPremium } = require("../utils/premium");
-const { listOrderablePlans } = require("./paymentService");
-
-// Quote the live catalogue rather than a literal. This message hard-coded
-// "Rs 150 for 3 months" through two price changes and was advertising a price
-// we had not charged in months — the kind of stale copy that only surfaces
-// when a customer quotes it back at support.
-function freeUploadUpgradeMessage() {
-  const cheapest = listOrderablePlans()[0];
-  if (!cheapest) {
-    return "You have used your free upload. Upgrade to continue.";
-  }
-  return `You have used your free upload. Subscribe from Rs ${cheapest.amount} `
-    + `for ${cheapest.label} to continue.`;
-}
+const tradeQuotaService = require("./tradeQuotaService");
 
 const BROKER_MAX_LENGTH = 50;
 const ACTIVE_DUPLICATE_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CONFIRMED"];
@@ -88,7 +73,6 @@ async function cleanupFailedUpload({ jobId, uploadedImage, userId, error }) {
 
 async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
   let jobId = null;
-  let claimedFreeUpload = false;
 
   try {
     if (!user) {
@@ -99,29 +83,11 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       throw new ApiError(400, "Image file is required.", "VALIDATION_ERROR");
     }
 
-    // Checked before the free-upload claim below so a duplicate never burns
-    // a user's one-time free upload.
+    // Checked before the quota gate so a duplicate never reports a limit the
+    // user is not actually hitting with this request.
     const duplicateJob = await findDuplicateUploadJob(user._id, uploadedImage.imageHash);
     if (duplicateJob) {
       throw buildDuplicateError(duplicateJob);
-    }
-
-    // Uses the same premium definition as the rest of the app (paid
-    // subscription OR active trial OR admin) -- a locally re-implemented
-    // subscription-only check previously ignored trial status and blocked
-    // trialing users from uploading past their one free upload.
-    if (!isPremium(user)) {
-      // Atomic claim before any work: prevents two concurrent requests from
-      // both passing a stale `user.freeUploadUsed === false` check.
-      claimedFreeUpload = await userRepository.claimFreeUpload(user._id);
-      if (!claimedFreeUpload) {
-        throw new ApiError(
-          403,
-          "Subscription required",
-          "PAYMENT_REQUIRED",
-          freeUploadUpgradeMessage()
-        );
-      }
     }
 
     if (!isRedisReady()) {
@@ -134,12 +100,26 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       );
     }
 
+    // Parsed before the gate so the allowance that is checked is the one for
+    // the market being uploaded into — the quota is per-market.
     const allowedMarketTypes = new Set(["Forex", "Indian_Market"]);
     const rawMarketType = String(body.marketType || query.marketType || "Forex").trim();
     if (!allowedMarketTypes.has(rawMarketType)) {
       throw new ApiError(400, "Invalid marketType. Allowed: Forex, Indian_Market", "VALIDATION_ERROR");
     }
     const marketType = rawMarketType;
+
+    // One limit governs manual entry and AI upload alike. This counts lifetime
+    // trade ROWS, so it consumes nothing: the authoritative charge stays at
+    // trade insert (assertCanCreateTrades in the create/confirm controllers),
+    // and an upload that never becomes a trade costs the user nothing. Failing
+    // here rather than after the extraction means a blocked user is told before
+    // we spend a Vision + Gemini call on them.
+    await tradeQuotaService.assertCanCreateTrades({
+      user,
+      market: marketType,
+      count: 1,
+    });
 
     const tradeSubTypeRaw = String(body.tradeSubType || query.tradeSubType || "").trim().toUpperCase();
     const tradeSubType = marketType === "Indian_Market" && tradeSubTypeRaw === "EQUITY" ? "EQUITY" : "OPTION";
@@ -182,18 +162,6 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       status: "PENDING",
     };
   } catch (error) {
-    // If we claimed the free upload but never managed to enqueue the job,
-    // release the claim so the user isn't billed-by-loss for our failure.
-    if (claimedFreeUpload && !jobId) {
-      try {
-        await userRepository.releaseFreeUpload(user._id);
-      } catch (releaseErr) {
-        logger.error("Failed to release free upload claim after error", {
-          userId: user._id,
-          error: releaseErr.message,
-        });
-      }
-    }
     await cleanupFailedUpload({
       jobId,
       uploadedImage,

@@ -1,27 +1,5 @@
 const User = require("../models/Users");
 
-async function markFreeUploadUsed(userId) {
-  return User.findByIdAndUpdate(userId, { freeUploadUsed: true });
-}
-
-/**
- * Atomically claim the user's single free upload. Returns true if this call
- * won the slot, false if it was already claimed by a concurrent request. Use
- * BEFORE enqueueing work so two parallel uploads cannot both pass the quota
- * check.
- */
-async function claimFreeUpload(userId) {
-  const result = await User.updateOne(
-    { _id: userId, freeUploadUsed: { $ne: true } },
-    { $set: { freeUploadUsed: true } }
-  );
-  return result.modifiedCount === 1;
-}
-
-async function releaseFreeUpload(userId) {
-  return User.updateOne({ _id: userId }, { $set: { freeUploadUsed: false } });
-}
-
 async function findUsersForWeeklyReports() {
   return User.find({}, { _id: 1 }).lean();
 }
@@ -54,7 +32,4 @@ module.exports = {
   findUsersForWeeklyReports,
   findUsersForSessionReminders,
   findUsersWithActiveJournalStreak,
-  markFreeUploadUsed,
-  claimFreeUpload,
-  releaseFreeUpload,
 };

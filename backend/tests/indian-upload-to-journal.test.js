@@ -2,10 +2,12 @@ const express = require("express");
 const request = require("supertest");
 
 const mockUser = {
-  _id: "user-123",
+  _id: "507f1f77bcf86cd799439099",
   subscriptionStatus: "active",
+  // isPremium() also requires a non-free plan; without it this fixture is a
+  // free user and every quota gate reaches for the database.
+  subscriptionPlan: "monthly",
   subscriptionExpiry: new Date(Date.now() + 86400000),
-  freeUploadUsed: false,
 };
 
 let mockStoredUploadTrade;
@@ -35,6 +37,13 @@ jest.mock("../middleware/upload.middleware", () => ({
     };
     next();
   },
+  // Not exercised here, but uploadRoutes wires it at require time and
+  // express rejects an undefined handler before any test runs.
+  uploadTradeEvidenceImages: (_req, _res, next) => next(),
+}));
+
+jest.mock("../config/redis", () => ({
+  isRedisReady: jest.fn(() => true),
 }));
 
 jest.mock("../queues/ocrQueue", () => ({
@@ -48,10 +57,6 @@ jest.mock("../queues/ocrQueue", () => ({
     attemptsMade: 1,
     failedReason: null,
   }),
-}));
-
-jest.mock("../repositories/user.repository", () => ({
-  markFreeUploadUsed: jest.fn(),
 }));
 
 jest.mock("../utils/cacheUtils", () => ({

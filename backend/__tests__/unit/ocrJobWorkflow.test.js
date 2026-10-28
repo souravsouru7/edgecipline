@@ -30,9 +30,6 @@ describe("OCR job workflow", () => {
       getOcrJobSnapshot: jest.fn().mockResolvedValue({ state: "waiting", attemptsMade: 0 }),
       ocrQueue: { getJob: jest.fn() },
     }));
-    jest.doMock("../../repositories/user.repository", () => ({
-      markFreeUploadUsed: jest.fn().mockResolvedValue(undefined),
-    }));
     jest.doMock("../../repositories/trade.repository", () => ({
       createTrade: jest.fn(),
     }));
@@ -57,7 +54,6 @@ describe("OCR job workflow", () => {
         subscriptionStatus: "active",
         subscriptionPlan: "monthly",
         subscriptionExpiry: new Date("2027-01-01T00:00:00.000Z"),
-        freeUploadUsed: false,
       },
       body: { marketType: "Forex", tradeDate: "2026-01-01" },
       query: {},
@@ -89,9 +85,6 @@ describe("OCR job workflow", () => {
       getOcrJobSnapshot: jest.fn(),
       ocrQueue: { getJob: jest.fn(), getJobCounts: jest.fn() },
     }));
-    jest.doMock("../../repositories/user.repository", () => ({
-      markFreeUploadUsed: jest.fn(),
-    }));
     jest.doMock("../../config/cloudinary", () => ({
       uploader: { destroy },
     }));
@@ -113,7 +106,6 @@ describe("OCR job workflow", () => {
         subscriptionStatus: "active",
         subscriptionPlan: "monthly",
         subscriptionExpiry: new Date("2027-01-01T00:00:00.000Z"),
-        freeUploadUsed: false,
       },
       body: { marketType: "Forex", tradeDate: "2026-01-01" },
       query: {},

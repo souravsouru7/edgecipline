@@ -52,7 +52,6 @@ const CACHE_PROJECTION = [
   // write to it in freeTierFunnelService invalidates this cache, and all of
   // those writes are conditional, so a stale read can only cost a no-op.
   "freeTier",
-  "freeUploadUsed",
   "authProvider",
   "email",
   "name",

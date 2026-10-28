@@ -73,6 +73,7 @@ if (false) process.on("unhandledRejection", (reason) => {
 const { connectRedis, isRedisReady } = require("./config/redis");
 const { startDataCleanupCron } = require("./jobs/dataCleanupCron");
 const { startOcrScreenshotRetentionCron } = require("./jobs/ocrScreenshotRetentionCron");
+const { startOcrStalledJobReaperCron } = require("./jobs/ocrStalledJobReaperCron");
 const { startWeeklyReportsCron } = require("./jobs/weeklyReportsCron");
 const { startSessionReminderCron } = require("./jobs/sessionReminderCron");
 const { startMorningMentorCron } = require("./jobs/morningMentorCron");
@@ -201,6 +202,7 @@ startMissionProgressCron();
 startSupportAutoCloseCron();
 startDataCleanupCron();
 startOcrScreenshotRetentionCron();
+startOcrStalledJobReaperCron();
 
 const app = express();
 

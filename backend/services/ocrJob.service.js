@@ -6,9 +6,6 @@ const { enqueueOcrJob, getOcrJobSnapshot, ocrQueue } = require("../queues/ocrQue
 const { processTradeUpload, getFriendlyProcessingError } = require("./tradeProcessingService");
 const { logger } = require("../utils/logger");
 const { appConfig } = require("../config");
-const User = require("../models/Users");
-const userRepository = require("../repositories/user.repository");
-const { isPremium } = require("../utils/premium");
 
 const QUEUE_UNAVAILABLE_MESSAGE =
   "The extraction queue is temporarily unavailable. Please upload the screenshot again in a moment.";
@@ -17,6 +14,30 @@ const DEFAULT_TTL_HOURS = Number(process.env.OCR_JOB_TTL_HOURS || 24);
 const STALE_PENDING_MS = Number(process.env.OCR_STALE_PENDING_MS || 5 * 60 * 1000);
 const STALE_PROCESSING_MS = Number(process.env.OCR_STALE_PROCESSING_MS || 12 * 60 * 1000);
 const TERMINAL_STATUSES = new Set(["COMPLETED", "CONFIRMED", "FAILED", "CANCELLED"]);
+
+// ── Reaper thresholds ───────────────────────────────────────────────────────
+//
+// Two different stalls, two different safe answers.
+//
+// A queue job sitting in waiting/delayed/prioritized is not being worked on by
+// anybody. A healthy worker claims a job in well under a second, so minutes of
+// waiting means no consumer exists — most often the OCR worker is not running.
+// That is definitive and safe to fail, and it is the case neither BullMQ nor
+// the status endpoint can detect: the job *exists*, so the missing-queue-job
+// recovery path never fires and the client polls forever.
+const STUCK_WAITING_MS = Number(process.env.OCR_STUCK_WAITING_MS || 8 * 60 * 1000);
+
+// An `active` job is a different matter: one attempt may legitimately run to
+// PROCESSING_TIMEOUT_MS (5 min), and BullMQ's own lock/stalled machinery is the
+// right mechanism to recover a worker that died mid-job. So this is only a
+// backstop for a job that outlives every one of those mechanisms — generous
+// enough that it can never truncate real work.
+const MAX_TOTAL_PROCESSING_MS = Number(process.env.OCR_MAX_TOTAL_MS || 30 * 60 * 1000);
+
+const STUCK_WAITING_MESSAGE =
+  "Trade extraction did not start. Please upload the screenshot again.";
+const STUCK_PROCESSING_MESSAGE =
+  "Trade extraction stopped unexpectedly. Please upload the screenshot again.";
 
 function getExpiryDate() {
   return new Date(Date.now() + DEFAULT_TTL_HOURS * 60 * 60 * 1000);
@@ -209,38 +230,6 @@ async function createOcrJob({ user, uploadedImage, marketType, tradeSubType, bro
   await job.save();
 
   return serializeJob(job, await getOcrJobSnapshot(queueJob.id));
-}
-
-// A free-tier user gets exactly one upload. Spending it on a screenshot the
-// pipeline itself refuses (poor quality, wrong market, unreadable) leaves them
-// permanently blocked having received nothing, so the claim goes back when the
-// job ends in a terminal failure and the account has never had a successful
-// extraction. Best-effort: never let this break the failure path itself.
-async function restoreFreeUploadAfterFailure(job) {
-  if (!job?.user) return;
-  try {
-    const user = await User.findById(job.user)
-      .select("role subscriptionStatus subscriptionPlan subscriptionExpiry trial freeUploadUsed")
-      .lean();
-    if (!user || !user.freeUploadUsed || isPremium(user)) return;
-
-    const hadSuccess = await OCRJob.exists({
-      user: job.user,
-      status: { $in: ["COMPLETED", "CONFIRMED"] },
-    });
-    if (hadSuccess) return;
-
-    await userRepository.releaseFreeUpload(job.user);
-    logger.info("Free upload restored after failed extraction", {
-      jobId: job._id?.toString?.(),
-      userId: job.user?.toString?.() || job.user,
-    });
-  } catch (error) {
-    logger.warn("Failed to restore free upload after failed extraction", {
-      jobId: job._id?.toString?.(),
-      error: error.message,
-    });
-  }
 }
 
 async function getOcrJobForUser(userId, jobId) {
@@ -679,11 +668,180 @@ async function processOcrJob(jobId, { attempt = 1, queueJobId = "" } = {}) {
       nonRetryable: isNonRetryableOcrError(error),
       attempt,
     });
-    if (terminalFailure && latest) {
-      await restoreFreeUploadAfterFailure(latest);
-    }
     throw error;
   }
+}
+
+// ── Stalled-job reaper ──────────────────────────────────────────────────────
+//
+// Every other recovery path in this file runs inside getOcrJobStatus, i.e. only
+// when a client happens to poll. That leaves two holes this closes:
+//
+//   1. A user who closes the app mid-upload. Nothing polls, so nothing
+//      reconciles, and the row sits PENDING/PROCESSING until the 24h TTL
+//      deletes it -- with no ocr_failed push ever sent and, for a free-tier
+//      account, the upload claim never returned.
+//   2. A queue job that exists but is never consumed (no worker running).
+//      getOcrJobStatus only recovers when the queue job is *missing*
+//      (`!queueState`), so a `waiting` job is invisible to it.
+//
+// Terminal failures here go through the same shape as the worker's: friendly
+// message, free-upload restore, and the ocr_failed notification, so a reaped
+// job is indistinguishable to the user from one the worker itself failed.
+async function failStalledOcrJob(job, { message, reason, queueState }) {
+  const jobId = job._id.toString();
+  const failed = await OCRJob.findOneAndUpdate(
+    { _id: job._id, status: { $in: ["PENDING", "PROCESSING"] } },
+    {
+      $set: {
+        status: "FAILED",
+        error: message,
+        processedAt: new Date(),
+        expiresAt: getExpiryDate(),
+      },
+    },
+    { new: true }
+  );
+  // Lost a race with a worker that finished, or with the user cancelling.
+  // Either way the job is no longer ours to fail.
+  if (!failed) return null;
+
+  logger.error("OCR job reaped as stalled", {
+    jobId,
+    userId: failed.user?.toString?.() || failed.user,
+    reason,
+    previousStatus: job.status,
+    queueJobId: job.queueJobId || null,
+    queueState: queueState?.state || null,
+    ageMs: Date.now() - new Date(job.processingStartedAt || job.createdAt).getTime(),
+  });
+
+  // Lazy require: queues/smartNotificationQueue pulls in the BullMQ connection,
+  // and this module is required by the OCR worker at boot.
+  try {
+    const { enqueueNotificationDelivery } = require("../queues/smartNotificationQueue");
+    await enqueueNotificationDelivery({
+      userId: failed.user,
+      notification: {
+        type: "ocr_failed",
+        title: "Trade extraction needs attention",
+        body: "We could not process this screenshot. Open the upload screen to retry.",
+        deepLink: failed.marketType === "Indian_Market"
+          ? "/indian-market/upload-trade"
+          : "/upload-trade",
+        data: { ocrJobId: jobId, screen: "upload-trade", marketType: failed.marketType || "Forex" },
+        sourceType: "ocr_job",
+        sourceId: jobId,
+        // Same key the worker uses, so a reap and a late worker failure can
+        // never both notify for one job.
+        dedupeKey: `ocr-failed:${jobId}`,
+      },
+    });
+  } catch (error) {
+    logger.warn("Failed to enqueue ocr_failed notification for reaped job", {
+      jobId,
+      error: error.message,
+    });
+  }
+
+  return failed;
+}
+
+async function reapStalledOcrJobs({ limit = 200, now = Date.now() } = {}) {
+  const stats = { scanned: 0, failedWaiting: 0, failedProcessing: 0, recovered: 0, reconciled: 0, skipped: 0 };
+
+  // Oldest first, and only rows already past the gentler of the two
+  // thresholds, so a healthy in-flight job is never even examined.
+  const candidates = await OCRJob.find({
+    status: { $in: ["PENDING", "PROCESSING"] },
+    createdAt: { $lte: new Date(now - Math.min(STUCK_WAITING_MS, STALE_PENDING_MS)) },
+  })
+    .sort({ createdAt: 1 })
+    .limit(limit);
+
+  for (const job of candidates) {
+    stats.scanned += 1;
+    const ageMs = now - new Date(job.processingStartedAt || job.createdAt).getTime();
+
+    try {
+      let queueState = null;
+      if (job.queueJobId) {
+        // eslint-disable-next-line no-await-in-loop
+        queueState = await getOcrJobSnapshot(job.queueJobId);
+      }
+
+      // No queue job at all — reuse the existing, tested recovery path, which
+      // re-enqueues up to OCR_QUEUE_RECOVERY_ATTEMPTS and then fails.
+      if (!queueState) {
+        const staleMs = job.status === "PROCESSING" ? STALE_PROCESSING_MS : STALE_PENDING_MS;
+        if (ageMs < staleMs) {
+          stats.skipped += 1;
+          continue;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        const result = await recoverMissingQueueJob(job, job.user);
+        if (result?.status === "FAILED") {
+          stats.failedProcessing += 1;
+        } else {
+          stats.recovered += 1;
+        }
+        continue;
+      }
+
+      // The queue already knows it failed; make Mongo agree.
+      if (queueState.state === "failed") {
+        // eslint-disable-next-line no-await-in-loop
+        await failStalledOcrJob(job, {
+          message: job.error || getFriendlyProcessingError({ message: queueState.failedReason || "" }),
+          reason: "queue_failed",
+          queueState,
+        });
+        stats.reconciled += 1;
+        continue;
+      }
+
+      // Nobody is consuming this job. This is the no-worker case.
+      if (["waiting", "delayed", "prioritized", "waiting-children"].includes(queueState.state)) {
+        if (ageMs < STUCK_WAITING_MS) {
+          stats.skipped += 1;
+          continue;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await failStalledOcrJob(job, {
+          message: STUCK_WAITING_MESSAGE,
+          reason: "no_consumer",
+          queueState,
+        });
+        stats.failedWaiting += 1;
+        continue;
+      }
+
+      // Active, and past every mechanism meant to catch it.
+      if (ageMs >= MAX_TOTAL_PROCESSING_MS) {
+        // eslint-disable-next-line no-await-in-loop
+        await failStalledOcrJob(job, {
+          message: STUCK_PROCESSING_MESSAGE,
+          reason: "exceeded_max_total",
+          queueState,
+        });
+        stats.failedProcessing += 1;
+        continue;
+      }
+
+      stats.skipped += 1;
+    } catch (error) {
+      // One bad row must not abort the sweep.
+      logger.warn("OCR reaper failed on a job", {
+        jobId: job._id?.toString?.(),
+        error: error.message,
+      });
+    }
+  }
+
+  if (stats.scanned > 0) {
+    logger.info("OCR stalled-job reaper finished", stats);
+  }
+  return stats;
 }
 
 async function markOcrJobConfirmed(userId, jobId, { tradeId, collection, session } = {}) {
@@ -730,4 +888,7 @@ module.exports = {
   markOcrJobConfirmed,
   isNonRetryableOcrError,
   processOcrJob,
+  reapStalledOcrJobs,
+  STUCK_WAITING_MS,
+  MAX_TOTAL_PROCESSING_MS,
 };

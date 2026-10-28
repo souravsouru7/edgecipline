@@ -169,6 +169,10 @@ const userSchema = new mongoose.Schema(
       // account, not once per device, so the dismissal lives here.
       lastFreeTradeSheetDismissedAt: { type: Date, default: null },
     },
+    // DEPRECATED. The one-shot free AI import this flag gated is gone: uploads
+    // and manual entries now share the per-market FREE_TRADE_LIMIT counted from
+    // trade rows (services/tradeQuotaService). Nothing reads or writes it; kept
+    // so existing documents need no migration. Safe to drop in a later cleanup.
     freeUploadUsed: {
       type: Boolean,
       default: false

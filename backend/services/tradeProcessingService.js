@@ -1457,15 +1457,46 @@ async function processTradeUpload({
   })(), "Processing timeout", PROCESSING_TIMEOUT_MS);
 }
 
+// Codes whose own message is written for users and must survive verbatim --
+// everything else is mapped, because this string is rendered on the upload
+// screen and an upstream provider's text is both unreadable and leaky.
+const USER_AUTHORED_ERROR_CODES = new Set([
+  "WRONG_MARKET_TYPE",
+  "IMAGE_QUALITY_TOO_LOW",
+  "NOT_A_TRADE_IMAGE",
+  "OCR_EMPTY_RESULT",
+  "OCR_QUEUE_UNAVAILABLE",
+]);
+
+const GENERIC_PROCESSING_ERROR =
+  "We couldn't process this screenshot. Please try again in a few minutes.";
+
 function getFriendlyProcessingError(error) {
   const msg = String(error?.message || "").toLowerCase();
   const code = error?.code;
 
-  if (code === "WRONG_MARKET_TYPE" || msg.includes("wrong screenshot type")) {
+  if (USER_AUTHORED_ERROR_CODES.has(code) || msg.includes("wrong screenshot type")) {
     return error.message;
   }
   if (code === 429 || msg.includes("429") || msg.includes("resource_exhausted") || msg.includes("quota") || msg.includes("rate limit")) {
     return "Our AI is currently busy due to high demand. Please try uploading again in a few minutes.";
+  }
+  // A provider-side auth/billing refusal. The clearest real case: a Google
+  // project whose Billing Tier reads "Unavailable" answers generation with 403
+  // PERMISSION_DENIED. Nothing the user did, nothing they can act on, and the
+  // raw body names the project and API -- so it never reaches the screen.
+  if (
+    code === 403 ||
+    code === "PERMISSION_DENIED" ||
+    error?.status === 403 ||
+    msg.includes("permission_denied") ||
+    msg.includes("permission denied") ||
+    msg.includes("billing") ||
+    msg.includes("api key not valid") ||
+    msg.includes("api_key_invalid") ||
+    msg.includes("is not set")
+  ) {
+    return "Trade extraction is temporarily unavailable. Please try again in a few minutes.";
   }
   if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("deadline")) {
     return "AI processing timed out due to high load. Please try again shortly.";
@@ -1473,7 +1504,15 @@ function getFriendlyProcessingError(error) {
   if (code === "OCR_JOB_CANCELLED") {
     return "Upload cancelled.";
   }
-  return error?.message || "Processing failed";
+  // Deliberately NOT error.message. Anything reaching here is unclassified --
+  // a Mongo error, a provider SDK string, a stack-bearing Error -- and this
+  // value is persisted to OCRJob.error and rendered verbatim by the client.
+  logger.warn("OCR_UNMAPPED_FAILURE", {
+    code: code || null,
+    status: error?.status ?? null,
+    message: error?.message || String(error),
+  });
+  return GENERIC_PROCESSING_ERROR;
 }
 
 async function failTradeProcessing(tradeId, error) {

@@ -25,6 +25,7 @@ import PaywallGate           from "@/components/PaywallGate";
 import { canShowPurchaseUI } from "@/config/payments";
 import OnboardingMarketGuard from "@/features/onboarding/components/OnboardingMarketGuard";
 import { getOnboardingUploadPath } from "@/features/onboarding/utils/onboardingMarketRouting.mjs";
+import { isTradeLimitError, tradeLimitQuota, marketLabel } from "@/features/trade/lib/tradeLimit";
 
 // ── shared form constants ─────────────────────────────────────────────────────
 const ENTRY_BASIS  = ["Plan", "Impulsive", "Emotion", "Custom"];
@@ -71,7 +72,7 @@ const grid2     = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minm
 // ── upload / status card ─────────────────────────────────────────────────────
 
 function UploadCard({ state, accountCreatedDate, todayInputMax }) {
-  const { file, setFile, setError, loading, processingStatus, error, isInd, broker, setBroker, handleUpload, trade, tradeSubType, setTradeSubType, preExtractDate, handlePreExtractDateChange } = state;
+  const { file, setFile, setError, loading, processingStatus, error, errorDetail, isInd, broker, setBroker, handleUpload, trade, tradeSubType, setTradeSubType, preExtractDate, handlePreExtractDateChange, ocrStalled, recheckOcrStatus } = state;
   const isEquityMode = isInd && tradeSubType === "EQUITY";
   const [showSample, setShowSample] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -86,10 +87,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
     if (showConfirmModal) confirmSubmitRef.current = false;
   }, [showConfirmModal]);
   const normalizedError = String(error || "").toLowerCase();
-  const isSubscriptionError =
-    normalizedError.includes("subscription required") ||
-    normalizedError.includes("used your free upload") ||
-    normalizedError.includes("please subscribe");
+  // Driven off the 402 TRADE_LIMIT_REACHED envelope, not the copy, so this card
+  // and TradeQuotaPill above are reading the same quota object.
+  const isSubscriptionError = isTradeLimitError(errorDetail);
+  const limitQuota = isSubscriptionError ? tradeLimitQuota(errorDetail) : null;
   const isWrongScreenshotError =
     normalizedError.includes("doesn't look like a trade screenshot") ||
     normalizedError.includes("does not appear to be a trade screenshot") ||
@@ -270,7 +271,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                   <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, background: "linear-gradient(90deg,#B8860B,#D4A917)", color: "#fff", padding: "2px 7px", borderRadius: 20, letterSpacing: "0.08em", ...monoStyle }}>PRO</span>
                 </div>
                 <p style={{ margin: 0, fontSize: 11, color: "#64748B", lineHeight: 1.6 }}>
-                  You&apos;ve used your free AI import. Unlock unlimited extractions and keep building better trading habits.
+                  {limitQuota
+                    ? `You've used all ${limitQuota.limit} free ${marketLabel(limitQuota.market)} trades. `
+                    : "You've used your free trades. "}
+                  Unlock unlimited extractions and keep building better trading habits.
                 </p>
               </div>
             </div>
@@ -359,11 +363,30 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
           <div style={{ padding: "10px 14px", background: "#FEE2E2", borderBottom: "1px solid #FCA5A5", display: "flex", alignItems: "center", gap: 8 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D63B3B" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <span style={{ fontSize: 12, fontWeight: 800, color: "#9B1C1C" }}>
-              {isWrongScreenshotError ? "Wrong Image Uploaded" : "Upload Error"}
+              {ocrStalled ? "Still Processing" : isWrongScreenshotError ? "Wrong Image Uploaded" : "Upload Error"}
             </span>
           </div>
           <div style={{ padding: "10px 14px" }}>
             <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.65 }}>{error}</p>
+            {/* Polling gave up on a job that never reached a terminal status.
+                Worth offering a recheck rather than only a re-upload: by now
+                the server-side reaper has usually resolved the job, so this
+                reveals the real outcome — or the extraction itself, if the
+                worker simply came back late. */}
+            {ocrStalled && (
+              <button
+                type="button"
+                onClick={recheckOcrStatus}
+                style={{
+                  marginTop: 10, padding: "9px 14px", borderRadius: 8,
+                  border: "1px solid #FCA5A5", background: "#fff",
+                  color: "#9B1C1C", fontSize: 11, fontWeight: 800,
+                  letterSpacing: "0.08em", ...monoStyle, cursor: "pointer",
+                }}
+              >
+                CHECK AGAIN
+              </button>
+            )}
             {isWrongScreenshotError && (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
                 {screenshotTips.map((tip, i) => (
