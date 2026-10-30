@@ -284,7 +284,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Platform', 'X-Request-ID', 'X-Device-ID', 'X-Session-ID'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Platform', 'X-Request-ID', 'X-Device-ID', 'X-Session-ID', 'Idempotency-Key', 'X-Idempotency-Key', 'X-Attribution-Id'],
 };
 
 // HTTPS redirect — must come before CORS so redirects are not blocked
