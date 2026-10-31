@@ -58,6 +58,15 @@ function hasActivePlaySubscription(user, now = Date.now()) {
   return new Date(expiry).getTime() > now;
 }
 
+// Apple In-App Purchase entitlement — the iOS twin of the Play field above,
+// with the same contract: written only by appStoreBillingService from a state
+// Apple signed, and independent of the Razorpay ledger.
+function hasActiveAppStoreSubscription(user, now = Date.now()) {
+  const expiry = user?.appStoreEntitlementExpiry;
+  if (!expiry) return false;
+  return new Date(expiry).getTime() > now;
+}
+
 function isTrialActive(user, now = Date.now()) {
   // With trials retired, a stale trial.endsAt left on an old account must not
   // keep granting free access.
@@ -73,6 +82,7 @@ function isPremium(user) {
   const now = Date.now();
   if (hasActiveSubscription(user, now)) return true;
   if (hasActivePlaySubscription(user, now)) return true;
+  if (hasActiveAppStoreSubscription(user, now)) return true;
   if (isTrialActive(user, now)) return true;
   return false;
 }
@@ -91,6 +101,9 @@ function getEffectiveExpiry(user) {
   if (hasActivePlaySubscription(user)) {
     candidates.push(new Date(user.playEntitlementExpiry).getTime());
   }
+  if (hasActiveAppStoreSubscription(user)) {
+    candidates.push(new Date(user.appStoreEntitlementExpiry).getTime());
+  }
   if (!candidates.length) return null;
   return new Date(Math.max(...candidates));
 }
@@ -101,19 +114,25 @@ function getEffectiveExpiry(user) {
 // to cancel or update payment", which differs entirely between the two.
 function getBillingProvider(user) {
   const now = Date.now();
-  const play = hasActivePlaySubscription(user, now);
-  const prepaid = hasActiveSubscription(user, now);
-  if (play && prepaid) {
-    // Both live at once — e.g. a web subscriber who later bought on Android.
-    // Whichever runs longer is the one that governs renewal.
-    return new Date(user.playEntitlementExpiry).getTime() >=
-      new Date(user.subscriptionExpiry || 0).getTime()
-      ? "google_play"
-      : "razorpay";
+  // Every provider funding access right now, with the date it runs to. When
+  // more than one is live — e.g. a web subscriber who later bought on iPhone —
+  // whichever runs longest governs renewal. A Razorpay plan with no expiry
+  // ranks as 0 here (unchanged from before), so a store agreement governs it.
+  const live = [];
+  if (hasActiveSubscription(user, now)) {
+    live.push(["razorpay", new Date(user.subscriptionExpiry || 0).getTime()]);
   }
-  if (play) return "google_play";
-  if (prepaid) return "razorpay";
-  return null;
+  if (hasActivePlaySubscription(user, now)) {
+    live.push(["google_play", new Date(user.playEntitlementExpiry).getTime()]);
+  }
+  if (hasActiveAppStoreSubscription(user, now)) {
+    live.push(["app_store", new Date(user.appStoreEntitlementExpiry).getTime()]);
+  }
+  if (!live.length) return null;
+  // Stable sort keeps the existing Play-over-Razorpay tie-break.
+  const order = { google_play: 0, app_store: 1, razorpay: 2 };
+  live.sort((a, b) => b[1] - a[1] || order[a[0]] - order[b[0]]);
+  return live[0][0];
 }
 
 // The status a user would expect to read on their settings page, resolved
@@ -130,15 +149,20 @@ function getBillingProvider(user) {
 // badge from getTrialState, and "active" here must mean "paid".
 function getEffectiveSubscriptionStatus(user, now = Date.now()) {
   if (!user) return "inactive";
-  if (hasActiveSubscription(user, now) || hasActivePlaySubscription(user, now)) {
+  if (
+    hasActiveSubscription(user, now) ||
+    hasActivePlaySubscription(user, now) ||
+    hasActiveAppStoreSubscription(user, now)
+  ) {
     return "active";
   }
   if (user.subscriptionStatus === "expired") return "expired";
   // Razorpay "active" whose expiry has passed but the hourly cron hasn't
-  // flipped it yet, or a Play agreement that ran out / was revoked: both are
+  // flipped it yet, or a store agreement that ran out / was revoked: all are
   // "you had this and it lapsed", which is what "expired" tells the user.
   if (user.subscriptionStatus === "active" && user.subscriptionExpiry) return "expired";
   if (user.playEntitlementExpiry) return "expired";
+  if (user.appStoreEntitlementExpiry) return "expired";
   return "inactive";
 }
 
@@ -159,17 +183,24 @@ const PLAY_PLAN_LABELS = Object.freeze({
   "6_months": "6-month Pro",
 });
 
-function getPlanLabel(user, playSummary = null) {
+// App Store products carry the same planType vocabulary as Play base plans.
+function getPlanLabel(user, playSummary = null, appStoreSummary = null) {
   if (!user) return PLAN_LABELS.free;
   const provider = getBillingProvider(user);
   if (provider === "google_play" && playSummary?.planType && PLAY_PLAN_LABELS[playSummary.planType]) {
     return PLAY_PLAN_LABELS[playSummary.planType];
   }
-  if (provider === null && !hasActiveSubscription(user) && !hasActivePlaySubscription(user)) {
+  if (provider === "app_store" && appStoreSummary?.planType && PLAY_PLAN_LABELS[appStoreSummary.planType]) {
+    return PLAY_PLAN_LABELS[appStoreSummary.planType];
+  }
+  if (provider === null) {
     // Lapsed or never paid: the stored label is history, not a current plan.
-    // A lapsed Play plan still names what they had, for the "expired" card.
+    // A lapsed store plan still names what they had, for the "expired" card.
     if (playSummary?.planType && PLAY_PLAN_LABELS[playSummary.planType] && user.playEntitlementExpiry) {
       return PLAY_PLAN_LABELS[playSummary.planType];
+    }
+    if (appStoreSummary?.planType && PLAY_PLAN_LABELS[appStoreSummary.planType] && user.appStoreEntitlementExpiry) {
+      return PLAY_PLAN_LABELS[appStoreSummary.planType];
     }
     if (user.subscriptionStatus === "expired" || user.subscriptionStatus === "active") {
       return PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
@@ -223,6 +254,7 @@ function getPlanSource(user) {
   // getBillingProvider().
   if (hasActiveSubscription(user)) return "subscription";
   if (hasActivePlaySubscription(user)) return "subscription";
+  if (hasActiveAppStoreSubscription(user)) return "subscription";
   if (isTrialActive(user)) return "trial";
   return "free";
 }
@@ -268,6 +300,7 @@ module.exports = {
   isTrialActive,
   hasActiveSubscription,
   hasActivePlaySubscription,
+  hasActiveAppStoreSubscription,
   getEffectiveExpiry,
   getEffectiveSubscriptionStatus,
   getBillingProvider,

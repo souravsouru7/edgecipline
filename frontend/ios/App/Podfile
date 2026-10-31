@@ -12,15 +12,33 @@ def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication'
+  pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+  pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+  pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
+  pod 'CapacitorNetwork', :path => '../../node_modules/@capacitor/network'
+  pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+  pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
   pod 'SentryCapacitor', :path => '../../node_modules/@sentry/capacitor'
 end
 
 target 'App' do
   capacitor_pods
   # Add your Pods here
+  # The backend sends through FCM, but @capacitor/push-notifications hands JS
+  # the raw APNs token on iOS. AppDelegate swaps it for the FCM token.
+  pod 'FirebaseMessaging'
 end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  # Capacitor 6's helper only lifts pods to 13.0, but Xcode 27 rejects anything
+  # below 15.0. Match the app's platform target above.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
 end

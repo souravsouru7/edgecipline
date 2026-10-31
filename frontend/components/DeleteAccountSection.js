@@ -44,6 +44,9 @@ const WHAT_GETS_DELETED = [
 export default function DeleteAccountSection({ email, subscription = null }) {
   const hasLivePlaySubscription =
     subscription?.provider === "google_play" && subscription?.status === "active";
+  // Same for Apple: deleting the account does not stop Apple billing the Apple ID.
+  const hasLiveAppStoreSubscription =
+    subscription?.provider === "app_store" && subscription?.status === "active";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -275,6 +278,35 @@ export default function DeleteAccountSection({ email, subscription = null }) {
                     style={{ color: "#92400E", fontWeight: 700, textDecoration: "underline" }}
                   >
                     Play Store › Subscriptions
+                  </a>
+                  .
+                </div>
+              )}
+
+              {hasLiveAppStoreSubscription && (
+                <div
+                  role="alert"
+                  style={{
+                    background: "#FFFBEB",
+                    border: "1px solid #FCD34D",
+                    borderRadius: 9,
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: "#92400E",
+                    lineHeight: 1.55,
+                    marginBottom: 16,
+                  }}
+                >
+                  <strong>Your App Store subscription will keep billing.</strong> Deleting
+                  your account does not cancel it, and it cannot be restored to a new account.
+                  Cancel it first in{" "}
+                  <a
+                    href="https://apps.apple.com/account/subscriptions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#92400E", fontWeight: 700, textDecoration: "underline" }}
+                  >
+                    Settings › Apple ID › Subscriptions
                   </a>
                   .
                 </div>

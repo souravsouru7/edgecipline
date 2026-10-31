@@ -91,6 +91,14 @@ describe("account deletion storage cleanup", () => {
         }),
       })),
     };
+    // Apple twin of the above. No live row here, so no App Store manage link.
+    const AppStoreSubscription = {
+      modelName: "AppStoreSubscription",
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      find: jest.fn(() => ({
+        select: () => ({ lean: () => Promise.resolve([]) }),
+      })),
+    };
     const OCRJob = makeModel("OCRJob");
     // Support attachments are private customer data stored on Cloudinary under
     // a different shape to trade images, so they need their own sweep.
@@ -108,6 +116,7 @@ describe("account deletion storage cleanup", () => {
     jest.doMock("../../models/IndianTrade", () => IndianTrade);
     jest.doMock("../../models/RefreshToken", () => RefreshToken);
     jest.doMock("../../models/PlaySubscription", () => PlaySubscription);
+    jest.doMock("../../models/AppStoreSubscription", () => AppStoreSubscription);
     jest.doMock("../../models/SupportMessage", () => SupportMessage);
     jest.doMock("../../models/OCRJob", () => ({ OCRJob }));
     jest.doMock("../../utils/cloudinaryHelpers", () => ({ destroyImages }));
@@ -136,6 +145,12 @@ describe("account deletion storage cleanup", () => {
     );
     expect(PlaySubscription.deleteMany).toBeUndefined();
     expect(result.playSubscriptionsDetached).toBe(2);
+    expect(AppStoreSubscription.updateMany).toHaveBeenCalledWith(
+      { user: userId },
+      { $set: { user: null, detachedAt: expect.any(Date) } }
+    );
+    expect(result.appStoreSubscriptionsDetached).toBe(1);
+    expect(result.appStoreManageUrl).toBeNull();
     // A live Play subscription outlives the account; the caller is told so it
     // can point the user at Play's cancel screen.
     expect(result.playSubscriptionActive).toBe(true);

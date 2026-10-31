@@ -339,6 +339,10 @@ export const getGoogleAuthErrorMessage = (err) => {
  */
 export const handleFirebaseRedirectResult = async () => {
   if (typeof window === "undefined") return null;
+  // The native app signs in through the native plugin and never starts a web
+  // redirect, so there is no result to read. On iOS (capacitor:// origin)
+  // getRedirectResult() never settles, which left the login form hidden.
+  if (isCapacitorApp()) return null;
   // Always attempt to recover redirect results on client.
   // Mobile/in-app browsers can lose storage flags; gating on a flag causes missed results.
 

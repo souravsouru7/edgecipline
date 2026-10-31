@@ -76,8 +76,9 @@ export default function TradeLimitDialog({ open, onClose, quota, requested = nul
         </p>
 
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, margin: "0 0 20px" }}>
-          Upgrades aren&apos;t available in this build. Open Edgecipline on the web to upgrade,
-          or contact support if you think this is wrong.
+          {/* Shown only where no in-app purchase exists — i.e. inside a store
+              build — so it must not point at buying elsewhere (App Store 3.1.1). */}
+          Upgrades aren&apos;t available right now. Contact support if you think this is wrong.
         </p>
 
         <button

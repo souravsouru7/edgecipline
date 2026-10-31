@@ -34,6 +34,7 @@ const {
   getPlanLabel,
 } = require("../utils/premium");
 const { getPlaySubscriptionSummary } = require("../services/googlePlayBillingService");
+const { getAppStoreSubscriptionSummary } = require("../services/appStoreBillingService");
 const analytics = require("../services/analyticsEventService");
 const attribution = require("../services/attribution.service");
 const { invalidateTradeCaches } = require("../utils/cacheUtils");
@@ -780,7 +781,21 @@ exports.getMe = asyncHandler(async (req, res) => {
       error: error?.message,
     });
   }
+  // Apple twin of the Play lookup above. Only queried for accounts that have
+  // ever held an App Store entitlement, so everyone else pays nothing.
+  let appStoreSummary = null;
+  if (req.user.appStoreEntitlementExpiry) {
+    try {
+      appStoreSummary = await getAppStoreSubscriptionSummary(req.user._id);
+    } catch (error) {
+      logger.warn("GET_ME_APP_STORE_LOOKUP_FAILED", {
+        userId: String(req.user._id),
+        error: error?.message,
+      });
+    }
+  }
   const provider = getBillingProvider(req.user);
+  const appStoreGoverns = provider === "app_store";
 
   res.json({
     _id: req.user._id,
@@ -801,15 +816,20 @@ exports.getMe = asyncHandler(async (req, res) => {
     subscription: {
       status: getEffectiveSubscriptionStatus(req.user),
       plan: req.user.subscriptionPlan || "free",
-      planLabel: getPlanLabel(req.user, playSummary),
+      planLabel: getPlanLabel(req.user, playSummary, appStoreSummary),
       provider,
       expiresAt: getEffectiveExpiry(req.user),
-      // Play lifecycle detail. Null for Razorpay-only accounts; a Razorpay
+      // Store lifecycle detail. Null for Razorpay-only accounts; a Razorpay
       // purchase simply ends on expiresAt and has no cancel/grace/pending.
-      cancelAtPeriodEnd: provider === "google_play" ? Boolean(playSummary?.cancelAtPeriodEnd) : false,
-      state: playSummary?.state || null,
+      cancelAtPeriodEnd:
+        provider === "google_play"
+          ? Boolean(playSummary?.cancelAtPeriodEnd)
+          : appStoreGoverns
+            ? appStoreSummary?.autoRenewing === false
+            : false,
+      state: (appStoreGoverns ? appStoreSummary?.state : playSummary?.state) || null,
       basePlanId: playSummary?.basePlanId || null,
-      planType: playSummary?.planType || null,
+      planType: (appStoreGoverns ? appStoreSummary?.planType : playSummary?.planType) || null,
       purchaseRef: playSummary?.purchaseRef || null,
     },
     trial: trial

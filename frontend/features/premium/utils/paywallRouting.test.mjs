@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 import {
   choosePaywallProvider,
+  PROVIDER_APP_STORE,
   PROVIDER_PLAY,
   PROVIDER_RAZORPAY,
 } from "./paywallRouting.mjs";
@@ -13,10 +14,12 @@ test("each platform gets the processor it can actually transact with", () => {
   assert.equal(choosePaywallProvider("android"), PROVIDER_PLAY);
 });
 
-test("iOS gets no processor", () => {
-  // Not Razorpay (App Store 3.1.1) and not Play Billing (a store the device
-  // cannot transact with). No StoreKit in this release, so: nothing.
-  assert.equal(choosePaywallProvider("ios"), null);
+test("iOS gets Apple In-App Purchase and nothing else", () => {
+  // Never Razorpay (App Store 3.1.1) and never Play Billing (a store the device
+  // cannot transact with).
+  assert.equal(choosePaywallProvider("ios"), PROVIDER_APP_STORE);
+  assert.notEqual(choosePaywallProvider("ios"), PROVIDER_RAZORPAY);
+  assert.notEqual(choosePaywallProvider("ios"), PROVIDER_PLAY);
 });
 
 test("an unknown platform never inherits Razorpay", () => {

@@ -20,19 +20,22 @@ export const PROVIDER_RAZORPAY = "razorpay";
 /** Google Play Billing via the EdgeBilling plugin. Native Android only. */
 export const PROVIDER_PLAY = "play";
 
+/** Apple In-App Purchase via the EdgeStoreKit plugin. Native iOS only. */
+export const PROVIDER_APP_STORE = "app_store";
+
 /**
  * The purchase processor for `platform`, or null when there is none.
  *
  * @param {"android"|"ios"|"web"|null|undefined} platform - from
  *   utils/platform.js getNativePlatform(); null during server render.
- * @returns {"razorpay"|"play"|null} null means "render no purchase surface" —
- *   not "fall back to something", and not "render an empty modal".
+ * @returns {"razorpay"|"play"|"app_store"|null} null means "render no purchase
+ *   surface" — not "fall back to something", and not "render an empty modal".
  */
 export function choosePaywallProvider(platform) {
   if (platform === "android") return PROVIDER_PLAY;
+  if (platform === "ios") return PROVIDER_APP_STORE;
   if (platform === "web") return PROVIDER_RAZORPAY;
 
-  // ios            — no provider until StoreKit is implemented
   // null           — server render; the platform is not knowable yet
   // anything else  — a target nobody has made a payments decision for
   return null;

@@ -27,5 +27,6 @@ class MainViewController: CAPBridgeViewController {
         // registerPluginInstance, not registerPluginType: the latter is a no-op
         // while autoRegisterPlugins is on, which it is by default.
         bridge?.registerPluginInstance(EdgeAuthStoragePlugin())
+        bridge?.registerPluginInstance(EdgeStoreKitPlugin())
     }
 }

@@ -132,6 +132,14 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Apple In-App Purchase entitlement. Same contract as playEntitlementExpiry:
+    // written ONLY by appStoreBillingService from a state Apple signed, never
+    // from anything the iOS client claims, and never touching the Razorpay
+    // fields. Undefined on existing accounts, so no migration.
+    appStoreEntitlementExpiry: {
+      type: Date,
+      default: null,
+    },
     // 7-day premium trial. Layered on top of subscriptionStatus — isPremium()
     // returns true whenever trial.endsAt is in the future, regardless of plan.
     // trial.used prevents a second trial after expiry; admins can extend via
@@ -332,6 +340,13 @@ userSchema.index(
   {
     name: "play_entitlement",
     partialFilterExpression: { playEntitlementExpiry: { $type: "date" } },
+  }
+);
+userSchema.index(
+  { appStoreEntitlementExpiry: -1 },
+  {
+    name: "app_store_entitlement",
+    partialFilterExpression: { appStoreEntitlementExpiry: { $type: "date" } },
   }
 );
 // Trial expiry cron + day-5/6 warning queries — sparse so legacy users

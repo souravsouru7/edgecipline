@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import FirebaseCore
+import FirebaseMessaging
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -24,12 +25,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // `registration` / `registrationError` events never fire and the app never
     // obtains an APNs token. Requires the aps-environment entitlement
     // (App.entitlements) and an APNs auth key uploaded to Firebase.
+    //
+    // The backend sends through FCM (notificationService.sendEachForMulticast),
+    // which rejects a raw APNs token. So the APNs token is handed to Firebase
+    // Messaging and the resulting FCM token is what JS receives as the
+    // `registration` value — the same kind of token Android already produces.
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        NotificationCenter.default.post(
-            name: .capacitorDidRegisterForRemoteNotifications,
-            object: deviceToken
-        )
+        Messaging.messaging().apnsToken = deviceToken
+        Messaging.messaging().token { token, error in
+            if let error = error {
+                NotificationCenter.default.post(
+                    name: .capacitorDidFailToRegisterForRemoteNotifications,
+                    object: error
+                )
+            } else if let token = token {
+                NotificationCenter.default.post(
+                    name: .capacitorDidRegisterForRemoteNotifications,
+                    object: token
+                )
+            }
+        }
     }
 
     func application(_ application: UIApplication,

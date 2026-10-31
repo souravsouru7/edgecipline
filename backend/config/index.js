@@ -427,6 +427,34 @@ const appConfig = {
     // retry, never a lost purchase.
     apiTimeoutMs: readNumber("GOOGLE_PLAY_API_TIMEOUT_MS", 15000),
   },
+  appStore: {
+    // Must equal the iOS app's bundle identifier. SignedDataVerifier rejects
+    // any transaction signed for a different app.
+    bundleId: process.env.APPLE_BUNDLE_ID || "com.edgecipline",
+    // The numeric Apple ID from App Store Connect (App Information). Required
+    // by Apple's verifier for Production-signed data.
+    appAppleId: readNumber("APPLE_APP_APPLE_ID", 0) || undefined,
+    // App Store Server API key (App Store Connect → Users and Access →
+    // Integrations → In-App Purchase). Optional: without it, entitlement is
+    // taken from the signed transaction and Server Notifications alone.
+    issuerId: process.env.APPLE_IAP_ISSUER_ID || "",
+    keyId: process.env.APPLE_IAP_KEY_ID || "",
+    privateKey: normalizePrivateKey(process.env.APPLE_IAP_PRIVATE_KEY),
+    // App Review and TestFlight buy with Sandbox accounts against the
+    // production build, so production must accept Sandbox-signed data.
+    allowSandbox: readBoolean("APPLE_IAP_ALLOW_SANDBOX", true),
+    // Xcode/StoreKit-config transactions are NOT signed by Apple (the library
+    // skips chain verification for them), so they are only ever accepted
+    // outside production, regardless of this flag.
+    allowXcode: readBoolean("APPLE_IAP_ALLOW_XCODE", false),
+    // HMAC key behind the appAccountToken that binds an Apple purchase to an
+    // Edgecipline account. Falls back to the admin JWT secret, like
+    // googlePlay.accountSalt. APPEND-ONLY: rotating it breaks restores.
+    accountSalt: process.env.APPLE_IAP_ACCOUNT_SALT || "",
+    // Master switch, off by default so the endpoints 503 until App Store
+    // Connect products are set up.
+    enabled: readBoolean("APPLE_IAP_ENABLED", false),
+  },
   resend: {
     apiKey: process.env.RESEND_API_KEY || "",
     // edgecipline.com is the domain verified in the Resend account (DNS

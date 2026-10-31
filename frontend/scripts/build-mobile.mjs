@@ -35,14 +35,16 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 // Mirrors docs/google-play-billing.md and the matrix in config/payments.js.
 const TARGETS = {
   android: {
-    // Play Billing only. Razorpay must not be in the AAB.
+    // Play Billing only. Razorpay and StoreKit must not be in the AAB.
     NEXT_PUBLIC_PAYMENTS_ENABLED: "false",
     NEXT_PUBLIC_PLAY_BILLING_ENABLED: "true",
+    NEXT_PUBLIC_APP_STORE_BILLING_ENABLED: "false",
   },
   ios: {
-    // No purchase mechanism at all until StoreKit is implemented.
+    // Apple In-App Purchase only. Razorpay and Play Billing must not be in the IPA.
     NEXT_PUBLIC_PAYMENTS_ENABLED: "false",
     NEXT_PUBLIC_PLAY_BILLING_ENABLED: "false",
+    NEXT_PUBLIC_APP_STORE_BILLING_ENABLED: "true",
   },
 };
 
@@ -58,7 +60,10 @@ const FORBIDDEN_IN_EXPORT = {
     { needle: "mockRazorpay", what: "the sandbox checkout mock" },
     { needle: "Sandbox demo", what: "the sandbox checkout mock" },
   ],
-  android: [],
+  android: [
+    // The StoreKit paywall: an Apple purchase sheet a Play device cannot use.
+    { needle: "Billed to your Apple ID", what: "the App Store paywall" },
+  ],
   ios: [
     // Play Billing must be absent from iOS too; it is a purchase sheet for a
     // store the device cannot transact with.
@@ -76,6 +81,9 @@ const ALLOWED_RESIDUE = [
   "  and razorpayKeyId:\"\" — validator text and an empty value, no key, no URL",
   "PLAY_MANAGE_URL, imported alongside the renewal-date helpers; its button is",
   "  gated on isAndroidNative() so it renders nowhere else",
+  'the string "EdgeStoreKit" in the settings page (Android/web): the bridge name',
+  "  behind Apple's manage-subscription sheet, guarded by isIOSNative(); the",
+  "  App Store paywall itself is aliased out",
 ];
 
 function fail(message) {
@@ -139,9 +147,24 @@ function scanExport(target) {
     fail("refusing to hand this export to Capacitor.");
   }
 
-  // Phrased per target: an Android export SHOULD contain Play Billing. What is
-  // being asserted is the absence of the processors this target must not carry.
-  const allowed = target === "android" ? "Google Play Billing only" : "no purchase processor";
+  // The iOS export must actually CONTAIN the StoreKit paywall: an iOS build
+  // whose flag silently failed to compile it in would ship upgrade buttons that
+  // open nothing.
+  if (target === "ios") {
+    let found = false;
+    for (const file of walk(outDir)) {
+      if (path.extname(file) !== ".js" || statSync(file).size > 32 * 1024 * 1024) continue;
+      if (readFileSync(file, "utf8").includes("Billed to your Apple ID")) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) fail("ios export is missing the App Store paywall (NEXT_PUBLIC_APP_STORE_BILLING_ENABLED did not take).");
+  }
+
+  // Phrased per target: what is asserted is the absence of the processors this
+  // target must not carry (and, for iOS, the presence of its own).
+  const allowed = target === "android" ? "Google Play Billing only" : "Apple In-App Purchase only";
   console.log(`[build-mobile] ${target} export checked: ${allowed}, as required.`);
   console.log("[build-mobile] expected remaining references (not mechanisms):");
   ALLOWED_RESIDUE.forEach((note) => console.log(`  - ${note}`));

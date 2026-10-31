@@ -21,14 +21,18 @@
 //
 // The build matrix (see docs/google-play-billing.md):
 //
-//   web      NEXT_PUBLIC_PAYMENTS_ENABLED=true   PLAY_BILLING_ENABLED=false
-//   Android  NEXT_PUBLIC_PAYMENTS_ENABLED=false  PLAY_BILLING_ENABLED=true
-//   iOS      both false, until StoreKit is implemented
+//   web      PAYMENTS=true   PLAY_BILLING=false  APP_STORE_BILLING=false
+//   Android  PAYMENTS=false  PLAY_BILLING=true   APP_STORE_BILLING=false
+//   iOS      PAYMENTS=false  PLAY_BILLING=false  APP_STORE_BILLING=true
+//   (each NEXT_PUBLIC_*_ENABLED; scripts/build-mobile.mjs pins the mobile rows)
 export const PAYMENTS_ENABLED =
   String(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED || "").trim() === "true";
 
 export const PLAY_BILLING_ENABLED =
   String(process.env.NEXT_PUBLIC_PLAY_BILLING_ENABLED || "").trim() === "true";
+
+export const APP_STORE_BILLING_ENABLED =
+  String(process.env.NEXT_PUBLIC_APP_STORE_BILLING_ENABLED || "").trim() === "true";
 
 // Capacitor sets window.Capacitor on native platforms, before the web layer
 // boots.
@@ -67,6 +71,17 @@ export function canShowPlayBilling() {
   return PLAY_BILLING_ENABLED && isNativeAndroid();
 }
 
+export function isNativeIOS() {
+  if (!isNativePlatform()) return false;
+  const capacitor = window.Capacitor;
+  return typeof capacitor.getPlatform === "function" && capacitor.getPlatform() === "ios";
+}
+
+// Apple In-App Purchase, native iOS only. Never on web or Android.
+export function canShowAppStoreBilling() {
+  return APP_STORE_BILLING_ENABLED && isNativeIOS();
+}
+
 // The check UI should call when it only wants to know "is there somewhere to
 // pay". Provider-agnostic on purpose: the upgrade CTAs in PageHeader, the
 // settings page, the trade-limit dialog and the rescue banners all care
@@ -76,5 +91,5 @@ export function canShowPlayBilling() {
 //
 // Callers that specifically mean "Razorpay" must use canShowRazorpayCheckout().
 export function canShowPurchaseUI() {
-  return canShowRazorpayCheckout() || canShowPlayBilling();
+  return canShowRazorpayCheckout() || canShowPlayBilling() || canShowAppStoreBilling();
 }

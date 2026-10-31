@@ -5,6 +5,7 @@ import {
   resolveExpiryLabel,
   describePlayLifecycle,
   showsPlayActions,
+  showsAppStoreActions,
 } from "./subscriptionCard.mjs";
 
 const play = (over = {}) => ({ status: "active", provider: "google_play", cancelAtPeriodEnd: false, state: "active", ...over });
@@ -42,4 +43,20 @@ test("the Play Store link is withheld off Android, including from Play subscribe
   // Fail-closed when a caller forgets to pass the platform at all.
   assert.equal(showsPlayActions(play(), true), false);
   assert.equal(showsPlayActions(play(), true, "android"), false);
+});
+
+const appStore = (over = {}) => ({ status: "active", provider: "app_store", cancelAtPeriodEnd: false, state: "active", ...over });
+
+test("App Store subscriptions renew like Play ones", () => {
+  assert.equal(resolveExpiryLabel(appStore()), "Renews");
+  assert.equal(resolveExpiryLabel(appStore({ cancelAtPeriodEnd: true })), "Ends");
+  assert.equal(resolveExpiryLabel(appStore({ status: "expired" })), "Expires");
+});
+
+test("Apple's manage-subscription sheet is offered only to App Store subscribers inside the iOS app", () => {
+  assert.equal(showsAppStoreActions(appStore(), true, true), true);
+  assert.equal(showsAppStoreActions(appStore(), true, false), false);
+  assert.equal(showsAppStoreActions(appStore(), true), false);
+  assert.equal(showsAppStoreActions(play(), true, true), false);
+  assert.equal(showsAppStoreActions(appStore({ status: "expired" }), false, true), false);
 });

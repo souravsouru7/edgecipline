@@ -26,6 +26,27 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- Required by the iOS 27 SDK: UIKit refuses to launch apps without the
+	     UIScene life cycle. SceneDelegate loads Main.storyboard into the window. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<!-- armv7 is 32-bit and unsupported since iOS 11; the Capacitor template
 	     shipped it by default. App Store validation flags it. -->
 	<key>UIRequiredDeviceCapabilities</key>
@@ -52,6 +73,13 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 
+	<!-- Lets FCM deliver data/silent pushes and refresh the token while the app
+	     is in the background. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
 	<!-- ── Google Sign-In callback ──────────────────────────────────────────
 	     Firebase/Google Sign-In returns to the app through the reversed client
 	     ID scheme. Without this entry the sign-in sheet opens and then has
@@ -66,7 +94,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.466233608400-9j5m11998vtl33ctuhjkpsl4phlmamif</string>
+				<string>com.googleusercontent.apps.466233608400-8m4oqhp8avq8fgr1nookajpr62krvud1</string>
 			</array>
 		</dict>
 	</array>

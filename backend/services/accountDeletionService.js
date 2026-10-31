@@ -37,6 +37,8 @@ const RefreshToken = require("../models/RefreshToken");
 const SupportMessage = require("../models/SupportMessage");
 // Detached rather than purged; see detachPlaySubscriptions below.
 const PlaySubscription = require("../models/PlaySubscription");
+// Same treatment for Apple purchases; see detachAppStoreSubscriptions below.
+const AppStoreSubscription = require("../models/AppStoreSubscription");
 
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
@@ -234,6 +236,36 @@ async function findLivePlaySubscription(userId) {
   return rows.find((row) => grantsEntitlement(row.state, row.expiryTime, now)) || null;
 }
 
+// Where a user cancels an App Store subscription. Apple has no per-app deep
+// link that works from outside the App Store app, so this is the account-wide
+// Subscriptions screen.
+const APP_STORE_MANAGE_SUBSCRIPTION_URL = "https://apps.apple.com/account/subscriptions";
+
+/**
+ * Apple twin of detachPlaySubscriptions. The row is keyed on Apple's
+ * originalTransactionId, and keeping it (detached) is what stops a deleted
+ * account's purchase from being restored onto a new account.
+ */
+async function detachAppStoreSubscriptions(userId) {
+  const result = await AppStoreSubscription.updateMany(
+    { user: userId },
+    { $set: { user: null, detachedAt: new Date() } }
+  );
+  return result.modifiedCount || result.nModified || 0;
+}
+
+/**
+ * Whether this user still holds a live App Store subscription. Deleting the
+ * Edgecipline account does not cancel it — Apple keeps billing the Apple ID.
+ */
+async function findLiveAppStoreSubscription(userId) {
+  const now = Date.now();
+  const rows = await AppStoreSubscription.find({ user: userId })
+    .select("originalTransactionId state expiryTime")
+    .lean();
+  return rows.find((row) => grantsEntitlement(row.state, row.expiryTime, now)) || null;
+}
+
 async function purgeUserDocuments(userId) {
   const deleted = {};
 
@@ -267,6 +299,16 @@ async function deleteAccount(userId) {
   //    point the user at Play's cancel screen. Never blocks the deletion —
   //    the store policies require deletion to succeed regardless.
   const livePlaySubscription = await findLivePlaySubscription(userId).catch(() => null);
+  const liveAppStoreSubscription = await findLiveAppStoreSubscription(userId).catch(() => null);
+  if (liveAppStoreSubscription) {
+    logger.warn("APP_STORE_SUBSCRIPTION_ORPHANED_ON_DELETE", {
+      userId: String(userId),
+      state: liveAppStoreSubscription.state,
+      expiryTime: liveAppStoreSubscription.expiryTime
+        ? new Date(liveAppStoreSubscription.expiryTime).toISOString()
+        : null,
+    });
+  }
   if (livePlaySubscription) {
     logger.warn("PLAY_SUBSCRIPTION_ORPHANED_ON_DELETE", {
       userId: String(userId),
@@ -305,6 +347,7 @@ async function deleteAccount(userId) {
   // 4b. Detach — never delete — Google Play purchases. See the function's
   //     comment: the row is what keeps the purchase token from being reused.
   const playSubscriptionsDetached = await detachPlaySubscriptions(userId);
+  const appStoreSubscriptionsDetached = await detachAppStoreSubscriptions(userId);
 
   // 5. Remove the account record itself — last, so the operation stays
   //    retryable if any earlier step threw.
@@ -319,6 +362,7 @@ async function deleteAccount(userId) {
     userId: String(userId),
     documentsDeleted,
     playSubscriptionsDetached,
+    appStoreSubscriptionsDetached,
     imagesDestroyed: images.destroyed,
     imagesFailed: images.failed,
     firebaseDeleted: firebase.deleted,
@@ -330,6 +374,9 @@ async function deleteAccount(userId) {
     playSubscriptionsDetached,
     playSubscriptionActive: Boolean(livePlaySubscription),
     playManageUrl: livePlaySubscription ? PLAY_MANAGE_SUBSCRIPTION_URL : null,
+    appStoreSubscriptionsDetached,
+    appStoreSubscriptionActive: Boolean(liveAppStoreSubscription),
+    appStoreManageUrl: liveAppStoreSubscription ? APP_STORE_MANAGE_SUBSCRIPTION_URL : null,
     images,
     firebase,
   };
@@ -343,4 +390,7 @@ module.exports = {
   detachPlaySubscriptions,
   findLivePlaySubscription,
   PLAY_MANAGE_SUBSCRIPTION_URL,
+  detachAppStoreSubscriptions,
+  findLiveAppStoreSubscription,
+  APP_STORE_MANAGE_SUBSCRIPTION_URL,
 };

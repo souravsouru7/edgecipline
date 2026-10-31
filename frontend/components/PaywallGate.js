@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { getNativePlatform } from "@/utils/platform";
 import {
   choosePaywallProvider,
+  PROVIDER_APP_STORE,
   PROVIDER_PLAY,
   PROVIDER_RAZORPAY,
 } from "@/features/premium/utils/paywallRouting.mjs";
@@ -21,6 +22,13 @@ const RazorpayPaywall = PAYMENTS_ENABLED
 
 const PlayPaywall = PLAY_BILLING_ENABLED
   ? dynamic(() => import("@/components/PlayBillingPaywall"), { ssr: false })
+  : null;
+
+const APP_STORE_BILLING_ENABLED =
+  String(process.env.NEXT_PUBLIC_APP_STORE_BILLING_ENABLED || "").trim() === "true";
+
+const AppStorePaywall = APP_STORE_BILLING_ENABLED
+  ? dynamic(() => import("@/components/AppStorePaywall"), { ssr: false })
   : null;
 
 // window.Capacitor does not exist during the static export, so the platform is
@@ -48,14 +56,13 @@ const UNKNOWN_PLATFORM = () => null;
  *
  *   web      → Razorpay, if the web payment flag compiled it in
  *   android  → Google Play Billing, if the Play flag compiled it in
- *   ios      → nothing. No StoreKit in this release, so there is no provider.
+ *   ios      → Apple In-App Purchase, if the App Store flag compiled it in
  *   unknown  → nothing. Never "whatever web uses".
  *
  * A null provider renders no modal at all rather than an empty one. Every
- * upgrade CTA is independently gated on canShowPurchaseUI() (config/payments),
- * so on iOS nothing should reach this component in the first place — this is the
- * second line of defence, for the case where a CTA is missed or a mobile bundle
- * ships with the web flags left on.
+ * upgrade CTA is independently gated on canShowPurchaseUI() (config/payments);
+ * this is the second line of defence, for the case where a CTA is missed or a
+ * mobile bundle ships with the web flags left on.
  */
 export default function PaywallGate(props) {
   const platform = useSyncExternalStore(
@@ -70,10 +77,14 @@ export default function PaywallGate(props) {
     return PlayPaywall ? <PlayPaywall {...props} /> : null;
   }
 
+  if (provider === PROVIDER_APP_STORE) {
+    return AppStorePaywall ? <AppStorePaywall {...props} /> : null;
+  }
+
   if (provider === PROVIDER_RAZORPAY) {
     return RazorpayPaywall ? <RazorpayPaywall {...props} /> : null;
   }
 
-  // iOS, and anything else we have not decided about, get no purchase surface.
+  // Anything we have not decided about gets no purchase surface.
   return null;
 }

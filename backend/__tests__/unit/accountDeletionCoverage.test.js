@@ -50,6 +50,9 @@ const INTENTIONALLY_RETAINED = new Set([
   // subscription to a stranger — so the row has to outlive the account. The
   // dedicated assertion below covers the detach.
   'PlaySubscription',
+  // Apple purchases: same reasoning, keyed on originalTransactionId. Covered by
+  // the detach assertion below.
+  'AppStoreSubscription',
 ]);
 
 /** Model files that hold a ref to the Users collection, and on which field. */
@@ -112,6 +115,11 @@ describe('account deletion covers every user-owned collection', () => {
       expect(purgedOnCorrectField).toBe(true);
     }
   );
+
+  it('detaches AppStoreSubscription instead of deleting it', () => {
+    expect(service).toContain('AppStoreSubscription.updateMany');
+    expect(service).not.toMatch(/AppStoreSubscription\.delete/);
+  });
 
   it('detaches PlaySubscription instead of deleting it', () => {
     // The security property: a purchase token must stay spent forever. If this

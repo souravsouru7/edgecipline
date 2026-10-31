@@ -8,12 +8,14 @@ import { getProfile, resetOnboarding } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, LifeBuoy, Upload } from "lucide-react";
 import { canShowPurchaseUI } from "@/config/payments";
-import { isAndroidNative } from "@/utils/platform";
+import { isAndroidNative, isIOSNative } from "@/utils/platform";
+import { openStoreKitManageSubscriptions } from "@/plugins/EdgeStoreKitPlugin";
 import {
   PLAY_MANAGE_URL,
   resolveExpiryLabel,
   describePlayLifecycle,
   showsPlayActions,
+  showsAppStoreActions,
 } from "@/features/premium/utils/subscriptionCard.mjs";
 import DeleteAccountSection from "@/components/DeleteAccountSection";
 // Same upgrade surface the header uses. PricingModal is a shim over
@@ -197,6 +199,8 @@ export default function SettingsPage() {
   // play.google.com, so it is offered only where Google owns the purchase —
   // never inside the iOS app, where an external payment link is a 3.1.1 risk.
   const playActions = showsPlayActions(subscription, profile?.isPremium, isAndroidNative());
+  // Apple's own manage sheet, inside the iOS app only.
+  const appStoreActions = showsAppStoreActions(subscription, profile?.isPremium, isIOSNative());
 
   // A trial user is premium with subscription status "inactive", so reading
   // status alone would label someone with full access "Free / Inactive".
@@ -430,11 +434,15 @@ export default function SettingsPage() {
                       {lifecycleNotice.text}
                     </div>
                   )}
-                  {playActions && (
+                  {(playActions || appStoreActions) && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 6 }}>
                       <button
                         type="button"
-                        onClick={() => window.open(PLAY_MANAGE_URL, "_blank", "noopener")}
+                        onClick={() =>
+                          appStoreActions
+                            ? openStoreKitManageSubscriptions().catch(() => {})
+                            : window.open(PLAY_MANAGE_URL, "_blank", "noopener")
+                        }
                         style={{
                           padding: "7px 12px",
                           background: "#FFFFFF",

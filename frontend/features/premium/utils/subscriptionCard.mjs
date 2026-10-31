@@ -13,8 +13,10 @@ export const PLAY_MANAGE_URL =
 // in which case access simply ends there; Razorpay purchases always just end.
 // "Expires" on a renewing plan reads like a warning and "Renews" on a
 // cancelled one is a lie, so name the date for what it is.
+// App Store subscriptions renew the same way, so they get the same wording.
 export function resolveExpiryLabel(subscription) {
-  if (subscription?.status === "active" && subscription?.provider === "google_play") {
+  const renewing = subscription?.provider === "google_play" || subscription?.provider === "app_store";
+  if (subscription?.status === "active" && renewing) {
     return subscription.cancelAtPeriodEnd ? "Ends" : "Renews";
   }
   return "Expires";
@@ -73,5 +75,18 @@ export function showsPlayActions(subscription, isPremium, platformAllowsPlayActi
     Boolean(isPremium) &&
     subscription?.provider === "google_play" &&
     platformAllowsPlayActions === true
+  );
+}
+
+/**
+ * The App Store twin of showsPlayActions: "Manage subscription" opens Apple's
+ * own sheet (AppStore.showManageSubscriptions), which only exists inside the
+ * iOS app. Same fail-closed contract — omit the platform and it is hidden.
+ */
+export function showsAppStoreActions(subscription, isPremium, platformIsIOS) {
+  return (
+    Boolean(isPremium) &&
+    subscription?.provider === "app_store" &&
+    platformIsIOS === true
   );
 }

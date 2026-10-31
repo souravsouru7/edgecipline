@@ -16,6 +16,9 @@ const paymentsEnabled =
 const playBillingEnabled =
   String(process.env.NEXT_PUBLIC_PLAY_BILLING_ENABLED || "").trim() === "true";
 
+const appStoreBillingEnabled =
+  String(process.env.NEXT_PUBLIC_APP_STORE_BILLING_ENABLED || "").trim() === "true";
+
 // M30: Security headers — applied by the dev server and any SSR deployment.
 // For the static export (output: "export") these must also be set at the CDN/Nginx layer.
 const securityHeaders = [
@@ -82,10 +85,13 @@ const nextConfig: NextConfig = {
     //                 (so: absent from Android and iOS builds)
     //   Play Billing  stubbed unless NEXT_PUBLIC_PLAY_BILLING_ENABLED=true
     //                 (so: absent from web and iOS builds)
+    //   App Store     stubbed unless NEXT_PUBLIC_APP_STORE_BILLING_ENABLED=true
+    //                 (so: absent from web and Android builds)
     //
-    // An iOS build has both flags false, which is what leaves it with no
-    // purchase mechanism compiled in at all — the condition Apple 3.1.1 cares
-    // about, as distinct from a purchase surface that is merely hidden.
+    // An iOS build has only the App Store flag on, which is what leaves Apple
+    // In-App Purchase as the sole purchase mechanism compiled in — the
+    // condition Apple 3.1.1 cares about, as distinct from a third-party
+    // purchase surface that is merely hidden.
     resolveAlias: {
       ...(paymentsEnabled
         ? {}
@@ -93,6 +99,9 @@ const nextConfig: NextConfig = {
       ...(playBillingEnabled
         ? {}
         : { "@/components/PlayBillingPaywall": "./components/PlayBillingPaywall.disabled.js" }),
+      ...(appStoreBillingEnabled
+        ? {}
+        : { "@/components/AppStorePaywall": "./components/AppStorePaywall.disabled.js" }),
     },
   },
 };

@@ -1,0 +1,118 @@
+{
+  "identifier" : "6E1C1D2A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "SAMM4YJPVF",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_IN",
+    "_storefront" : "IND",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21A0F0E1",
+      "localizations" : [
+
+      ],
+      "name" : "Edgecipline Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "299",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "6E1C1D01",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full Edgecipline Pro access, billed monthly.",
+              "displayName" : "Pro — 1 month",
+              "locale" : "en_IN"
+            }
+          ],
+          "productID" : "com.edgecipline.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "21A0F0E1",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "799",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6E1C1D02",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full Edgecipline Pro access, billed every 3 months.",
+              "displayName" : "Pro — 3 months",
+              "locale" : "en_IN"
+            }
+          ],
+          "productID" : "com.edgecipline.pro.3month",
+          "recurringSubscriptionPeriod" : "P3M",
+          "referenceName" : "Pro 3 Months",
+          "subscriptionGroupID" : "21A0F0E1",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "1499",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6E1C1D03",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full Edgecipline Pro access, billed every 6 months.",
+              "displayName" : "Pro — 6 months",
+              "locale" : "en_IN"
+            }
+          ],
+          "productID" : "com.edgecipline.pro.6month",
+          "recurringSubscriptionPeriod" : "P6M",
+          "referenceName" : "Pro 6 Months",
+          "subscriptionGroupID" : "21A0F0E1",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

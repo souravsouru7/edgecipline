@@ -187,7 +187,8 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
             </button>
           ) : (
             <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, margin: "0 0 4px", textAlign: "center" }}>
-              Upgrades aren&apos;t available in this build. Open Edgecipline on the web to unlock Premium.
+              {/* No in-app purchase here, so no pointer to buying elsewhere (App Store 3.1.1). */}
+              Upgrades aren&apos;t available right now.
             </p>
           )}
 

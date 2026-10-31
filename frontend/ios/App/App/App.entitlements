@@ -17,5 +17,12 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Sign in with Apple. Without it iOS never presents the Apple sheet and
+	     FirebaseAuthentication.signInWithApple() never settles. Also needs the
+	     capability on the App ID and Apple enabled in the Firebase console. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

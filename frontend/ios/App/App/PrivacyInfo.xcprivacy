@@ -79,6 +79,20 @@
 			</array>
 		</dict>
 		<dict>
+			<!-- Apple In-App Purchase: the subscription and its renewal state are
+			     stored against the account (AppStoreSubscription) to grant Pro. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeCrashData</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>

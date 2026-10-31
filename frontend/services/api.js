@@ -120,6 +120,29 @@ export const getGooglePlaySubscription = async () => {
   return await apiClient.get(`/payments/google-play/subscription`);
 };
 
+// ─── Apple In-App Purchase (iOS only) ──────────────────────────────────────
+// Same shape as the Play pair above. The client is a courier for Apple's
+// signed transaction; the server verifies it and owns the entitlement.
+
+/** App Store product ids, plus the appAccountToken every purchase must carry. */
+export const getAppStoreConfig = async () => {
+  return await apiClient.get(`/payments/app-store/config`);
+};
+
+/** Exchange a StoreKit signed transaction for a verified entitlement. */
+export const verifyAppStorePurchase = async ({ signedTransaction }) => {
+  return await apiClient.post(`/payments/app-store/verify`, { signedTransaction });
+};
+
+/** Re-verify every current entitlement on this Apple ID. Safe to repeat. */
+export const restoreAppStorePurchases = async (signedTransactions) => {
+  return await apiClient.post(`/payments/app-store/restore`, { signedTransactions });
+};
+
+export const getAppStoreSubscription = async () => {
+  return await apiClient.get(`/payments/app-store/subscription`);
+};
+
 // Trial & smart-paywall APIs
 export const getTrialStatus = async () => {
   return await apiClient.get(`/trial/status`, { skipRateLimitRetry: true });

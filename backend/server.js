@@ -383,6 +383,14 @@ app.use(
   express.raw({ type: "application/json", limit: "1mb" }),
   require("./routes/googlePlayNotificationRoutes")
 );
+// App Store Server Notifications V2. Same treatment as the Play webhook:
+// unauthenticated, raw body, and trusted only through Apple's signature.
+app.use(
+  "/api/webhooks/app-store",
+  standardizeResponse,
+  express.raw({ type: "application/json", limit: "1mb" }),
+  require("./routes/appStoreNotificationRoutes")
+);
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -478,6 +486,8 @@ app.use("/api/payments", require("./routes/paymentRoutes"));
 // mandatory for digital goods inside the Android app. Both feed the same
 // entitlement — see utils/premium.
 app.use("/api/payments/google-play", require("./routes/googlePlayBillingRoutes"));
+// iOS in-app purchases — Apple's equivalent of the line above.
+app.use("/api/payments/app-store", require("./routes/appStoreBillingRoutes"));
 app.use("/api/promotions", require("./routes/promotionRoutes"));
 
 // Trial & smart-paywall routes (7-day premium trial)
