@@ -38,9 +38,9 @@ Decisions already made by the owner:
 | Build guards (iOS = Apple IAP only; Android has no StoreKit) | ✅ Done |
 | End-to-end test purchase | ❌ Not done |
 | App Store Connect / Apple Developer setup | ❌ Not done (owner) |
-| iPhone-only vs iPad decision | ❌ Open |
+| iPhone-only vs iPad decision | ✅ iPhone only (`TARGETED_DEVICE_FAMILY = 1`, iPad orientations removed) |
 | Apple token revoke on account deletion (5.1.1(v)) | ❌ Not done |
-| Commit | ❌ Not done |
+| Commit | ✅ Pushed to `feat/ios-app-store-launch` (no PR yet) |
 
 ---
 
@@ -52,9 +52,8 @@ Review the diff, then commit on a branch off `staging`. See §7 for the file lis
 - `frontend/ios/App/App/GoogleService-Info.plist` is not gitignored. It's client config, not a secret. The owner decides whether to commit it.
 - `frontend/.env.production.local` is gitignored and must stay that way.
 
-### 3.2 iPad decision
-`TARGETED_DEVICE_FAMILY = "1,2"` in `project.pbxproj` means the app ships for iPad too, and Apple will then require iPad screenshots and test on iPad.
-- **Recommended:** set it to `1` (iPhone only) in both Debug and Release, and remove `UISupportedInterfaceOrientations~ipad` from `Info.plist`.
+### 3.2 iPad decision — DONE
+The owner chose **iPhone only**. `TARGETED_DEVICE_FAMILY = 1` in Debug and Release, and `UISupportedInterfaceOrientations~ipad` was removed from `Info.plist`. No iPad screenshots are needed. (iPhone apps still run in compatibility mode on iPad, which App Review may check.)
 
 ### 3.3 Owner: Apple Developer + App Store Connect
 1. **developer.apple.com → Identifiers → `com.edgecipline`:** enable Push Notifications, Sign in with Apple and In-App Purchase.
