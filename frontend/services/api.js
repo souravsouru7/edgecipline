@@ -210,14 +210,6 @@ export const markWelcomeGuideSeen = async () => {
   );
 };
 
-export const resetOnboarding = async () => {
-  return await apiClient.patch(
-    '/auth/me/preferences',
-    { isOnboardingCompleted: false },
-    { skipRateLimitRetry: true }
-  );
-};
-
 // Mark a single onboarding step as done (welcomeSeen, setupAdded, tradeAdded,
 // journalSeen, analyticsSeen, notificationsSeen, tourCompleted, checklistDismissed)
 export const markOnboardingStep = async (step, value = true) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useMarket } from "@/context/MarketContext";
@@ -14,13 +15,15 @@ import {
   configureChecklistNotification,
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
-import { buildNotificationItems } from "@/services/checklistNotificationSync";
+import { buildNotificationItems, MAX_NOTIFICATION_ITEMS } from "@/services/checklistNotificationSync";
 import { isAndroidNative } from "@/utils/platform";
+import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
-import { Bell, BellOff, Clock, RefreshCw, ChevronLeft, Save } from "lucide-react";
+import { Bell, BellOff, Check, ChevronDown, ChevronLeft, Loader2, Save } from "lucide-react";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const HOW_IT_WORKS_KEY = "ec.checklistReminder.howItWorksOpen";
 
 // The interactive notification is Android-only (ChecklistNotificationPlugin.java,
 // with no Swift counterpart). This was isNativePlatform(), which is also true on
@@ -52,6 +55,27 @@ function getSaveErrorMessage(error) {
   return "Could not save your notification settings. Please try again.";
 }
 
+// "13:30" → "1:30 pm"
+function formatTime(hhmm) {
+  const [h, m] = String(hhmm || "00:00").split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${suffix}`;
+}
+
+function describeDays(repeatMode, customDays) {
+  if (repeatMode === "daily") return "every day";
+  if (repeatMode === "weekdays") return "Mon–Fri";
+  if (!customDays.length) return "no days selected";
+  if (customDays.length === 7) return "every day";
+  const days = [...customDays].sort((a, b) => a - b);
+  // Mon, Tue, Wed, Thu → "Mon–Thu"
+  const consecutive = days.every((d, i) => i === 0 || d === days[i - 1] + 1);
+  if (consecutive && days.length >= 3) return `${DAY_LABELS[days[0] - 1]}–${DAY_LABELS[days[days.length - 1] - 1]}`;
+  return days.map(d => DAY_LABELS[d - 1]).join(", ");
+}
+
+const filledRules = (strategy) => (strategy?.rules || []).filter(r => r.label?.trim());
+
 export default function ChecklistNotificationSettingsPage() {
   const router = useRouter();
   const { ready } = useRequireAuth();
@@ -62,7 +86,9 @@ export default function ChecklistNotificationSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
+  const [howOpen, setHowOpen] = useState(true);
 
   // ── Form state ──────────────────────────────────────────────────────────
   const [enabled, setEnabled] = useState(false);
@@ -74,10 +100,20 @@ export default function ChecklistNotificationSettingsPage() {
   const [resetEnabled, setResetEnabled] = useState(true);
   const [resetTime, setResetTime] = useState("00:00");
 
+  // Every form edit goes through here so the save bar knows there's work.
+  const change = (setter) => (value) => {
+    setDirty(true);
+    setSaved(false);
+    setter(value);
+  };
+
   // ── Load data ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ready) return;
     setMounted(true);
+    try {
+      if (window.localStorage.getItem(HOW_IT_WORKS_KEY) === "0") setHowOpen(false);
+    } catch { /* storage blocked — keep it open */ }
 
     const load = async () => {
       try {
@@ -115,8 +151,17 @@ export default function ChecklistNotificationSettingsPage() {
     load();
   }, [ready, currentMarket]);
 
+  const toggleHowItWorks = () => {
+    setHowOpen(open => {
+      try { window.localStorage.setItem(HOW_IT_WORKS_KEY, open ? "0" : "1"); } catch { /* ignore */ }
+      return !open;
+    });
+  };
+
   // ── Custom day toggle ───────────────────────────────────────────────────
   const toggleDay = (day) => {
+    setDirty(true);
+    setSaved(false);
     setCustomDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
     );
@@ -169,7 +214,7 @@ export default function ChecklistNotificationSettingsPage() {
       }
 
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      setDirty(false);
     } catch (e) {
       // Never render a raw native/bridge message: strings like "… plugin is not
       // implemented on ios" mean nothing to a user and read as a broken app.
@@ -188,381 +233,392 @@ export default function ChecklistNotificationSettingsPage() {
 
   if (!mounted) return null;
 
+  const selected = strategies[selectedStrategyIdx] || null;
+  const previewRules = filledRules(selected);
+  const schedule = `${formatTime(notificationTime)}, ${describeDays(repeatMode, customDays)}`;
+
+  const saveLabel = saving
+    ? "Saving…"
+    : enabled && supportsLiveNotification() ? "Save & show now" : "Save";
+
+  let status;
+  if (error) status = <span className="cn-status cn-status--error">{error}</span>;
+  else if (saving) status = <span className="cn-status">Saving…</span>;
+  else if (dirty) status = <span className="cn-status cn-status--dirty"><span className="cn-dot" />Unsaved changes</span>;
+  else if (saved) status = <span className="cn-status cn-status--ok"><Check size={14} strokeWidth={2.8} />Saved</span>;
+  else status = <span className="cn-status">{enabled ? `On · ${schedule}` : "Reminder is off"}</span>;
+
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F0EEE9",
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      color: "#0F1923",
-    }}>
+    <div className="cn-root">
+      <style>{`
+        .cn-root { --cn-ink: #0F1923; --cn-muted: #64748B; --cn-faint: #94A3B8; --cn-line: #E2E8F0; --cn-green: #0D9E6E; --cn-green-soft: #EEF9F4; --cn-nav-h: 0px;
+          min-height: 100vh; background: #F4F6F9; color: var(--cn-ink); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; }
+        .cn-root *, .cn-root *::before, .cn-root *::after { box-sizing: border-box; }
+        .cn-main { flex: 1; width: 100%; max-width: 640px; margin: 0 auto; padding: 24px 24px 32px; }
+
+        .cn-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+        .cn-back { width: 44px; height: 44px; min-width: 44px; min-height: 44px; flex-shrink: 0; border-radius: 12px; border: 1px solid var(--cn-line); background: #FFFFFF; color: var(--cn-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cn-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; }
+        .cn-sub { margin: 4px 0 0; font-size: 14px; color: var(--cn-muted); line-height: 1.45; }
+
+        .cn-banner { margin-bottom: 14px; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+        .cn-banner--error { background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; }
+        .cn-banner--info { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+
+        .cn-card { background: #FFFFFF; border: 1px solid var(--cn-line); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,25,35,0.04); }
+        .cn-section { margin-top: 24px; }
+        .cn-section-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 700; color: var(--cn-muted); }
+
+        .cn-how-toggle { width: 100%; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border: none; background: transparent; font-family: inherit; font-size: 15px; font-weight: 700; color: var(--cn-ink); cursor: pointer; text-align: left; }
+        .cn-how-chev { color: var(--cn-faint); flex-shrink: 0; transition: transform 0.15s; }
+        .cn-how-chev.is-open { transform: rotate(180deg); }
+        .cn-how-body { padding: 0 18px 18px; }
+        .cn-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+        .cn-step { display: flex; gap: 12px; }
+        .cn-step-num { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--cn-green-soft); color: var(--cn-green); font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+        .cn-step-title { font-size: 14px; font-weight: 700; }
+        .cn-step-text { margin-top: 2px; font-size: 13px; color: var(--cn-muted); line-height: 1.5; }
+        .cn-tip { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: #F8FAFB; font-size: 13px; color: var(--cn-muted); line-height: 1.5; }
+        .cn-tip b { color: var(--cn-ink); }
+
+        .cn-master { margin-top: 14px; display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+        .cn-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #F1F4F8; color: var(--cn-muted); }
+        .cn-icon.is-on { background: var(--cn-green-soft); color: var(--cn-green); }
+        .cn-grow { flex: 1; min-width: 0; }
+        .cn-label { font-size: 15px; font-weight: 700; }
+        .cn-hint { margin-top: 2px; font-size: 13px; color: var(--cn-muted); line-height: 1.45; }
+        .cn-off-note { margin: 12px 4px 0; font-size: 13px; color: var(--cn-muted); }
+
+        .cn-switch { position: relative; width: 52px; height: 32px; min-width: 52px; min-height: 32px; flex-shrink: 0; padding: 0; border: none; border-radius: 999px; background: #CBD5E1; cursor: pointer; transition: background 0.2s; }
+        .cn-switch.is-on { background: var(--cn-green); }
+        .cn-switch-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.2); transition: left 0.2s; }
+        .cn-switch.is-on .cn-switch-knob { left: 23px; }
+        .cn-switch:active { transform: none; }
+
+        .cn-option { width: 100%; min-height: 60px; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border: none; border-top: 1px solid #F1F4F8; background: transparent; font-family: inherit; text-align: left; color: inherit; cursor: pointer; }
+        .cn-option:first-child { border-top: none; }
+        .cn-option:hover { background: #F8FAFB; }
+        .cn-radio { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; border: 2px solid #CBD5E1; display: flex; align-items: center; justify-content: center; color: #FFFFFF; }
+        .cn-option.is-active .cn-radio { border-color: var(--cn-green); background: var(--cn-green); }
+        .cn-option-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cn-option-meta { font-size: 13px; color: var(--cn-muted); flex-shrink: 0; }
+
+        .cn-empty { padding: 20px 18px; }
+        .cn-btn-link { margin-top: 12px; height: 44px; padding: 0 16px; border-radius: 10px; background: var(--cn-green); color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; }
+
+        .cn-preview-label { margin: 14px 4px 8px; font-size: 12px; font-weight: 600; color: var(--cn-faint); }
+        .cn-notif { padding: 14px 16px; border-radius: 18px; background: #FFFFFF; border: 1px solid var(--cn-line); box-shadow: 0 6px 20px rgba(15,25,35,0.08); }
+        .cn-notif-app { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--cn-muted); }
+        .cn-notif-logo { width: 18px; height: 18px; border-radius: 50%; background: var(--cn-green); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+        .cn-notif-title { margin: 8px 0 6px; font-size: 14px; font-weight: 700; }
+        .cn-notif-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+        .cn-notif-box { width: 18px; height: 18px; flex-shrink: 0; border-radius: 5px; border: 2px solid #CBD5E1; }
+        .cn-notif-more { margin-top: 4px; font-size: 12px; color: var(--cn-faint); }
+
+        .cn-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 18px; border-top: 1px solid #F1F4F8; }
+        .cn-row:first-child { border-top: none; }
+        .cn-time { height: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--cn-line); border-radius: 10px; background: #FFFFFF; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: var(--cn-ink); outline: none; }
+        .cn-time:focus { border-color: var(--cn-green); box-shadow: 0 0 0 3px rgba(13,158,110,0.12); }
+        .cn-block { padding: 14px 18px; border-top: 1px solid #F1F4F8; }
+        .cn-seg { margin-top: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: #F1F4F8; }
+        .cn-seg button { height: 40px; min-height: 40px; min-width: 0; border: none; border-radius: 9px; background: transparent; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--cn-muted); cursor: pointer; }
+        .cn-seg button.is-active { background: #FFFFFF; color: var(--cn-ink); box-shadow: 0 1px 3px rgba(15,25,35,0.12); }
+        .cn-days { margin-top: 10px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+        .cn-days button { height: 44px; min-height: 44px; min-width: 0; border-radius: 10px; border: 1px solid var(--cn-line); background: #FFFFFF; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--cn-muted); cursor: pointer; }
+        .cn-days button.is-active { border-color: var(--cn-green); background: var(--cn-green-soft); color: var(--cn-green); }
+        .cn-summary { padding: 12px 18px 14px; border-top: 1px solid #F1F4F8; font-size: 13px; color: var(--cn-muted); }
+        .cn-summary b { color: var(--cn-ink); }
+        .cn-summary.is-warn { color: #B45309; }
+
+        .cn-savebar { position: sticky; bottom: var(--cn-nav-h); z-index: 40; background: rgba(255,255,255,0.97); border-top: 1px solid var(--cn-line); box-shadow: 0 -4px 16px rgba(15,25,35,0.06); }
+        .cn-savebar-inner { max-width: 640px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cn-status { min-width: 0; font-size: 13px; color: var(--cn-muted); display: inline-flex; align-items: center; gap: 6px; }
+        .cn-status--dirty { color: #B45309; font-weight: 600; }
+        .cn-status--ok { color: #16A34A; font-weight: 600; }
+        .cn-status--error { color: #DC2626; font-weight: 600; }
+        .cn-dot { width: 8px; height: 8px; border-radius: 50%; background: #F59E0B; flex-shrink: 0; }
+        .cn-save { height: 46px; min-height: 46px; min-width: 150px; padding: 0 22px; flex-shrink: 0; border: none; border-radius: 12px; background: linear-gradient(135deg, #0D9E6E, #0BB866); color: #FFFFFF; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(13,158,110,0.25); }
+        .cn-save:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+        .cn-spin { animation: cn-spin 1s linear infinite; }
+        @keyframes cn-spin { to { transform: rotate(360deg); } }
+
+        /* Keep the button clear of the bottom-right Help bubble (SupportWidget). */
+        @media (max-width: 1100px) { .cn-savebar-inner { padding-right: 96px; } }
+        @media (max-width: 768px) {
+          /* Sit above the fixed MobileBottomNav (68px + safe area). */
+          .cn-root { --cn-nav-h: calc(68px + env(safe-area-inset-bottom, 0px)); }
+          html[data-keyboard-open] .cn-root { --cn-nav-h: 0px; }
+        }
+        @media (max-width: 600px) {
+          .cn-main { padding: 16px 16px 24px; }
+          .cn-title { font-size: 20px; }
+          .cn-savebar-inner { padding: 10px 80px 10px 16px; flex-direction: column; align-items: stretch; gap: 6px; }
+          .cn-status { justify-content: center; font-size: 12px; }
+          .cn-save { width: 100%; }
+          .cn-days button { font-size: 12px; }
+        }
+      `}</style>
+
       {isIndian ? <IndianMarketHeader /> : <PageHeader />}
 
-      <main style={{ maxWidth: 600, margin: "0 auto", padding: "24px 16px 48px" }}>
-
-        {/* ── Back + title ───────────────────────────────────────────── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <button
-            onClick={() => router.back()}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 36, height: 36, borderRadius: 10,
-              border: "1px solid #E2E8F0", background: "#FFFFFF",
-              cursor: "pointer", flexShrink: 0,
-            }}
-          >
-            <ChevronLeft size={18} color="#64748B" />
+      <main className="cn-main">
+        <div className="cn-head">
+          <button type="button" className="cn-back" onClick={() => router.back()} aria-label="Back">
+            <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-              Checklist <span style={{ color: "#0D9E6E" }}>Notification</span>
-            </h1>
-            <p style={{ fontSize: 11, color: "#94A3B8", margin: "3px 0 0", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em" }}>
-              SHOW YOUR CHECKLIST IN THE NOTIFICATION SHADE
-            </p>
+            <h1 className="cn-title">Checklist reminder</h1>
+            <p className="cn-sub">Get your setup&apos;s rules as a tickable notification before you trade.</p>
           </div>
         </div>
 
-        {error && (
-          <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 10, background: "#FEF2F2", border: "1px solid #FCA5A5", fontSize: 12, color: "#B91C1C" }}>
-            {error}
+        {error && <div className="cn-banner cn-banner--error" role="alert">{error}</div>}
+        {!supportsLiveNotification() && (
+          <div className="cn-banner cn-banner--info">
+            This reminder appears in the Edgecipline Android app. Your settings are saved here and apply there.
           </div>
         )}
 
-        {!supportsLiveNotification() && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(184,134,11,0.08)", border: "1px solid rgba(184,134,11,0.3)", fontSize: 12, color: "#B8860B" }}>
-            Interactive notifications are available in the Android app only. Your settings are saved and will apply when you open Edgecipline on Android.
+        {/* How it works */}
+        <div className="cn-card">
+          <button type="button" className="cn-how-toggle" onClick={toggleHowItWorks} aria-expanded={howOpen}>
+            How it works
+            <ChevronDown size={18} className={`cn-how-chev${howOpen ? " is-open" : ""}`} />
+          </button>
+          {howOpen && (
+            <div className="cn-how-body">
+              <ol className="cn-steps">
+                <li className="cn-step">
+                  <span className="cn-step-num">1</span>
+                  <div>
+                    <div className="cn-step-title">Pick a setup</div>
+                    <div className="cn-step-text">Its rules become your checklist, up to {MAX_NOTIFICATION_ITEMS} rules.</div>
+                  </div>
+                </li>
+                <li className="cn-step">
+                  <span className="cn-step-num">2</span>
+                  <div>
+                    <div className="cn-step-title">Choose when</div>
+                    <div className="cn-step-text">The notification appears at your time on the days you pick, for example before the market opens.</div>
+                  </div>
+                </li>
+                <li className="cn-step">
+                  <span className="cn-step-num">3</span>
+                  <div>
+                    <div className="cn-step-title">Tick before you trade</div>
+                    <div className="cn-step-text">Pull down your notification shade and tap each rule as you confirm it. Ticks clear at your reset time so each day starts fresh.</div>
+                  </div>
+                </li>
+              </ol>
+              <div className="cn-tip">
+                Tip: turn on <b>Keep until done</b> so the reminder can&apos;t be swiped away until every rule is ticked.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Master switch */}
+        <div className="cn-card cn-master">
+          <div className={`cn-icon${enabled ? " is-on" : ""}`}>
+            {enabled ? <Bell size={20} strokeWidth={2} /> : <BellOff size={20} strokeWidth={2} />}
           </div>
-        )}
+          <div className="cn-grow">
+            <div className="cn-label" id="cn-master-label">Checklist reminder</div>
+            <div className="cn-hint">{loading ? "Loading…" : enabled ? `On · ${schedule}` : "Off"}</div>
+          </div>
+          <Switch value={enabled} onChange={change(setEnabled)} labelledBy="cn-master-label" disabled={loading} />
+        </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#94A3B8", fontSize: 13 }}>Loading…</div>
+          <div className="cn-card" style={{ marginTop: 24, padding: 18 }}>
+            <Skeleton width="40%" height="16px" style={{ marginBottom: 12 }} />
+            <Skeleton width="100%" height="44px" style={{ borderRadius: 10, marginBottom: 8 }} />
+            <Skeleton width="100%" height="44px" style={{ borderRadius: 10 }} />
+          </div>
+        ) : !enabled ? (
+          <p className="cn-off-note">Turn it on to choose a setup and a time.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-            {/* ── Master toggle ──────────────────────────────────────── */}
-            <Card>
-              <Row>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <IconBox color={enabled ? "#0D9E6E" : "#64748B"} bg={enabled ? "rgba(13,158,110,0.1)" : "#F1F4F8"}>
-                    {enabled ? <Bell size={18} strokeWidth={2} /> : <BellOff size={18} strokeWidth={2} />}
-                  </IconBox>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>Show in Notification</div>
-                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                      Display checklist in Android notification shade
-                    </div>
-                  </div>
-                </div>
-                <Toggle value={enabled} onChange={setEnabled} />
-              </Row>
-            </Card>
-
-            {/* ── Strategy selector ──────────────────────────────────── */}
-            <Card title="SELECT STRATEGY" dimmed={!enabled}>
+          <>
+            {/* Setup */}
+            <section className="cn-section">
+              <h2 className="cn-section-title">Setup</h2>
               {strategies.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#94A3B8", padding: "8px 0" }}>
-                  No strategies found. Create setups first.
+                <div className="cn-card cn-empty">
+                  <div className="cn-label">You don&apos;t have any setups yet</div>
+                  <div className="cn-hint">Create a setup with the rules you check before entering, then come back here.</div>
+                  <Link href={isIndian ? "/indian-market/setups" : "/setups"} className="cn-btn-link">Create a setup</Link>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {strategies.map((s, idx) => {
-                    const active = selectedStrategyIdx === idx;
-                    return (
-                      <button
-                        key={s._id || idx}
-                        onClick={() => enabled && setSelectedStrategyIdx(idx)}
-                        style={{
-                          padding: "8px 14px", borderRadius: 999,
-                          border: active ? "1.5px solid #0D9E6E" : "1px solid #E2E8F0",
-                          background: active ? "rgba(13,158,110,0.08)" : "#F8FAFC",
-                          color: active ? "#0D9E6E" : "#64748B",
-                          fontSize: 12, fontWeight: active ? 700 : 500,
-                          cursor: enabled ? "pointer" : "default",
-                          opacity: enabled ? 1 : 0.5,
-                        }}
-                      >
-                        {s.name}
-                        <span style={{ marginLeft: 6, fontSize: "var(--fs-2xs)", color: "#94A3B8" }}>
-                          {(s.rules || []).filter(r => r.label?.trim()).length}R
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                <>
+                  <div className="cn-card" role="radiogroup" aria-label="Setup">
+                    {strategies.map((s, idx) => {
+                      const active = selectedStrategyIdx === idx;
+                      const count = filledRules(s).length;
+                      return (
+                        <button
+                          key={s._id || idx}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          className={`cn-option${active ? " is-active" : ""}`}
+                          onClick={() => change(setSelectedStrategyIdx)(idx)}
+                        >
+                          <span className="cn-radio">{active && <Check size={13} strokeWidth={3.2} />}</span>
+                          <span className="cn-grow cn-option-name">{s.name}</span>
+                          <span className="cn-option-meta">{count} {count === 1 ? "rule" : "rules"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              {/* Preview items */}
-              {enabled && strategies[selectedStrategyIdx] && (
-                <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono', monospace", color: "#94A3B8", letterSpacing: "0.1em", marginBottom: 10 }}>
-                    NOTIFICATION PREVIEW
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#0F1923" }}>
-                    {strategies[selectedStrategyIdx].name}
-                  </div>
-                  {(strategies[selectedStrategyIdx].rules || [])
-                    .filter(r => r.label?.trim())
-                    .slice(0, 8)
-                    .map((r, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid #F1F4F8" }}>
-                        <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #CBD5E1", flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: "#0F1923" }}>{r.label}</span>
+                  {selected && (
+                    <>
+                      <div className="cn-preview-label">Preview</div>
+                      <div className="cn-notif" aria-label="Notification preview">
+                        <div className="cn-notif-app"><span className="cn-notif-logo">E</span>Edgecipline · now</div>
+                        <div className="cn-notif-title">{selected.name}</div>
+                        {previewRules.length === 0 ? (
+                          <div className="cn-hint">This setup has no rules yet.</div>
+                        ) : (
+                          previewRules.slice(0, MAX_NOTIFICATION_ITEMS).map((r, i) => (
+                            <div key={i} className="cn-notif-item"><span className="cn-notif-box" />{r.label}</div>
+                          ))
+                        )}
+                        {previewRules.length > MAX_NOTIFICATION_ITEMS && (
+                          <div className="cn-notif-more">+{previewRules.length - MAX_NOTIFICATION_ITEMS} more won&apos;t fit in the notification</div>
+                        )}
                       </div>
+                    </>
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* Schedule */}
+            <section className="cn-section">
+              <h2 className="cn-section-title">Schedule</h2>
+              <div className="cn-card">
+                <div className="cn-row">
+                  <label className="cn-label" htmlFor="cn-time">Time</label>
+                  <input
+                    id="cn-time"
+                    type="time"
+                    className="cn-time"
+                    value={notificationTime}
+                    onChange={(e) => change(setNotificationTime)(e.target.value)}
+                  />
+                </div>
+                <div className="cn-block">
+                  <div className="cn-label">Repeat</div>
+                  <div className="cn-seg" role="radiogroup" aria-label="Repeat">
+                    {[
+                      { value: "daily", label: "Every day" },
+                      { value: "weekdays", label: "Weekdays" },
+                      { value: "custom", label: "Custom" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={repeatMode === opt.value}
+                        className={repeatMode === opt.value ? "is-active" : ""}
+                        onClick={() => change(setRepeatMode)(opt.value)}
+                      >
+                        {opt.label}
+                      </button>
                     ))}
-                  {(strategies[selectedStrategyIdx].rules || []).filter(r => r.label?.trim()).length > 8 && (
-                    <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 6, fontFamily: "'JetBrains Mono', monospace" }}>
-                      + {(strategies[selectedStrategyIdx].rules || []).filter(r => r.label?.trim()).length - 8} more (not shown in notification)
+                  </div>
+                  {repeatMode === "custom" && (
+                    <div className="cn-days">
+                      {DAY_LABELS.map((label, i) => {
+                        const day = i + 1;
+                        const active = customDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            aria-pressed={active}
+                            className={active ? "is-active" : ""}
+                            onClick={() => toggleDay(day)}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              )}
-            </Card>
-
-            {/* ── Notification time ──────────────────────────────────── */}
-            <Card title="NOTIFICATION TIME" dimmed={!enabled}>
-              <Row>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <IconBox color="#3B82F6" bg="rgba(59,130,246,0.1)">
-                    <Clock size={16} strokeWidth={2} />
-                  </IconBox>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>Show checklist at</div>
+                <div className={`cn-summary${repeatMode === "custom" && !customDays.length ? " is-warn" : ""}`}>
+                  {repeatMode === "custom" && !customDays.length
+                    ? "Pick at least one day, or the reminder will never show."
+                    : <>You&apos;ll get it at <b>{formatTime(notificationTime)}</b>, {describeDays(repeatMode, customDays)}.</>}
                 </div>
-                <input
-                  type="time"
-                  value={notificationTime}
-                  onChange={(e) => enabled && setNotificationTime(e.target.value)}
-                  disabled={!enabled}
-                  style={{
-                    fontSize: 15, fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    border: "1px solid #E2E8F0", borderRadius: 8,
-                    padding: "6px 10px", background: enabled ? "#FFFFFF" : "#F8FAFC",
-                    color: enabled ? "#0F1923" : "#94A3B8",
-                    cursor: enabled ? "pointer" : "default",
-                    outline: "none",
-                  }}
-                />
-              </Row>
-            </Card>
-
-            {/* ── Repeat ─────────────────────────────────────────────── */}
-            <Card title="REPEAT" dimmed={!enabled}>
-              <div style={{ display: "flex", gap: 8, marginBottom: repeatMode === "custom" ? 14 : 0 }}>
-                {[
-                  { value: "daily", label: "Every Day" },
-                  { value: "weekdays", label: "Weekdays" },
-                  { value: "custom", label: "Custom" },
-                ].map((opt) => {
-                  const active = repeatMode === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => enabled && setRepeatMode(opt.value)}
-                      style={{
-                        flex: 1, padding: "9px 6px", borderRadius: 10,
-                        border: active ? "1.5px solid #0D9E6E" : "1px solid #E2E8F0",
-                        background: active ? "rgba(13,158,110,0.08)" : "#F8FAFC",
-                        color: active ? "#0D9E6E" : "#64748B",
-                        fontSize: 12, fontWeight: active ? 700 : 500,
-                        cursor: enabled ? "pointer" : "default",
-                        opacity: enabled ? 1 : 0.5,
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
               </div>
+            </section>
 
-              {repeatMode === "custom" && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {DAY_LABELS.map((label, i) => {
-                    const day = i + 1;
-                    const active = customDays.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        onClick={() => enabled && toggleDay(day)}
-                        style={{
-                          width: 40, height: 40, borderRadius: 10,
-                          border: active ? "1.5px solid #0D9E6E" : "1px solid #E2E8F0",
-                          background: active ? "rgba(13,158,110,0.1)" : "#F8FAFC",
-                          color: active ? "#0D9E6E" : "#64748B",
-                          fontSize: 11, fontWeight: 700,
-                          cursor: enabled ? "pointer" : "default",
-                          opacity: enabled ? 1 : 0.5,
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-
-            {/* ── Daily reset ────────────────────────────────────────── */}
-            <Card title="DAILY RESET" dimmed={!enabled}>
-              <Row>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <IconBox color="#8B5CF6" bg="rgba(139,92,246,0.1)">
-                    <RefreshCw size={16} strokeWidth={2} />
-                  </IconBox>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>Auto-reset at midnight</div>
-                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                      Uncheck all items at the reset time
-                    </div>
+            {/* Options */}
+            <section className="cn-section">
+              <h2 className="cn-section-title">Options</h2>
+              <div className="cn-card">
+                <div className="cn-row">
+                  <div className="cn-grow">
+                    <div className="cn-label" id="cn-reset-label">Reset ticks daily</div>
+                    <div className="cn-hint">Clears every tick at {formatTime(resetTime)} so each day starts fresh.</div>
                   </div>
+                  <Switch value={resetEnabled} onChange={change(setResetEnabled)} labelledBy="cn-reset-label" />
                 </div>
-                <Toggle
-                  value={resetEnabled}
-                  onChange={(v) => enabled && setResetEnabled(v)}
-                  disabled={!enabled}
-                />
-              </Row>
-
-              {resetEnabled && (
-                <Row style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #F1F4F8" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>Reset time</div>
-                  <input
-                    type="time"
-                    value={resetTime}
-                    onChange={(e) => enabled && setResetTime(e.target.value)}
-                    disabled={!enabled}
-                    style={{
-                      fontSize: 14, fontWeight: 700,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      border: "1px solid #E2E8F0", borderRadius: 8,
-                      padding: "5px 10px", background: enabled ? "#FFFFFF" : "#F8FAFC",
-                      color: enabled ? "#0F1923" : "#94A3B8",
-                      outline: "none",
-                    }}
-                  />
-                </Row>
-              )}
-            </Card>
-
-            {/* ── Persistent notification ────────────────────────────── */}
-            <Card dimmed={!enabled}>
-              <Row>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>Persistent Notification</div>
-                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                    Cannot be swiped away (stays until all items checked)
+                {resetEnabled && (
+                  <div className="cn-row">
+                    <label className="cn-hint" htmlFor="cn-reset-time" style={{ marginTop: 0 }}>Reset time</label>
+                    <input
+                      id="cn-reset-time"
+                      type="time"
+                      className="cn-time"
+                      value={resetTime}
+                      onChange={(e) => change(setResetTime)(e.target.value)}
+                    />
                   </div>
+                )}
+                <div className="cn-row">
+                  <div className="cn-grow">
+                    <div className="cn-label" id="cn-persist-label">Keep until done</div>
+                    <div className="cn-hint">Can&apos;t be swiped away until every rule is ticked.</div>
+                  </div>
+                  <Switch value={persistent} onChange={change(setPersistent)} labelledBy="cn-persist-label" />
                 </div>
-                <Toggle
-                  value={persistent}
-                  onChange={(v) => enabled && setPersistent(v)}
-                  disabled={!enabled}
-                />
-              </Row>
-            </Card>
-
-            {/* ── Save button ────────────────────────────────────────── */}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                width: "100%", padding: "16px", borderRadius: 14, border: "none",
-                background: saved
-                  ? "linear-gradient(135deg, #0D9E6E, #22C78E)"
-                  : "linear-gradient(135deg, #0D9E6E, #22C78E)",
-                color: "#FFFFFF", fontSize: 13, fontWeight: 800,
-                fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em",
-                cursor: saving ? "not-allowed" : "pointer",
-                opacity: saving ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                boxShadow: "0 4px 20px rgba(13,158,110,0.3)",
-              }}
-            >
-              <Save size={16} strokeWidth={2.5} />
-              {saving ? "SAVING..." : saved ? "SAVED ✓" : "SAVE SETTINGS"}
-            </button>
-
-          </div>
+              </div>
+            </section>
+          </>
         )}
       </main>
-    </div>
-  );
-}
 
-// ── Shared sub-components ──────────────────────────────────────────────────
-
-function Card({ children, title, dimmed = false }) {
-  return (
-    <div style={{
-      background: "#FFFFFF", borderRadius: 14,
-      border: "1px solid #E2E8F0",
-      padding: "16px 18px",
-      boxShadow: "0 2px 10px rgba(15,25,35,0.04)",
-      opacity: dimmed ? 0.5 : 1,
-      transition: "opacity 0.2s",
-    }}>
-      {title && (
-        <div style={{
-          fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono', monospace",
-          letterSpacing: "0.12em", color: "#94A3B8", fontWeight: 700,
-          marginBottom: 12,
-        }}>
-          {title}
+      {!loading && (
+        <div className="cn-savebar">
+          <div className="cn-savebar-inner">
+            {status}
+            <button type="button" className="cn-save" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={16} strokeWidth={2.4} className="cn-spin" /> : <Save size={16} strokeWidth={2.4} />}
+              {saveLabel}
+            </button>
+          </div>
         </div>
       )}
-      {children}
     </div>
   );
 }
 
-function Row({ children, style }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center",
-      justifyContent: "space-between", gap: 12,
-      ...style,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function IconBox({ children, color, bg }) {
-  return (
-    <div style={{
-      width: 36, height: 36, borderRadius: 10,
-      background: bg, color: color,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function Toggle({ value, onChange, disabled = false }) {
+function Switch({ value, onChange, labelledBy, disabled = false }) {
   return (
     <button
       type="button"
-      onClick={() => !disabled && onChange(!value)}
-      style={{
-        width: 48, height: 28, borderRadius: 14, border: "none",
-        background: value ? "#0D9E6E" : "#CBD5E1",
-        cursor: disabled ? "default" : "pointer",
-        position: "relative", flexShrink: 0,
-        transition: "background 0.2s",
-        padding: 0,
-      }}
-      aria-checked={value}
       role="switch"
+      aria-checked={value}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
+      className={`cn-switch${value ? " is-on" : ""}`}
+      onClick={() => onChange(!value)}
     >
-      <div style={{
-        position: "absolute", top: 3,
-        left: value ? 23 : 3,
-        width: 22, height: 22, borderRadius: "50%",
-        background: "#FFFFFF",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
-        transition: "left 0.2s",
-      }} />
+      <span className="cn-switch-knob" />
     </button>
   );
 }

@@ -111,54 +111,38 @@ export default function DeleteAccountSection({ email, subscription = null }) {
 
   return (
     <>
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid #FCA5A5`,
-          borderRadius: 14,
-          padding: 18,
-          marginTop: 18,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <AlertTriangle size={15} color={C.red} strokeWidth={2.4} />
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.red,
-              letterSpacing: "0.12em",
-            }}
-          >
-            DANGER ZONE
+      <style>{`
+        .das-section { margin-top: 28px; }
+        .das-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 700; color: ${C.red}; display: flex; align-items: center; gap: 6px; }
+        .das-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: ${C.card}; border: 1px solid #FECACA; border-radius: 16px; }
+        .das-text { flex: 1; min-width: 0; }
+        .das-label { font-size: 15px; font-weight: 600; color: #0F1923; }
+        .das-desc { margin-top: 2px; font-size: 13px; color: #64748B; line-height: 1.5; }
+        .das-btn { flex-shrink: 0; height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid ${C.red}; background: #FFFFFF; color: ${C.red}; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .das-btn:hover { background: #FEF2F2; }
+        @media (max-width: 600px) {
+          .das-card { flex-direction: column; align-items: stretch; padding: 16px; }
+          .das-btn { width: 100%; }
+        }
+      `}</style>
+      <section className="das-section">
+        <h3 className="das-title">
+          <AlertTriangle size={14} strokeWidth={2.4} /> Danger zone
+        </h3>
+        <div className="das-card">
+          <div className="das-text">
+            <div className="das-label">Delete account</div>
+            <div className="das-desc">
+              Permanently erases your journal and everything in it. This cannot be undone,
+              and we cannot recover it for you afterwards.
+            </div>
           </div>
+          <button type="button" className="das-btn" onClick={() => setOpen(true)}>
+            <Trash2 size={15} strokeWidth={2.2} />
+            Delete account
+          </button>
         </div>
-
-        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
-          Deleting your account permanently erases your journal and everything in it.
-          This cannot be undone, and we cannot recover it for you afterwards.
-        </div>
-
-        <button
-          onClick={() => setOpen(true)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 16px",
-            borderRadius: 9,
-            border: `1px solid ${C.red}`,
-            background: "rgba(214,59,59,0.05)",
-            color: C.red,
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
-        >
-          <Trash2 size={14} strokeWidth={2.2} />
-          Delete my account
-        </button>
-      </div>
+      </section>
 
       {open && (
         <div

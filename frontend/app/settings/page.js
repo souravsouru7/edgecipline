@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import Link from "next/link";
-import { getProfile, resetOnboarding } from "@/services/api";
+import { getProfile } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
-import { ArrowRight, BarChart3, Check, ClipboardList, GraduationCap, Globe2, LifeBuoy, Upload } from "lucide-react";
+import { Skeleton } from "@/features/shared";
+import { useMarket, MARKETS } from "@/context/MarketContext";
+import { BarChart3, Check, ChevronRight, ClipboardList, GraduationCap, Globe2, LifeBuoy, Upload } from "lucide-react";
 import { canShowPurchaseUI } from "@/config/payments";
 import { isAndroidNative, isIOSNative } from "@/utils/platform";
 import { openStoreKitManageSubscriptions } from "@/plugins/EdgeStoreKitPlugin";
@@ -23,109 +25,58 @@ import DeleteAccountSection from "@/components/DeleteAccountSection";
 // rather than merely hidden — and there is no route to 404 on.
 import PricingModal from "@/components/PricingModal";
 
-const C = {
-  bg: "#F0EEE9",
-  card: "#FFFFFF",
-  navy: "#0F1923",
-  navyLight: "#1A2D3D",
-  green: "#0D9E6E",
-  greenLight: "#22C78E",
-  gold: "#B8860B",
-  red: "#D63B3B",
-  secondary: "#4A5568",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  borderDark: "#CBD5E0",
-};
-
 const PLAN_CONFIG = {
-  free: { label: "Free", color: C.muted, bg: "#F1F5F9" },
+  free: { label: "Free", color: "#475569", bg: "#F1F5F9" },
   monthly: { label: "Monthly Pro", color: "#0369A1", bg: "#E0F2FE" },
-  yearly: { label: "Annual Pro", color: C.gold, bg: "#FEF9E7" },
+  yearly: { label: "Annual Pro", color: "#92400E", bg: "#FEF3C7" },
 };
 
 const STATUS_CONFIG = {
   active: { label: "Active", color: "#15803D", bg: "#DCFCE7" },
-  inactive: { label: "Inactive", color: C.muted, bg: "#F1F5F9" },
-  expired: { label: "Expired", color: C.red, bg: "#FEE2E2" },
+  inactive: { label: "Inactive", color: "#475569", bg: "#F1F5F9" },
+  expired: { label: "Expired", color: "#B91C1C", bg: "#FEE2E2" },
   trial: { label: "Trial", color: "#0369A1", bg: "#E0F2FE" },
 };
 
 // Play lifecycle copy, the Renews/Ends/Expires rule and the manage link live
 // in features/premium/utils/subscriptionCard.mjs (unit-tested under node:test).
 
-function Badge({ label, color, bg }) {
+function Pill({ label, color, bg }) {
+  return <span className="st-pill" style={{ color, background: bg }}>{label}</span>;
+}
+
+function Row({ label, value, mono }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "3px 10px",
-        borderRadius: 20,
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: "0.04em",
-        color,
-        background: bg,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-      }}
-    >
-      {label}
-    </span>
+    <div className="st-row">
+      <span className="st-row-label">{label}</span>
+      <span className={`st-row-value${mono ? " st-mono" : ""}`}>{value || "-"}</span>
+    </div>
   );
 }
 
-function InfoRow({ label, value, mono }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "11px 0",
-        borderBottom: `1px solid ${C.border}`,
-      }}
-    >
-      <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>{label}</span>
-      <span
-        style={{
-          fontSize: 13,
-          color: C.navy,
-          fontWeight: 600,
-          fontFamily: mono ? "'JetBrains Mono', monospace" : undefined,
-        }}
-      >
-        {value || "-"}
+function NavRow({ href, onClick, Icon, label, hint, disabled }) {
+  const body = (
+    <>
+      <span className="st-nav-icon"><Icon size={18} strokeWidth={2} /></span>
+      <span className="st-nav-text">
+        <span className="st-nav-label">{label}</span>
+        {hint && <span className="st-nav-hint">{hint}</span>}
       </span>
-    </div>
+      <ChevronRight size={18} strokeWidth={2} className="st-nav-chev" />
+    </>
   );
+  return href
+    ? <Link href={href} className="st-nav">{body}</Link>
+    : <button type="button" className="st-nav" onClick={onClick} disabled={disabled}>{body}</button>;
 }
 
-function StatCard({ label, value, sub, accent }) {
-  return (
-    <div
-      style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: "16px 18px",
-        flex: 1,
-        minWidth: 100,
-        boxShadow: "0 1px 4px rgba(15,25,35,0.04)",
-      }}
-    >
-      <div style={{ fontSize: 20, fontWeight: 800, color: accent || C.navy, letterSpacing: "-0.02em" }}>
-        {value}
-      </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.secondary, marginTop: 2 }}>{label}</div>
-      {sub && <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>{sub}</div>}
-    </div>
-  );
-}
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "-";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { ready } = useRequireAuth();
+  const { currentMarket } = useMarket();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [replayingTutorial, setReplayingTutorial] = useState(false);
@@ -162,17 +113,19 @@ export default function SettingsPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [ready, loadProfile]);
 
+  // The coach links to /profile?section=billing (redirected here).
+  useEffect(() => {
+    if (loading) return;
+    if (new URLSearchParams(window.location.search).get("section") !== "billing") return;
+    document.getElementById("billing")?.scrollIntoView({ block: "start" });
+  }, [loading]);
+
   const initials = profile?.name
     ? profile.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "U";
 
-  const joinedDate = profile?.createdAt
-    ? new Date(profile.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "-";
-
-  const lastLogin = profile?.lastLogin
-    ? new Date(profile.lastLogin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : "-";
+  const joinedDate = fmtDate(profile?.createdAt);
+  const lastLogin = fmtDate(profile?.lastLogin);
 
   // `subscription` is resolved on the server across both processors. The raw
   // subscriptionStatus/subscriptionExpiry fields are the Razorpay ledger only:
@@ -186,9 +139,7 @@ export default function SettingsPage() {
     expiresAt: profile?.subscriptionExpiry,
   };
 
-  const expiryDate = subscription.expiresAt
-    ? new Date(subscription.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : null;
+  const expiryDate = subscription.expiresAt ? fmtDate(subscription.expiresAt) : null;
   // Play subscriptions renew on that date unless cancelled in the Play Store,
   // in which case access simply ends there; Razorpay purchases always just
   // end. "Expires" on a renewing plan reads like a warning and "Renews" on a
@@ -219,370 +170,228 @@ export default function SettingsPage() {
     ? STATUS_CONFIG.trial
     : (STATUS_CONFIG[subscription.status] || STATUS_CONFIG.inactive);
 
-  const authProvider = profile?.authProvider === "google" ? "Google" : "Email & Password";
+  const authProvider = profile?.authProvider === "google" ? "Google" : "Email & password";
 
-  const handleReplayTutorial = async () => {
+  const isIndian = currentMarket === MARKETS.INDIAN_MARKET;
+  const shortcuts = [
+    { href: isIndian ? "/indian-market/analytics" : "/analytics", label: "Analytics", hint: "Win rate, P&L and patterns", Icon: BarChart3 },
+    { href: isIndian ? "/indian-market/upload-trade" : "/upload-trade", label: "Upload a trade", hint: "From a broker screenshot or manually", Icon: Upload },
+    { href: "/weekly-reports", label: "Weekly reports", hint: "Your week, reviewed", Icon: ClipboardList },
+    isIndian
+      ? { href: "/dashboard", label: "Switch to Forex", hint: "Open the Forex dashboard", Icon: Globe2 }
+      : { href: "/indian-market/dashboard", label: "Switch to Indian market", hint: "Open the NSE / BSE dashboard", Icon: Globe2 },
+  ];
+
+  // The dashboard opens the welcome tutorial when it sees ?tour=1; it used to
+  // reset a server flag the tutorial never read, so nothing appeared.
+  const handleReplayTutorial = () => {
     setReplayingTutorial(true);
-    try {
-      await resetOnboarding();
-    } catch {
-      // Even if the API call fails, navigate to dashboard so the tutorial shows
-    } finally {
-      router.push("/dashboard");
-    }
+    router.push(isIndian ? "/indian-market/dashboard?tour=1" : "/dashboard?tour=1");
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.bg,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        color: C.navy,
-      }}
-    >
+    <div className="st-root">
+      <style>{`
+        .st-root { --st-ink: #0F1923; --st-muted: #64748B; --st-faint: #94A3B8; --st-line: #E2E8F0; --st-green: #0D9E6E;
+          min-height: 100vh; background: #F4F6F9; color: var(--st-ink); font-family: 'Inter', sans-serif; }
+        .st-root *, .st-root *::before, .st-root *::after { box-sizing: border-box; }
+        .st-main { max-width: 720px; margin: 0 auto; padding: 24px 24px 64px; }
+        .st-title { margin: 0 0 16px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+
+        .st-card { background: #FFFFFF; border: 1px solid var(--st-line); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,25,35,0.04); overflow: hidden; }
+        .st-section { margin-top: 28px; }
+        .st-section-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 700; color: var(--st-muted); }
+
+        .st-profile { display: flex; align-items: center; gap: 16px; padding: 20px; }
+        .st-avatar { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0D9E6E, #22C78E); color: #FFFFFF; font-size: 20px; font-weight: 700; }
+        .st-profile-text { flex: 1; min-width: 0; }
+        .st-name { margin: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .st-email { margin-top: 2px; font-size: 14px; color: var(--st-muted); overflow-wrap: anywhere; }
+        .st-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .st-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+        .st-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 12px 20px; border-top: 1px solid #F1F4F8; }
+        .st-row:first-child { border-top: none; }
+        .st-row-label { font-size: 14px; color: var(--st-muted); flex-shrink: 0; }
+        .st-row-value { font-size: 14px; font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+        .st-mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+        .st-plan { padding: 18px 20px; }
+        .st-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .st-plan-name { font-size: 16px; font-weight: 700; }
+        .st-plan-date { margin-top: 4px; font-size: 14px; color: var(--st-muted); }
+        .st-plan-date b { color: var(--st-ink); font-weight: 600; }
+        .st-notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+        .st-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+        .st-btn { height: 44px; padding: 0 18px; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .st-btn--primary { border: none; background: linear-gradient(135deg, #0D9E6E, #0BB866); color: #FFFFFF; box-shadow: 0 2px 8px rgba(13,158,110,0.25); }
+        .st-btn--secondary { border: 1px solid #CBD5E0; background: #FFFFFF; color: var(--st-ink); }
+        .st-btn--secondary:hover { background: #F8FAFB; }
+        .st-access { margin-top: 14px; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #15803D; }
+
+        .st-nav { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 20px; border: none; border-top: 1px solid #F1F4F8; background: transparent; text-align: left; text-decoration: none; color: inherit; font-family: inherit; cursor: pointer; }
+        .st-card > .st-nav:first-child { border-top: none; }
+        .st-nav:hover { background: #F8FAFB; }
+        .st-nav:disabled { opacity: 0.6; cursor: default; }
+        .st-nav-icon { width: 36px; height: 36px; border-radius: 10px; background: #EEF9F4; color: var(--st-green); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .st-nav-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .st-nav-label { font-size: 15px; font-weight: 600; }
+        .st-nav-hint { font-size: 13px; color: var(--st-muted); margin-top: 1px; }
+        .st-nav-chev { color: var(--st-faint); flex-shrink: 0; }
+
+
+        @media (max-width: 600px) {
+          .st-main { padding: 16px 16px 96px; }
+          .st-title { font-size: 22px; }
+          .st-profile { flex-wrap: wrap; padding: 16px; }
+          .st-pills { flex-basis: 100%; justify-content: flex-start; padding-left: 72px; }
+          .st-row { padding: 12px 16px; }
+          .st-plan { padding: 16px; }
+          .st-actions .st-btn { flex: 1 1 100%; }
+          .st-nav { padding: 10px 16px; }
+        }
+        @media (max-width: 420px) {
+          .st-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+          .st-row-value { text-align: left; }
+        }
+      `}</style>
+
       <PageHeader showMarketSwitcher={false} />
 
-      <main style={{ maxWidth: 780, margin: "0 auto", padding: "32px 16px 64px" }}>
+      <main className="st-main">
+        <h1 className="st-title">Settings</h1>
 
-        {/* Hero Banner */}
-        <div
-          style={{
-            background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyLight} 60%, #1E3A4A 100%)`,
-            borderRadius: 18,
-            padding: "36px 32px",
-            marginBottom: 24,
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: "0 8px 32px rgba(15,25,35,0.18)",
-          }}
-        >
-          {/* Decorative circles */}
-          <div
-            style={{
-              position: "absolute", top: -40, right: -40,
-              width: 180, height: 180, borderRadius: "50%",
-              background: `rgba(13,158,110,0.08)`,
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute", bottom: -60, right: 80,
-              width: 240, height: 240, borderRadius: "50%",
-              background: `rgba(34,199,142,0.05)`,
-              pointerEvents: "none",
-            }}
-          />
-
-          <div style={{ display: "flex", alignItems: "center", gap: 22, position: "relative" }}>
-            {/* Avatar */}
-            <div
-              style={{
-                width: 76,
-                height: 76,
-                borderRadius: "50%",
-                background: `linear-gradient(135deg, ${C.green} 0%, ${C.greenLight} 100%)`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 28,
-                fontWeight: 700,
-                flexShrink: 0,
-                boxShadow: `0 0 0 3px rgba(34,199,142,0.3), 0 4px 16px rgba(13,158,110,0.4)`,
-              }}
-            >
-              {loading ? "..." : initials}
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: "#fff",
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {loading ? "Loading..." : profile?.name || "Trader"}
-                </h1>
-                {!loading && <Badge {...planCfg} />}
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "rgba(255,255,255,0.55)",
-                  marginTop: 4,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {loading ? "" : profile?.email || ""}
-              </div>
-              {!loading && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-                  <Badge {...statusCfg} />
-                  {profile?.role === "admin" && (
-                    <Badge label="Admin" color="#7C3AED" bg="#EDE9FE" />
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Row */}
-        {!loading && (
-          <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-            <StatCard
-              label="Member Since"
-              value={joinedDate}
-              accent={C.green}
-            />
-            <StatCard
-              label="Last Login"
-              value={lastLogin}
-              accent={C.navy}
-            />
-            <StatCard
-              label="Auth Method"
-              value={authProvider}
-              accent={C.secondary}
-            />
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 20 }}>
-
-          {/* Account Info */}
-          <div
-            style={{
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 14,
-              padding: "20px 22px",
-              boxShadow: "0 2px 8px rgba(15,25,35,0.05)",
-              gridColumn: "1 / -1",
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.12em", marginBottom: 8 }}>
-              ACCOUNT INFORMATION
-            </div>
+        {/* Profile */}
+        <div className="st-card st-profile">
+          <div className="st-avatar" aria-hidden="true">{loading ? "" : initials}</div>
+          <div className="st-profile-text">
             {loading ? (
-              <div style={{ fontSize: 13, color: C.muted, padding: "12px 0" }}>Loading profile...</div>
+              <>
+                <Skeleton width="160px" height="18px" style={{ marginBottom: 8 }} />
+                <Skeleton width="220px" height="14px" />
+              </>
             ) : (
               <>
-                <InfoRow label="Full Name" value={profile?.name} />
-                <InfoRow label="Email Address" value={profile?.email} mono />
-                <InfoRow label="Auth Provider" value={authProvider} />
-                <InfoRow label="Role" value={profile?.role === "admin" ? "Administrator" : "Trader"} />
-                <div style={{ padding: "11px 0" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>Account Created</span>
-                    <span style={{ fontSize: 13, color: C.navy, fontWeight: 600 }}>{joinedDate}</span>
-                  </div>
-                </div>
+                <h2 className="st-name">{profile?.name || "Trader"}</h2>
+                <div className="st-email">{profile?.email || ""}</div>
               </>
             )}
           </div>
-
-          {/* Subscription */}
-          <div
-            style={{
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 14,
-              padding: "20px 22px",
-              boxShadow: "0 2px 8px rgba(15,25,35,0.05)",
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.12em", marginBottom: 8 }}>
-              SUBSCRIPTION
+          {!loading && (
+            <div className="st-pills">
+              <Pill {...planCfg} />
+              {profile?.role === "admin" && <Pill label="Admin" color="#6D28D9" bg="#EDE9FE" />}
             </div>
+          )}
+        </div>
+
+        {/* Account */}
+        <section className="st-section">
+          <h3 className="st-section-title">Account</h3>
+          <div className="st-card">
             {loading ? (
-              <div style={{ fontSize: 13, color: C.muted }}>Loading...</div>
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="st-row"><Skeleton width="100%" height="16px" /></div>
+              ))
             ) : (
               <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <Badge {...planCfg} />
-                  <Badge {...statusCfg} />
+                <Row label="Name" value={profile?.name} />
+                <Row label="Email" value={profile?.email} mono />
+                <Row label="Sign-in method" value={authProvider} />
+                <Row label="Member since" value={joinedDate} />
+                <Row label="Last login" value={lastLogin} />
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* Subscription */}
+        <section className="st-section" id="billing">
+          <h3 className="st-section-title">Subscription</h3>
+          <div className="st-card st-plan">
+            {loading ? (
+              <>
+                <Skeleton width="140px" height="18px" style={{ marginBottom: 8 }} />
+                <Skeleton width="200px" height="14px" />
+              </>
+            ) : (
+              <>
+                <div className="st-plan-head">
+                  <span className="st-plan-name">{planCfg.label}</span>
+                  <Pill {...statusCfg} />
                 </div>
-                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                  {expiryDate && (
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
-                      {expiryLabel} <span style={{ color: C.navy, fontWeight: 600 }}>{expiryDate}</span>
-                    </div>
-                  )}
-                  {lifecycleNotice && (
-                    <div
-                      role="status"
-                      style={{
-                        marginTop: 6,
-                        marginBottom: 8,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        lineHeight: 1.5,
-                        background: lifecycleNotice.tone === "warn" ? "#FEF3C7" : "#E0F2FE",
-                        color: lifecycleNotice.tone === "warn" ? "#92400E" : "#075985",
-                      }}
-                    >
-                      {lifecycleNotice.text}
-                    </div>
-                  )}
-                  {(playActions || appStoreActions) && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 6 }}>
+                {expiryDate && (
+                  <div className="st-plan-date">{expiryLabel} <b>{expiryDate}</b></div>
+                )}
+                {lifecycleNotice && (
+                  <div
+                    role="status"
+                    className="st-notice"
+                    style={{
+                      background: lifecycleNotice.tone === "warn" ? "#FEF3C7" : "#E0F2FE",
+                      color: lifecycleNotice.tone === "warn" ? "#92400E" : "#075985",
+                    }}
+                  >
+                    {lifecycleNotice.text}
+                  </div>
+                )}
+                {profile?.isPremium && (
+                  <div className="st-access"><Check size={16} strokeWidth={2.6} /> Full access enabled</div>
+                )}
+                {(playActions || appStoreActions || (!profile?.isPremium && canShowPurchaseUI())) && (
+                  <div className="st-actions">
+                    {!profile?.isPremium && canShowPurchaseUI() && (
+                      <button type="button" className="st-btn st-btn--primary" onClick={() => setPricingOpen(true)}>
+                        Upgrade plan
+                      </button>
+                    )}
+                    {(playActions || appStoreActions) && (
                       <button
                         type="button"
+                        className="st-btn st-btn--secondary"
                         onClick={() =>
                           appStoreActions
                             ? openStoreKitManageSubscriptions().catch(() => {})
                             : window.open(PLAY_MANAGE_URL, "_blank", "noopener")
                         }
-                        style={{
-                          padding: "7px 12px",
-                          background: "#FFFFFF",
-                          color: C.navy,
-                          border: `1px solid ${C.borderDark}`,
-                          borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                        }}
                       >
                         Manage subscription
                       </button>
-                      {canShowPurchaseUI() && (
-                        <button
-                          type="button"
-                          onClick={() => setPricingOpen(true)}
-                          style={{
-                            padding: "7px 12px",
-                            background: "#FFFFFF",
-                            color: C.green,
-                            border: `1px solid ${C.green}`,
-                            borderRadius: 8,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          Change plan
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {!profile?.isPremium && canShowPurchaseUI() && (
-                    <button
-                      type="button"
-                      onClick={() => setPricingOpen(true)}
-                      style={{
-                        display: "inline-block",
-                        marginTop: 8,
-                        padding: "8px 16px",
-                        background: `linear-gradient(135deg, ${C.green}, ${C.greenLight})`,
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        boxShadow: "0 2px 8px rgba(13,158,110,0.3)",
-                      }}
-                    >
-                      Upgrade Plan <ArrowRight size={12} style={{ verticalAlign: "middle", marginLeft: 4 }} />
-                    </button>
-                  )}
-                  {profile?.isPremium && (
-                    <div style={{ fontSize: 12, color: "#15803D", fontWeight: 600 }}>
-                      <Check size={13} style={{ verticalAlign: "middle", marginRight: 4 }} /> Full access enabled
-                    </div>
-                  )}
-                </div>
+                    )}
+                    {(playActions || appStoreActions) && canShowPurchaseUI() && (
+                      <button type="button" className="st-btn st-btn--secondary" onClick={() => setPricingOpen(true)}>
+                        Change plan
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
+        </section>
 
-          {/* Quick Actions */}
-          <div
-            style={{
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 14,
-              padding: "20px 22px",
-              boxShadow: "0 2px 8px rgba(15,25,35,0.05)",
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.12em", marginBottom: 12 }}>
-              QUICK ACTIONS
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { href: "/analytics", label: "View Analytics", Icon: BarChart3 },
-                { href: "/upload-trade", label: "Upload Trade", Icon: Upload },
-                { href: "/weekly-reports", label: "Weekly Reports", Icon: ClipboardList },
-                { href: "/indian-market/dashboard", label: "Indian Market", Icon: Globe2 },
-                { href: "/support", label: "Help & Support", Icon: LifeBuoy },
-              ].map(({ href, label, Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "9px 12px",
-                    borderRadius: 9,
-                    border: `1px solid ${C.border}`,
-                    textDecoration: "none",
-                    color: C.navy,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    transition: "all 0.15s",
-                    background: "#FAFAFA",
-                  }}
-                >
-                  <Icon size={14} strokeWidth={2.2} />
-                  {label}
-                  <ArrowRight size={12} style={{ marginLeft: "auto", color: C.muted }} />
-                </Link>
-              ))}
-              <button
-                onClick={handleReplayTutorial}
-                disabled={replayingTutorial}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "9px 12px",
-                  borderRadius: 9,
-                  border: `1px solid ${C.green}`,
-                  textDecoration: "none",
-                  color: C.green,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  transition: "all 0.15s",
-                  background: "rgba(13,158,110,0.04)",
-                  cursor: replayingTutorial ? "not-allowed" : "pointer",
-                  opacity: replayingTutorial ? 0.6 : 1,
-                  width: "100%",
-                  textAlign: "left",
-                }}
-              >
-                <GraduationCap size={14} strokeWidth={2.2} />
-                {replayingTutorial ? "Starting tutorial..." : "Replay App Tutorial"}
-                <ArrowRight size={12} style={{ marginLeft: "auto", color: C.green }} />
-              </button>
-            </div>
+        {/* Shortcuts */}
+        <section className="st-section">
+          <h3 className="st-section-title">Shortcuts</h3>
+          <div className="st-card">
+            {shortcuts.map(s => <NavRow key={s.href} {...s} />)}
           </div>
-        </div>
+        </section>
+
+        {/* Help */}
+        <section className="st-section">
+          <h3 className="st-section-title">Help</h3>
+          <div className="st-card">
+            <NavRow
+              onClick={handleReplayTutorial}
+              disabled={replayingTutorial}
+              Icon={GraduationCap}
+              label={replayingTutorial ? "Starting tutorial…" : "Replay app tutorial"}
+              hint="Walk through the app intro again"
+            />
+            <NavRow href="/support" Icon={LifeBuoy} label="Help & support" hint="Guides, FAQs and contacting the team" />
+          </div>
+        </section>
 
         {/* Play User Data policy / Apple 5.1.1(v): account deletion must be
             reachable from inside the app. */}
