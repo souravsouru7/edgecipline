@@ -1,5 +1,14 @@
 # iOS / App Store launch — handoff
 
+> **🚀 SUBMITTED TO APP REVIEW — 2026-11-01 ~16:40 IST.** iOS App 1.0 (build 7) + subscription group "Edgecipline Pro" + 3 subscriptions, in one submission.
+> - Age rating: 18+ (the Terms require 18+). Price: Free. 175 countries. Category: Finance / Productivity.
+> - App Privacy is published.
+> - Demo review account: Free plan, 2 trades per market.
+> - The app icon is the green "E" mark (it replaced the Capacitor placeholder).
+> - Firebase Apple provider has OAuth code flow set: Services ID `com.edgecipline`, team `SAMM4YJPVF`, a new Sign in with Apple key.
+> - **If Apple rejects:** read the Resolution Center message, fix it, raise `CURRENT_PROJECT_VERSION`, archive and upload, then reply/resubmit.
+> - **v1.1 backlog:** checklist Live Activity (lock screen / Dynamic Island); the 43 old failing trade-quota tests plus 2 integration tests; merge `staging` → `main` (CI deploys `main`, the server currently runs `staging`).
+
 > **🟢 START HERE (for the next Claude session)**
 > 1. Read this whole file. The current state and the to-do list are under **"▶ WHAT IS LEFT"** in §3.3.
 > 2. The code lives on branch **`feat/ios-app-store-launch`** (pushed). This file may have newer, uncommitted edits on the owner's Mac.
