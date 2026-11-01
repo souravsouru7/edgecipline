@@ -136,6 +136,25 @@ The owner chose **iPhone only**. `TARGETED_DEVICE_FAMILY = 1` in Debug and Relea
 - ✅ **Sandbox purchase → verify → Pro unlocked confirmed on a real iPhone.**
 - Everything is pushed to `staging`; the server runs `staging`.
 
+**Progress as of 2026-11-01 (end of day) — READY TO SUBMIT:**
+- ✅ iOS checklist reminders: `ios/App/App/ChecklistNotificationPlugin.swift`.
+  - Same JS API as Android: scheduled notifications with one tick action per rule, a reset action, show-on-save, and a lazy daily reset.
+  - `ChecklistReminders` is installed as the UNUserNotificationCenter delegate in AppDelegate (so ticks work while the app is closed) and becomes Capacitor's `localNotificationHandler` once the bridge loads.
+  - The JS gates are now `isNativeApp()`. A Live Activity is planned for v1.1. Commit `8acff36`.
+- ✅ Apple revoke on account deletion (5.1.1(v)): `revokeAppleSignIn()` in `services/firebaseAuth.js` re-runs the Apple sheet for a fresh code, then the plugin's `revokeAccessToken`. Best-effort, called from `DeleteAccountSection`. Commit `077cbb6`.
+  - Firebase Apple provider configured: Services ID `com.edgecipline` (the bundle ID, because sign-in is native only), team `SAMM4YJPVF`, plus a new "Sign in with Apple" key.
+- ✅ Build 6 uploaded: the submission candidate (`69180ae`).
+- ✅ App Store Connect listing done:
+  - screenshots (resized to 1206×2622 for the "medium display" slot)
+  - description, keywords, promotional text
+  - privacy policy `https://edgecipline.com/privacy`, support `https://edgecipline.com/contact`
+  - App Privacy published
+  - age rating **18+** (the Terms require 18+)
+  - content rights: no third-party content
+  - review demo account + notes
+  - a paywall screenshot (`pay.PNG`) on all 3 subscriptions
+- ⏳ **Final step for the owner:** iOS App 1.0 → add build 6 → add the 3 subscriptions → Add for Review → Submit.
+
 ## ▶ WHAT IS LEFT (as of 2026-11-01)
 
 **Owner (no code):**
