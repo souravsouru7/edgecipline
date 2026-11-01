@@ -133,10 +133,15 @@ const isIOSBrowser = () => {
 // Native sign-in plumbing, shared by every provider
 // ---------------------------------------------------------------------------
 
+// Resolves to the MODULE, never the plugin itself. A Capacitor plugin is a
+// Proxy that answers every property — including `then` — so returning it from
+// an async function makes the Promise treat it as a thenable and call
+// plugin.then(resolve, reject). That becomes a native call that never invokes
+// either callback, and the await hung forever before the Apple/Google sheet
+// was ever requested. Callers destructure the plugin from the module.
 const loadNativeFirebaseAuth = async () => {
   try {
-    const mod = await import("@capacitor-firebase/authentication");
-    return mod.FirebaseAuthentication;
+    return await import("@capacitor-firebase/authentication");
   } catch {
     throw new Error("@capacitor-firebase/authentication plugin is not installed. Run: npm install @capacitor-firebase/authentication && npx cap sync");
   }
@@ -159,7 +164,7 @@ const exchangeForFirebaseIdToken = async (credential) => {
 
 // Native Google Sign-In via @capacitor-firebase/authentication
 const signInWithNativeGoogle = async () => {
-  const FirebaseAuthentication = await loadNativeFirebaseAuth();
+  const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
 
   const result = await FirebaseAuthentication.signInWithGoogle();
   const idToken = result.credential?.idToken;
@@ -181,7 +186,7 @@ const signInWithNativeGoogle = async () => {
 // it itself. Omit it when the plugin did not supply one rather than sending
 // `undefined`, which fails verification instead of being ignored.
 const signInWithNativeApple = async () => {
-  const FirebaseAuthentication = await loadNativeFirebaseAuth();
+  const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
 
   const result = await FirebaseAuthentication.signInWithApple();
   const idToken = result.credential?.idToken;
