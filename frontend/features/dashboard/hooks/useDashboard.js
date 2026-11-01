@@ -44,6 +44,11 @@ export function useDashboard() {
   const dashboardMarket = routeMarket || currentMarket;
   const [mounted, setMounted] = useState(false);
   const [firstLoginDismissed, setFirstLoginDismissed] = useState(false);
+  // "Replay App Tutorial" in Settings links here with ?tour=1. Read from
+  // window rather than useSearchParams so the static export needs no Suspense;
+  // gated on `mounted` so the server render and hydration never see it.
+  const tourRequested = mounted &&
+    new URLSearchParams(window.location.search).get("tour") === "1";
 
   const {
     data: snapshot = null,
@@ -171,14 +176,21 @@ export function useDashboard() {
   // current session dismisses it before the refreshed snapshot arrives.
   const showFirstLogin = Boolean(
     mounted &&
-    snapshot?.onboarding &&
-    !snapshot.onboarding.welcomeSeen &&
-    !snapshot.welcomeGuide?.isOnboardingCompleted &&
-    !firstLoginDismissed
+    !firstLoginDismissed &&
+    (tourRequested || (
+      snapshot?.onboarding &&
+      !snapshot.onboarding.welcomeSeen &&
+      !snapshot.welcomeGuide?.isOnboardingCompleted
+    ))
   );
 
   const closeFirstLogin = () => {
     setFirstLoginDismissed(true);
+    if (tourRequested) {
+      // Drop ?tour=1 so a refresh doesn't replay it. replaceState, not the
+      // router: FirstLoginWelcome may be navigating to setups right after.
+      window.history.replaceState(window.history.state, "", pathname);
+    }
     queryClient.invalidateQueries({ queryKey: ["dashboard", "snapshot"] });
   };
 

@@ -27,9 +27,9 @@ const C = {
 
 const IN_APP_STEPS = [
   "Open Edgecipline and sign in.",
-  "Go to Profile from the account menu.",
-  'Scroll to the "Danger Zone" section at the bottom.',
-  'Tap "Delete my account".',
+  "Go to Settings (the Settings tab, or Profile in the account menu).",
+  'Scroll to the "Danger zone" section at the bottom.',
+  'Tap "Delete account".',
   "Type your email address to confirm, then tap Delete permanently.",
 ];
 
