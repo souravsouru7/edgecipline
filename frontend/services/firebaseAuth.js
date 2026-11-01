@@ -9,6 +9,7 @@ import {
   getAuth,
   getRedirectResult,
   indexedDBLocalPersistence,
+  initializeAuth,
   inMemoryPersistence,
   setPersistence,
   signInWithCredential,
@@ -60,8 +61,27 @@ const getFirebaseApp = () => {
 };
 
 let isPersistenceSet = false;
+let nativeAuth = null;
 
 const getFirebaseAuth = async () => {
+  // Native app: getAuth() wires in the browser popup/redirect resolver, which
+  // loads an auth iframe that never completes under the capacitor:// origin on
+  // iOS. Every awaited auth call (signInWithCredential included) then hangs, so
+  // native Google/Apple sign-in sat on "Signing in…" forever. Firebase's
+  // documented Capacitor setup is initializeAuth with no resolver; native never
+  // uses popup/redirect anyway (see signInWithFirebaseGoogle/Apple).
+  if (isCapacitorApp()) {
+    if (!nativeAuth) {
+      try {
+        nativeAuth = initializeAuth(getFirebaseApp(), { persistence: indexedDBLocalPersistence });
+      } catch {
+        // Already initialised (e.g. a hot reload) — reuse that instance.
+        nativeAuth = getAuth(getFirebaseApp());
+      }
+    }
+    return nativeAuth;
+  }
+
   const auth = getAuth(getFirebaseApp());
   if (!isCapacitorApp() && !isPersistenceSet && !hasRedirectPending()) {
     isPersistenceSet = true;

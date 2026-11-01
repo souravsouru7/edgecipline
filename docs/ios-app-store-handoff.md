@@ -111,6 +111,17 @@ The owner chose **iPhone only**. `TARGETED_DEVICE_FAMILY = 1` in Debug and Relea
 - ✅ Tax: the "U.S. Certificate of Foreign Status of Beneficial Owner" (Apple's no-US-business declaration) was submitted as Corporation, signed by Sourav R, Director. The "tax forms needed" banner is gone.
 - Only the red EU DSA banner remains. It's optional.
 
+**Progress as of 2026-11-01 (evening):**
+- ✅ Sandbox tester created (Test User, India).
+- ✅ App Apple ID noted by the owner. ✅ Apple sign-in enabled in Firebase.
+- ✅ The iOS work was fast-forwarded into **`staging`** (commit `210905e`). This includes a merge with the team's settings redesign; in `app/settings/page.js` the App Store "Manage subscription" and "Change plan" actions were re-added to the new `st-*` layout.
+- ✅ **Production server updated by hand** from `staging`, with the Apple env vars set.
+  - Verified: `GET /api/payments/app-store/config` returns 401 (route live).
+  - Verified: `POST /api/webhooks/app-store` with a fake payload returns 400 `APP_STORE_ENVIRONMENT_REJECTED` (enabled, rejecting forgeries).
+  - Key ID, Issuer ID and private key correctness are unverified until the first sandbox purchase.
+- ⚠️ The server runs `staging`, but CI deploys `main` (`git reset --hard origin/main`). Any merge to `main` before `staging` is merged into it will drop the iOS code from production.
+- ⚠️ Merging `staging` into `main` will be blocked by 7 test files that already fail: 5 trade-quota/free-tier, plus integration `couponReservation` and `mission`.
+
 ## ▶ WHAT IS LEFT (as of 2026-11-01)
 
 **Owner (no code):**
