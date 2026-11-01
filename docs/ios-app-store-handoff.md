@@ -1,6 +1,19 @@
 # iOS / App Store launch — handoff
 
-_Last updated: 2026-10-31. Branch: `staging`. **Nothing below is committed yet.** Base commit: `19b3db0`._
+> **🟢 START HERE (for the next Claude session)**
+> 1. Read this whole file. The current state and the to-do list are under **"▶ WHAT IS LEFT"** in §3.3.
+> 2. The code lives on branch **`feat/ios-app-store-launch`** (pushed). This file may have newer, uncommitted edits on the owner's Mac.
+> 3. Business setup is done: Paid Apps Agreement, bank and tax are all Active.
+>    - **Next for the owner:** sandbox tester → note the app's Apple ID → enable Apple in Firebase → server env + deploy → store listing → demo account.
+>    - **Next in code:** subscription review screenshots, Apple token revoke on deletion, TestFlight upload, test, submit.
+> 4. Ask the owner which item they want to do first, then guide them.
+> 5. **How to work with the owner:**
+>    - They're not technical. Use very simple English, one screen at a time.
+>    - They send screenshots; say exactly which button to click.
+>    - Never ask for or print keys, passwords or `.p8` contents.
+>    - Don't commit or push without their OK.
+
+_Last updated: 2026-11-01. Branch: `staging`. **Nothing below is committed yet.** Base commit: `19b3db0`._
 
 This file is the full context for continuing the iOS launch, in a new session or by another person. Read it top to bottom before changing anything.
 
@@ -37,7 +50,7 @@ Decisions already made by the owner:
 | iPhone paywall + settings + delete-account UI | ✅ Done |
 | Build guards (iOS = Apple IAP only; Android has no StoreKit) | ✅ Done |
 | End-to-end test purchase | ❌ Not done |
-| App Store Connect / Apple Developer setup | ❌ Not done (owner) |
+| App Store Connect / Apple Developer setup | 🟡 Mostly done (2026-10-31), see below |
 | iPhone-only vs iPad decision | ✅ iPhone only (`TARGETED_DEVICE_FAMILY = 1`, iPad orientations removed) |
 | Apple token revoke on account deletion (5.1.1(v)) | ❌ Not done |
 | Commit | ✅ Pushed to `feat/ios-app-store-launch` (no PR yet) |
@@ -56,6 +69,91 @@ Review the diff, then commit on a branch off `staging`. See §7 for the file lis
 The owner chose **iPhone only**. `TARGETED_DEVICE_FAMILY = 1` in Debug and Release, and `UISupportedInterfaceOrientations~ipad` was removed from `Info.plist`. No iPad screenshots are needed. (iPhone apps still run in compatibility mode on iPad, which App Review may check.)
 
 ### 3.3 Owner: Apple Developer + App Store Connect
+
+**Progress as of 2026-10-31:**
+- ✅ App ID capabilities on (Push, Sign in with Apple as primary, In-App Purchase). No APNs SSL certs; the .p8 key is used instead.
+- ✅ APNs key created and uploaded to Firebase Cloud Messaging.
+- ✅ In-App Purchase key created. The owner holds the Key ID, Issuer ID and .p8 file privately.
+- ✅ App created in App Store Connect ("Edgecipline", SKU `edgecipline-ios`, company "Edgecipline Private Limited").
+- ✅ Subscription group "Edgecipline Pro" with the group display name set. Levels: 1 = `com.edgecipline.pro.6month`, 2 = `.3month`, 3 = `.monthly`.
+  - Each has prices, availability and an English display name and description.
+  - A stray product `om.edgecipline.pro.6month` (typo) was deleted.
+  - Still missing: a **review screenshot** for each subscription.
+- ✅ App Store Server Notifications (Production + Sandbox) = `https://api.edgecipline.com/api/webhooks/app-store`
+- ✅ Updated Developer Program License accepted. Paid Apps Agreement signed, status **Pending User Info**.
+
+**Progress as of 2026-11-01:**
+- ✅ Bank account added: Canara Bank, INR, "Checking" (= current account). Status **Processing** at Apple.
+- 🟡 Tax forms. The US questionnaire was answered "No" to US business activities. Business → Tax Forms now lists two rows, both **Missing Tax Info**:
+  1. "U.S. Substitute Form W-8BEN-E": **the one to complete** (company form).
+     - Part I: name, country India and **Corporation** are prefilled.
+     - **8. U.S. TIN:** leave empty.
+     - **9b. Foreign TIN:** company PAN.
+     - **10. Reference:** leave empty.
+     - **Part III (treaty):** tick "resident of India". The limitation-on-benefits, treaty article and rate answers are **waiting on the owner's CA**. Leaving Part III empty means 30% withholding on US sales only, and the form can be edited later.
+     - **Chapter 4 / FATCA:** likely "Active NFFE" (confirm with the CA).
+     - Sign as Director, then Submit.
+  2. "U.S. Certificate of Foreign Status of Beneficial Owner": probably a duplicate, or the individual W-8BEN. Delete it via "⋯" if possible; otherwise check whether it says "(Individuals)".
+  - The owner is a new company with no GST yet. That's fine: only the company PAN is needed, and Apple handles GST on Indian sales.
+- ⏳ **Next for the owner, in order:**
+  1. Finish W-8BEN-E (after asking the CA about Part III and FATCA), then remove the extra tax-form row.
+  2. Wait for the Paid Apps Agreement to become **Active** (1–2 days after bank and tax).
+  3. Create the sandbox tester: Users and Access → Sandbox → Test Accounts → ➕. Use an email never used as an Apple ID (for example `name+sandbox1@gmail.com`), country India.
+  4. Note the app's Apple ID number (App Information page, or the number in the URL `/apps/<id>/...`) for `APPLE_APP_APPLE_ID`.
+  5. EU DSA trader info (red box on Business) is optional. Skipping it only blocks EU storefronts, and the details become public in the EU.
+
+**Progress as of 2026-11-01 (later the same day) — business setup COMPLETE:**
+- ✅ **Paid Apps Agreement: Active.** ✅ Bank (Canara, INR): Active.
+- ✅ Tax: "U.S. Substitute Form W-8BEN-E" is **Active**.
+  - Corporation, company PAN in 9b, no US TIN.
+  - Part III: resident of India; LOB "Company that meets the ownership and base erosion test"; Article **12(2)** at **15%**; "Income from the sale of applications".
+  - The owner was told to confirm Part III with their CA. It can be edited later.
+- ✅ Tax: the "U.S. Certificate of Foreign Status of Beneficial Owner" (Apple's no-US-business declaration) was submitted as Corporation, signed by Sourav R, Director. The "tax forms needed" banner is gone.
+- Only the red EU DSA banner remains. It's optional.
+
+## ▶ WHAT IS LEFT (as of 2026-11-01)
+
+**Owner (no code):**
+1. **Sandbox tester:** Users and Access → Sandbox → Test Accounts → ➕. Use an email never used as an Apple ID, country India.
+2. **The app's Apple ID number:** App Information page, or the number in the URL `/apps/<id>/`. It's needed for `APPLE_APP_APPLE_ID`.
+3. **Firebase → Authentication → Sign-in method → enable Apple.** Not confirmed done yet.
+4. **Server env + deploy** (production backend), see §3.4:
+   - `APPLE_IAP_ENABLED=true`
+   - `APPLE_APP_APPLE_ID`
+   - `APPLE_IAP_ISSUER_ID`, `APPLE_IAP_KEY_ID`, `APPLE_IAP_PRIVATE_KEY` (the In-App Purchase key the owner already holds)
+   - `APPLE_IAP_ACCOUNT_SALT` (random, never change it)
+   - `APPLE_IAP_ALLOW_SANDBOX=true`
+   - The backend must be deployed from branch `feat/ios-app-store-launch`, or after it's merged into staging and then production.
+5. **Store listing** in App Store Connect → app → iOS App 1.0:
+   - subtitle, description, keywords, category (Finance or Productivity)
+   - support URL, privacy policy URL (`https://edgecipline.com/privacy-policy`)
+   - age rating questionnaire
+   - **App Privacy** questionnaire matching `PrivacyInfo.xcprivacy`
+   - iPhone 6.9" screenshots
+6. **A demo account for App Review**, already email-verified (reviewers can't get the OTP). The credentials go in App Review Information.
+7. **Optional:** EU DSA trader info.
+
+**Claude / developer (code and build):**
+8. **A review screenshot for each of the 3 subscriptions** (paywall on iPhone). The paywall only lists plans when the backend `/api/payments/app-store/config` returns `available: true`, so take it after step 4, or temporarily against a local backend.
+9. **Apple token revocation on account deletion (Guideline 5.1.1(v)).** This needs the Apple provider in Firebase configured with a Sign in with Apple key, then a revoke call in the delete-account flow.
+10. **Archive and upload to TestFlight:**
+    - Xcode → Any iOS Device → Product → Archive → Distribute → App Store Connect.
+    - The owner's Apple ID must be signed into Xcode → Settings → Accounts.
+    - Raise `CURRENT_PROJECT_VERSION` for each upload.
+11. **TestFlight tests on a real iPhone:**
+    - sandbox purchase of all 3 plans; restore; plan switch
+    - cancel/refund webhook
+    - push notification
+    - Sign in with Apple and Google
+    - camera/photo upload
+    - account deletion
+12. **Submit:** attach the build and the 3 subscriptions to version 1.0 → Add for Review. Apple review takes 1–3 days.
+
+**Rough time to submit:** about 2–4 working days if steps 1–6 are done promptly.
+
+**How the owner likes to be guided (the user, not technical):** very simple English, one screen at a time, reacting to the screenshots they send. Tell them exactly which button to click. Never ask for keys or IDs in chat.
+
+Original checklist:
 1. **developer.apple.com → Identifiers → `com.edgecipline`:** enable Push Notifications, Sign in with Apple and In-App Purchase.
 2. **Keys:**
    - APNs key (.p8): upload to Firebase → Project settings → Cloud Messaging → Apple app configuration.
