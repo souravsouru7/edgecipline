@@ -1,6 +1,6 @@
 "use client";
 
-import { isAndroidNative } from "@/utils/platform";
+import { isNativeApp } from "@/utils/platform";
 import { getChecklistNotificationSettings } from "@/services/checklistNotificationApi";
 import {
   configureChecklistNotification,
@@ -8,7 +8,7 @@ import {
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
 
-// The Android notification keeps its own copy of the rules in SharedPreferences,
+// The native reminder (Android and iOS) keeps its own copy of the rules in SharedPreferences,
 // written once when the user saves notification settings. Editing a setup used
 // to leave that copy untouched, so the notification kept firing with rules the
 // user had already changed or deleted. Anything that edits setups calls this
@@ -41,11 +41,9 @@ export function buildNotificationItems(rules = []) {
  */
 export async function refreshChecklistNotificationFromSetups({ strategies, market }) {
   try {
-    // isAndroidNative, not isNativePlatform: the notification this refreshes only
-    // exists on Android, so on iOS this would spend a network round trip on
-    // settings it cannot use and then call a plugin that is not there.
-    // isAndroidNative() is false during SSR, so this covers the server too.
-    if (!isAndroidNative()) return;
+    // The reminder is native on Android and iOS; web has nothing to refresh.
+    // isNativeApp() is false during SSR, so this covers the server too.
+    if (!isNativeApp()) return;
 
     const settings = await getChecklistNotificationSettings(market);
     if (!settings?.enabled) return;

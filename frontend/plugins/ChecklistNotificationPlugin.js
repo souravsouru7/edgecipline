@@ -1,18 +1,18 @@
 "use client";
 
 import { registerPlugin } from "@capacitor/core";
-import { isAndroidNative } from "@/utils/platform";
+import { isNativeApp } from "@/utils/platform";
 
-// ChecklistNotification is an ANDROID-ONLY plugin. Its implementation is
-// ChecklistNotificationPlugin.java plus the alarm/worker/receiver classes around
-// it; there is no Swift counterpart, so iOS has nothing to call.
+// ChecklistNotification is implemented natively on BOTH apps, with the same
+// methods and payloads:
+//   Android — ChecklistNotificationPlugin.java plus its alarm/worker/receiver
+//             classes (an ongoing, tickable notification).
+//   iOS     — ios/App/App/ChecklistNotificationPlugin.swift (scheduled
+//             notifications ticked from their action buttons; iOS has no
+//             ongoing notifications).
 //
-// This used to gate on Capacitor.isNativePlatform(), which is true on iOS too —
-// so on iOS every function below returned the real bridge proxy and rejected
-// with "ChecklistNotification plugin is not implemented on ios".
-//
-// The gate is isAndroidNative(). Everywhere else — iOS, web, SSR — gets the
-// fallback below, which reports "not supported" instead of throwing.
+// The gate is isNativeApp() — Android or iOS. Web and SSR get the fallback
+// below, which reports "not supported" instead of throwing.
 
 const UnsupportedFallback = {
   configure: async () => ({ supported: false }),
@@ -30,7 +30,7 @@ let _plugin = null;
 
 function getPlugin() {
   if (_plugin) return _plugin;
-  if (!isAndroidNative()) return UnsupportedFallback;
+  if (!isNativeApp()) return UnsupportedFallback;
 
   try {
     _plugin = registerPlugin("ChecklistNotification", {

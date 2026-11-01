@@ -16,7 +16,7 @@ import {
   cancelChecklistNotification,
 } from "@/plugins/ChecklistNotificationPlugin";
 import { buildNotificationItems, MAX_NOTIFICATION_ITEMS } from "@/services/checklistNotificationSync";
-import { isAndroidNative } from "@/utils/platform";
+import { isNativeApp, isIOSNative } from "@/utils/platform";
 import { Skeleton } from "@/features/shared";
 import PageHeader from "@/features/shared/components/PageHeader";
 import IndianMarketHeader from "@/components/IndianMarketHeader";
@@ -25,13 +25,10 @@ import { Bell, BellOff, Check, ChevronDown, ChevronLeft, Loader2, Save } from "l
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOW_IT_WORKS_KEY = "ec.checklistReminder.howItWorksOpen";
 
-// The interactive notification is Android-only (ChecklistNotificationPlugin.java,
-// with no Swift counterpart). This was isNativePlatform(), which is also true on
-// iOS — so iOS called the Android plugin, the rejection landed in the catch
-// below, and the user was shown "ChecklistNotification plugin is not implemented
-// on ios" in the error banner. iOS now takes the same path as web: settings save
-// to the backend, and the unsupported notice explains why nothing pops up.
-const supportsLiveNotification = isAndroidNative;
+// The reminder is native on both apps (ChecklistNotificationPlugin.java and
+// ChecklistNotificationPlugin.swift). Web saves the settings to the backend and
+// shows the notice below explaining the reminder appears in the mobile app.
+const supportsLiveNotification = isNativeApp;
 
 // Capacitor bridge failures read like "ChecklistNotification plugin is not
 // implemented on ios" or "… not implemented". Those are implementation details,
@@ -193,13 +190,17 @@ export default function ChecklistNotificationSettingsPage() {
       // 1. Persist to backend
       await saveChecklistNotificationSettings(payload);
 
-      // 2. Configure native plugin (Android only)
+      // 2. Configure the native reminder (Android and iOS)
       if (supportsLiveNotification()) {
         if (enabled) {
-          // Request POST_NOTIFICATIONS permission first (Android 13+)
+          // Notification permission first (Android 13+ / iOS)
           const { granted } = await requestChecklistNotificationPermission();
           if (!granted) {
-            setError("Notification permission denied. Please enable it in phone Settings → Apps → Edgecipline → Notifications.");
+            setError(
+              isIOSNative()
+                ? "Notifications are turned off. Please enable them in iPhone Settings → Notifications → Edgecipline."
+                : "Notification permission denied. Please enable it in phone Settings → Apps → Edgecipline → Notifications."
+            );
             setSaving(false);
             return;
           }
@@ -375,7 +376,7 @@ export default function ChecklistNotificationSettingsPage() {
         {error && <div className="cn-banner cn-banner--error" role="alert">{error}</div>}
         {!supportsLiveNotification() && (
           <div className="cn-banner cn-banner--info">
-            This reminder appears in the Edgecipline Android app. Your settings are saved here and apply there.
+            This reminder appears in the Edgecipline mobile app. Your settings are saved here and apply there.
           </div>
         )}
 

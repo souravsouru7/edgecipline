@@ -28,5 +28,6 @@ class MainViewController: CAPBridgeViewController {
         // while autoRegisterPlugins is on, which it is by default.
         bridge?.registerPluginInstance(EdgeAuthStoragePlugin())
         bridge?.registerPluginInstance(EdgeStoreKitPlugin())
+        bridge?.registerPluginInstance(ChecklistNotificationPlugin())
     }
 }

@@ -16,6 +16,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // configure() traps at launch if the file is missing, which is the
         // loud failure we want rather than a silent auth outage.
         FirebaseApp.configure()
+        // Checklist reminder ticks can arrive while the app is not running, before
+        // the Capacitor bridge (and its notification router) exists. iOS requires
+        // a delegate before launch finishes; the bridge replaces it once loaded.
+        UNUserNotificationCenter.current().delegate = ChecklistReminders.shared
         return true
     }
 

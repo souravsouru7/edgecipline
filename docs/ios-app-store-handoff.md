@@ -122,6 +122,20 @@ The owner chose **iPhone only**. `TARGETED_DEVICE_FAMILY = 1` in Debug and Relea
 - ⚠️ The server runs `staging`, but CI deploys `main` (`git reset --hard origin/main`). Any merge to `main` before `staging` is merged into it will drop the iOS code from production.
 - ⚠️ Merging `staging` into `main` will be blocked by 7 test files that already fail: 5 trade-quota/free-tier, plus integration `couponReservation` and `mission`.
 
+**Progress as of 2026-11-01 (late) — TestFlight working end to end:**
+- ✅ iPhone 15 Plus registered (`xcodebuild -allowProvisioningDeviceRegistration`).
+  - Archive + upload via `xcodebuild archive` / `-exportArchive` with `-allowProvisioningUpdates`.
+  - ExportOptions: method `app-store-connect`, destination `upload`, team `SAMM4YJPVF`.
+  - Builds 1–4 uploaded. TestFlight internal group "Team" contains dream@edgecipline.com.
+- ✅ Fixed on device:
+  - Native Apple/Google sign-in hung. There were two causes:
+    1. `getAuth` loaded the popup/redirect resolver → now `initializeAuth` with no resolver on native (commit `6e51309`).
+    2. The Capacitor plugin Proxy was returned from an async function and treated as a thenable (commit `a2d395c`).
+  - Apple "could not verify": the single-use Apple token was replayed through the JS SDK → now uses the native `getIdToken()`, and sign-out ends the native session (commit `026d41a`, build 4).
+  - iOS subscribers showed as Free after purchase: the auth cache projection lacked `appStoreEntitlementExpiry` → added there and to the free-tier/rescue/nudge/mission projections (commit `d6e690e`, backend; server updated).
+- ✅ **Sandbox purchase → verify → Pro unlocked confirmed on a real iPhone.**
+- Everything is pushed to `staging`; the server runs `staging`.
+
 ## ▶ WHAT IS LEFT (as of 2026-11-01)
 
 **Owner (no code):**
