@@ -6,7 +6,8 @@ import { AlertTriangle, Trash2, X } from "lucide-react";
 import { deleteMyAccount } from "@/services/api";
 import { clearAuthToken } from "@/utils/auth";
 import { reportUserError } from "@/utils/userMessage";
-import { signOutFirebase } from "@/services/firebaseAuth";
+import { revokeAppleSignIn, signOutFirebase } from "@/services/firebaseAuth";
+import { isIOSNative } from "@/utils/platform";
 import FocusTrap from "@/features/shared/components/FocusTrap";
 import { PLAY_MANAGE_URL } from "@/features/premium/utils/subscriptionCard.mjs";
 
@@ -41,7 +42,10 @@ const WHAT_GETS_DELETED = [
 // Deleting the Edgecipline account does NOT cancel a Play agreement — Google
 // keeps charging the Google account that bought it — so the dialog says so
 // before the user confirms.
-export default function DeleteAccountSection({ email, subscription = null }) {
+export default function DeleteAccountSection({ email, subscription = null, authProvider = null }) {
+  // Apple-linked accounts on iOS must have their Sign in with Apple
+  // authorisation revoked on deletion (Guideline 5.1.1(v)).
+  const revokesApple = authProvider === "apple" && isIOSNative();
   const hasLivePlaySubscription =
     subscription?.provider === "google_play" && subscription?.status === "active";
   // Same for Apple: deleting the account does not stop Apple billing the Apple ID.
@@ -83,6 +87,17 @@ export default function DeleteAccountSection({ email, subscription = null }) {
     setError("");
 
     try {
+      // Before the account (and its Firebase user) is gone. Best-effort: a
+      // cancelled Apple sheet or a revoke error must not block deletion, which
+      // the store policies require to succeed regardless.
+      if (revokesApple) {
+        try {
+          await revokeAppleSignIn();
+        } catch (revokeErr) {
+          console.warn("[DeleteAccount] Apple revoke skipped:", revokeErr?.message || revokeErr);
+        }
+      }
+
       await deleteMyAccount(typed.trim());
 
       // The account is gone server-side; clear every local trace before
@@ -237,6 +252,13 @@ export default function DeleteAccountSection({ email, subscription = null }) {
                 This is immediate and permanent. There is no grace period and no way
                 to restore your data.
               </div>
+
+              {revokesApple && (
+                <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.55, margin: "0 0 16px" }}>
+                  You&apos;ll be asked to confirm with Apple once, so we can also disconnect
+                  Sign in with Apple from Edgecipline.
+                </p>
+              )}
 
               {hasLivePlaySubscription && (
                 <div

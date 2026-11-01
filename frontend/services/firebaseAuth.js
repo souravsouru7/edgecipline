@@ -501,6 +501,28 @@ export const isAppleSignInAvailable = () => {
   return APPLE_WEB_ENABLED;
 };
 
+/**
+ * Revoke the user's Sign in with Apple authorisation (App Store Guideline
+ * 5.1.1(v): apps offering Sign in with Apple must revoke it on account
+ * deletion). Apple only accepts a FRESH authorization code, so this re-runs the
+ * Apple sheet (Face ID) to get one, then has Firebase call Apple's revoke API.
+ *
+ * Requires the Apple provider in the Firebase console to have the Team ID, Key
+ * ID and private key of a Sign in with Apple key (OAuth code flow section).
+ *
+ * iOS only; resolves { revoked: false } elsewhere. Callers treat failure as
+ * non-fatal — account deletion must never be blocked by it.
+ */
+export const revokeAppleSignIn = async () => {
+  if (!isIOSNative()) return { revoked: false, reason: "not_ios" };
+  const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
+  const result = await FirebaseAuthentication.signInWithApple();
+  const code = result?.credential?.authorizationCode;
+  if (!code) return { revoked: false, reason: "no_authorization_code" };
+  await FirebaseAuthentication.revokeAccessToken({ token: code });
+  return { revoked: true };
+};
+
 export const signOutFirebase = async () => {
   try {
     const auth = await getFirebaseAuth();

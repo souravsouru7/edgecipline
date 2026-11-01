@@ -395,7 +395,7 @@ export default function SettingsPage() {
 
         {/* Play User Data policy / Apple 5.1.1(v): account deletion must be
             reachable from inside the app. */}
-        <DeleteAccountSection email={profile?.email} subscription={subscription} />
+        <DeleteAccountSection email={profile?.email} subscription={subscription} authProvider={profile?.authProvider} />
 
       </main>
 
