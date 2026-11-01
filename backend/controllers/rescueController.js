@@ -18,7 +18,7 @@ const analytics = require("../services/analyticsEventService");
 // projection (totalPaid and streaks are not cached).
 const FREE_TIER_USER_PROJECTION =
   "_id name email role accountStatus pendingDeletion streaks freeTier trial "
-  + "subscriptionStatus subscriptionExpiry playEntitlementExpiry totalPaid";
+  + "subscriptionStatus subscriptionExpiry playEntitlementExpiry appStoreEntitlementExpiry totalPaid";
 
 // Subscription rescue banner, or null. Unchanged behaviour: hidden for
 // admins, trial-only premium, healthy subs > 7 days out, and anyone expired

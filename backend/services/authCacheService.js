@@ -35,6 +35,10 @@ const CACHE_PROJECTION = [
   // hit — i.e. paying users hitting the trade limit — and only for the ~300s
   // the entry lives, which makes it look intermittent rather than broken.
   "playEntitlementExpiry",
+  // Apple In-App Purchase entitlement — same reason as the Play field above.
+  // Missing it showed every iOS subscriber as Free right after a successful
+  // purchase (the verify response was correct; every later request was not).
+  "appStoreEntitlementExpiry",
   // Trial subdoc — required by utils/premium.isPremium() to keep trial users
   // premium after the first request. Omitting this silently flips trial
   // users back to free on every cache hit.

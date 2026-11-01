@@ -54,6 +54,7 @@ function hasEverPaid(user) {
   if (user.subscriptionStatus && user.subscriptionStatus !== "inactive") return true;
   if (user.subscriptionExpiry) return true;
   if (user.playEntitlementExpiry) return true;
+  if (user.appStoreEntitlementExpiry) return true;
   if (Number(user.totalPaid) > 0) return true;
   return false;
 }
@@ -349,7 +350,7 @@ function buildTeaserInsight(trades = []) {
   };
 }
 
-const CONTEXT_USER_PROJECTION = "name email streaks freeTier subscriptionStatus subscriptionExpiry playEntitlementExpiry totalPaid role trial";
+const CONTEXT_USER_PROJECTION = "name email streaks freeTier subscriptionStatus subscriptionExpiry playEntitlementExpiry appStoreEntitlementExpiry totalPaid role trial";
 
 // Full personalization payload. Accepts either a hydrated user (cron) or the
 // projected auth-cache user (request path) — the latter has no `streaks` or

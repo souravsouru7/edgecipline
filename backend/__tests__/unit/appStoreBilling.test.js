@@ -246,6 +246,16 @@ describe("server notifications", () => {
   });
 });
 
+describe("auth cache", () => {
+  // Every request after login reads the user from this projection. Without the
+  // App Store field, isPremium() saw no entitlement and a paying iOS user read
+  // as Free everywhere except the purchase screen itself.
+  it("caches the App Store entitlement alongside the Play one", () => {
+    const { CACHE_PROJECTION } = jest.requireActual("../../services/authCacheService");
+    expect(CACHE_PROJECTION).toEqual(expect.arrayContaining(["playEntitlementExpiry", "appStoreEntitlementExpiry"]));
+  });
+});
+
 describe("ownership rules", () => {
   it("lets a bound owner re-verify their own chain", () => {
     expect(resolveOwner({ existing: { user: USER_A }, claimingUserId: USER_A, transaction: transaction() }))

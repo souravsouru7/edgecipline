@@ -29,7 +29,7 @@ const LOCK_TTL_SECONDS = 55 * 60;
 // Fields the dispatch needs to (re)decide eligibility and personalise copy.
 const USER_PROJECTION =
   "_id email name role accountStatus pendingDeletion streaks freeTier trial "
-  + "subscriptionStatus subscriptionExpiry playEntitlementExpiry totalPaid";
+  + "subscriptionStatus subscriptionExpiry playEntitlementExpiry appStoreEntitlementExpiry totalPaid";
 
 let isRunning = false;
 

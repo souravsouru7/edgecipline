@@ -182,6 +182,7 @@ function eligibleUserFilter() {
     subscriptionStatus: "inactive",
     subscriptionExpiry: null,
     playEntitlementExpiry: null,
+    appStoreEntitlementExpiry: null,
     totalPaid: { $not: { $gt: 0 } },
   };
 }

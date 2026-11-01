@@ -169,7 +169,7 @@ async function acceptMission(userId, assignmentId) {
   // Plan gate: if the template requires premium, check the user's subscription
   if (assignment.missionSnapshot?.requiredPlan === "premium") {
     const user = await User.findById(userId)
-      .select("role subscriptionStatus subscriptionPlan subscriptionExpiry trial")
+      .select("role subscriptionStatus subscriptionPlan subscriptionExpiry playEntitlementExpiry appStoreEntitlementExpiry trial")
       .lean();
     if (!userIsPremium(user)) {
       throw new ApiError(
