@@ -200,6 +200,15 @@ const signInWithNativeApple = async () => {
     );
   }
 
+  // With skipNativeAuth:false the plugin has ALREADY signed the native Firebase
+  // SDK in with this Apple identity token. Firebase treats an Apple token as
+  // single-use, so replaying it through the JS SDK was rejected as a duplicate
+  // credential ("Apple could not verify this sign-in"). The native session's own
+  // Firebase ID token is exactly what /auth/apple verifies, so take that.
+  const native = await FirebaseAuthentication.getIdToken().catch(() => null);
+  if (native?.token) return native.token;
+
+  // No native session (e.g. skipNativeAuth flipped on): fall back to the JS SDK.
   const credential = new OAuthProvider(APPLE_PROVIDER_ID).credential({
     idToken,
     ...(rawNonce ? { rawNonce } : {}),
@@ -498,5 +507,16 @@ export const signOutFirebase = async () => {
     await signOut(auth);
   } catch (err) {
     console.warn("[GoogleAuth] signOut failed:", err?.message || err);
+  }
+  // Native sign-in leaves a session in the native Firebase SDK too (Apple now
+  // takes its ID token from there), so end it as well or the next sign-in on
+  // this device could hand back the previous user's token.
+  if (isCapacitorApp()) {
+    try {
+      const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
+      await FirebaseAuthentication.signOut();
+    } catch (err) {
+      console.warn("[NativeAuth] signOut failed:", err?.message || err);
+    }
   }
 };
