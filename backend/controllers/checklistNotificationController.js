@@ -58,7 +58,12 @@ const saveNotificationSettings = asyncHandler(async (req, res) => {
   if (resetTime && !HHMM.test(resetTime)) {
     throw new ApiError(400, "Invalid resetTime format — use HH:mm", "INVALID_TIME");
   }
-  if (customDays !== undefined) {
+  // Older app builds (iOS 1.0, Android 1.1.2) always send customDays, and
+  // let the user untick every day before saving. An empty list only matters
+  // when the schedule actually uses it; for daily/weekdays it is ignored
+  // below rather than rejected, so those saves keep working.
+  const emptyDaysIgnored = Array.isArray(customDays) && customDays.length === 0 && repeatMode !== "custom";
+  if (customDays !== undefined && !emptyDaysIgnored) {
     const valid = Array.isArray(customDays)
       && customDays.length > 0
       && customDays.length <= 7
@@ -94,7 +99,7 @@ const saveNotificationSettings = asyncHandler(async (req, res) => {
   if (market !== undefined) update.market = market;
   if (notificationTime !== undefined) update.notificationTime = notificationTime;
   if (repeatMode !== undefined) update.repeatMode = repeatMode;
-  if (customDays !== undefined) update.customDays = customDays;
+  if (customDays !== undefined && !emptyDaysIgnored) update.customDays = customDays;
   if (persistent !== undefined) update.persistent = Boolean(persistent);
   if (resetEnabled !== undefined) update.resetEnabled = Boolean(resetEnabled);
   if (resetTime !== undefined) update.resetTime = resetTime;
