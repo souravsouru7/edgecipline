@@ -8,7 +8,7 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
       position: "fixed",
       inset: 0,
       zIndex: 10000,
-      background: "rgba(5, 10, 18, 0.72)",
+      background: "var(--ec-overlay)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -20,21 +20,21 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
           width: "100%",
           maxWidth: 420,
           borderRadius: 16,
-          background: "#FFFFFF",
-          border: "1px solid rgba(15,25,35,0.08)",
+          background: "var(--ec-surface)",
+          border: "1px solid var(--ec-border-strong)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.28)",
           overflow: "hidden",
         }}>
-          <div style={{ height: 4, background: "linear-gradient(90deg, #22C78E, #0D9E6E)" }} />
+          <div style={{ height: 4, background: "var(--ec-accent)" }} />
           <div style={{ padding: "24px 24px 22px", textAlign: "center" }}>
             <div style={{
               width: 52,
               height: 52,
               borderRadius: "50%",
               margin: "0 auto 14px",
-              background: "rgba(34,199,142,0.12)",
-              border: "1px solid rgba(34,199,142,0.32)",
-              color: "#0D9E6E",
+              background: "color-mix(in srgb, var(--ec-accent) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--ec-accent) 32%, transparent)",
+              color: "var(--ec-accent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -48,7 +48,7 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
             <div style={{
               fontSize: "var(--fs-2xs)",
               fontWeight: 800,
-              color: "#0D9E6E",
+              color: "var(--ec-accent)",
               letterSpacing: "0.12em",
               fontFamily: "'JetBrains Mono', monospace",
               textTransform: "uppercase",
@@ -56,12 +56,12 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
             }}>
               Setup finished
             </div>
-            <h2 style={{ margin: 0, color: "#0F1923", fontSize: 22, lineHeight: 1.2, fontWeight: 900 }}>
+            <h2 style={{ margin: 0, color: "var(--ec-text)", fontSize: 22, lineHeight: 1.2, fontWeight: 900 }}>
               Your coach is ready.
             </h2>
             <p style={{
               margin: "10px 0 20px",
-              color: "#64748B",
+              color: "var(--ec-text-3)",
               fontSize: 13,
               lineHeight: 1.65,
             }}>
@@ -75,9 +75,9 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
                   flex: "0 0 auto",
                   padding: "11px 14px",
                   borderRadius: 10,
-                  border: "1px solid #E2E8F0",
-                  background: "#FFFFFF",
-                  color: "#475569",
+                  border: "1px solid var(--ec-border-strong)",
+                  background: "var(--ec-surface)",
+                  color: "var(--ec-text-3)",
                   fontSize: 12,
                   fontWeight: 800,
                   cursor: "pointer",
@@ -93,12 +93,12 @@ export default function OnboardingCompleteDialog({ onDashboard, onClose }) {
                   padding: "11px 16px",
                   borderRadius: 10,
                   border: "none",
-                  background: "linear-gradient(135deg, #22C78E, #0D9E6E)",
-                  color: "#FFFFFF",
+                  background: "var(--ec-accent)",
+                  color: "var(--ec-on-accent)",
                   fontSize: 13,
                   fontWeight: 900,
                   cursor: "pointer",
-                  boxShadow: "0 8px 22px rgba(13,158,110,0.28)",
+                  boxShadow: "0 8px 22px color-mix(in srgb, var(--ec-accent) 28%, transparent)",
                 }}
               >
                 Open dashboard

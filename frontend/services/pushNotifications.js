@@ -198,6 +198,10 @@ export async function registerDeviceTokenWithRetry(token, options = {}) {
           platform: getNativePlatform() || "web",
           appVersion: process.env.NEXT_PUBLIC_APP_VERSION || "1.0",
           deviceId: getDeviceId(),
+          // The server's only source of the user's local time (reminders,
+          // quiet hours, daily cap, streak days). Never sent before, so every
+          // user was treated as being on India time.
+          timezone: getDeviceTimezone(),
         });
         setPendingRegistration(false);
         setBackendRegistered(true);
@@ -353,6 +357,54 @@ export async function onUserLoggedIn(userId) {
   await ensurePushRegistration();
 }
 
+function getDeviceTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The checklist reminder is scheduled on the device per market and keeps
+// firing after logout unless cancelled here (both markets: the user may have
+// set one up in each).
+async function cancelLocalChecklistReminders() {
+  try {
+    const { cancelChecklistNotification } = await import("@/plugins/ChecklistNotificationPlugin");
+    await Promise.allSettled(["Forex", "Indian_Market"].map((market) => cancelChecklistNotification(market)));
+  } catch {
+    // Plugin unavailable (web / iOS without it) — nothing scheduled.
+  }
+}
+
+/**
+ * Session ended WITHOUT an explicit logout (expired session, refresh failed,
+ * logged out in another tab). The API can no longer be called, so the token
+ * cannot be unregistered server-side — instead the device drops its own FCM
+ * registration, so the previous user's alerts stop arriving on this phone.
+ * The server disables the dead token on its next send; the next login
+ * registers a fresh token for whoever signs in.
+ */
+export async function onSessionEnded(reason = "session_ended") {
+  if (!isNativeCapacitorRuntime()) return;
+  logger.info("FCM_SESSION_ENDED", { reason });
+  try {
+    if (!pushNotificationsPlugin) {
+      const { PushNotifications } = await import("@capacitor/push-notifications");
+      pushNotificationsPlugin = PushNotifications;
+    }
+    await pushNotificationsPlugin.unregister?.();
+  } catch (error) {
+    logger.warn("FCM_SESSION_END_UNREGISTER_FAILED", { error: error?.message });
+  }
+  lastFcmToken = null;
+  storageRemove(STORAGE_KEYS.token);
+  storageRemove(STORAGE_KEYS.registeredForUser);
+  setBackendRegistered(false);
+  setPendingRegistration(false);
+  await cancelLocalChecklistReminders();
+}
+
 export async function onUserLoggedOut() {
   if (!isNativeCapacitorRuntime()) return;
   const token = getStoredFcmToken();
@@ -364,6 +416,7 @@ export async function onUserLoggedOut() {
   storageRemove(STORAGE_KEYS.registeredForUser);
   setBackendRegistered(false);
   setPendingRegistration(false);
+  await cancelLocalChecklistReminders();
   // Keep the FCM token in storage — Firebase will reuse it on next login
   // so we don't need to re-request from Google Play Services.
 }

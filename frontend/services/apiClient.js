@@ -78,6 +78,7 @@ const PUBLIC_PAGE_PATHS = [
   '/delete-account',
   '/support',
   '/r',
+  '/trading-dna/share',
 ];
 
 const isPublicPagePath = (pathname = '') =>
@@ -615,7 +616,18 @@ function handleUnauthenticated(reason = 'auth_required') {
   // Reset after 5s in case the framework router intercepts the navigation and
   // the module is not reloaded — prevents subsequent 401s being silently swallowed.
   setTimeout(() => { _redirectingToLogin = false; }, 5000);
-  window.location.href = '/login';
+  // The session ended without an explicit logout, so the device must drop its
+  // push registration and local reminders itself (the API can't be called) —
+  // otherwise this phone keeps showing the previous user's alerts. Navigate
+  // once that is done, capped so a slow plugin never blocks the redirect.
+  const goToLogin = () => { window.location.href = '/login'; };
+  import('@/services/pushNotifications')
+    .then((push) => Promise.race([
+      push.onSessionEnded(reason),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]))
+    .catch(() => {})
+    .finally(goToLogin);
 }
 
 let _redirectingToTerms = false;

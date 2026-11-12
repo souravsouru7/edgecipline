@@ -20,15 +20,15 @@ import BottomSheet from "@/features/shared/components/BottomSheet";
 // answer. Skip is always available without confusion.
 
 const FOLLOWED_OPTIONS = [
-  { value: "yes",       label: "Yes",        emoji: "✅", color: "#0D9E6E" },
-  { value: "partly",    label: "Partly",     emoji: "↔️", color: "#F59E0B" },
-  { value: "no",        label: "No",         emoji: "🚫", color: "#D63B3B" },
+  { value: "yes",       label: "Yes",        emoji: "✅", color: "var(--lg-green, #0D9E6E)" },
+  { value: "partly",    label: "Partly",     emoji: "↔️", color: "var(--lg-gold, #F59E0B)" },
+  { value: "no",        label: "No",         emoji: "🚫", color: "var(--lg-red, #D63B3B)" },
 ];
 
 const REPEAT_OPTIONS = [
-  { value: "yes",    label: "Yes",    color: "#0D9E6E" },
-  { value: "partly", label: "Partly", color: "#F59E0B" },
-  { value: "no",     label: "No",     color: "#D63B3B" },
+  { value: "yes",    label: "Yes",    color: "var(--lg-green, #0D9E6E)" },
+  { value: "partly", label: "Partly", color: "var(--lg-gold, #F59E0B)" },
+  { value: "no",     label: "No",     color: "var(--lg-red, #D63B3B)" },
 ];
 
 // Each level carries its own word. The emoji alone left users guessing what
@@ -56,9 +56,9 @@ function pillStyle(active, color) {
     minWidth: 0,
     padding: "10px 8px",
     borderRadius: 10,
-    border: `1px solid ${active ? color : "#E2E8F0"}`,
-    background: active ? `${color}14` : "#FFFFFF",
-    color: active ? color : "#475569",
+    border: `1px solid ${active ? color : "var(--lg-line, #E2E8F0)"}`,
+    background: active ? `color-mix(in srgb, ${color} 8%, transparent)` : "var(--lg-card, #FFFFFF)",
+    color: active ? color : "var(--lg-sub, #475569)",
     fontSize: 12,
     fontWeight: active ? 800 : 600,
     cursor: "pointer",
@@ -80,8 +80,8 @@ function Slider({ label, value, onChange, levels, accent }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#0F1923" }}>{label}</span>
-        <span style={{ fontSize: 11, color: selected ? accent : "#94A3B8", fontWeight: 700 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)" }}>{label}</span>
+        <span style={{ fontSize: 11, color: selected ? accent : "var(--lg-muted, #94A3B8)", fontWeight: 700 }}>
           {selected ? selected.label : "Tap to choose"}
         </span>
       </div>
@@ -102,9 +102,9 @@ function Slider({ label, value, onChange, levels, accent }) {
                 minHeight: 56,
                 padding: "6px 2px",
                 borderRadius: 10,
-                border: `1px solid ${active ? accent : "#E2E8F0"}`,
-                background: active ? `${accent}1A` : "#FFFFFF",
-                color: active ? accent : "#64748B",
+                border: `1px solid ${active ? accent : "var(--lg-line, #E2E8F0)"}`,
+                background: active ? `color-mix(in srgb, ${accent} 10%, transparent)` : "var(--lg-card, #FFFFFF)",
+                color: active ? accent : "var(--lg-sub, #64748B)",
                 cursor: "pointer",
                 touchAction: "manipulation",
                 display: "flex",
@@ -218,6 +218,7 @@ export default function ReflectionSheet({ open, onClose }) {
     <BottomSheet
       onClose={onClose}
       label="End of day reflection"
+      themed
       height="auto"
       maxHeight="92%"
       maxWidth={540}
@@ -227,10 +228,10 @@ export default function ReflectionSheet({ open, onClose }) {
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--lg-muted, #94A3B8)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
               End of day
             </div>
-            <h2 style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 800, color: "#0F1923" }}>
+            <h2 style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 800, color: "var(--lg-ink, #0F1923)" }}>
               30-second reflection
             </h2>
           </div>
@@ -240,7 +241,7 @@ export default function ReflectionSheet({ open, onClose }) {
             aria-label="Close reflection"
             style={{
               width: 40, height: 40, borderRadius: 12, border: "none",
-              background: "#F1F5F9", color: "#0F1923", cursor: "pointer",
+              background: "var(--lg-line, #F1F5F9)", color: "var(--lg-ink, #0F1923)", cursor: "pointer",
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               touchAction: "manipulation", WebkitTapHighlightColor: "transparent",
               flexShrink: 0,
@@ -251,19 +252,19 @@ export default function ReflectionSheet({ open, onClose }) {
         </div>
 
         {isLoading ? (
-          <div style={{ padding: "32px 0", textAlign: "center", color: "#94A3B8" }}>
+          <div style={{ padding: "32px 0", textAlign: "center", color: "var(--lg-muted, #94A3B8)" }}>
             <Loader2 size={18} className="spin" />
           </div>
         ) : (
           <>
-            <p style={{ margin: "0 0 14px", color: "#475569", fontSize: 13, lineHeight: 1.55 }}>
+            <p style={{ margin: "0 0 14px", color: "var(--lg-sub, #475569)", fontSize: 13, lineHeight: 1.55 }}>
               {hadTrades
                 ? `${today.data?.context?.tradeCount || 0} trade${(today.data?.context?.tradeCount || 0) === 1 ? "" : "s"} logged today. Lock in one lesson before tomorrow.`
                 : "No trades today — still worth a 20-second check-in."}
             </p>
 
             <section style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)", marginBottom: 6 }}>
                 Did you follow your trading plan?
               </div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -304,7 +305,7 @@ export default function ReflectionSheet({ open, onClose }) {
 
             {hadTrades && (
               <section style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)", marginBottom: 6 }}>
                   {"Would you repeat today's execution?"}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -324,9 +325,9 @@ export default function ReflectionSheet({ open, onClose }) {
             )}
 
             <section style={{ marginBottom: 18 }}>
-              <label htmlFor="reflection-improvement" style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", display: "block", marginBottom: 6 }}>
+              <label htmlFor="reflection-improvement" style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)", display: "block", marginBottom: 6 }}>
                 One thing to improve tomorrow
-                <span style={{ fontWeight: 500, color: "#94A3B8", marginLeft: 6 }}>(optional)</span>
+                <span style={{ fontWeight: 500, color: "var(--lg-muted, #94A3B8)", marginLeft: 6 }}>(optional)</span>
               </label>
               <textarea
                 id="reflection-improvement"
@@ -336,24 +337,24 @@ export default function ReflectionSheet({ open, onClose }) {
                 placeholder="Wait for the second confirmation before entering."
                 style={{
                   width: "100%",
-                  border: "1px solid #E2E8F0",
+                  border: "1px solid var(--lg-line, #E2E8F0)",
                   borderRadius: 10,
                   padding: "10px 12px",
                   fontSize: 13,
                   fontFamily: "inherit",
                   resize: "vertical",
                   outline: "none",
-                  color: "#0F1923",
-                  background: "#FFFFFF",
+                  color: "var(--lg-ink, #0F1923)",
+                  background: "var(--lg-card, #FFFFFF)",
                 }}
               />
-              <div style={{ textAlign: "right", marginTop: 2, fontSize: "var(--fs-2xs)", color: "#94A3B8" }}>
+              <div style={{ textAlign: "right", marginTop: 2, fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)" }}>
                 {improvement.length}/280
               </div>
             </section>
 
             {skipped && (
-              <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "var(--lg-muted, #94A3B8)", marginBottom: 12 }}>
                 You skipped earlier — submit now to overwrite.
               </div>
             )}
@@ -368,8 +369,8 @@ export default function ReflectionSheet({ open, onClose }) {
                   padding: "12px 16px",
                   borderRadius: 12,
                   background: "transparent",
-                  border: "1px solid #E2E8F0",
-                  color: "#475569",
+                  border: "1px solid var(--lg-line, #E2E8F0)",
+                  color: "var(--lg-sub, #475569)",
                   fontWeight: 700,
                   fontSize: 13,
                   cursor: isBusy ? "default" : "pointer",
@@ -389,9 +390,9 @@ export default function ReflectionSheet({ open, onClose }) {
                   flex: 1,
                   padding: "12px 16px",
                   borderRadius: 12,
-                  background: canSubmit ? "#0D9E6E" : "#CBD5E1",
+                  background: canSubmit ? "var(--lg-green, #0D9E6E)" : "var(--lg-line-strong, #CBD5E1)",
                   border: "none",
-                  color: "#FFFFFF",
+                  color: "var(--lg-on-accent, #FFFFFF)",
                   fontWeight: 800,
                   fontSize: 14,
                   cursor: canSubmit && !isBusy ? "pointer" : "default",
@@ -407,7 +408,7 @@ export default function ReflectionSheet({ open, onClose }) {
               </button>
             </div>
 
-            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, color: "#94A3B8", fontSize: 11 }}>
+            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, color: "var(--lg-muted, #94A3B8)", fontSize: 11 }}>
               <Smile size={13} />
               <span>Reflection takes less than 30 seconds. You can edit later from /reflection.</span>
             </div>

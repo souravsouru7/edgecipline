@@ -40,6 +40,8 @@ export default function BottomSheet({
   padding = 0,
   scrollable = false,
   showHandle = true,
+  // Redesigned screens: surface + handle follow design-system tokens.
+  themed = false,
 }) {
   const [viewport, setViewport] = useState(null);
 
@@ -112,9 +114,11 @@ export default function BottomSheet({
         width: "100%", maxWidth,
         height,
         maxHeight,
-        background: "#FFFFFF",
+        background: themed ? "var(--ec-surface)" : "#FFFFFF",
+        color: themed ? "var(--ec-text)" : undefined,
+        borderTop: themed ? "1px solid var(--ec-border-strong)" : undefined,
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        boxShadow: "0 -16px 40px rgba(15,25,35,0.18)",
+        boxShadow: themed ? "var(--ec-shadow-3)" : "0 -16px 40px rgba(15,25,35,0.18)",
         display: "flex", flexDirection: "column",
         overflow: scrollable ? "auto" : "hidden",
         overscrollBehavior: "contain",
@@ -125,7 +129,7 @@ export default function BottomSheet({
       }}>
         {showHandle && (
           <div aria-hidden="true" style={{ display: "flex", justifyContent: "center", padding: "10px 0 0", flexShrink: 0 }}>
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: "#CBD5E1" }} />
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: themed ? "var(--ec-border-strong)" : "#CBD5E1" }} />
           </div>
         )}
         {children}

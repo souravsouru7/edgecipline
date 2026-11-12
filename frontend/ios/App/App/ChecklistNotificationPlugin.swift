@@ -66,7 +66,8 @@ public class ChecklistNotificationPlugin: CAPPlugin, CAPBridgedPlugin {
         var config = ChecklistReminders.shared.load(market: market)
         config.enabled = call.getBool("enabled") ?? false
         config.notificationTime = call.getString("notificationTime") ?? "09:00"
-        config.repeatMode = call.getString("repeatMode") ?? "daily"
+        // Weekdays when unset: markets are shut at the weekend.
+        config.repeatMode = call.getString("repeatMode") ?? "weekdays"
         if let days = call.getArray("customDays", Int.self) { config.customDays = days }
         config.persistent = call.getBool("persistent") ?? false
         config.resetEnabled = call.getBool("resetEnabled") ?? true
@@ -134,7 +135,7 @@ final class ChecklistReminders: NSObject, UNUserNotificationCenterDelegate, Noti
     struct Config: Codable {
         var enabled = false
         var notificationTime = "09:00"
-        var repeatMode = "daily"
+        var repeatMode = "weekdays"
         var customDays: [Int] = [1, 2, 3, 4, 5]   // ISO: 1 = Monday … 7 = Sunday
         var persistent = false
         var resetEnabled = true

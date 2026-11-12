@@ -211,7 +211,13 @@ const WINDOW_HALF_MS = 12 * 60 * 60 * 1000; // ±12h drift tolerance per cron ru
 //   pre-expiry (D = -7): expiry in (now + 6.5d, now + 7.5d)
 //   expiry day (D = 0):  expiry in (now - 12h, now + 12h)
 //   win-back  (D = +7):  expiry in (now - 7.5d, now - 6.5d)
+//   EXCEPT the expiry-day touchpoint ("Your Premium just ended"): its window
+//   is the last 24h strictly in the past. A ±12h window around now matched
+//   subscriptions with up to 12 hours still left.
 function windowForTouchpoint(touchpoint, now = Date.now()) {
+  if (touchpoint.phase === "expiry") {
+    return { from: new Date(now - ONE_DAY_MS), to: new Date(now) };
+  }
   const center = now - touchpoint.daysOffset * ONE_DAY_MS;
   return {
     from: new Date(center - WINDOW_HALF_MS),
@@ -221,7 +227,10 @@ function windowForTouchpoint(touchpoint, now = Date.now()) {
 
 // Which subscriptionStatus values are eligible for each phase.
 function statusFilterForPhase(phase) {
-  if (phase === "pre_expiry" || phase === "expiry") return "active";
+  if (phase === "pre_expiry") return "active";
+  // Expiry day: the hourly expiry cron may or may not have flipped the status
+  // yet; the window (strictly past) is what proves it ended.
+  if (phase === "expiry") return { $in: ["active", "expired"] };
   return "expired"; // win_back
 }
 

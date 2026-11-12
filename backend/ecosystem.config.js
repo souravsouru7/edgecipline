@@ -41,6 +41,29 @@ module.exports = {
       retain: 10,
     },
     {
+      // Delivers queued pushes (subscription rescue, free-tier funnel) and runs
+      // the per-trade smart checks (revenge trading, daily loss, ...). Without
+      // this process those jobs only ran if ENABLE_EMBEDDED_SMART_NOTIFICATION_WORKER
+      // was set on the API — otherwise they piled up in Redis, unsent.
+      name: "edgecipline-smart-notification-worker",
+      script: "./workers/smartNotificationWorker.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "512M",
+      env: {
+        NODE_ENV: "production"
+      },
+      error_file: "./logs/pm2-smart-notification-worker-error.log",
+      out_file: "./logs/pm2-smart-notification-worker-out.log",
+      log_file: "./logs/pm2-smart-notification-worker-combined.log",
+      time: true,
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      max_size: "100M",
+      retain: 10,
+    },
+    {
       name: "edgecipline-trading-dna-worker",
       script: "./workers/tradingDnaWorker.js",
       instances: 1,

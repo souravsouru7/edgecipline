@@ -1,9 +1,6 @@
 "use client";
 
 import { useMarket } from "@/context/MarketContext";
-import { Skeleton } from "@/features/shared";
-import PageHeader from "@/features/shared/components/PageHeader";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
 import OnboardingMarketGuard from "@/features/onboarding/components/OnboardingMarketGuard";
 import SetupBuilder from "@/features/setups/components/SetupBuilder";
 
@@ -47,16 +44,6 @@ const COPY = {
   rulePlaceholder: "Describe this rule…",
 };
 
-const loadingState = (
-  <div className="sp-panel sp-skel">
-    <Skeleton width="160px" height="14px" style={{ marginBottom: 14 }} />
-    <Skeleton width="100%" height="48px" style={{ borderRadius: 12, marginBottom: 12 }} />
-    {[...Array(3)].map((_, j) => (
-      <Skeleton key={j} width="100%" height="44px" style={{ borderRadius: 12, marginBottom: 8 }} />
-    ))}
-  </div>
-);
-
 function SetupStrategiesContent() {
   const { currentMarket, getMarketLabel } = useMarket();
   const isIndian = currentMarket === "Indian_Market";
@@ -64,12 +51,10 @@ function SetupStrategiesContent() {
   return (
     <SetupBuilder
       market={currentMarket}
-      header={isIndian ? <IndianMarketHeader /> : <PageHeader />}
       templates={STARTER_TEMPLATES}
       marketChip={getMarketLabel()}
       copy={COPY}
       uploadRoute={isIndian ? "/indian-market/upload-trade?onboarding=1" : "/upload-trade?onboarding=1"}
-      loadingState={loadingState}
     />
   );
 }

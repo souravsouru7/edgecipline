@@ -46,14 +46,14 @@ export default function OnboardingMarketGuard({ children }) {
 
   if (marketQuery.isError) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", color: "#0F1923", fontFamily: "var(--font-plus-jakarta-sans)" }}>
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--ec-bg)", color: "var(--ec-text)", fontFamily: "var(--font-plus-jakarta-sans)" }}>
         <div style={{ textAlign: "center", padding: 24 }}>
           <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700 }}>Could not verify your selected market.</p>
           <button
             type="button"
             onClick={() => marketQuery.refetch()}
             disabled={marketQuery.isFetching}
-            style={{ border: 0, borderRadius: 8, padding: "10px 16px", background: "#0D9E6E", color: "#FFFFFF", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+            style={{ border: 0, borderRadius: 8, padding: "10px 16px", background: "var(--ec-accent)", color: "var(--ec-on-accent)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
           >
             {marketQuery.isFetching ? "Checking..." : "Try again"}
           </button>
@@ -69,7 +69,7 @@ export default function OnboardingMarketGuard({ children }) {
       <main
         role="status"
         aria-live="polite"
-        style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "var(--font-plus-jakarta-sans)" }}
+        style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--ec-bg)", fontFamily: "var(--font-plus-jakarta-sans)" }}
       >
         <div style={{ display: "grid", gap: 12, justifyItems: "center" }}>
           <span
@@ -78,12 +78,12 @@ export default function OnboardingMarketGuard({ children }) {
               width: 22,
               height: 22,
               borderRadius: "50%",
-              border: "2px solid rgba(13,158,110,0.25)",
-              borderTopColor: "#0D9E6E",
+              border: "2px solid color-mix(in srgb, var(--ec-accent) 25%, transparent)",
+              borderTopColor: "var(--ec-accent)",
               animation: "marketGuardSpin 0.8s linear infinite",
             }}
           />
-          <p style={{ margin: 0, color: "#64748B", fontSize: 13, fontWeight: 700 }}>Opening your market…</p>
+          <p style={{ margin: 0, color: "var(--ec-text-3)", fontSize: 13, fontWeight: 700 }}>Opening your market…</p>
         </div>
         <style>{`
           @keyframes marketGuardSpin { to { transform: rotate(360deg); } }

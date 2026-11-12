@@ -82,6 +82,8 @@ describe("type → channel / preference mapping", () => {
 
   const typeChannel = extractMap("TYPE_CHANNEL");
   const smartPref = extractMap("SMART_TYPE_TO_PREF");
+  const reminderPref = extractMap("REMINDER_TYPE_TO_PREF");
+  const { resolvePreferenceFlag } = require("../../services/notificationService");
   const supportPref = extractMap("SUPPORT_TYPE_TO_PREF");
   const prefPaths = new Set(Object.keys(NotificationPreference.schema.paths));
 
@@ -96,17 +98,42 @@ describe("type → channel / preference mapping", () => {
   });
 
   it("every preference flag referenced by the gate exists on NotificationPreference", () => {
-    for (const flag of new Set([...Object.values(smartPref), ...Object.values(supportPref)])) {
+    for (const flag of new Set([...Object.values(smartPref), ...Object.values(reminderPref), ...Object.values(supportPref)])) {
       expect(prefPaths.has(flag)).toBe(true);
     }
   });
 
   it("the fixed types are gated by the expected flags", () => {
-    expect(smartPref.streak_milestone).toBe("streakProtection");
-    expect(smartPref.streak_at_risk).toBe("streakProtection");
-    expect(smartPref.streak_broken).toBe("streakProtection");
-    expect(smartPref.evening_reflection).toBe("eveningReflection");
-    expect(smartPref.mission_update).toBe("smartCoach");
+    expect(resolvePreferenceFlag("streak_milestone")).toBe("streakProtection");
+    expect(resolvePreferenceFlag("streak_at_risk")).toBe("streakProtection");
+    expect(resolvePreferenceFlag("streak_broken")).toBe("streakProtection");
+    expect(resolvePreferenceFlag("evening_reflection")).toBe("eveningReflection");
+    expect(resolvePreferenceFlag("mission_update")).toBe("smartCoach");
+  });
+
+  it("scheduled reminders are NOT under the smart-coach umbrella (own switch only)", () => {
+    for (const type of ["session_reminder", "morning_mentor", "evening_reflection", "streak_at_risk", "weekly_report_reminder"]) {
+      expect(smartPref[type]).toBeUndefined();
+      expect(reminderPref[type]).toBeDefined();
+    }
+  });
+
+  it("daily-loss warnings and promotions have their own switches", () => {
+    expect(resolvePreferenceFlag("daily_loss_warning")).toBe("dailyLossWarning");
+    expect(resolvePreferenceFlag("no_stop_loss")).toBe("noStopLoss");
+    for (const type of ["renewal_d_minus_1", "winback_d_plus_7", "free_tier_d_plus_3"]) {
+      expect(resolvePreferenceFlag(type)).toBe("promotions");
+    }
+  });
+
+  it("every enum type except deliberate system ones has a preference switch", () => {
+    const ungated = new Set(["ocr_completed", "ocr_failed", "issue_fixed", "admin_issue_report", "payment", "feedback", "system",
+      "support_new_ticket_staff", "support_user_reply_staff"]);
+    for (const type of historyEnum()) {
+      if (ungated.has(type)) continue;
+      const flag = resolvePreferenceFlag(type);
+      expect({ type, flag, exists: prefPaths.has(flag) }).toEqual({ type, flag, exists: true });
+    }
   });
 
   it("every enum type that is a coaching/smart type has a channel (no silent fallback)", () => {

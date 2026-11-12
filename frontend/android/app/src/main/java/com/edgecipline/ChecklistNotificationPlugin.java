@@ -1,6 +1,8 @@
 package com.edgecipline;
 
+import android.Manifest;
 import android.content.Context;
+import android.os.Build;
 import android.content.SharedPreferences;
 import android.util.Log;
 
@@ -12,8 +14,11 @@ import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -21,7 +26,12 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-@CapacitorPlugin(name = "ChecklistNotification")
+@CapacitorPlugin(
+    name = "ChecklistNotification",
+    permissions = {
+        @Permission(strings = { Manifest.permission.POST_NOTIFICATIONS }, alias = "notifications")
+    }
+)
 public class ChecklistNotificationPlugin extends Plugin {
 
     private static final String TAG = "ChecklistPlugin";
@@ -86,7 +96,7 @@ public class ChecklistNotificationPlugin extends Plugin {
             String time = call.getString("notificationTime", "09:00");
             editor.putString(ChecklistNotificationManager.KEY_TIME, time);
 
-            String repeat = call.getString("repeatMode", "daily");
+            String repeat = call.getString("repeatMode", "weekdays");
             editor.putString(ChecklistNotificationManager.KEY_REPEAT, repeat);
 
             JSArray customDaysArr = call.getArray("customDays");
@@ -156,8 +166,25 @@ public class ChecklistNotificationPlugin extends Plugin {
     }
 
     // ── requestPermission ────────────────────────────────────────────────
+    // Android 13+ needs a runtime POST_NOTIFICATIONS grant. This used to only
+    // READ the current state and never ask, so a user who hadn't granted it via
+    // the push prompt was told "permission denied" with no way to fix it here.
     @PluginMethod
     public void requestPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
+            requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+            return;
+        }
+        resolvePermission(call);
+    }
+
+    @PermissionCallback
+    private void notificationPermissionCallback(PluginCall call) {
+        resolvePermission(call);
+    }
+
+    private void resolvePermission(PluginCall call) {
+        // areNotificationsEnabled also covers the app-level toggle in Settings.
         boolean granted = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
         Log.d(TAG, "requestPermission → granted=" + granted);
         JSObject result = new JSObject();
@@ -226,7 +253,7 @@ public class ChecklistNotificationPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("enabled",          prefs.getBoolean(ChecklistNotificationManager.KEY_ENABLED, false));
         result.put("notificationTime", prefs.getString(ChecklistNotificationManager.KEY_TIME, "09:00"));
-        result.put("repeatMode",       prefs.getString(ChecklistNotificationManager.KEY_REPEAT, "daily"));
+        result.put("repeatMode",       prefs.getString(ChecklistNotificationManager.KEY_REPEAT, "weekdays"));
         result.put("persistent",       prefs.getBoolean(ChecklistNotificationManager.KEY_PERSISTENT, false));
         result.put("resetEnabled",     prefs.getBoolean(ChecklistNotificationManager.KEY_RESET_ON, true));
         result.put("resetTime",        prefs.getString(ChecklistNotificationManager.KEY_RESET_TIME, "00:00"));

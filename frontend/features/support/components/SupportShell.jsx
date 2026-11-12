@@ -20,7 +20,7 @@ import { useIsSignedIn } from "@/features/support/hooks/useSupport";
  */
 export default function SupportShell({
   title,
-  eyebrow = "SUPPORT",
+  eyebrow = "Help",
   backHref,
   backLabel = "Back",
   actions,
@@ -37,7 +37,13 @@ export default function SupportShell({
       router.push(backHref);
       return;
     }
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    // Step back only when the previous page was ours: opened from a store
+    // listing or an email, the tab's history belongs to another site.
+    if (
+      typeof window !== "undefined" &&
+      window.history.length > 1 &&
+      document.referrer.startsWith(window.location.origin)
+    ) {
       router.back();
       return;
     }
@@ -45,7 +51,7 @@ export default function SupportShell({
   };
 
   return (
-    <div className="sup-root">
+    <div className="ec-app ec-support sup-root">
       <header className="sup-header">
         <div className="sup-header-inner" style={{ maxWidth }}>
           <div className="sup-header-left">
@@ -55,7 +61,10 @@ export default function SupportShell({
               </button>
             )}
             <Link href="/support" className="sup-brand" aria-label="Edgecipline Support home">
-              <img src="/mainlogo1.webp" alt="" aria-hidden="true" className="sup-logo" />
+              {/* The wordmark image has black lettering, so the mark + live text
+                  is used instead; it follows the theme. */}
+              <img src="/logo.png" alt="" aria-hidden="true" width={26} height={26} className="sup-logo" />
+              <span className="sup-wordmark">Edgecipline</span>
               <span className="sup-eyebrow">{eyebrow}</span>
             </Link>
           </div>
@@ -73,7 +82,6 @@ export default function SupportShell({
             )}
           </div>
         </div>
-        <div className="sup-rule" aria-hidden="true" />
       </header>
 
       <main id="support-main" className="sup-main" style={{ maxWidth }}>
@@ -94,7 +102,6 @@ export default function SupportShell({
           min-height: 100dvh;
           background: var(--background);
           color: var(--foreground);
-          font-family: var(--font-plus-jakarta-sans);
           /* Room for the iOS home indicator and the Android gesture bar. */
           padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
         }
@@ -102,7 +109,8 @@ export default function SupportShell({
           position: sticky;
           top: 0;
           z-index: 50;
-          background: rgba(240, 238, 233, 0.97);
+          background: color-mix(in srgb, var(--ec-bg) 92%, transparent);
+          border-bottom: 1px solid var(--ec-border);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           padding-top: env(safe-area-inset-top, 0px);
@@ -168,21 +176,24 @@ export default function SupportShell({
           min-width: 0;
         }
         .sup-logo {
-          width: 108px;
-          height: 30px;
-          object-fit: contain;
-          object-position: left center;
+          width: 26px;
+          height: 26px;
+          display: block;
           flex-shrink: 0;
         }
-        .sup-eyebrow {
-          font-family: var(--font-jetbrains-mono);
-          font-size: 9.5px;
+        .sup-wordmark {
+          font-size: 16px;
           font-weight: 700;
-          letter-spacing: 0.16em;
-          color: var(--color-primary);
-          padding: 3px 7px;
-          border-radius: 5px;
-          background: var(--color-primary-bg);
+          letter-spacing: -0.02em;
+          color: var(--ec-text);
+          white-space: nowrap;
+        }
+        .sup-eyebrow {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--ec-text-2);
+          padding-left: 10px;
+          border-left: 1px solid var(--ec-border-strong);
           white-space: nowrap;
         }
         :global(.sup-exit) {
@@ -201,11 +212,6 @@ export default function SupportShell({
         :global(.sup-exit:focus-visible) {
           outline: 2px solid var(--color-primary);
           outline-offset: 2px;
-        }
-        .sup-rule {
-          height: 2px;
-          background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-primary) 50%, var(--color-gold) 100%);
-          opacity: 0.75;
         }
         .sup-main {
           margin: 0 auto;
@@ -251,12 +257,29 @@ export default function SupportShell({
           .sup-eyebrow {
             display: none;
           }
-          .sup-logo {
-            width: 92px;
-            height: 26px;
+          /* The mark alone carries the brand here, so the header actions
+             (up to three) keep their full labels without overlapping it. */
+          .sup-wordmark {
+            display: none;
           }
           :global(.sup-exit) {
             padding: 8px 8px;
+          }
+        }
+        /* Signed in on desktop the app sidebar already shows the brand and the
+           way back to the app, so the header keeps only "Help" and actions. */
+        @media (min-width: 1024px) {
+          :global(body.has-app-sidebar) .sup-logo,
+          :global(body.has-app-sidebar) .sup-wordmark,
+          :global(body.has-app-sidebar .sup-exit) {
+            display: none;
+          }
+          :global(body.has-app-sidebar) .sup-eyebrow {
+            padding-left: 0;
+            border-left: 0;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--ec-text);
           }
         }
         @media (min-width: 720px) {

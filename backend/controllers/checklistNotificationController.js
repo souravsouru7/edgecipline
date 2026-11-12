@@ -19,7 +19,9 @@ const getNotificationSettings = asyncHandler(async (req, res) => {
       strategyName: "",
       market,
       notificationTime: "09:00",
-      repeatMode: "daily",
+      // Weekdays by default: markets are shut at the weekend, and "daily"
+      // here meant a fresh install pinged on Saturday and Sunday.
+      repeatMode: "weekdays",
       customDays: [1, 2, 3, 4, 5],
       persistent: false,
       resetEnabled: true,
@@ -48,11 +50,24 @@ const saveNotificationSettings = asyncHandler(async (req, res) => {
   if (market && !["Forex", "Indian_Market"].includes(market)) {
     throw new ApiError(400, "Invalid market", "INVALID_MARKET");
   }
-  if (notificationTime && !/^\d{2}:\d{2}$/.test(notificationTime)) {
+  // A real clock time — the old /^\d{2}:\d{2}$/ accepted "99:99".
+  const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (notificationTime && !HHMM.test(notificationTime)) {
     throw new ApiError(400, "Invalid notificationTime format — use HH:mm", "INVALID_TIME");
   }
-  if (resetTime && !/^\d{2}:\d{2}$/.test(resetTime)) {
+  if (resetTime && !HHMM.test(resetTime)) {
     throw new ApiError(400, "Invalid resetTime format — use HH:mm", "INVALID_TIME");
+  }
+  if (customDays !== undefined) {
+    const valid = Array.isArray(customDays)
+      && customDays.length > 0
+      && customDays.length <= 7
+      // ISO weekdays, 1 = Monday … 7 = Sunday (model, Android worker and iOS agree).
+      && customDays.every((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+      && new Set(customDays).size === customDays.length;
+    if (!valid) {
+      throw new ApiError(400, "customDays must be unique ISO weekday numbers 1–7", "INVALID_CUSTOM_DAYS");
+    }
   }
   if (
     repeatMode &&

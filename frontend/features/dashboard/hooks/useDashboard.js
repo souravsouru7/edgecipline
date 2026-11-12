@@ -219,6 +219,10 @@ export function useDashboard() {
     // showing it and `error` is just a stale background refresh.
     loadFailed: Boolean(error) && !snapshot && !loading,
     retry: () => refetch(),
+    // The backend answers 200 with a zeroed summary when only its analytics
+    // step failed. That must not read as "no trades" (see dashboardController
+    // partialErrors).
+    statsUnavailable: Boolean(snapshot?.partialErrors?.includes?.("analytics_unavailable")),
     mounted,
     showFirstLogin,
     closeFirstLogin,

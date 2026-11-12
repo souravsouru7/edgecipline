@@ -1,17 +1,16 @@
 "use client";
 
+import RiskLimitsPrompt from "@/features/settings/components/RiskLimitsPrompt";
+
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 // useEffect + useRef used in UploadTradeContent for auto-scroll to psychology after extraction
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Link from "next/link";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
-import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
 import LastFreeTradeSheet    from "@/features/trade/components/LastFreeTradeSheet";
 import TradeQuotaPill        from "@/features/trade/components/TradeQuotaPill";
-import { useClock }          from "@/features/shared/hooks/useClock";
 import FileUploadZone        from "@/features/trade/components/FileUploadZone";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
 import TradeEvidenceSection  from "@/features/trade/components/TradeEvidenceSection";
@@ -64,8 +63,8 @@ const BROKER_OPTIONS   = [
   { value: "Paytm Money", label: "Paytm Money"       },
 ];
 
-const monoStyle = { fontFamily: "'JetBrains Mono',monospace" };
-const labelSt   = { display: "block", fontSize: "var(--fs-2xs)", fontWeight: 600, color: "#4A5568", letterSpacing: "0.1em", marginBottom: 7, ...monoStyle };
+const monoStyle = { fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" };
+const labelSt   = { display: "block", fontSize: "var(--fs-2xs)", fontWeight: 600, color: "var(--lg-sub, #4A5568)", letterSpacing: "0.1em", marginBottom: 7, ...monoStyle };
 // grid2 inline style — pair with className="form-2col" for mobile collapse
 const grid2     = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 };
 
@@ -127,7 +126,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
   return (
     <SectionCard
-      accentColor={isInd ? "#1B5E20" : "#B8860B"}
+      accentColor={isInd ? "#1B5E20" : "var(--lg-gold, #B8860B)"}
       title="Upload Screenshot"
       subtitle={isEquityMode ? "DROP YOUR STOCK TRADE SCREENSHOT" : isInd ? "DROP YOUR OPTIONS TRADE SCREENSHOT" : "AI-POWERED SCREENSHOT EXTRACTION"}
       delay={0.05}
@@ -137,13 +136,13 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {steps.map((s, i) => (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {i > 0 && <div style={{ width: 22, height: 2, background: steps[i].done ? "#0D9E6E" : "#E2E8F0", borderRadius: 2 }} />}
+            {i > 0 && <div style={{ width: 22, height: 2, background: steps[i].done ? "var(--lg-green, #0D9E6E)" : "var(--lg-line, #E2E8F0)", borderRadius: 2 }} />}
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: s.done ? "#0D9E6E" : "#FFFFFF", border: `1.5px solid ${s.done ? "#0D9E6E" : "#E2E8F0"}`, transition: "all 0.3s" }}>
+              <div style={{ width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: s.done ? "var(--lg-green, #0D9E6E)" : "var(--lg-card, #FFFFFF)", border: `1.5px solid ${s.done ? "var(--lg-green, #0D9E6E)" : "var(--lg-line, #E2E8F0)"}`, transition: "all 0.3s" }}>
                 {s.done ? (<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>)
-                  : <span style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", ...monoStyle, fontWeight: 700 }}>{i + 1}</span>}
+                  : <span style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", ...monoStyle, fontWeight: 700 }}>{i + 1}</span>}
               </div>
-              <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 600, color: s.done ? "#0D9E6E" : "#94A3B8" }}>{s.label}</span>
+              <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 600, color: s.done ? "var(--lg-green, #0D9E6E)" : "var(--lg-muted, #94A3B8)" }}>{s.label}</span>
             </div>
           </div>
         ))}
@@ -153,7 +152,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
       {/* Options / Stocks toggle — Indian market only */}
       {isInd && (
-        <div style={{ display: "flex", gap: 0, marginBottom: 14, borderRadius: 8, overflow: "hidden", border: "1.5px solid #E2E8F0" }}>
+        <div style={{ display: "flex", gap: 0, marginBottom: 14, borderRadius: 8, overflow: "hidden", border: "1.5px solid var(--lg-line, #E2E8F0)" }}>
           {[{ v: "OPTION", label: "Options" }, { v: "EQUITY", label: "Intraday Stocks" }].map(({ v, label }) => {
             const active = tradeSubType === v;
             return (
@@ -161,7 +160,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 key={v}
                 type="button"
                 onClick={() => { setTradeSubType(v); setFile(null); setError(null); }}
-                style={{ flex: 1, padding: "9px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none", background: active ? "#1B5E20" : "#FFFFFF", color: active ? "#FFFFFF" : "#64748B", transition: "all 0.2s", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+                style={{ flex: 1, padding: "9px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none", background: active ? "#1B5E20" : "var(--lg-card, #FFFFFF)", color: active ? "var(--lg-card, #FFFFFF)" : "var(--lg-sub, #64748B)", transition: "all 0.2s", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
               >
                 {label.toUpperCase()}
               </button>
@@ -178,8 +177,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
           style={{
             marginTop: 12,
             padding: "10px 12px",
-            background: "#ECFDF5",
-            border: "1px solid #A7F3D0",
+            background: "var(--lg-green-soft, #ECFDF5)",
+            border: "1px solid var(--lg-green-line, #A7F3D0)",
             borderRadius: 8,
             display: "flex",
             alignItems: "center",
@@ -189,7 +188,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="2.5">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <span style={{ fontSize: 11, color: "#065F46", fontWeight: 700 }}>
+          <span style={{ fontSize: 11, color: "var(--lg-green, #065F46)", fontWeight: 700 }}>
             You uploaded the correct {isEquityMode ? "intraday stock" : isInd ? "Indian options" : "Forex"} image.
           </span>
         </div>
@@ -199,21 +198,21 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
       {isInd && (
         <div style={{ marginTop: 14 }}>
           <FormSelect label="BROKER (REQUIRED)" name="broker" value={broker} onChange={e => setBroker(e.target.value)} options={BROKER_OPTIONS} />
-          <div style={{ marginTop: 6, fontSize: 11, color: "#64748B" }}>Select your exact broker for best AI extraction accuracy.</div>
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--lg-sub, #64748B)" }}>Select your exact broker for best AI extraction accuracy.</div>
         </div>
       )}
 
       {/* Sample hint (Forex only) */}
       {!isInd && !file && (
-        <div style={{ marginTop: 16, borderRadius: 10, border: "1px solid #E2E8F0", overflow: "hidden", background: "#F8FAFC" }}>
-          <div style={{ padding: "10px 14px", background: "linear-gradient(90deg,rgba(184,134,11,0.07),transparent)", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "#B8860B", ...monoStyle, letterSpacing: "0.1em" }}>SAMPLE — UPLOAD A SCREENSHOT LIKE THIS</span>
+        <div style={{ marginTop: 16, borderRadius: 10, border: "1px solid var(--lg-line, #E2E8F0)", overflow: "hidden", background: "var(--lg-soft, #F8FAFC)" }}>
+          <div style={{ padding: "10px 14px", background: "linear-gradient(90deg,rgba(184,134,11,0.07),transparent)", borderBottom: "1px solid var(--lg-line, #E2E8F0)", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--lg-gold, #B8860B)", ...monoStyle, letterSpacing: "0.1em" }}>SAMPLE — UPLOAD A SCREENSHOT LIKE THIS</span>
           </div>
           <div style={{ padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <div onClick={() => setShowSample(true)} style={{ borderRadius: 6, overflow: "hidden", border: "1.5px solid #B8860B", flexShrink: 0, width: 120, height: 80, cursor: "zoom-in" }}>
+            <div onClick={() => setShowSample(true)} style={{ borderRadius: 6, overflow: "hidden", border: "1.5px solid var(--lg-gold, #B8860B)", flexShrink: 0, width: 120, height: 80, cursor: "zoom-in" }}>
               <img src="/sample.webp" alt="Sample trade screenshot" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </div>
-            <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.5, margin: 0 }}>Upload your <strong>MT5 trade history screenshot</strong>. Make sure pair, lot size, entry/exit prices &amp; profit are visible.</p>
+            <p style={{ fontSize: 11, color: "var(--lg-sub, #64748B)", lineHeight: 1.5, margin: 0 }}>Upload your <strong>MT5 trade history screenshot</strong>. Make sure pair, lot size, entry/exit prices &amp; profit are visible.</p>
           </div>
           {showSample && (
             <div onClick={() => setShowSample(false)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15,25,35,0.85)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, cursor: "zoom-out" }}>
@@ -225,7 +224,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
       {/* Trade Date */}
       <div style={{ marginTop: 14 }}>
-        <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 600, color: "#4A5568", letterSpacing: "0.1em", marginBottom: 7, fontFamily: "'JetBrains Mono',monospace" }}>
+        <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 600, color: "var(--lg-sub, #4A5568)", letterSpacing: "0.1em", marginBottom: 7, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
           TRADE DATE
         </label>
         <input
@@ -234,10 +233,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
           onChange={e => handlePreExtractDateChange(e.target.value)}
           min={accountCreatedDate && accountCreatedDate <= todayInputMax ? accountCreatedDate : undefined}
           max={todayInputMax}
-          style={{ width: "100%", padding: "11px 14px", fontSize: 13, background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 8, color: "#0F1923", outline: "none", boxSizing: "border-box", fontFamily: "'JetBrains Mono',monospace" }}
+          style={{ width: "100%", padding: "11px 14px", fontSize: 13, background: "var(--lg-soft, #F8FAFC)", border: "1.5px solid var(--lg-line, #E2E8F0)", borderRadius: 8, color: "var(--lg-ink, #0F1923)", outline: "none", boxSizing: "border-box", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}
         />
         {accountCreatedDate && (
-          <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+          <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", marginTop: 4, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
             Earliest: {accountCreatedDate}
           </div>
         )}
@@ -251,13 +250,13 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
             borderRadius: 14,
             overflow: "hidden",
             border: "1.5px solid rgba(184,134,11,0.35)",
-            background: "#FFFFFF",
+            background: "var(--lg-card, #FFFFFF)",
             boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
             animation: "fadeSlideUp 0.35s cubic-bezier(0.22,1,0.36,1) both",
           }}
         >
           {/* Gold accent top bar — matches SectionCard pattern */}
-          <div style={{ height: 3, background: "linear-gradient(90deg,#B8860B,#D4A917)" }} />
+          <div style={{ height: 3, background: "linear-gradient(90deg,var(--lg-gold, #B8860B),#D4A917)" }} />
 
           <div style={{ padding: "16px 18px 18px" }}>
             {/* Header */}
@@ -267,10 +266,10 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Continue with Edgecipline Pro</span>
-                  <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, background: "linear-gradient(90deg,#B8860B,#D4A917)", color: "#fff", padding: "2px 7px", borderRadius: 20, letterSpacing: "0.08em", ...monoStyle }}>PRO</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--lg-ink, #0F1923)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>Continue with Edgecipline Pro</span>
+                  <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, background: "linear-gradient(90deg,var(--lg-gold, #B8860B),#D4A917)", color: "var(--lg-card, #fff)", padding: "2px 7px", borderRadius: 20, letterSpacing: "0.08em", ...monoStyle }}>PRO</span>
                 </div>
-                <p style={{ margin: 0, fontSize: 11, color: "#64748B", lineHeight: 1.6 }}>
+                <p style={{ margin: 0, fontSize: 11, color: "var(--lg-sub, #64748B)", lineHeight: 1.6 }}>
                   {limitQuota
                     ? `You've used all ${limitQuota.limit} free ${marketLabel(limitQuota.market)} trades. `
                     : "You've used your free trades. "}
@@ -295,13 +294,13 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                   <div style={{ width: 16, height: 16, borderRadius: 4, background: "rgba(13,158,110,0.1)", border: "1px solid rgba(13,158,110,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  <span style={{ fontSize: 11, color: "#475569", fontWeight: 500 }}>{icon} {label}</span>
+                  <span style={{ fontSize: 11, color: "var(--lg-sub, #475569)", fontWeight: 500 }}>{icon} {label}</span>
                 </div>
               ))}
             </div>
 
             {/* Divider */}
-            <div style={{ height: 1, background: "#E2E8F0", marginBottom: 14 }} />
+            <div style={{ height: 1, background: "var(--lg-line, #E2E8F0)", marginBottom: 14 }} />
 
             {/* CTAs */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -311,8 +310,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 onClick={() => setShowPaywall(true)}
                 style={{
                   width: "100%", padding: "13px", borderRadius: 10, border: "none",
-                  background: "linear-gradient(135deg,#B8860B,#D4A917)",
-                  color: "#0F1923", fontSize: 12, fontWeight: 800,
+                  background: "linear-gradient(135deg,var(--lg-gold, #B8860B),#D4A917)",
+                  color: "var(--lg-ink, #0F1923)", fontSize: 12, fontWeight: 800,
                   letterSpacing: "0.1em", ...monoStyle,
                   cursor: "pointer",
                   boxShadow: "0 4px 16px rgba(184,134,11,0.35)",
@@ -331,13 +330,13 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                   padding: "10px", borderRadius: 10,
-                  border: "1px solid #E2E8F0", background: "#F8FAFC",
-                  color: "#64748B", fontSize: 11, fontWeight: 600,
+                  border: "1px solid var(--lg-line, #E2E8F0)", background: "var(--lg-soft, #F8FAFC)",
+                  color: "var(--lg-sub, #64748B)", fontSize: 11, fontWeight: 600,
                   ...monoStyle, letterSpacing: "0.08em", textDecoration: "none",
                   transition: "all 0.2s",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F1923"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#64748B"; }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--lg-line, #F1F5F9)"; e.currentTarget.style.color = "var(--lg-ink, #0F1923)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--lg-soft, #F8FAFC)"; e.currentTarget.style.color = "var(--lg-sub, #64748B)"; }}
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 CONTINUE WITH MANUAL ENTRY
@@ -359,15 +358,15 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
 
       {/* ── Non-subscription errors (wrong screenshot, upload failure, etc.) ── */}
       {error && !isSubscriptionError && (
-        <div style={{ marginTop: 14, borderRadius: 10, border: "1px solid #FCA5A5", background: "#FEF2F2", overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", background: "#FEE2E2", borderBottom: "1px solid #FCA5A5", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ marginTop: 14, borderRadius: 10, border: "1px solid var(--lg-red-soft, #FCA5A5)", background: "var(--lg-red-soft, #FEF2F2)", overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", background: "var(--lg-red-soft, #FEE2E2)", borderBottom: "1px solid var(--lg-red-soft, #FCA5A5)", display: "flex", alignItems: "center", gap: 8 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D63B3B" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#9B1C1C" }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--lg-red, #9B1C1C)" }}>
               {ocrStalled ? "Still Processing" : isWrongScreenshotError ? "Wrong Image Uploaded" : "Upload Error"}
             </span>
           </div>
           <div style={{ padding: "10px 14px" }}>
-            <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.65 }}>{error}</p>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--lg-red, #7F1D1D)", lineHeight: 1.65 }}>{error}</p>
             {/* Polling gave up on a job that never reached a terminal status.
                 Worth offering a recheck rather than only a re-upload: by now
                 the server-side reaper has usually resolved the job, so this
@@ -379,8 +378,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 onClick={recheckOcrStatus}
                 style={{
                   marginTop: 10, padding: "9px 14px", borderRadius: 8,
-                  border: "1px solid #FCA5A5", background: "#fff",
-                  color: "#9B1C1C", fontSize: 11, fontWeight: 800,
+                  border: "1px solid var(--lg-red-soft, #FCA5A5)", background: "var(--lg-card, #fff)",
+                  color: "var(--lg-red, #9B1C1C)", fontSize: 11, fontWeight: 800,
                   letterSpacing: "0.08em", ...monoStyle, cursor: "pointer",
                 }}
               >
@@ -391,8 +390,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
                 {screenshotTips.map((tip, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#FCA5A5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#9B1C1C", flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                    <span style={{ fontSize: 11, color: "#7F1D1D", lineHeight: 1.5 }}>{tip}</span>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: "var(--lg-red-soft, #FCA5A5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 800, color: "var(--lg-red, #9B1C1C)", flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                    <span style={{ fontSize: 11, color: "var(--lg-red, #7F1D1D)", lineHeight: 1.5 }}>{tip}</span>
                   </div>
                 ))}
               </div>
@@ -432,12 +431,12 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
           transition: "all 0.25s",
           cursor: loading ? "not-allowed" : "pointer",
           // colour shifts based on state
-          color:      loading   ? "#94A3B8"
-                    : !file    ? "#94A3B8"
-                    : "#FFFFFF",
-          background: loading   ? "#F1F5F9"
-                    : !file    ? "#F1F5F9"
-                    : "linear-gradient(135deg,#B8860B,#D4A917)",
+          color:      loading   ? "var(--lg-muted, #94A3B8)"
+                    : !file    ? "var(--lg-muted, #94A3B8)"
+                    : "var(--lg-card, #FFFFFF)",
+          background: loading   ? "var(--lg-line, #F1F5F9)"
+                    : !file    ? "var(--lg-line, #F1F5F9)"
+                    : "linear-gradient(135deg,var(--lg-gold, #B8860B),#D4A917)",
           boxShadow:  !loading && file
                         ? "0 4px 16px rgba(184,134,11,0.32)"
                         : "none",
@@ -489,28 +488,28 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
             style={{
               width: "100%",
               maxWidth: 560,
-              background: "#FFFFFF",
+              background: "var(--lg-card, #FFFFFF)",
               borderRadius: 14,
-              border: "1px solid #E2E8F0",
+              border: "1px solid var(--lg-line, #E2E8F0)",
               boxShadow: "0 20px 40px rgba(15,25,35,0.25)",
               overflow: "hidden",
             }}
           >
-            <div style={{ height: 3, background: `linear-gradient(90deg, ${isInd ? "#1B5E20" : "#B8860B"}, transparent)` }} />
+            <div style={{ height: 3, background: `linear-gradient(90deg, ${isInd ? "#1B5E20" : "var(--lg-gold, #B8860B)"}, transparent)` }} />
             <div style={{ padding: "18px 18px 16px" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923", letterSpacing: "0.06em", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--lg-ink, #0F1923)", letterSpacing: "0.06em", marginBottom: 6 }}>
                 CONFIRM SCREENSHOT
               </div>
-              <div style={{ fontSize: 12, color: "#64748B", marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: "var(--lg-sub, #64748B)", marginBottom: 14 }}>
                 Please verify this is the correct {isInd ? "Indian" : "Forex"} trade image before extraction.
               </div>
 
               {confirmImageUrl && (
-                <div style={{ borderRadius: 10, border: "1px solid #E2E8F0", overflow: "hidden", background: "#F8FAFC", marginBottom: 14 }}>
+                <div style={{ borderRadius: 10, border: "1px solid var(--lg-line, #E2E8F0)", overflow: "hidden", background: "var(--lg-soft, #F8FAFC)", marginBottom: 14 }}>
                   <img
                     src={confirmImageUrl}
                     alt="Upload confirmation preview"
-                    style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain", background: "#F8FAFC" }}
+                    style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain", background: "var(--lg-soft, #F8FAFC)" }}
                   />
                 </div>
               )}
@@ -522,9 +521,9 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                   style={{
                     padding: "10px 14px",
                     borderRadius: 9,
-                    border: "1px solid #E2E8F0",
-                    background: "#FFFFFF",
-                    color: "#64748B",
+                    border: "1px solid var(--lg-line, #E2E8F0)",
+                    background: "var(--lg-card, #FFFFFF)",
+                    color: "var(--lg-sub, #64748B)",
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: "pointer",
@@ -545,8 +544,8 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                     padding: "10px 14px",
                     borderRadius: 9,
                     border: "none",
-                    background: isInd ? "linear-gradient(135deg,#1B5E20,#2E7D32)" : "linear-gradient(135deg,#B8860B,#D4A917)",
-                    color: "#FFFFFF",
+                    background: isInd ? "linear-gradient(135deg,#1B5E20,#2E7D32)" : "linear-gradient(135deg,var(--lg-gold, #B8860B),#D4A917)",
+                    color: "var(--lg-card, #FFFFFF)",
                     fontSize: 12,
                     fontWeight: 800,
                     letterSpacing: "0.06em",
@@ -576,8 +575,8 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
         gridTemplateColumns: "34px minmax(0, 1fr)",
         gap: 12,
         padding: "14px 16px",
-        background: "#FFFBEB",
-        border: "1.5px solid #FCD34D",
+        background: "var(--lg-gold-soft, #FFFBEB)",
+        border: "1.5px solid var(--lg-gold, #FCD34D)",
         borderRadius: 12,
         margin: "12px 0",
         boxShadow: "0 8px 22px rgba(180,83,9,0.07)",
@@ -589,12 +588,12 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
           width: 34,
           height: 34,
           borderRadius: 10,
-          background: "#FEF3C7",
-          color: "#B45309",
+          background: "var(--lg-gold-soft, #FEF3C7)",
+          color: "var(--lg-gold, #B45309)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: "1px solid #FCD34D",
+          border: "1px solid var(--lg-gold, #FCD34D)",
           flexShrink: 0,
         }}
       >
@@ -605,10 +604,10 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
         </svg>
       </div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 900, color: "#92400E", marginBottom: 4 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, color: "var(--lg-gold, #92400E)", marginBottom: 4 }}>
           Accuracy disclaimer for {marketLabel} uploads
         </div>
-        <div style={{ fontSize: 12, color: "#78350F", lineHeight: 1.55, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: "var(--lg-gold, #78350F)", lineHeight: 1.55, marginBottom: 10 }}>
           Please correct every extracted field before saving: symbol, date, entry, exit, P&amp;L, size, setup, notes, mood, confidence, emotions, and trade quality. Your reports, coach, streaks, psychology patterns, and behavior analysis are only as accurate as the data you save.
         </div>
         <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", userSelect: "none" }}>
@@ -616,9 +615,9 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
             type="checkbox"
             checked={checked}
             onChange={(event) => onChange(event.target.checked)}
-            style={{ width: 16, height: 16, marginTop: 1, accentColor: "#0D9E6E", flexShrink: 0 }}
+            style={{ width: 16, height: 16, marginTop: 1, accentColor: "var(--lg-green, #0D9E6E)", flexShrink: 0 }}
           />
-          <span style={{ fontSize: 11, fontWeight: 800, color: "#0F1923", lineHeight: 1.45 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--lg-ink, #0F1923)", lineHeight: 1.45 }}>
             I reviewed and corrected the extracted trade and psychology data. Save this as my real trading record.
           </span>
         </label>
@@ -704,9 +703,9 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
           <button
             type="button"
             onClick={() => state.deleteTrade(tradeIdx)}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#D63B3B", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--lg-red-soft, #FCA5A5)", background: "var(--lg-red-soft, #FEF2F2)", color: "var(--lg-red, #D63B3B)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--lg-red-soft, #FEE2E2)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--lg-red-soft, #FEF2F2)"; }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             REMOVE ENTRY
@@ -717,20 +716,20 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
       {/* Screenshot preview — only show on single trade */}
       {!isMulti && trade?.screenshot && (
         <SectionCard accentColor="#94A3B8" title="Extracted Screenshot" delay={0.08}>
-          <img src={trade.screenshot} alt="Trade screenshot" style={{ width: "100%", maxWidth: 280, height: "auto", borderRadius: 8, border: "1px solid #E2E8F0" }} />
+          <img src={trade.screenshot} alt="Trade screenshot" style={{ width: "100%", maxWidth: 280, height: "auto", borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)" }} />
         </SectionCard>
       )}
 
       {/* ── Trade Details ── */}
       <SectionCard
-        accentColor={isInd ? "#1B5E20" : "#B8860B"}
+        accentColor={isInd ? "#1B5E20" : "var(--lg-gold, #B8860B)"}
         title={isMulti ? `Trade #${tradeIdx + 1} — ${trade?.pair || ""}` : `${isEquityMode ? "Intraday Stock" : isInd ? "Indian Options" : "Forex"} Trade Details`}
         subtitle={isMulti ? `P&L: ${bull ? "+" : ""}${currency}${Math.abs(parseFloat(trade?.profit || 0)).toFixed(2)}` : "REVIEW & CORRECT EXTRACTED FIELDS"}
         delay={0.1}
         style={isMulti && saved ? { opacity: 0.6 } : {}}
       >
         {saved && (
-          <div style={{ padding: "8px 12px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 6, marginBottom: 14, fontSize: 11, color: "#065F46" }}>
+          <div style={{ padding: "8px 12px", background: "var(--lg-green-soft, #ECFDF5)", border: "1px solid var(--lg-green-line, #A7F3D0)", borderRadius: 6, marginBottom: 14, fontSize: 11, color: "var(--lg-green, #065F46)" }}>
             ✓ Trade saved successfully
           </div>
         )}
@@ -743,14 +742,14 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
           <div>
             <FormInput label="TRADE DATE" name="tradeDate" value={trade?.tradeDate} onChange={onChange} type="date" required min={accountCreatedDate || undefined} max={todayInputMax || undefined} />
             {trade?._dateAutoFilled && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, padding: "4px 8px", background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, padding: "4px 8px", background: "var(--lg-gold-soft, #FFFBEB)", border: "1px solid var(--lg-gold, #FCD34D)", borderRadius: 6 }}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#B45309" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <span style={{ fontSize: "var(--fs-2xs)", color: "#B45309", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
+                <span style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-gold, #B45309)", fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                   DATE NOT EXTRACTED — set to today. Please verify.
                 </span>
               </div>
             )}
-            {accountCreatedDate && !trade?._dateAutoFilled && <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>Earliest: {accountCreatedDate}</div>}
+            {accountCreatedDate && !trade?._dateAutoFilled && <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", marginTop: 4, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>Earliest: {accountCreatedDate}</div>}
           </div>
           <div />
         </div>
@@ -864,7 +863,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         <div>
           <label style={labelSt}>NOTES</label>
           <textarea name="notes" value={trade?.notes || ""} onChange={onChange} placeholder="What went well? What to improve?" rows={3}
-            style={{ width: "100%", padding: "11px 14px", fontSize: 13, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 8, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "11px 14px", fontSize: 13, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", color: "var(--lg-ink, #0F1923)", background: "var(--lg-soft, #F8FAFC)", border: "1.5px solid var(--lg-line, #E2E8F0)", borderRadius: 8, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
         </div>
       </SectionCard>
 
@@ -873,8 +872,8 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         <div style={{ marginBottom: 16 }}>
           <FormSelect label="STRATEGY / SETUP" name="strategy" value={trade?.strategy} onChange={onStrategyChange} options={strategyOpts} />
           {!state.strategies?.length && (
-            <div style={{ marginTop: 8, fontSize: 11, color: "#B8860B" }}>
-              <Link href="/setups" style={{ color: "#B8860B", fontWeight: 700 }}>+ Go to Setups</Link> to create your strategies and rules.
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--lg-gold, #B8860B)" }}>
+              <Link href="/setups" style={{ color: "var(--lg-gold, #B8860B)", fontWeight: 700 }}>+ Go to Setups</Link> to create your strategies and rules.
             </div>
           )}
           {trade?.strategy === "Custom" && (
@@ -888,13 +887,13 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
       </SectionCard>
 
       {/* ── Visual Evidence — extra proof screenshots on top of the OCR'd one ── */}
-      <SectionCard accentColor={isInd ? "#1B5E20" : "#B8860B"} title="Visual Evidence" subtitle="ATTACH ADDITIONAL PROOF SCREENSHOTS" delay={0.13}>
+      <SectionCard accentColor={isInd ? "#1B5E20" : "var(--lg-gold, #B8860B)"} title="Visual Evidence" subtitle="ATTACH ADDITIONAL PROOF SCREENSHOTS" delay={0.13}>
         <TradeEvidenceSection
           ref={evidenceRef}
           value={trade?.tradeImages || []}
           onChange={imgs => onChange({ target: { name: "tradeImages", value: imgs } })}
           disabled={saved || state.savingAll || committingEvidence}
-          accentColor={isInd ? "#1B5E20" : "#B8860B"}
+          accentColor={isInd ? "#1B5E20" : "var(--lg-gold, #B8860B)"}
         />
       </SectionCard>
 
@@ -908,9 +907,9 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
             {MOODS.map(m => (
               <button key={m.v} type="button"
                 onClick={() => onChange({ target: { name: "mood", value: trade?.mood === m.v ? null : m.v } })}
-                style={{ padding: "10px 4px", borderRadius: 12, cursor: "pointer", minHeight: 70, border: trade?.mood === m.v ? "2px solid #8B5CF6" : "1px solid #E2E8F0", background: trade?.mood === m.v ? "rgba(139,92,246,0.08)" : "#FFF", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                style={{ padding: "10px 4px", borderRadius: 12, cursor: "pointer", minHeight: 70, border: trade?.mood === m.v ? "2px solid #8B5CF6" : "1px solid var(--lg-line, #E2E8F0)", background: trade?.mood === m.v ? "rgba(139,92,246,0.08)" : "var(--lg-card, #FFF)", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ fontSize: 22, marginBottom: 4 }}>{m.e}</div>
-                <div style={{ fontSize: "var(--fs-2xs)", color: trade?.mood === m.v ? "#8B5CF6" : "#94A3B8", fontWeight: 800, letterSpacing: "0.02em" }}>{m.label.toUpperCase()}</div>
+                <div style={{ fontSize: "var(--fs-2xs)", color: trade?.mood === m.v ? "#8B5CF6" : "var(--lg-muted, #94A3B8)", fontWeight: 800, letterSpacing: "0.02em" }}>{m.label.toUpperCase()}</div>
               </button>
             ))}
           </div>
@@ -929,7 +928,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
               const sel = trade?.emotionalTags?.includes(tag);
               return (
                 <button key={tag} type="button" onClick={() => toggleEmotion(tag)}
-                  style={{ padding: "7px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: sel ? "2px solid #8B5CF6" : "1.5px solid #E2E8F0", background: sel ? "rgba(139,92,246,0.1)" : "#FFF", color: sel ? "#8B5CF6" : "#64748B", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 5 }}>
+                  style={{ padding: "7px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: sel ? "2px solid #8B5CF6" : "1.5px solid var(--lg-line, #E2E8F0)", background: sel ? "rgba(139,92,246,0.1)" : "var(--lg-card, #FFF)", color: sel ? "#8B5CF6" : "var(--lg-sub, #64748B)", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ fontSize: 15 }}>{emoji}</span>{tag}
                 </button>
               );
@@ -944,7 +943,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
             {["Yes", "No"].map(v => (
               <button key={v} type="button"
                 onClick={() => onChange({ target: { name: "wouldRetake", value: trade?.wouldRetake === v ? "" : v } })}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", border: trade?.wouldRetake === v ? "2px solid #8B5CF6" : "1.5px solid #E2E8F0", background: trade?.wouldRetake === v ? "rgba(139,92,246,0.1)" : "#FFF", color: trade?.wouldRetake === v ? "#8B5CF6" : "#94A3B8", transition: "all 0.2s" }}>
+                style={{ flex: 1, padding: "10px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", border: trade?.wouldRetake === v ? "2px solid #8B5CF6" : "1.5px solid var(--lg-line, #E2E8F0)", background: trade?.wouldRetake === v ? "rgba(139,92,246,0.1)" : "var(--lg-card, #FFF)", color: trade?.wouldRetake === v ? "#8B5CF6" : "var(--lg-muted, #94A3B8)", transition: "all 0.2s" }}>
                 {v}
               </button>
             ))}
@@ -956,15 +955,15 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
           <label style={labelSt}>TRADE QUALITY</label>
           <div style={{ display: "flex", gap: 10 }}>
             {[
-              { val: "Great", color: "#0D9E6E", bg: "rgba(13,158,110,0.1)", desc: "Followed the plan" },
-              { val: "Average", color: "#F59E0B", bg: "rgba(245,158,11,0.1)", desc: "Partial execution" },
-              { val: "Poor", color: "#D63B3B", bg: "rgba(214,59,59,0.1)", desc: "Broke the rules" },
+              { val: "Great", color: "var(--lg-green, #0D9E6E)", bg: "rgba(13,158,110,0.1)", desc: "Followed the plan" },
+              { val: "Average", color: "var(--lg-gold, #F59E0B)", bg: "rgba(245,158,11,0.1)", desc: "Partial execution" },
+              { val: "Poor", color: "var(--lg-red, #D63B3B)", bg: "rgba(214,59,59,0.1)", desc: "Broke the rules" },
             ].map(q => {
               const sel = trade?.tradeQuality === q.val;
               return (
                 <button key={q.val} type="button"
                   onClick={() => onChange({ target: { name: "tradeQuality", value: sel ? "" : q.val } })}
-                  style={{ flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: "pointer", border: sel ? `2px solid ${q.color}` : "1.5px solid #E2E8F0", background: sel ? q.bg : "#FFF", color: sel ? q.color : "#94A3B8", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  style={{ flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: "pointer", border: sel ? `2px solid ${q.color}` : "1.5px solid var(--lg-line, #E2E8F0)", background: sel ? q.bg : "var(--lg-card, #FFF)", color: sel ? q.color : "var(--lg-muted, #94A3B8)", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                   <span>{q.val}</span>
                   <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 500, opacity: 0.8 }}>{q.desc}</span>
                 </button>
@@ -984,7 +983,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
                   return (
                     <button key={tag} type="button"
                       onClick={() => onChange({ target: { name: "mistakeTag", value: sel ? "" : tag } })}
-                      style={{ padding: "7px 14px", borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: "pointer", border: sel ? "2px solid #D63B3B" : "1.5px solid #E2E8F0", background: sel ? "rgba(214,59,59,0.08)" : "#FFF", color: sel ? "#D63B3B" : "#94A3B8", transition: "all 0.2s" }}>
+                      style={{ padding: "7px 14px", borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: "pointer", border: sel ? "2px solid var(--lg-red, #D63B3B)" : "1.5px solid var(--lg-line, #E2E8F0)", background: sel ? "rgba(214,59,59,0.08)" : "var(--lg-card, #FFF)", color: sel ? "var(--lg-red, #D63B3B)" : "var(--lg-muted, #94A3B8)", transition: "all 0.2s" }}>
                       {tag}
                     </button>
                   );
@@ -994,7 +993,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
             <div>
               <label style={labelSt}>LESSON LEARNED</label>
               <textarea name="lesson" value={trade?.lesson || ""} onChange={onChange} placeholder="What will you do differently next time?" rows={2}
-                style={{ width: "100%", padding: "11px 14px", fontSize: 13, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 8, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                style={{ width: "100%", padding: "11px 14px", fontSize: 13, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", color: "var(--lg-ink, #0F1923)", background: "var(--lg-soft, #F8FAFC)", border: "1.5px solid var(--lg-line, #E2E8F0)", borderRadius: 8, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
             </div>
           </>
         )}
@@ -1011,7 +1010,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
       {!saved && state.isDemo && (
         <button
           onClick={handleSave}
-          style={{ width: "100%", padding: "15px", marginTop: 6, background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+          style={{ width: "100%", padding: "15px", marginTop: 6, background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "var(--lg-card, #FFFFFF)", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           DEMO — NOT SAVED TO TRADE LOG
@@ -1021,7 +1020,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         <button
           onClick={handleSave}
           disabled={state.savingAll || committingEvidence || !accuracyAcknowledged}
-          style={{ width: "100%", padding: "15px", marginTop: 6, background: state.savingAll || committingEvidence || !accuracyAcknowledged ? "#94A3B8" : "linear-gradient(135deg,#0D9E6E,#22C78E)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: state.savingAll || committingEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(13,158,110,0.3)" : "none", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+          style={{ width: "100%", padding: "15px", marginTop: 6, background: state.savingAll || committingEvidence || !accuracyAcknowledged ? "var(--lg-muted, #94A3B8)" : "linear-gradient(135deg,var(--lg-green, #0D9E6E),var(--lg-green, #22C78E))", color: "var(--lg-card, #FFFFFF)", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: state.savingAll || committingEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(13,158,110,0.3)" : "none", transition: "all 0.25s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
           onMouseEnter={e => { if (!state.savingAll && !committingEvidence && accuracyAcknowledged) e.currentTarget.style.transform = "translateY(-2px)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
         >
@@ -1045,8 +1044,6 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
 function UploadTradeContent() {
   const { accountCreatedDate } = useUserProfile();
   const state   = useUploadTrade({ accountCreatedDate });
-  const clock   = useClock();
-  const router  = useRouter();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams?.get("onboarding") === "1";
   const { isInd, isDemo, mounted, loading, processingStatus, trade, trades, savedTrades, savingAll, saveAllTrades, tradeCount, todayInputMax, isRedirecting } = state;
@@ -1120,10 +1117,10 @@ function UploadTradeContent() {
 
   if (!mounted) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923" }}>
+      <main className="ec-app" style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--lg-soft, #F0EEE9)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", color: "var(--lg-ink, #0F1923)" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: 32, height: 32, margin: "0 auto 12px", border: "2.5px solid #E2E8F0", borderTopColor: "#B8860B", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}>LOADING AI EXTRACTOR...</div>
+          <div style={{ width: 32, height: 32, margin: "0 auto 12px", border: "2.5px solid var(--lg-line, #E2E8F0)", borderTopColor: "var(--lg-gold, #B8860B)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-muted, #94A3B8)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.08em" }}>LOADING AI EXTRACTOR...</div>
         </div>
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeSlideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
       </main>
@@ -1132,23 +1129,23 @@ function UploadTradeContent() {
 
   if (isRedirecting) {
     return (
-      <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+      <div className="ec-app" style={{ minHeight: "100vh", background: "var(--lg-soft, #F0EEE9)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>
         <div style={{ textAlign: "center", padding: 40 }}>
           {/* Animated checkmark circle */}
-          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,#0D9E6E,#22C78E)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "0 12px 32px rgba(13,158,110,0.35)", animation: "journalPop 0.5s cubic-bezier(0.22,1,0.36,1) both" }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,var(--lg-green, #0D9E6E),var(--lg-green, #22C78E))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "0 12px 32px rgba(13,158,110,0.35)", animation: "journalPop 0.5s cubic-bezier(0.22,1,0.36,1) both" }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#0F1923", marginBottom: 8, letterSpacing: "-0.01em" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--lg-ink, #0F1923)", marginBottom: 8, letterSpacing: "-0.01em" }}>
             Trade saved!
           </div>
-          <div style={{ fontSize: 13, color: "#64748B", marginBottom: 28, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
+          <div style={{ fontSize: 13, color: "var(--lg-sub, #64748B)", marginBottom: 28, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.04em" }}>
             TAKING YOU TO YOUR TRADE LOG...
           </div>
           {/* Progress bar */}
-          <div style={{ width: 200, height: 4, background: "#E2E8F0", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
-            <div style={{ height: "100%", background: "linear-gradient(90deg,#0D9E6E,#22C78E)", borderRadius: 99, animation: "journalProgress 1.1s ease-out forwards" }} />
+          <div style={{ width: 200, height: 4, background: "var(--lg-line, #E2E8F0)", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "linear-gradient(90deg,var(--lg-green, #0D9E6E),var(--lg-green, #22C78E))", borderRadius: 99, animation: "journalProgress 1.1s ease-out forwards" }} />
           </div>
         </div>
         <style>{`
@@ -1160,8 +1157,7 @@ function UploadTradeContent() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F0EEE9", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
-      <CandlestickBackground canvasId="upload-bg-canvas" />
+    <div className="ec-app ec-home">
 
       <TradeLimitDialog
         open={Boolean(state.limitBlock)}
@@ -1176,11 +1172,11 @@ function UploadTradeContent() {
         onClose={state.closeLastFreeTradeSheet}
       />
 
-      <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <PageHeader showMarketSwitcher showClock clock={clock} />
-        <TickerTape />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+        <PageHeader themed showMarketSwitcher title="Log trade" />
 
-        <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box", animation: "fadeUp 0.45s ease both" }}>
+        <main className="ec-page ec-log ec-log--wide">
+          <RiskLimitsPrompt market={onboardingMarket} disabled={onboardingMode || isDemo} />
           {isDemo && (
             <div style={{
               padding: "14px 16px", borderRadius: 12,
@@ -1188,13 +1184,13 @@ function UploadTradeContent() {
               border: "1px solid rgba(14,165,233,0.35)",
               marginBottom: 18,
             }}>
-              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0284C7", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0284C7", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", marginBottom: 4 }}>
                 DEMO MODE · SAMPLE SCREENSHOT
               </div>
-              <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13, color: "var(--lg-ink, #0F1923)", lineHeight: 1.6 }}>
                 We loaded a <strong>sample {isInd ? "Indian broker" : "MT5"} screenshot</strong> for you. Hit <strong>Extract Trade Data</strong> to watch the AI read it — exactly how it works with your own screenshots. <strong>Nothing here is saved</strong> to your trade log.
               </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
+              <div style={{ marginTop: 8, fontSize: 11, color: "var(--lg-sub, #64748B)" }}>
                 Ready with your own? <Link href={realUploadPath} style={{ color: "#0284C7", fontWeight: 700, textDecoration: "none" }}>Upload a real screenshot →</Link>
               </div>
             </div>
@@ -1206,18 +1202,18 @@ function UploadTradeContent() {
               border: "1px solid rgba(34,199,142,0.3)",
               marginBottom: 18,
             }}>
-              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "#0D9E6E", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.12em", color: "var(--lg-green, #0D9E6E)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", marginBottom: 4 }}>
                 STEP 2 OF 3 · LOG YOUR FIRST TRADE
               </div>
-              <div style={{ fontSize: 13, color: "#0F1923", lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13, color: "var(--lg-ink, #0F1923)", lineHeight: 1.6 }}>
                 {isInd ? (
                   <>Upload a <strong>Zerodha, Upstox, Groww, Angel One, Dhan, or Fyers screenshot</strong>. Our AI reads it and fills in the symbol, quantity, entry, exit, and P&amp;L. Review the details, then save it to your Indian Market trade log.</>
                 ) : (
                   <>Upload an <strong>MT4, MT5, cTrader, or Forex broker screenshot</strong>. Our AI reads it and fills in the pair, lot size, entry, exit, and P&amp;L. Review the details, then save it to your Forex trade log.</>
                 )}
               </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: "#64748B" }}>
-                Prefer typing it in? <Link href={manualEntryPath} style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
+              <div style={{ marginTop: 8, fontSize: 11, color: "var(--lg-sub, #64748B)" }}>
+                Prefer typing it in? <Link href={manualEntryPath} style={{ color: "var(--lg-green, #0D9E6E)", fontWeight: 700, textDecoration: "none" }}>Manual entry →</Link>
               </div>
             </div>
           )}
@@ -1241,10 +1237,10 @@ function UploadTradeContent() {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="#FFFFFF" stroke="none"/></svg>
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0C4A6E", marginBottom: 3 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--lg-ink, #0C4A6E)", marginBottom: 3 }}>
                   Don&apos;t have a screenshot? Try a demo
                 </div>
-                <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.5 }}>
                   We&apos;ll load a sample {isInd ? "Indian" : "Forex"} screenshot and run real AI extraction — so you see exactly how it works. Nothing is saved to your trade log.
                 </div>
               </div>
@@ -1253,16 +1249,16 @@ function UploadTradeContent() {
           )}
 
           {/* Page heading */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <button onClick={() => router.back()} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #E2E8F0", background: "#FFFFFF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F1923" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 28, fontWeight: 800, color: "#0F1923", margin: 0, letterSpacing: "-0.02em" }}>
-                Upload <span style={{ color: "#B8860B" }}>{isInd ? "Indian Trade" : "Forex Trade"}</span>
-              </h1>
+          <div className="ec-log__head">
+            <div style={{ minWidth: 0 }}>
+              <h1 className="ec-log__title">Log from a screenshot</h1>
+              <p className="ec-log__sub">
+                {isInd ? "Indian market" : "Forex"} · upload a broker screenshot and the AI fills in the trade for you to check
+              </p>
             </div>
-            <p style={{ fontSize: 11, color: "#94A3B8", marginLeft: 42, ...monoStyle, letterSpacing: "0.06em" }}>AI-POWERED SCREENSHOT EXTRACTION</p>
+            <Link href={isInd ? "/indian-market/trades" : "/trades"} className="ec-psy__back ec-focusable" style={{ marginBottom: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg> Journal
+            </Link>
           </div>
 
           {/* Upload zone */}
@@ -1274,37 +1270,37 @@ function UploadTradeContent() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0 4px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid rgba(184,134,11,0.25)", borderTopColor: "#B8860B", animation: "spin 1s linear infinite" }} />
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid rgba(184,134,11,0.25)", borderTopColor: "var(--lg-gold, #B8860B)", animation: "spin 1s linear infinite" }} />
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923" }}>{extractionStep.label}</div>
-                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{extractionStep.hint}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)" }}>{extractionStep.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--lg-muted, #94A3B8)" }}>{extractionStep.hint}</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#B8860B", ...monoStyle }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--lg-gold, #B8860B)", ...monoStyle }}>
                     {extractionStep.progress}%
                   </div>
                 </div>
 
-                <div style={{ height: 8, borderRadius: 999, background: "#F1F5F9", overflow: "hidden", border: "1px solid #E2E8F0" }}>
+                <div style={{ height: 8, borderRadius: 999, background: "var(--lg-line, #F1F5F9)", overflow: "hidden", border: "1px solid var(--lg-line, #E2E8F0)" }}>
                   <div
                     style={{
                       width: `${extractionStep.progress}%`,
                       height: "100%",
                       borderRadius: 999,
-                      background: "linear-gradient(90deg,#B8860B,#D4A917)",
+                      background: "linear-gradient(90deg,var(--lg-gold, #B8860B),#D4A917)",
                       transition: "width 400ms ease",
                     }}
                   />
                 </div>
 
-                <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", ...monoStyle, letterSpacing: "0.06em" }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", ...monoStyle, letterSpacing: "0.06em" }}>
                   PLEASE KEEP THIS SCREEN OPEN UNTIL EXTRACTION FINISHES
                 </div>
                 <button
                   type="button"
                   onClick={state.clearOcrSession}
                   disabled={processingStatus === "cancelling"}
-                  style={{ alignSelf: "flex-start", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: processingStatus === "cancelling" ? "#F1F5F9" : "#FFFFFF", color: processingStatus === "cancelling" ? "#94A3B8" : "#D63B3B", fontSize: 11, fontWeight: 800, cursor: processingStatus === "cancelling" ? "not-allowed" : "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+                  style={{ alignSelf: "flex-start", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)", background: processingStatus === "cancelling" ? "var(--lg-line, #F1F5F9)" : "var(--lg-card, #FFFFFF)", color: processingStatus === "cancelling" ? "var(--lg-muted, #94A3B8)" : "var(--lg-red, #D63B3B)", fontSize: 11, fontWeight: 800, cursor: processingStatus === "cancelling" ? "not-allowed" : "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
                 >
                   {processingStatus === "cancelling" ? "CANCELLING..." : "CANCEL UPLOAD"}
                 </button>
@@ -1314,22 +1310,22 @@ function UploadTradeContent() {
 
           {/* Trade count banner — shown after extraction */}
           {!loading && visibleTradeCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "#ECFDF5", border: "1.5px solid #A7F3D0", borderRadius: 10, marginBottom: 4, flexWrap: "wrap" }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0D9E6E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", ...monoStyle }}>{visibleTradeCount}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "var(--lg-green-soft, #ECFDF5)", border: "1.5px solid var(--lg-green-line, #A7F3D0)", borderRadius: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--lg-green, #0D9E6E)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "var(--lg-card, #fff)", ...monoStyle }}>{visibleTradeCount}</span>
               </div>
               <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#065F46" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--lg-green, #065F46)" }}>
                   {visibleTradeCount === 1 ? "1 trade extracted" : `${visibleTradeCount} trades extracted`}
                 </div>
-                <div style={{ fontSize: 11, color: "#6EE7B7", ...monoStyle }}>
+                <div style={{ fontSize: 11, color: "var(--lg-green, #6EE7B7)", ...monoStyle }}>
                   Review the details below and save to your trade log
                 </div>
               </div>
               <button
                 type="button"
                 onClick={state.clearOcrSession}
-                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#FFFFFF", color: "#047857", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--lg-green-line, #A7F3D0)", background: "var(--lg-card, #FFFFFF)", color: "var(--lg-green, #047857)", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
               >
                 CLEAR FORM
               </button>
@@ -1347,16 +1343,16 @@ function UploadTradeContent() {
 
           {!loading && visibleTradeCount > 0 && (
             <SectionCard
-              accentColor={totalPnl >= 0 ? "#0D9E6E" : "#D63B3B"}
+              accentColor={totalPnl >= 0 ? "var(--lg-green, #0D9E6E)" : "var(--lg-red, #D63B3B)"}
               title="Overall P&L"
               subtitle={`${totalPnl >= 0 ? "+" : ""}${isInd ? "₹" : "$"}${Math.abs(totalPnl).toFixed(2)} on ${visibleTradeCount} position${visibleTradeCount > 1 ? "s" : ""}`}
               delay={0.08}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                <span style={{ fontSize: 22, fontWeight: 800, ...monoStyle, color: totalPnl >= 0 ? "#0D9E6E" : "#D63B3B" }}>
+                <span style={{ fontSize: 22, fontWeight: 800, ...monoStyle, color: totalPnl >= 0 ? "var(--lg-green, #0D9E6E)" : "var(--lg-red, #D63B3B)" }}>
                   {totalPnl >= 0 ? "+" : ""}{isInd ? "₹" : "$"}{Math.abs(totalPnl).toFixed(2)}
                 </span>
-                <span style={{ fontSize: 12, color: "#64748B" }}>Auto-updates after each remove/edit</span>
+                <span style={{ fontSize: 12, color: "var(--lg-sub, #64748B)" }}>Auto-updates after each remove/edit</span>
               </div>
             </SectionCard>
           )}
@@ -1367,7 +1363,7 @@ function UploadTradeContent() {
               {/* Screenshot shown once at the top for multi-trade */}
               {trades[0]?.screenshot && (
                 <SectionCard accentColor="#94A3B8" title="Extracted Screenshot" delay={0.07}>
-                  <img src={trades[0].screenshot} alt="Trade screenshot" style={{ width: "100%", maxWidth: 280, height: "auto", borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                  <img src={trades[0].screenshot} alt="Trade screenshot" style={{ width: "100%", maxWidth: 280, height: "auto", borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)" }} />
                 </SectionCard>
               )}
 
@@ -1389,20 +1385,20 @@ function UploadTradeContent() {
                         alignItems: "center",
                         gap: 12,
                         padding: "12px 18px",
-                        background: "#ECFDF5",
-                        border: "1.5px solid #A7F3D0",
+                        background: "var(--lg-green-soft, #ECFDF5)",
+                        border: "1.5px solid var(--lg-green-line, #A7F3D0)",
                         borderRadius: 12,
                         marginBottom: 8,
                       }}
                     >
-                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#0D9E6E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--lg-green, #0D9E6E)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "#065F46" }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--lg-green, #065F46)" }}>
                           Trade #{i + 1} — {t?.pair || "Saved"}
                         </div>
-                        <div style={{ fontSize: 11, color: "#6EE7B7", fontFamily: "'JetBrains Mono',monospace" }}>
+                        <div style={{ fontSize: 11, color: "var(--lg-green, #6EE7B7)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                           {bull ? "+" : ""}{isInd ? "₹" : "$"}{Math.abs(parseFloat(String(t?.profit || 0).replace(/,/g, ""))).toFixed(2)} · Saved to trade log
                         </div>
                       </div>
@@ -1419,7 +1415,7 @@ function UploadTradeContent() {
               {savedTrades.some(s => !s) && isDemo && (
                 <button
                   onClick={handleSaveAll}
-                  style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "#FFFFFF", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
+                  style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg,#0EA5E9,#38BDF8)", color: "var(--lg-card, #FFFFFF)", border: "none", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", boxShadow: "0 4px 16px rgba(14,165,233,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   DEMO — NOT SAVED TO TRADE LOG
@@ -1428,7 +1424,7 @@ function UploadTradeContent() {
               {savedTrades.some(s => !s) && !isDemo && (
                 <button
                   onClick={handleSaveAll} disabled={savingAll || committingAllEvidence || !accuracyAcknowledged}
-                  style={{ width: "100%", padding: "16px", background: savingAll || committingAllEvidence || !accuracyAcknowledged ? "#F1F5F9" : "linear-gradient(135deg,#0F1923,#1a2d3d)", color: savingAll || committingAllEvidence || !accuracyAcknowledged ? "#94A3B8" : "#22C78E", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: savingAll || committingAllEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(15,25,35,0.2)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
+                  style={{ width: "100%", padding: "16px", background: savingAll || committingAllEvidence || !accuracyAcknowledged ? "var(--lg-line, #F1F5F9)" : "linear-gradient(135deg,var(--lg-ink, #0F1923),#1a2d3d)", color: savingAll || committingAllEvidence || !accuracyAcknowledged ? "var(--lg-muted, #94A3B8)" : "var(--lg-green, #22C78E)", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: savingAll || committingAllEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(15,25,35,0.2)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
                 >
                   {committingAllEvidence ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>) : savingAll ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>) : !accuracyAcknowledged ? "REVIEW DATA TO ENABLE SAVE ALL" : "SAVE ALL TRADES"}
                 </button>
@@ -1441,7 +1437,7 @@ function UploadTradeContent() {
 
           {/* No extraction yet */}
           {!loading && !trade && trades.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94A3B8", fontSize: 13 }}>
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--lg-muted, #94A3B8)", fontSize: 13 }}>
               Upload a screenshot above to begin AI extraction.
             </div>
           )}
@@ -1457,7 +1453,7 @@ function UploadTradeContent() {
         @keyframes fadeSlideUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         * { box-sizing:border-box; margin:0; padding:0; }
         textarea { resize:vertical; }
-        input::placeholder, textarea::placeholder { color:#CBD5E1; font-size:12px; }
+        input::placeholder, textarea::placeholder { color:var(--lg-line-strong, #CBD5E1); font-size:12px; }
         @media (max-width:640px) {
           main { padding:14px 12px !important; }
           .form-2col  { grid-template-columns: 1fr !important; }
@@ -1473,29 +1469,29 @@ function UploadTradeContent() {
 
 function UploadErrorFallback({ error, resetError }) {
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans',sans-serif", padding: 24 }}>
-      <div style={{ maxWidth: 420, width: "100%", background: "#FFFFFF", borderRadius: 14, border: "1px solid #FCA5A5", overflow: "hidden", boxShadow: "0 4px 24px rgba(15,25,35,0.08)" }}>
-        <div style={{ height: 3, background: "linear-gradient(90deg,#D63B3B,#FCA5A5)" }} />
+    <div className="ec-app" style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--lg-soft, #F0EEE9)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", padding: 24 }}>
+      <div style={{ maxWidth: 420, width: "100%", background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-red-soft, #FCA5A5)", overflow: "hidden", boxShadow: "0 4px 24px rgba(15,25,35,0.08)" }}>
+        <div style={{ height: 3, background: "linear-gradient(90deg,var(--lg-red, #D63B3B),var(--lg-red-soft, #FCA5A5))" }} />
         <div style={{ padding: "24px 24px 20px" }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#9B1C1C", marginBottom: 8 }}>Something went wrong</div>
-          <p style={{ fontSize: 12, color: "#7F1D1D", lineHeight: 1.6, margin: "0 0 16px" }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--lg-red, #9B1C1C)", marginBottom: 8 }}>Something went wrong</div>
+          <p style={{ fontSize: 12, color: "var(--lg-red, #7F1D1D)", lineHeight: 1.6, margin: "0 0 16px" }}>
             The upload form encountered an error. Your unsaved data may be lost, but your previously saved trades are safe in your trade log.
           </p>
           {error?.message && (
-            <pre style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px", overflowX: "auto", marginBottom: 16 }}>
+            <pre style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", background: "var(--lg-soft, #F8FAFC)", border: "1px solid var(--lg-line, #E2E8F0)", borderRadius: 6, padding: "8px 10px", overflowX: "auto", marginBottom: 16 }}>
               {error.message}
             </pre>
           )}
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={resetError}
-              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#B8860B", color: "#FFF", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "var(--lg-gold, #B8860B)", color: "var(--lg-card, #FFF)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
             >
               TRY AGAIN
             </button>
             <a
               href="/trades"
-              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#FFF", color: "#4A5568", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)", background: "var(--lg-card, #FFF)", color: "var(--lg-sub, #4A5568)", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" }}
             >
               MY TRADE LOG
             </a>

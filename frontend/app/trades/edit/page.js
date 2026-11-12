@@ -11,8 +11,12 @@ import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import SetupChecklist from "@/features/trade/components/SetupChecklist";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
-import TickerTape from "@/features/shared/components/TickerTape";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { Button, ErrorState, Placeholder, useToast } from "@/features/shared/components/ui";
+import { reportUserError } from "@/utils/userMessage";
+import { useTheme } from "@/utils/theme";
+import { useSystemBars } from "@/features/shared/hooks/useSystemBars";
 import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
 import { parseNumericField } from "@/features/trade/lib/numericInput";
 import {
@@ -39,62 +43,37 @@ import {
 /* ─────────────────────────────────────────
    INPUT FIELD
 ───────────────────────────────────────── */
+// "LOT SIZE" → "Lot size" (labels were written for the old all-caps style).
+const sentenceCase = (text) => {
+  const t = String(text || "").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 function InputField({ label, name, value, onChange, type = "text", options = null, required = false, min, max }) {
+  const id = `edit-${name}`;
   return (
-    <div style={{ marginBottom: 16 }}>
-      <label style={{
-        display: "block",
-        fontSize: "var(--fs-2xs)",
-        letterSpacing: "0.14em",
-        color: "#4A5568",
-        marginBottom: 8,
-        fontFamily: "'JetBrains Mono',monospace",
-        fontWeight: 500,
-      }}>
-        {label}{required && <span style={{ color: "#D63B3B", marginLeft: 2 }}>*</span>}
+    <div className="ec-field ec-edit__field">
+      <label className="ec-field__label" htmlFor={id}>
+        {sentenceCase(label)}{required && <span className="ec-edit__req" aria-hidden="true"> *</span>}
       </label>
       {options ? (
-        <select
-          name={name}
-          value={value || ""}
-          onChange={onChange}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: "#F8F6F2",
-            border: "1px solid #E2E8F0",
-            borderRadius: 8,
-            padding: "12px 14px",
-            color: "#0F1923",
-            fontSize: 12,
-            fontFamily: "'JetBrains Mono',monospace",
-            outline: "none",
-          }}
-        >
+        <select id={id} name={name} value={value || ""} onChange={onChange} className="ec-input">
           {options.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       ) : (
         <input
+          id={id}
           type={type}
           name={name}
-          value={value || ""}
+          value={value ?? ""}
           onChange={onChange}
           min={min}
           max={max}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: "#F8F6F2",
-            border: "1px solid #E2E8F0",
-            borderRadius: 8,
-            padding: "12px 14px",
-            color: "#0F1923",
-            fontSize: 12,
-            fontFamily: "'JetBrains Mono',monospace",
-            outline: "none",
-          }}
+          required={required}
+          inputMode={["lotSize", "entryPrice", "exitPrice", "stopLoss", "takeProfit", "profit"].includes(name) ? "decimal" : undefined}
+          className="ec-input ec-input--mono"
         />
       )}
     </div>
@@ -124,6 +103,11 @@ function EditTradePageContent() {
   const [trade, setTrade] = useState(null);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
+  // A failed load used to leave the spinner up forever.
+  const [loadError, setLoadError] = useState(null);
+  const { addToast } = useToast();
+  const { theme } = useTheme();
+  useSystemBars(theme);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [dateError, setDateError] = useState("");
@@ -136,7 +120,10 @@ function EditTradePageContent() {
   const [committingEvidence, setCommittingEvidence] = useState(false);
 
   const fetchTrade = useCallback(async () => {
-    if (resolvedParams?.id) {
+    if (!resolvedParams?.id) { setLoadError({ status: 404 }); setLoading(false); return; }
+    setLoadError(null);
+    setLoading(true);
+    try {
       const data = await getTrade(resolvedParams.id);
       setTrade(data);
       setFormData({
@@ -145,6 +132,9 @@ function EditTradePageContent() {
         strategyCustom: "",
       });
       setSetupRules(normalizeSetupRules(data.setupRules));
+    } catch (err) {
+      setLoadError(err);
+    } finally {
       setLoading(false);
     }
   }, [resolvedParams]);
@@ -291,6 +281,8 @@ function EditTradePageContent() {
         invalidateTradeDependentQueries(queryClient);
         router.push(`/trades/view?id=${resolvedParams.id}`);
       }
+    } catch (err) {
+      addToast(reportUserError("trade_update_failed", err, "We couldn't save your changes. Please try again."), "error");
     } finally {
       setSaving(false);
     }
@@ -302,68 +294,39 @@ function EditTradePageContent() {
   ];
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F0EEE9",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      {/* Fonts */}
-
-      {/* Background */}
-      <CandlestickBackground canvasId="edit-bg-canvas" />
-      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "linear-gradient(135deg, rgba(240,238,233,0.82) 0%, rgba(240,238,233,0.75) 100%)" }}/>
-
-      <PageHeader />
-
-      <TickerTape />
-
-      {/* Main */}
-      <main style={{
-        position: "relative",
-        zIndex: 5,
-        padding: "28px 20px",
-        maxWidth: 600,
-        margin: "0 auto",
-        opacity: mounted ? 1 : 0,
-        transform: mounted ? "translateY(0)" : "translateY(16px)",
-        transition: "all 0.5s cubic-bezier(0.22,1,0.36,1)",
-      }}>
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="2" style={{ animation: "spin 0.8s linear infinite", marginBottom: 14 }}>
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-            <div style={{ fontSize: 11, color: "#94A3B8", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace" }}>
-              LOADING TRADE DATA...
-            </div>
-          </div>
-        ) : (
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher={false} title="Edit trade" />
+      <main className="ec-page ec-edit">
+        <Link href={resolvedParams?.id ? `/trades/view?id=${resolvedParams.id}` : "/trades"} className="ec-psy__back ec-focusable">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to trade
+        </Link>
+        {loadError ? (
+          <ErrorState
+            title={loadError.status === 404 ? "Trade not found" : "Couldn't load this trade"}
+            body={loadError.status === 404 ? "It may have been deleted." : "Check your connection and try again."}
+            onRetry={loadError.status === 404 ? undefined : fetchTrade}
+          />
+        ) : loading ? (
+          <div style={{ display: "grid", gap: 12 }} aria-busy="true">
+            <Placeholder height={40} width={220} radius={8} />
+            <Placeholder height={520} radius={16} />
+          </div>        ) : (
           <>
-            {/* Page title */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 28, fontWeight: 800, letterSpacing: "0.04em", color: "#0F1923", lineHeight: 1.1 }}>
-                  Edit <span style={{ color: "#0D9E6E" }}>Trade</span>
-                </div>
-                <div style={{ fontSize: 12, color: "#94A3B8", letterSpacing: "0.06em", marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
-                  UPDATE YOUR TRADE LOG ENTRY
-                </div>
-              </div>
+            <div className="ec-edit__head">
+              <h1 className="ec-edit__title">Edit trade</h1>
+              <p className="ec-edit__sub">{formData.pair || "Forex"} · changes update your journal and analytics</p>
             </div>
 
             {/* Form card */}
             <div style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2E8F0",
+              background: "var(--lg-card, #FFFFFF)",
+              border: "1px solid var(--lg-line, #E2E8F0)",
               borderRadius: 14,
               overflow: "hidden",
               boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
             }}>
               {/* Top accent */}
-              <div style={{ height: 3, background: "linear-gradient(90deg,#0D9E6E 0%,transparent 45%,transparent 55%,#D63B3B 100%)" }}/>
+              <div style={{ height: 3, background: "linear-gradient(90deg,var(--lg-green, #0D9E6E) 0%,transparent 45%,transparent 55%,var(--lg-red, #D63B3B) 100%)" }}/>
 
               <form onSubmit={handleSubmit} style={{ padding: "24px 20px" }}>
                 <InputField
@@ -392,12 +355,12 @@ function EditTradePageContent() {
                   max={getTodayInputValue()}
                 />
                 {dateError && (
-                  <div style={{ fontSize: 11, color: "#D63B3B", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 11, color: "var(--lg-red, #D63B3B)", marginTop: -10, marginBottom: 16, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     {dateError}
                   </div>
                 )}
                 {!dateError && accountCreatedDate && (
-                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: -10, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", marginTop: -10, marginBottom: 16, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     Earliest allowed: {accountCreatedDate}
                   </div>
                 )}
@@ -445,7 +408,7 @@ function EditTradePageContent() {
                 />
 
                 <div style={{ marginBottom: 18, border: "1px solid rgba(13,158,110,0.22)", borderRadius: 10, overflow: "hidden", background: "rgba(13,158,110,0.04)" }}>
-                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(13,158,110,0.14)", color: "#0D9E6E", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(13,158,110,0.14)", color: "var(--lg-green, #0D9E6E)", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     SETUP {setupsLoading ? "(LOADING...)" : ""}
                   </div>
                   <div style={{ padding: 14 }}>
@@ -489,7 +452,7 @@ function EditTradePageContent() {
                 />
 
                 <div style={{ marginBottom: 18, border: "1px solid rgba(124,58,237,0.22)", borderRadius: 10, overflow: "hidden", background: "rgba(124,58,237,0.04)" }}>
-                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(124,58,237,0.14)", color: "#7C3AED", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ padding: "11px 14px", borderBottom: "1px solid rgba(124,58,237,0.14)", color: "#7C3AED", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     PSYCHOLOGY
                   </div>
                   <div style={{ padding: 14 }}>
@@ -516,7 +479,7 @@ function EditTradePageContent() {
                     )}
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 500 }}>
                         MOOD
                       </label>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8 }}>
@@ -527,7 +490,7 @@ function EditTradePageContent() {
                               key={mood.value}
                               type="button"
                               onClick={() => setFormData((prev) => ({ ...prev, mood: active ? null : mood.value }))}
-                              style={{ minHeight: 62, padding: "8px 4px", borderRadius: 8, border: active ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: active ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: active ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: "var(--fs-2xs)", fontWeight: 800 }}
+                              style={{ minHeight: 62, padding: "8px 4px", borderRadius: 8, border: active ? "2px solid #7C3AED" : "1px solid var(--lg-line, #E2E8F0)", background: active ? "rgba(124,58,237,0.1)" : "var(--lg-card, #FFFFFF)", color: active ? "#7C3AED" : "var(--lg-sub, #64748B)", cursor: "pointer", fontSize: "var(--fs-2xs)", fontWeight: 800 }}
                             >
                               <div style={{ fontSize: 13, marginBottom: 4 }}>{mood.value}</div>
                               <div>{mood.label}</div>
@@ -552,7 +515,7 @@ function EditTradePageContent() {
                     />
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 500 }}>
                         EMOTIONAL TAGS
                       </label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -563,7 +526,7 @@ function EditTradePageContent() {
                               key={tag}
                               type="button"
                               onClick={() => toggleEmotionalTag(tag)}
-                              style={{ padding: "7px 12px", borderRadius: 999, border: selected ? "2px solid #7C3AED" : "1px solid #E2E8F0", background: selected ? "rgba(124,58,237,0.1)" : "#FFFFFF", color: selected ? "#7C3AED" : "#64748B", cursor: "pointer", fontSize: 11, fontWeight: 800 }}
+                              style={{ padding: "7px 12px", borderRadius: 999, border: selected ? "2px solid #7C3AED" : "1px solid var(--lg-line, #E2E8F0)", background: selected ? "rgba(124,58,237,0.1)" : "var(--lg-card, #FFFFFF)", color: selected ? "#7C3AED" : "var(--lg-sub, #64748B)", cursor: "pointer", fontSize: 11, fontWeight: 800 }}
                             >
                               {tag}
                             </button>
@@ -585,25 +548,25 @@ function EditTradePageContent() {
                     />
 
                     <div style={{ marginTop: 16 }}>
-                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
+                      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 500 }}>
                         TRADE QUALITY (EXECUTION)
                       </label>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                         {[
-                          { val: "Great", color: "#0D9E6E", desc: "Followed plan" },
-                          { val: "Average", color: "#F59E0B", desc: "Partial exec." },
-                          { val: "Poor", color: "#D63B3B", desc: "Broke rules" },
+                          { val: "Great", color: "var(--lg-green, #0D9E6E)", desc: "Followed plan" },
+                          { val: "Average", color: "var(--lg-gold, #F59E0B)", desc: "Partial exec." },
+                          { val: "Poor", color: "var(--lg-red, #D63B3B)", desc: "Broke rules" },
                         ].map(q => (
                           <button key={q.val} type="button"
                             onClick={() => setFormData(prev => ({ ...prev, tradeQuality: prev.tradeQuality === q.val ? "" : q.val }))}
                             style={{
                               padding: "10px 4px", borderRadius: 8, cursor: "pointer", textAlign: "center",
-                              border: formData.tradeQuality === q.val ? `2px solid ${q.color}` : "1px solid #E2E8F0",
-                              background: formData.tradeQuality === q.val ? `${q.color}14` : "#F8F6F2",
+                              border: formData.tradeQuality === q.val ? `2px solid ${q.color}` : "1px solid var(--lg-line, #E2E8F0)",
+                              background: formData.tradeQuality === q.val ? `color-mix(in srgb, ${q.color} 8%, transparent)` : "var(--lg-soft, #F8F6F2)",
                               transition: "all 0.2s",
                             }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'JetBrains Mono',monospace" }}>{q.val}</div>
-                            <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 2 }}>{q.desc}</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : "var(--lg-ink, #0F1923)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{q.val}</div>
+                            <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", marginTop: 2 }}>{q.desc}</div>
                           </button>
                         ))}
                       </div>
@@ -617,9 +580,9 @@ function EditTradePageContent() {
                     display: "block",
                     fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
-                    color: "#4A5568",
+                    color: "var(--lg-sub, #4A5568)",
                     marginBottom: 8,
-                    fontFamily: "'JetBrains Mono',monospace",
+                    fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                     fontWeight: 500,
                   }}>
                     RISK : REWARD RATIO
@@ -633,13 +596,13 @@ function EditTradePageContent() {
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
-                      background: "#F8F6F2",
-                      border: "1px solid #E2E8F0",
+                      background: "var(--lg-soft, #F8F6F2)",
+                      border: "1px solid var(--lg-line, #E2E8F0)",
                       borderRadius: 8,
                       padding: "12px 14px",
-                      color: "#0F1923",
+                      color: "var(--lg-ink, #0F1923)",
                       fontSize: 12,
-                      fontFamily: "'JetBrains Mono',monospace",
+                      fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                       outline: "none",
                     }}
                   >
@@ -669,9 +632,9 @@ function EditTradePageContent() {
                     display: "block",
                     fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
-                    color: "#4A5568",
+                    color: "var(--lg-sub, #4A5568)",
                     marginBottom: 8,
-                    fontFamily: "'JetBrains Mono',monospace",
+                    fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                     fontWeight: 500,
                   }}>
                     TRADE SCREENSHOT
@@ -725,23 +688,23 @@ function EditTradePageContent() {
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
-                      background: "#F8F6F2",
-                      border: "1px solid #E2E8F0",
+                      background: "var(--lg-soft, #F8F6F2)",
+                      border: "1px solid var(--lg-line, #E2E8F0)",
                       borderRadius: 8,
                       padding: "12px 14px",
-                      color: "#0F1923",
+                      color: "var(--lg-ink, #0F1923)",
                       fontSize: 12,
-                      fontFamily: "'JetBrains Mono',monospace",
+                      fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                       outline: "none",
                     }}
                   />
                   {screenshotUploading && (
-                    <div style={{ fontSize: 11, color: "#4A5568", marginTop: 8, fontFamily: "'JetBrains Mono',monospace" }}>
+                    <div style={{ fontSize: 11, color: "var(--lg-sub, #4A5568)", marginTop: 8, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                       Uploading screenshot...
                     </div>
                   )}
                   {screenshotError && (
-                    <div style={{ fontSize: 11, color: "#D63B3B", marginTop: 8, lineHeight: 1.5, fontFamily: "'JetBrains Mono',monospace" }}>
+                    <div style={{ fontSize: 11, color: "var(--lg-red, #D63B3B)", marginTop: 8, lineHeight: 1.5, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                       {screenshotError}
                     </div>
                   )}
@@ -751,13 +714,13 @@ function EditTradePageContent() {
                         <img 
                           src={formData.screenshotPreview} 
                           alt="Screenshot preview" 
-                          style={{ maxHeight: 150, borderRadius: 8, border: "1px solid #E2E8F0" }}
+                          style={{ maxHeight: 150, borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)" }}
                         />
                       ) : formData.screenshot ? (
                         <img 
                           src={formData.screenshot}
                           alt="Current screenshot"
-                          style={{ maxHeight: 150, borderRadius: 8, border: "1px solid #E2E8F0" }}
+                          style={{ maxHeight: 150, borderRadius: 8, border: "1px solid var(--lg-line, #E2E8F0)" }}
                         />
                       ) : null}
                     </div>
@@ -779,9 +742,9 @@ function EditTradePageContent() {
                     display: "block",
                     fontSize: "var(--fs-2xs)",
                     letterSpacing: "0.14em",
-                    color: "#4A5568",
+                    color: "var(--lg-sub, #4A5568)",
                     marginBottom: 8,
-                    fontFamily: "'JetBrains Mono',monospace",
+                    fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                     fontWeight: 500,
                   }}>
                     NOTES
@@ -795,64 +758,30 @@ function EditTradePageContent() {
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
-                      background: "#F8F6F2",
-                      border: "1px solid #E2E8F0",
+                      background: "var(--lg-soft, #F8F6F2)",
+                      border: "1px solid var(--lg-line, #E2E8F0)",
                       borderRadius: 8,
                       padding: "12px 14px",
-                      color: "#0F1923",
+                      color: "var(--lg-ink, #0F1923)",
                       fontSize: 12,
-                      fontFamily: "'JetBrains Mono',monospace",
+                      fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                       outline: "none",
                       resize: "vertical",
                     }}
                   />
-                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", textAlign: "right", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", textAlign: "right", marginTop: 4, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     {(formData.notes || "").length}/2000
                   </div>
                 </div>
 
                 {/* Buttons */}
-                <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/trades/view?id=${resolvedParams.id}`)}
-                    style={{
-                      flex: 1,
-                      padding: "14px",
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: 10,
-                      color: "#4A5568",
-                      fontSize: 11,
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontWeight: 600,
-                      letterSpacing: "0.12em",
-                      cursor: "pointer",
-                      boxShadow: "0 2px 8px rgba(15,25,35,0.05)",
-                    }}
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving || screenshotUploading}
-                    style={{
-                      flex: 1,
-                      padding: "14px",
-                      background: (saving || screenshotUploading) ? "#F8F6F2" : "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
-                      border: "none",
-                      borderRadius: 10,
-                      color: (saving || screenshotUploading) ? "#94A3B8" : "#22C78E",
-                      fontSize: 11,
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontWeight: 700,
-                      letterSpacing: "0.12em",
-                      cursor: (saving || screenshotUploading) ? "not-allowed" : "pointer",
-                      boxShadow: (saving || screenshotUploading) ? "none" : "0 4px 16px rgba(15,25,35,0.2)",
-                    }}
-                  >
-                    {saving ? "SAVING..." : screenshotUploading ? "UPLOADING..." : "SAVE CHANGES"}
-                  </button>
+                <div className="ec-edit__actions">
+                  <Button variant="secondary" onClick={() => router.push(`/trades/view?id=${resolvedParams.id}`)} disabled={saving}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" loading={saving} disabled={screenshotUploading}>
+                    {committingEvidence ? "Uploading images…" : saving ? "Saving…" : screenshotUploading ? "Uploading…" : "Save changes"}
+                  </Button>
                 </div>
               </form>
             </div>
@@ -862,7 +791,6 @@ function EditTradePageContent() {
 
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
     </div>
   );
@@ -870,7 +798,7 @@ function EditTradePageContent() {
 
 export default function EditTradePage() {
   return (
-    <React.Suspense fallback={<div>Loading...</div>}>
+    <React.Suspense fallback={null}>
       <EditTradePageContent />
     </React.Suspense>
   );

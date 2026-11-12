@@ -1,34 +1,26 @@
 "use client";
 
-import { C, FONT, cardSurface } from "./tokens";
-import SectionTitle from "./SectionTitle";
+import { LineChart as LineIcon } from "lucide-react";
+import { Card, CardHeader } from "@/features/shared/components/ui";
 import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 
-function CustomTooltip({ active, payload, label }) {
+const SERIES = [
+  { key: "winRate", name: "Win rate %", color: "var(--ec-profit, #0D9E6E)" },
+  { key: "planAdherencePct", name: "Plan followed %", color: "var(--ec-info, #3B82F6)" },
+  { key: "avgSetupScore", name: "Avg setup score", color: "var(--ec-warning, #D97706)", dashed: true },
+];
+
+const AXIS = { fontSize: 11, fill: "var(--ec-text-3, #94A3B8)" };
+
+function ChartTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div
-      style={{
-        background: C.bgDeep,
-        color: "#F8FAFC",
-        padding: "10px 12px",
-        borderRadius: 10,
-        border: `1px solid ${C.border}33`,
-        fontSize: 11,
-        fontFamily: FONT.body,
-      }}
-    >
-      <div style={{ fontWeight: 800, marginBottom: 6 }}>{label}</div>
+    <div className="ec-chart-tip">
+      <div className="ec-chart-tip__title">{label}</div>
       {payload.map((entry) => (
-        <div
-          key={entry.dataKey}
-          style={{
-            color: entry.color,
-            fontFamily: FONT.mono,
-            marginBottom: 2,
-          }}
-        >
-          {entry.name}: {entry.value}
+        <div key={entry.dataKey} className="ec-chart-tip__row">
+          <span>{entry.name}</span>
+          <strong>{entry.value ?? "—"}</strong>
         </div>
       ))}
     </div>
@@ -37,97 +29,47 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function EvolutionChart({ data = [] }) {
   if (!data?.length) return null;
+  const single = data.length < 2;
 
   return (
-    <div style={cardSurface}>
-      <SectionTitle>MONTHLY EVOLUTION</SectionTitle>
-
-      <div style={{ width: "100%", height: 260 }}>
-        <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height="100%">
-          <R.LineChart
-            data={data}
-            margin={{ top: 8, right: 16, left: -10, bottom: 4 }}
-          >
-            <R.CartesianGrid stroke={C.rowDivider} strokeDasharray="3 3" />
-            <R.XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: C.muted, fontFamily: FONT.mono }}
-              tickLine={false}
-              axisLine={{ stroke: C.border }}
-            />
-            <R.YAxis
-              tick={{ fontSize: 11, fill: C.muted, fontFamily: FONT.mono }}
-              tickLine={false}
-              axisLine={{ stroke: C.border }}
-              domain={[0, 100]}
-            />
-            <R.Tooltip content={<CustomTooltip />} />
-            <R.Line
-              type="monotone"
-              dataKey="winRate"
-              name="Win rate %"
-              stroke={C.bull}
-              strokeWidth={2}
-              dot={{ r: 3, fill: C.bull }}
-              activeDot={{ r: 5 }}
-            />
-            <R.Line
-              type="monotone"
-              dataKey="planAdherencePct"
-              name="Plan adherence %"
-              stroke={C.purple}
-              strokeWidth={2}
-              dot={{ r: 3, fill: C.purple }}
-              activeDot={{ r: 5 }}
-            />
-            <R.Line
-              type="monotone"
-              dataKey="avgSetupScore"
-              name="Avg setup score"
-              stroke={C.blue}
-              strokeWidth={2}
-              dot={{ r: 3, fill: C.blue }}
-              activeDot={{ r: 5 }}
-            />
-          </R.LineChart>
-        </R.ResponsiveContainer>
-)}</LazyRecharts>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          flexWrap: "wrap",
-          marginTop: 10,
-          fontSize: "var(--fs-2xs)",
-          color: C.muted,
-          fontFamily: FONT.mono,
-          letterSpacing: "0.04em",
-        }}
-      >
-        <LegendDot color={C.bull} label="Win rate" />
-        <LegendDot color={C.purple} label="Plan adherence" />
-        <LegendDot color={C.blue} label="Avg setup score" />
-      </div>
-    </div>
-  );
-}
-
-function LegendDot({ color, label }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          background: color,
-          borderRadius: 99,
-          display: "inline-block",
-        }}
+    <Card>
+      <CardHeader
+        title={<span className="ec-dna__title-icon"><LineIcon size={16} aria-hidden="true" className="ec-tone--info" /> Month by month</span>}
+        subtitle={single ? "One month so far. The trend line appears once there's a second." : "How your habits have moved over time"}
       />
-      {label}
-    </span>
+      <div className="ec-dna__chart">
+        <LazyRecharts>{(R) => (
+          <R.ResponsiveContainer width="100%" height="100%">
+            <R.LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <R.CartesianGrid stroke="var(--ec-border, #F1F5F9)" strokeDasharray="3 3" vertical={false} />
+              <R.XAxis dataKey="month" tick={AXIS} tickLine={false} axisLine={false} />
+              <R.YAxis domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={30} />
+              <R.Tooltip content={<ChartTip />} cursor={{ stroke: "var(--ec-border-strong, #CBD5E1)" }} />
+              {SERIES.map((s) => (
+                <R.Line
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color}
+                  strokeWidth={2}
+                  strokeDasharray={s.dashed ? "5 3" : undefined}
+                  dot={{ r: single ? 4 : 2.5, fill: s.color, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                  connectNulls
+                />
+              ))}
+            </R.LineChart>
+          </R.ResponsiveContainer>
+        )}</LazyRecharts>
+      </div>
+      <div className="ec-disc__legend ec-dna__legend">
+        {SERIES.map((s) => (
+          <span key={s.key}>
+            <i style={{ background: s.color }} aria-hidden="true" /> {s.name}
+          </span>
+        ))}
+      </div>
+    </Card>
   );
 }

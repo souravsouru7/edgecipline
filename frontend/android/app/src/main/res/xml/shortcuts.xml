@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Long-press the app icon: "Log a trade" and "Checklist".
+  Each opens MainActivity with an edgecipline://shortcut/<name> link, which
+  Capacitor's App plugin passes to the web app (components/AppShortcuts.jsx).
+  The explicit targetClass means no deep-link intent-filter is needed.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="log_trade"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_log_trade"
+        android:shortcutShortLabel="@string/shortcut_log_trade_short"
+        android:shortcutLongLabel="@string/shortcut_log_trade_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.edgecipline"
+            android:targetClass="com.edgecipline.MainActivity"
+            android:data="edgecipline://shortcut/log-trade" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="checklist"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_checklist"
+        android:shortcutShortLabel="@string/shortcut_checklist_short"
+        android:shortcutLongLabel="@string/shortcut_checklist_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.edgecipline"
+            android:targetClass="com.edgecipline.MainActivity"
+            android:data="edgecipline://shortcut/checklist" />
+    </shortcut>
+</shortcuts>

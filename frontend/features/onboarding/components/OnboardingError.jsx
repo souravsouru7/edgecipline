@@ -18,9 +18,9 @@ export default function OnboardingError({ error, onRetry, retrying }) {
         marginTop: 12,
         padding: "10px 12px",
         borderRadius: 10,
-        background: "rgba(214, 59, 59, 0.10)",
-        border: "1px solid rgba(214, 59, 59, 0.30)",
-        color: "#FCA5A5",
+        background: "color-mix(in srgb, var(--ec-loss) 10%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--ec-loss) 30%, transparent)",
+        color: "var(--ec-loss)",
         display: "flex",
         gap: 10,
         alignItems: "flex-start",
@@ -28,10 +28,10 @@ export default function OnboardingError({ error, onRetry, retrying }) {
     >
       <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: "#F87171" }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ec-loss)" }}>
           {"Couldn't save that step"}
         </div>
-        <div style={{ fontSize: 11, color: "#FCA5A5", marginTop: 2, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: "var(--ec-loss)", marginTop: 2, lineHeight: 1.5 }}>
           {message}
         </div>
       </div>
@@ -41,9 +41,9 @@ export default function OnboardingError({ error, onRetry, retrying }) {
           onClick={onRetry}
           disabled={retrying}
           style={{
-            background: "rgba(214,59,59,0.18)",
-            border: "1px solid rgba(214,59,59,0.40)",
-            color: "#F87171",
+            background: "color-mix(in srgb, var(--ec-loss) 18%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--ec-loss) 40%, transparent)",
+            color: "var(--ec-loss)",
             padding: "5px 10px",
             borderRadius: 8,
             fontSize: 11,

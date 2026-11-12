@@ -5,6 +5,9 @@ const config: CapacitorConfig = {
   appId: 'com.edgecipline',
   appName: 'Edgecipline',
   webDir: 'out',
+  // WebView canvas before the page paints (both platforms). Matches the dark
+  // splash and --ec-bg, so launch never flashes white or beige.
+  backgroundColor: '#0A0D12',
   plugins: {
     // No SplashScreen block here on purpose. @capacitor/splash-screen is not a
     // dependency of this app, so any config under that key is inert — and
@@ -39,7 +42,10 @@ const config: CapacitorConfig = {
       providers: ['google.com', 'apple.com'],
     },
     PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert'],
+      // iOS only (Android ignores it). No 'alert': while the app is open the
+      // in-app toast (PushNotificationToast) shows the push, and the system
+      // banner on top of it made every foreground push appear twice.
+      presentationOptions: ['badge', 'sound'],
     },
     // Pair with android:windowSoftInputMode="adjustResize" in the manifest:
     // the WebView body shrinks when the keyboard opens, so 100dvh layouts and

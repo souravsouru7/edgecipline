@@ -77,13 +77,13 @@ export default function TradeEvidenceGallery({
         .teg-root { margin-top: 12px; }
         .teg-title {
           font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.1em;
-          color: #64748B; font-family: 'JetBrains Mono', monospace;
+          color: var(--lg-sub, #64748B); font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           margin-bottom: 8px;
           display: flex; align-items: center; justify-content: space-between;
         }
         .teg-count {
-          font-size: var(--fs-2xs); color: #94A3B8;
-          font-family: 'JetBrains Mono', monospace;
+          font-size: var(--fs-2xs); color: var(--lg-muted, #94A3B8);
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         .teg-grid {
           display: grid;
@@ -93,8 +93,8 @@ export default function TradeEvidenceGallery({
         .teg-thumb {
           position: relative; aspect-ratio: 4/3;
           border-radius: 10px; overflow: hidden;
-          cursor: pointer; border: 1px solid #E2E8F0;
-          background: #F1F4F8;
+          cursor: pointer; border: 1px solid var(--lg-line, #E2E8F0);
+          background: var(--lg-soft, #F1F4F8);
         }
         .teg-thumb img {
           width: 100%; height: 100%; object-fit: cover; display: block;
@@ -103,10 +103,10 @@ export default function TradeEvidenceGallery({
         .teg-thumb:hover img { transform: scale(1.04); }
         .teg-thumb-idx {
           position: absolute; bottom: 4px; right: 4px;
-          background: rgba(15,25,35,0.75); color: #FFFFFF;
+          background: rgba(15,25,35,0.75); color: var(--lg-card, #FFFFFF);
           font-size: var(--fs-2xs); font-weight: 700;
           padding: 2px 6px; border-radius: 4px;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         /* Fullscreen viewer */
         .teg-viewer {
@@ -123,24 +123,24 @@ export default function TradeEvidenceGallery({
           position: absolute; top: 16px; right: 16px;
           width: 40px; height: 40px; border-radius: 50%;
           border: none; background: rgba(255,255,255,0.12);
-          color: #FFFFFF; cursor: pointer;
+          color: var(--lg-card, #FFFFFF); cursor: pointer;
           display: flex; align-items: center; justify-content: center;
         }
         .teg-viewer-nav {
           position: absolute; top: 50%; transform: translateY(-50%);
           width: 44px; height: 44px; border-radius: 50%;
           border: none; background: rgba(255,255,255,0.12);
-          color: #FFFFFF; cursor: pointer;
+          color: var(--lg-card, #FFFFFF); cursor: pointer;
           display: flex; align-items: center; justify-content: center;
         }
         .teg-viewer-nav.prev { left: 16px; }
         .teg-viewer-nav.next { right: 16px; }
         .teg-viewer-counter {
           position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-          background: rgba(255,255,255,0.12); color: #FFFFFF;
+          background: rgba(255,255,255,0.12); color: var(--lg-card, #FFFFFF);
           padding: 6px 14px; border-radius: 999px;
           font-size: 13px; font-weight: 600;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         @media (max-width: 600px) {
           .teg-grid { grid-template-columns: repeat(3, 1fr); }

@@ -54,3 +54,32 @@ export function pnlColor(value) {
   if (n < 0) return C.bear;
   return C.muted;
 }
+
+// Accent per archetype, shared by the report hero and the public share page.
+// Unknown archetypes fall back to purple; the low-sample (null) case is muted.
+export const ARCHETYPE_ACCENTS = {
+  "Patient Sniper": "#A855F7",
+  "Momentum Rider": "#F97316",
+  "Disciplined Grinder": "#0D9E6E",
+  "Volatility Surfer": "#06B6D4",
+  "Reactive Improviser": "#F43F5E",
+  "Range Hunter": "#10B981",
+  "Breakout Hunter": "#F59E0B",
+  "Risk Curator": "#3B82F6",
+  "Mean Reversion Specialist": "#8B5CF6",
+  "Trend Follower": "#0EA5E9",
+  Scalper: "#EC4899",
+  "Swing Builder": "#22C55E",
+};
+
+export function archetypeAccent(archetype) {
+  if (!archetype) return "#94A3B8";
+  return ARCHETYPE_ACCENTS[archetype] || C.purple;
+}
+
+export function formatReportDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}

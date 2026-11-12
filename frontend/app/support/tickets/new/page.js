@@ -555,10 +555,8 @@ function NewTicketForm() {
           border: 1px solid rgba(13, 158, 110, 0.22);
         }
         .nt-suggest-head {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.07em;
-          text-transform: uppercase;
+          font-size: 13px;
+          font-weight: 600;
           color: var(--color-primary);
           margin-bottom: 9px;
         }
@@ -576,7 +574,7 @@ function NewTicketForm() {
           margin-bottom: 6px;
         }
         .nt-suggest-row:hover {
-          background: #fff;
+          background: var(--color-surface);
           box-shadow: 0 2px 8px rgba(15, 25, 35, 0.06);
         }
         .nt-suggest-row:focus-visible {
@@ -721,8 +719,8 @@ function NewTicketForm() {
           padding: 0 26px;
           border: none;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13.5px;
           font-weight: 700;
           cursor: pointer;

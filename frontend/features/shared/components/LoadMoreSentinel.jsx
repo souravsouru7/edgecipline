@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 // Sits under a paginated list. Loads the next page when it scrolls into view
 // (or on tap, for users who scroll faster than the network), so a trader with
 // a thousand trades gets them 50 at a time instead of a 1,000-row DOM.
-export default function LoadMoreSentinel({ hasMore, loading, onLoadMore, label = "Load more trades", loaded, total }) {
+export default function LoadMoreSentinel({ hasMore, loading, onLoadMore, label = "Load more trades", loaded, total, themed = false }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -29,7 +29,8 @@ export default function LoadMoreSentinel({ hasMore, loading, onLoadMore, label =
         type="button"
         onClick={onLoadMore}
         disabled={loading}
-        style={{
+        className={themed ? "ec-btn ec-btn--secondary" : undefined}
+        style={themed ? { minHeight: 44, borderRadius: 999 } : {
           minHeight: 44,
           padding: "0 18px",
           borderRadius: 999,

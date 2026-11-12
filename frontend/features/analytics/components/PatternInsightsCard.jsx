@@ -3,15 +3,15 @@
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const C = {
-  bull:    "#0D9E6E",
-  bear:    "#D63B3B",
-  gold:    "#B8860B",
+  bull:    "var(--lg-green, #0D9E6E)",
+  bear:    "var(--lg-red, #D63B3B)",
+  gold:    "var(--lg-gold, #B8860B)",
   purple:  "#8B5CF6",
-  primary: "#0F1923",
-  muted:   "#94A3B8",
-  border:  "#E2E8F0",
-  card:    "#FFFFFF",
-  warning: "#F59E0B",
+  primary: "var(--lg-ink, #0F1923)",
+  muted:   "var(--lg-muted, #94A3B8)",
+  border:  "var(--lg-line, #E2E8F0)",
+  card:    "var(--lg-card, #FFFFFF)",
+  warning: "var(--lg-gold, #F59E0B)",
   info:    "#3B82F6",
 };
 
@@ -24,15 +24,15 @@ function fmt(n) {
 
 function confidencePill(level) {
   const map = {
-    High:   { bg: "#DCFCE7", color: "#166534" },
-    Medium: { bg: "#FEF9C3", color: "#854D0E" },
-    Low:    { bg: "#FEE2E2", color: "#991B1B" },
+    High:   { bg: "var(--lg-green-soft, #DCFCE7)", color: "var(--lg-green, #166534)" },
+    Medium: { bg: "var(--lg-gold-soft, #FEF9C3)", color: "var(--lg-gold, #854D0E)" },
+    Low:    { bg: "var(--lg-red-soft, #FEE2E2)", color: "var(--lg-red, #991B1B)" },
   };
-  const style = map[level] || { bg: "#F1F5F9", color: "#475569" };
+  const style = map[level] || { bg: "var(--lg-line, #F1F5F9)", color: "var(--lg-sub, #475569)" };
   return (
     <span style={{
       fontSize: "var(--fs-2xs)", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-      background: style.bg, color: style.color, fontFamily: "'JetBrains Mono',monospace",
+      background: style.bg, color: style.color, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
       textTransform: "uppercase", letterSpacing: "0.05em",
     }}>
       {level}
@@ -53,7 +53,7 @@ function PnLBadge({ netPnl }) {
   const v = parseFloat(netPnl || 0);
   return (
     <span style={{
-      fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace",
+      fontSize: 12, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
       color: v >= 0 ? C.bull : C.bear,
     }}>
       {fmt(v)}
@@ -72,7 +72,7 @@ function PatternRow({ label, winRate, netPnl, count, confidence, accent }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 12, fontWeight: 600, color: C.primary,
-          fontFamily: "'Plus Jakarta Sans',sans-serif",
+          fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
           {label}
@@ -96,15 +96,15 @@ function StreakBlock({ label, stats, accent }) {
   if (!stats) return null;
   return (
     <div style={{
-      background: `${accent}10`, border: `1px solid ${accent}30`,
+      background: `color-mix(in srgb, ${accent} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)`,
       borderRadius: 8, padding: "8px 12px", flex: "1 1 120px", minWidth: 100,
     }}>
       <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: accent }}>
+      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: accent }}>
         {stats.winRate}%
       </div>
       <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>Win Rate</div>
-      <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: parseFloat(stats.netPnl) >= 0 ? C.bull : C.bear, marginTop: 2 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: parseFloat(stats.netPnl) >= 0 ? C.bull : C.bear, marginTop: 2 }}>
         {fmt(stats.netPnl)}
       </div>
       <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>{stats.count} trades · {stats.confidence}</div>
@@ -119,9 +119,9 @@ function SectionHeading({ icon, title, subtitle }) {
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
         <span style={{ fontSize: 14 }}>{icon}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{title}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>{title}</span>
       </div>
-      {subtitle && <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{subtitle}</div>}
     </div>
   );
 }
@@ -135,7 +135,7 @@ function Card({ children, accentColor = C.primary, delay = 0 }) {
       overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.05)",
       animation: `fadeUp 0.5s ease ${delay}s both`,
     }}>
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, ${accentColor}22)` }} />
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 13%, transparent))` }} />
       <div style={{ padding: "16px 20px" }}>{children}</div>
     </div>
   );
@@ -147,10 +147,10 @@ function InsightBanner({ text, color = C.info }) {
   if (!text) return null;
   return (
     <div style={{
-      background: `${color}10`, border: `1px solid ${color}30`,
+      background: `color-mix(in srgb, ${color} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 19%, transparent)`,
       borderRadius: 8, padding: "8px 12px", marginTop: 10,
       fontSize: 11, color: C.primary, lineHeight: 1.5,
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
+      fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
     }}>
       <span style={{ color, fontWeight: 700 }}>Insight: </span>{text}
     </div>
@@ -163,7 +163,7 @@ function NotEnoughData({ message }) {
   return (
     <div style={{
       textAlign: "center", padding: "32px 20px",
-      color: C.muted, fontSize: 13, fontFamily: "'Plus Jakarta Sans',sans-serif",
+      color: C.muted, fontSize: 13, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
     }}>
       <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
       <div style={{ fontWeight: 600, color: C.primary, marginBottom: 4 }}>No Patterns Yet</div>
@@ -203,18 +203,18 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
           {summary.topPositivePattern && (
             <Card accentColor={C.bull} delay={delay}>
               <SectionHeading icon="✅" title="Top Positive Pattern" subtitle={`${summary.topPositivePattern.confidence?.toUpperCase()} CONFIDENCE · ${summary.topPositivePattern.count} TRADES`} />
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", marginBottom: 6 }}>
                 {summary.topPositivePattern.description}
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     +{summary.topPositivePattern.netPnl?.toFixed?.(2) ?? summary.topPositivePattern.netPnl}
                   </div>
                   <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bull, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     {summary.topPositivePattern.winRate}%
                   </div>
                   <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
@@ -225,18 +225,18 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
           {summary.topNegativePattern && (
             <Card accentColor={C.bear} delay={delay + 0.05}>
               <SectionHeading icon="⚠️" title="Top Negative Pattern" subtitle={`${summary.topNegativePattern.confidence?.toUpperCase()} CONFIDENCE · ${summary.topNegativePattern.count} TRADES`} />
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", marginBottom: 6 }}>
                 {summary.topNegativePattern.description}
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     {summary.topNegativePattern.netPnl?.toFixed?.(2) ?? summary.topNegativePattern.netPnl}
                   </div>
                   <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Net P&L</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                     {summary.topNegativePattern.winRate}%
                   </div>
                   <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, textTransform: "uppercase" }}>Win Rate</div>
@@ -458,14 +458,14 @@ export default function PatternInsightsCard({ patterns, delay = 0 }) {
                 padding: "10px 0", borderBottom: `1px solid ${C.border}`,
               }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primary, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.primary, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>
                     {r.rule}
                   </div>
                   <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>
                     Broken {r.brokenCount}× · avg {r.avgCost} per violation · {confidencePill(r.confidence)}
                   </div>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.bear }}>
+                <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: C.bear }}>
                   {r.totalCost}
                 </span>
               </div>

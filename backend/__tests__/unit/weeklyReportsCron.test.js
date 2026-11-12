@@ -7,6 +7,8 @@ jest.mock("../../config", () => ({
 jest.mock("../../utils/logger", () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 jest.mock("../../repositories/user.repository", () => ({ findUsersForSessionReminders: jest.fn() }));
 jest.mock("../../services/userMarketService", () => ({ resolveActiveMarketsForUsers: jest.fn() }));
+jest.mock("../../models/Trade", () => ({ distinct: jest.fn() }));
+jest.mock("../../models/IndianTrade", () => ({ distinct: jest.fn() }));
 jest.mock("../../services/notificationService", () => ({
   notifyUser: jest.fn().mockResolvedValue({ _id: "n", status: "sent" }),
 }));
@@ -14,6 +16,8 @@ jest.mock("../../services/notificationService", () => ({
 const userRepository = require("../../repositories/user.repository");
 const { resolveActiveMarketsForUsers } = require("../../services/userMarketService");
 const notificationService = require("../../services/notificationService");
+const Trade = require("../../models/Trade");
+const IndianTrade = require("../../models/IndianTrade");
 const { runWeeklyReportsJob, sendRemindersForUser } = require("../../jobs/weeklyReportsCron");
 
 function sent() {
@@ -21,7 +25,21 @@ function sent() {
 }
 
 describe("weeklyReportsCron market gating", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Everyone traded in both markets this week unless a test says otherwise.
+    Trade.distinct.mockResolvedValue(["fx", "both", "none"]);
+    IndianTrade.distinct.mockResolvedValue(["in", "both", "none"]);
+  });
+
+  it("skips a market the user did not trade in during the last 7 days", async () => {
+    userRepository.findUsersForSessionReminders.mockResolvedValue([{ _id: "both" }]);
+    resolveActiveMarketsForUsers.mockResolvedValue(new Map([["both", new Set(["Forex", "Indian_Market"])]]));
+    Trade.distinct.mockResolvedValue([]);              // no Forex trades this week
+    IndianTrade.distinct.mockResolvedValue(["both"]);
+    await runWeeklyReportsJob();
+    expect(sent()).toEqual(["both:Indian_Market:/weekly-reports?market=Indian_Market"]);
+  });
 
   it("sends one reminder per active market with the matching route", async () => {
     userRepository.findUsersForSessionReminders.mockResolvedValue([{ _id: "fx" }, { _id: "in" }, { _id: "both" }, { _id: "none" }]);
@@ -33,10 +51,10 @@ describe("weeklyReportsCron market gating", () => {
     ]));
     await runWeeklyReportsJob();
     expect(sent()).toEqual([
-      "both:Forex:/weekly-reports?marketType=Forex",
-      "both:Indian_Market:/weekly-reports?marketType=Indian_Market",
-      "fx:Forex:/weekly-reports?marketType=Forex",
-      "in:Indian_Market:/weekly-reports?marketType=Indian_Market",
+      "both:Forex:/weekly-reports?market=Forex",
+      "both:Indian_Market:/weekly-reports?market=Indian_Market",
+      "fx:Forex:/weekly-reports?market=Forex",
+      "in:Indian_Market:/weekly-reports?market=Indian_Market",
     ]);
   });
 

@@ -9,7 +9,7 @@ function ReflectionScoreRing({ score = 0, size = 60, stroke = 6 }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (safeScore / 100) * circumference;
-  const color = safeScore >= 70 ? "#0D9E6E" : safeScore >= 40 ? "#F59E0B" : "#D63B3B";
+  const color = safeScore >= 70 ? "var(--lg-green, #0D9E6E)" : safeScore >= 40 ? "var(--lg-gold, #F59E0B)" : "var(--lg-red, #D63B3B)";
 
   return (
     <div style={{ position: "relative", width: size, height: size }}>
@@ -19,7 +19,7 @@ function ReflectionScoreRing({ score = 0, size = 60, stroke = 6 }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#E2E8F0"
+          stroke="var(--lg-soft-2, #E2E8F0)"
           strokeWidth={stroke}
         />
         <circle
@@ -46,7 +46,7 @@ function ReflectionScoreRing({ score = 0, size = 60, stroke = 6 }) {
           flexDirection: "column",
           color,
           fontWeight: 800,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
         }}
       >
         <span style={{ fontSize: size / 4, lineHeight: 1 }}>{safeScore}</span>

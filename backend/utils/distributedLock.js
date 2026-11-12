@@ -181,7 +181,11 @@ async function extendLock(key, token, ttlSeconds) {
  * Lock expiry guarantees the lock self-clears even if the process crashes
  * while holding it — pick ttlSeconds > max expected runtime, with headroom.
  */
-async function withCronLock({ name, lockSuffix, ttlSeconds }, fn) {
+// holdUntilExpiry: keep the lock for its full TTL instead of releasing it as
+// soon as fn finishes. Use it for once-per-slot jobs (one reminder per user
+// per day/quarter-hour): releasing early let a second instance whose tick
+// fired a few seconds later acquire the same slot key and run the job again.
+async function withCronLock({ name, lockSuffix, ttlSeconds, holdUntilExpiry = false }, fn) {
   if (!name || !lockSuffix || !ttlSeconds) {
     throw new Error("withCronLock requires { name, lockSuffix, ttlSeconds }");
   }
@@ -192,11 +196,14 @@ async function withCronLock({ name, lockSuffix, ttlSeconds }, fn) {
     return { acquired: false, skipped: true, key };
   }
 
+  let succeeded = false;
   try {
     const result = await fn();
+    succeeded = true;
     return { acquired: true, skipped: false, degraded, key, result };
   } finally {
-    await releaseLock(key, token);
+    // A failed run always releases so the slot can be retried.
+    if (!holdUntilExpiry || !succeeded) await releaseLock(key, token);
   }
 }
 

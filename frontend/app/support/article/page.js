@@ -130,10 +130,8 @@ function Helpful({ slug, config }) {
           }
           .hp-label {
             display: block;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
+            font-size: 13px;
+            font-weight: 600;
             color: var(--color-text-muted);
             margin-bottom: 8px;
           }
@@ -163,8 +161,8 @@ function Helpful({ slug, config }) {
             padding: 0 20px;
             border: none;
             border-radius: 10px;
-            background: var(--color-dark);
-            color: var(--color-primary-light);
+            background: var(--ec-accent);
+            color: var(--ec-on-accent);
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
@@ -191,9 +189,7 @@ function Helpful({ slug, config }) {
           }
           .hp-sub {
             font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.09em;
-            text-transform: uppercase;
+            font-weight: 600;
             color: var(--color-text-muted);
             margin: 0 0 12px;
           }
@@ -332,8 +328,8 @@ function ArticleReader() {
             display: inline-block;
             padding: 11px 20px;
             border-radius: 10px;
-            background: var(--color-dark);
-            color: var(--color-primary-light);
+            background: var(--ec-accent);
+            color: var(--ec-on-accent);
             font-size: 13px;
             font-weight: 700;
             text-decoration: none;
@@ -383,8 +379,6 @@ function ArticleReader() {
           font-family: var(--font-jetbrains-mono);
           font-size: 10.5px;
           font-weight: 700;
-          letter-spacing: 0.13em;
-          text-transform: uppercase;
           color: var(--color-primary);
           margin-bottom: 10px;
         }
@@ -408,11 +402,9 @@ function ArticleReader() {
           margin: 24px 0;
         }
         .ad-h2 {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.09em;
-          text-transform: uppercase;
-          color: var(--color-text-muted);
+          font-size: 17px;
+          font-weight: 600;
+          color: var(--color-dark);
           margin: 0 0 12px;
         }
         .ad-rel {

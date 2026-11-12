@@ -29,5 +29,18 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(EdgeAuthStoragePlugin())
         bridge?.registerPluginInstance(EdgeStoreKitPlugin())
         bridge?.registerPluginInstance(ChecklistNotificationPlugin())
+
+        // Edge swipe from the left goes back, like every native iOS app. The
+        // web app routes with the History API, so a WebView "back" is an
+        // in-app back.
+        webView?.allowsBackForwardNavigationGestures = true
+
+        // Paint the app's dark canvas (--ec-bg) behind the page instead of
+        // white, so launch -> first paint and over-scroll never flash white.
+        let canvas = UIColor(red: 10 / 255, green: 13 / 255, blue: 18 / 255, alpha: 1)
+        view.backgroundColor = canvas
+        webView?.isOpaque = false
+        webView?.backgroundColor = canvas
+        webView?.scrollView.backgroundColor = canvas
     }
 }

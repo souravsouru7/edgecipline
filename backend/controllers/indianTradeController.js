@@ -69,6 +69,10 @@ function userMatch(userId) {
 }
 
 const INDIAN_TRADE_LIST_PROJECTION = [
+  // Journal rows show setup, checklist score and mistake tag.
+  "setup",
+  "setupScore",
+  "mistakeTag",
   "pair",
   "underlying",
   "type",

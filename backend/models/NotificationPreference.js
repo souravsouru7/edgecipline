@@ -18,6 +18,9 @@ const NotificationPreferenceSchema = new mongoose.Schema(
     repeatedMistakes: { type: Boolean, default: true },
     moodRisk: { type: Boolean, default: true },
     noStopLoss: { type: Boolean, default: true },
+    // Its own switch: it used to ride on noStopLoss, so silencing stop-loss
+    // nags also silenced the "you're down X today" warning.
+    dailyLossWarning: { type: Boolean, default: true },
     weeklyInsight: { type: Boolean, default: true },
     sessionReminders: { type: Boolean, default: true },
     morningMentor: { type: Boolean, default: true },
@@ -27,6 +30,9 @@ const NotificationPreferenceSchema = new mongoose.Schema(
     // separately from smartCoach — switching off coaching nudges must not
     // silence the answer to a support request.
     supportUpdates: { type: Boolean, default: true },
+    // Renewal reminders, win-back and free-tier upgrade nudges. Previously
+    // only switchable by turning push off entirely.
+    promotions: { type: Boolean, default: true },
     quietHours: {
       enabled: { type: Boolean, default: false },
       start: { type: String, default: "22:00" },

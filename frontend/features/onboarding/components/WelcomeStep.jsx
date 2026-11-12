@@ -1,16 +1,16 @@
 "use client";
 
+// The steps after this one, in the server's order (onboardingService
+// FLOW_STEPS), so this list matches the progress bar above it.
 const ROADMAP = [
   "Market",
-  "Style",
   "Setup",
-  "Trade",
-  "AI insight",
-  "Review",
+  "Import a trade",
+  "Journal review",
 ];
 
 const BULLETS = [
-  { marker: "01", title: "Pick your edge", sub: "Market and style tell the coach how you trade." },
+  { marker: "01", title: "Pick your market", sub: "Forex or Indian, so your setup and examples fit how you trade." },
   { marker: "02", title: "Save the setup", sub: "Your setup becomes the pattern every trade is measured against." },
   { marker: "03", title: "Log one trade", sub: "Upload a screenshot or type it in, then the coach reviews it with you." },
 ];
@@ -21,15 +21,13 @@ export default function WelcomeStep() {
       <div style={{
         padding: "12px 14px",
         borderRadius: 12,
-        background: "rgba(255,255,255,0.035)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "color-mix(in srgb, var(--ec-text) 4%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--ec-text) 8%, transparent)",
       }}>
         <div style={{
-          fontSize: 11,
-          fontWeight: 800,
-          color: "#22C78E",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--ec-text)",
           marginBottom: 8,
         }}>
           What happens next
@@ -44,14 +42,14 @@ export default function WelcomeStep() {
                 gap: 6,
                 padding: "6px 8px",
                 borderRadius: 999,
-                background: "rgba(34,199,142,0.08)",
-                border: "1px solid rgba(34,199,142,0.18)",
-                color: "#CBD5E1",
+                background: "color-mix(in srgb, var(--ec-accent) 8%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--ec-accent) 18%, transparent)",
+                color: "var(--ec-text-2)",
                 fontSize: "var(--fs-2xs)",
                 fontWeight: 800,
               }}
             >
-              <span style={{ color: "#22C78E", fontFamily: "'JetBrains Mono', monospace" }}>{index + 1}</span>
+              <span style={{ color: "var(--ec-accent-text)", fontFamily: "'JetBrains Mono', monospace" }}>{index + 1}</span>
               {step}
             </span>
           ))}
@@ -67,8 +65,8 @@ export default function WelcomeStep() {
             alignItems: "flex-start",
             padding: "12px 14px",
             borderRadius: 12,
-            background: "rgba(34,199,142,0.06)",
-            border: "1px solid rgba(34,199,142,0.18)",
+            background: "color-mix(in srgb, var(--ec-accent) 6%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--ec-accent) 18%, transparent)",
           }}
         >
           <span
@@ -77,8 +75,8 @@ export default function WelcomeStep() {
               minWidth: 28,
               height: 24,
               borderRadius: 8,
-              background: "rgba(34,199,142,0.12)",
-              color: "#22C78E",
+              background: "color-mix(in srgb, var(--ec-accent) 12%, transparent)",
+              color: "var(--ec-accent-text)",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -90,8 +88,8 @@ export default function WelcomeStep() {
             {b.marker}
           </span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#F1F5F9" }}>{b.title}</div>
-            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, lineHeight: 1.45 }}>{b.sub}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ec-text)" }}>{b.title}</div>
+            <div style={{ fontSize: 11, color: "var(--ec-text-2)", marginTop: 2, lineHeight: 1.45 }}>{b.sub}</div>
           </div>
         </div>
       ))}

@@ -9,7 +9,11 @@
  * the session definitions in sessionReminderCron own their reminder times.
  */
 
-const { INDIAN_MARKET_HOLIDAYS } = require("../constants/indianMarketHolidays");
+const {
+  INDIAN_MARKET_HOLIDAYS,
+  INDIAN_MARKET_RECURRING_HOLIDAYS,
+} = require("../constants/indianMarketHolidays");
+const { logger } = require("./logger");
 const {
   DEFAULT_NOTIFICATION_TIMEZONE,
   getLocalDateKey,
@@ -42,6 +46,22 @@ function getIndianMarketHolidays() {
   return new Set(override.length ? override : INDIAN_MARKET_HOLIDAYS);
 }
 
+// The interbank FX market is effectively shut on these days every year.
+const FOREX_HOLIDAYS_MMDD = new Set(["12-25", "01-01"]);
+
+const warnedMissingHolidayYears = new Set();
+function warnIfHolidayYearMissing(holidays, year) {
+  if (warnedMissingHolidayYears.has(year)) return;
+  const hasYear = [...holidays].some((day) => day.startsWith(`${year}-`));
+  if (hasYear) return;
+  warnedMissingHolidayYears.add(year);
+  logger.warn("INDIAN_MARKET_HOLIDAYS_MISSING_FOR_YEAR", {
+    year,
+    action: "Add the NSE circular dates to constants/indianMarketHolidays.js or set INDIAN_MARKET_HOLIDAYS",
+    fallback: "fixed-date national holidays only",
+  });
+}
+
 function isWeekend(date, timezone) {
   const day = getLocalDayOfWeek(date, timezone);
   return day === 0 || day === 6;
@@ -54,6 +74,9 @@ function isWeekend(date, timezone) {
  */
 function getForexTradingDayStatus(date = new Date(), timezone = DEFAULT_NOTIFICATION_TIMEZONE) {
   if (isWeekend(date, timezone)) return { open: false, reason: CLOSED_REASONS.WEEKEND };
+  if (FOREX_HOLIDAYS_MMDD.has(getLocalDateKey(date, timezone).slice(5))) {
+    return { open: false, reason: CLOSED_REASONS.HOLIDAY };
+  }
   return { open: true, reason: null };
 }
 
@@ -68,7 +91,17 @@ function isForexTradingDay(date = new Date(), timezone = DEFAULT_NOTIFICATION_TI
 function getIndianMarketDayStatus(date = new Date()) {
   if (isWeekend(date, INDIAN_MARKET_TIMEZONE)) return { open: false, reason: CLOSED_REASONS.WEEKEND };
   const dayKey = getLocalDateKey(date, INDIAN_MARKET_TIMEZONE);
-  if (getIndianMarketHolidays().has(dayKey)) return { open: false, reason: CLOSED_REASONS.HOLIDAY };
+  const holidays = getIndianMarketHolidays();
+  if (holidays.has(dayKey)) return { open: false, reason: CLOSED_REASONS.HOLIDAY };
+  // An env override is the complete list (ops fixing dates without a deploy),
+  // so the built-in recurring days only apply when there is no override.
+  const overridden = parseHolidayList(process.env.INDIAN_MARKET_HOLIDAYS).length > 0;
+  if (!overridden) {
+    if (INDIAN_MARKET_RECURRING_HOLIDAYS.includes(dayKey.slice(5))) {
+      return { open: false, reason: CLOSED_REASONS.HOLIDAY };
+    }
+    warnIfHolidayYearMissing(holidays, dayKey.slice(0, 4));
+  }
   return { open: true, reason: null };
 }
 

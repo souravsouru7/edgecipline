@@ -1,76 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { C, cardSurface } from "./tokens";
+import { Dna } from "lucide-react";
+import { Button, EmptyState as StateEmpty } from "@/features/shared/components/ui";
+import { marketRoutes } from "@/features/shared/navigation";
 
-export default function EmptyState({ onGenerate, isGenerating }) {
+/**
+ * No report yet for this market + window. While the first one is being
+ * generated (it can take a minute) the same slot explains the wait.
+ */
+export default function EmptyState({ onGenerate, isGenerating, market, periodLabel }) {
+  const r = marketRoutes(market);
+
+  if (isGenerating) {
+    return (
+      <div className="ec-card">
+        <StateEmpty
+          icon={<Dna size={22} />}
+          title="Reading your trades…"
+          body="The coach is working through your trades for this window. This can take up to a minute; you can leave this page and come back."
+        />
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        ...cardSurface,
-        textAlign: "center",
-        padding: "44px 28px",
-      }}
-    >
-      <div style={{ fontSize: 32, marginBottom: 16 }}>🧬</div>
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 800,
-          color: C.primary,
-          marginBottom: 8,
-        }}
-      >
-        Generate your Trading DNA
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: C.muted,
-          lineHeight: 1.7,
-          maxWidth: 360,
-          margin: "0 auto",
-          marginBottom: 24,
-        }}
-      >
-        Your behavioral fingerprint, distilled from every trade you have logged
-        — identity, strengths, blind spots, and the single highest-leverage
-        change to make next.
-      </div>
-      <button
-        type="button"
-        onClick={onGenerate}
-        disabled={isGenerating}
-        style={{
-          padding: "12px 26px",
-          background: isGenerating ? C.muted : C.primary,
-          color: "#F8FAFC",
-          borderRadius: 10,
-          fontWeight: 800,
-          fontSize: 12,
-          letterSpacing: "0.04em",
-          border: "none",
-          cursor: isGenerating ? "not-allowed" : "pointer",
-        }}
-      >
-        {isGenerating ? "Generating…" : "Generate Trading DNA"}
-      </button>
-      <div
-        style={{
-          fontSize: 11,
-          color: C.muted,
-          marginTop: 18,
-        }}
-      >
-        Or{" "}
-        <Link
-          href="/upload-trade"
-          style={{ color: C.purple, textDecoration: "underline" }}
-        >
-          log a few more trades
-        </Link>{" "}
-        first for a richer report.
-      </div>
+    <div className="ec-card">
+      <StateEmpty
+        icon={<Dna size={22} />}
+        title="No Trading DNA for this window yet"
+        body={`Build one from your trades over the ${periodLabel || "selected window"}: your trading style, what's working, blind spots, and the single change that would help most.`}
+        action={
+          <>
+            <Button onClick={onGenerate}>Build my Trading DNA</Button>
+            <Button as={Link} href={r.addTrade} variant="ghost">Log a trade first</Button>
+          </>
+        }
+      />
     </div>
   );
 }

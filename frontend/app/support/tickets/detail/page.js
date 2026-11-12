@@ -170,9 +170,7 @@ function Message({ message }) {
         }
         .ms-who {
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
+          font-weight: 600;
           color: var(--color-primary);
         }
         time {
@@ -295,10 +293,8 @@ function Rating({ ticketId, onDone }) {
         }
         .rt-label {
           display: block;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.07em;
-          text-transform: uppercase;
+          font-size: 13px;
+          font-weight: 600;
           color: var(--color-text-muted);
           margin: 14px 0 8px;
         }
@@ -328,8 +324,8 @@ function Rating({ ticketId, onDone }) {
           padding: 0 22px;
           border: none;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13px;
           font-weight: 700;
           cursor: pointer;
@@ -428,8 +424,8 @@ function TicketDetail() {
             display: inline-block;
             padding: 11px 22px;
             border-radius: 10px;
-            background: var(--color-dark);
-            color: var(--color-primary-light);
+            background: var(--ec-accent);
+            color: var(--ec-on-accent);
             font-size: 13px;
             font-weight: 700;
             text-decoration: none;
@@ -608,9 +604,7 @@ function TicketDetail() {
           align-items: center;
           gap: 7px;
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.07em;
-          text-transform: uppercase;
+          font-weight: 600;
           color: var(--color-primary);
           margin-bottom: 8px;
         }
@@ -670,19 +664,17 @@ function TicketDetail() {
           border-top: 1px solid var(--color-border);
         }
         .td-h2 {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.09em;
-          text-transform: uppercase;
-          color: var(--color-text-muted);
+          font-size: 17px;
+          font-weight: 600;
+          color: var(--color-dark);
           margin: 0 0 13px;
         }
         :global(.td-cta) {
           display: inline-block;
           padding: 12px 24px;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13px;
           font-weight: 700;
           text-decoration: none;

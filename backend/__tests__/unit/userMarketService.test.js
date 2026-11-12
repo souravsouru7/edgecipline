@@ -52,7 +52,20 @@ describe("userMarketService.resolveActiveMarketsForUsers", () => {
       deletedAt: null,
       "parsedData.multiTradeGhost": { $ne: true },
     }));
-    expect(IndianTrade.distinct).toHaveBeenCalledWith("user", { deletedAt: null });
+    expect(IndianTrade.distinct).toHaveBeenCalledWith("user", expect.objectContaining({ deletedAt: null }));
+  });
+
+  it("only counts trades and setups from the last 30 days (an old Forex trade is not a Forex user forever)", async () => {
+    const before = Date.now();
+    await resolveActiveMarketsForUsers([]);
+    const [, tradeFilter] = Trade.distinct.mock.calls[0];
+    const since = tradeFilter.createdAt.$gte.getTime();
+    expect(before - since).toBeGreaterThanOrEqual(30 * 24 * 3600e3 - 1000);
+    expect(before - since).toBeLessThanOrEqual(30 * 24 * 3600e3 + 1000);
+    expect(IndianTrade.distinct.mock.calls[0][1].createdAt.$gte).toBeInstanceOf(Date);
+    for (const [, filter] of SetupStrategy.distinct.mock.calls) {
+      expect(filter.updatedAt.$gte).toBeInstanceOf(Date);
+    }
   });
 });
 

@@ -5,6 +5,11 @@ const { hourlyKey } = require("../utils/dateUtils");
 const User = require("../models/Users");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const {
+  hasActiveAppStoreSubscription,
+  hasActivePlaySubscription,
+  isTrialActive,
+} = require("../utils/premium");
 const { recordCronRun } = require("../utils/cronMetrics");
 const { withCronLock } = require("../utils/distributedLock");
 const {
@@ -28,17 +33,29 @@ async function processTouchpoint(touchpoint, now, batchSize) {
   const { from, to } = windowForTouchpoint(touchpoint, now.getTime());
   const subscriptionStatus = statusFilterForPhase(touchpoint.phase);
 
-  const users = await User.find({
+  const candidates = await User.find({
     role: { $ne: "admin" },
+    accountStatus: { $ne: "disabled" },
+    pendingDeletion: { $ne: true },
     subscriptionStatus,
     subscriptionExpiry: { $gte: from, $lte: to },
   })
     // Project just what we need — keeps memory bounded for large funnels.
-    .select("_id email name streaks subscriptionStatus subscriptionExpiry trial")
+    .select("_id email name streaks subscriptionStatus subscriptionExpiry trial playEntitlementExpiry appStoreEntitlementExpiry")
     .limit(batchSize)
     .lean();
 
-  if (!users.length) return { matched: 0, dispatched: 0, skipped: 0, failed: 0 };
+  // subscriptionExpiry is only the Razorpay ledger. A user paying through
+  // Google Play or the App Store (or inside a trial) is premium whatever it
+  // says, and was getting "Premium ends tomorrow" / "Your coach misses you".
+  const nowMs = now.getTime();
+  const users = candidates.filter((user) =>
+    !hasActivePlaySubscription(user, nowMs) &&
+    !hasActiveAppStoreSubscription(user, nowMs) &&
+    !isTrialActive(user, nowMs)
+  );
+
+  if (!users.length) return { matched: candidates.length, dispatched: 0, skipped: candidates.length, failed: 0 };
 
   let dispatched = 0;
   let skipped = 0;

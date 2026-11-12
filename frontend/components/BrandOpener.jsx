@@ -4,7 +4,7 @@
 //
 // This continues the AndroidX boot splash (res/drawable/splash.xml) rather
 // than replacing it. The two must be indistinguishable: the splash paints the
-// logo at 230dp centred on #F4F2EE before the WebView exists, and this paints
+// logo at 230dp centred on #0A0D12 before the WebView exists, and this paints
 // the same logo at 230 CSS px centred on the same colour the moment the
 // WebView draws. CSS px and dp are the same unit on Android, so the mark does
 // not move, resize or re-animate across the hand-off — the user sees one
@@ -23,10 +23,12 @@
 // Colours are inlined because this must paint before any stylesheet or font
 // finishes loading.
 
-const BG = "#F4F2EE";
-const ACCENT = "#0D9E6E";
-const GOLD = "#B8860B";
-const MUTED = "#64748B";
+// Dark like the native splash (res/values/colors.xml splash_background) and the
+// app's default theme. The logo is the light-lettered copy of the wordmark.
+const BG = "#0A0D12";
+const ACCENT = "#22C78E";
+const GOLD = "#E9B44C";
+const MUTED = "#7D8894";
 
 // Keep in sync with drawable/splash.xml's 230dp logo width.
 const MARK_WIDTH_PX = 230;
@@ -85,7 +87,7 @@ export default function BrandOpener({ exiting = false, label = "Restoring your s
           width: 120px;
           height: 2px;
           border-radius: 2px;
-          background: rgba(15, 25, 35, 0.08);
+          background: rgba(255, 255, 255, 0.08);
           overflow: hidden;
           animation: brandOpenerFadeIn 420ms ease-out 260ms both;
         }
@@ -100,10 +102,9 @@ export default function BrandOpener({ exiting = false, label = "Restoring your s
         }
         .brand-opener__label {
           margin: 0;
-          font-size: 10px;
+          font-size: 12px;
           font-weight: 600;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
+          letter-spacing: 0.02em;
           color: ${MUTED};
           white-space: nowrap;
           animation: brandOpenerFadeIn 520ms ease-out 480ms both;
@@ -132,7 +133,7 @@ export default function BrandOpener({ exiting = false, label = "Restoring your s
       {/* eslint-disable-next-line @next/next/no-img-element -- see comment above */}
       <img
         className="brand-opener__mark"
-        src="/brand-opener-logo.png"
+        src="/brand-opener-logo-dark.png"
         alt="Edgecipline"
         width="880"
         height="201"

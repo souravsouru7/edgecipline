@@ -334,11 +334,9 @@ export function Field({ label, htmlFor, required, error, hint, children }) {
         htmlFor={htmlFor}
         style={{
           display: "block",
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: "0.07em",
-          textTransform: "uppercase",
-          color: "var(--color-text-muted)",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--color-dark)",
           marginBottom: 8,
         }}
       >

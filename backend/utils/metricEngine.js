@@ -40,7 +40,10 @@ function normalizeMarketType(marketType) {
 function getTradeCosts(trade = {}, marketType = MARKET_TYPES.FOREX) {
   return normalizeMarketType(marketType) === MARKET_TYPES.INDIAN
     ? toNumber(trade.brokerage) + toNumber(trade.sttTaxes)
-    : toNumber(trade.commission) + toNumber(trade.swap);
+    // Forex: commission is always a charge, whatever sign the broker export
+    // stored it with; swap keeps its sign (positive = credit). This is the
+    // save-time rule in utils/tradeProfit.js (net = gross - |commission| + swap).
+    : Math.abs(toNumber(trade.commission)) - toNumber(trade.swap);
 }
 
 function calculateCostBreakdown(trades = [], marketType = MARKET_TYPES.FOREX) {

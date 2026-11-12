@@ -1,8 +1,6 @@
 "use client";
 
 import { MARKETS } from "@/context/MarketContext";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
-import IndianMarketLoadingState from "@/components/IndianMarketLoadingState";
 import SetupBuilder from "@/features/setups/components/SetupBuilder";
 
 const STARTER_TEMPLATES = [
@@ -49,18 +47,10 @@ export default function IndianSetupStrategiesPage() {
   return (
     <SetupBuilder
       market={MARKETS.INDIAN_MARKET}
-      header={<IndianMarketHeader />}
       templates={STARTER_TEMPLATES}
       marketChip="NSE / BSE"
       copy={COPY}
       uploadRoute="/indian-market/upload-trade?onboarding=1"
-      loadingState={
-        <IndianMarketLoadingState
-          title="Loading Indian Market setups"
-          subtitle="Preparing strategies, setup rules, and reference images"
-          dense
-        />
-      }
     />
   );
 }

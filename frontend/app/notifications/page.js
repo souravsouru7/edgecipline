@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Bell, CheckCheck, Loader2,
-  Sunrise, AlertTriangle, TrendingUp,
-  Brain, Clock, Shield, BookOpen, Target,
-  Flame, Moon, Compass, Camera, LifeBuoy,
+  AlertTriangle, Bell, BookOpen, Brain, Camera, CheckCheck, ChevronRight, Clock,
+  Compass, Flame, LifeBuoy, Moon, Settings, Shield, Sunrise, Target, TrendingUp,
 } from "lucide-react";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import PageHeader from "@/features/shared/components/PageHeader";
+import {
+  Button, EmptyState, ErrorState, Placeholder, SegmentedControl, useToast,
+} from "@/features/shared/components/ui";
 import {
   getNotifications,
   markAllNotificationsAsRead,
@@ -15,472 +19,307 @@ import {
 } from "@/services/notificationApi";
 import { markOnboardingStep } from "@/services/api";
 
-// ─── Type → visual metadata ───────────────────────────────────────────────────
-
+// type → label, icon and tone. Tones map to theme colours in design-system.css
+// so the inbox reads the same in light and dark.
 const TYPE_META = {
-  morning_mentor: {
-    label: "Morning Mentor", Icon: Sunrise,
-    color: "#F59E0B", accent: "#FCD34D",
-    bg: "rgba(245,158,11,0.07)", border: "rgba(245,158,11,0.35)",
-    unreadBg: "#120D00",
-  },
-  revenge_trading: {
-    label: "Risk Alert", Icon: AlertTriangle,
-    color: "#E53935", accent: "#FF5252",
-    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
-    unreadBg: "#110000",
-  },
-  overtrading: {
-    label: "Risk Alert", Icon: AlertTriangle,
-    color: "#E53935", accent: "#FF5252",
-    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
-    unreadBg: "#110000",
-  },
-  daily_loss_warning: {
-    label: "Risk Alert", Icon: Shield,
-    color: "#E53935", accent: "#FF5252",
-    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
-    unreadBg: "#110000",
-  },
-  no_stop_loss: {
-    label: "Risk Alert", Icon: Shield,
-    color: "#E53935", accent: "#FF5252",
-    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
-    unreadBg: "#110000",
-  },
-  setup_discipline: {
-    label: "Discipline", Icon: Target,
-    color: "#F59E0B", accent: "#FCD34D",
-    bg: "rgba(245,158,11,0.07)", border: "rgba(245,158,11,0.25)",
-    unreadBg: "#110D00",
-  },
-  mood_risk: {
-    label: "Discipline", Icon: Brain,
-    color: "#F59E0B", accent: "#FCD34D",
-    bg: "rgba(245,158,11,0.07)", border: "rgba(245,158,11,0.25)",
-    unreadBg: "#110D00",
-  },
-  repeated_mistake: {
-    label: "Insight", Icon: TrendingUp,
-    color: "#0D9E6E", accent: "#34D399",
-    bg: "rgba(13,158,110,0.07)", border: "rgba(13,158,110,0.25)",
-    unreadBg: "#001209",
-  },
-  weekly_ai_insight: {
-    label: "Weekly Insight", Icon: TrendingUp,
-    color: "#0D9E6E", accent: "#34D399",
-    bg: "rgba(13,158,110,0.07)", border: "rgba(13,158,110,0.25)",
-    unreadBg: "#001209",
-  },
-  weekly_report_reminder: {
-    label: "Weekly Report", Icon: BookOpen,
-    color: "#0D9E6E", accent: "#34D399",
-    bg: "rgba(13,158,110,0.07)", border: "rgba(13,158,110,0.25)",
-    unreadBg: "#001209",
-  },
-  confidence_reminder: {
-    label: "Coaching", Icon: Brain,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  session_reminder: {
-    label: "Session", Icon: Clock,
-    color: "#8B5CF6", accent: "#A78BFA",
-    bg: "rgba(139,92,246,0.07)", border: "rgba(139,92,246,0.25)",
-    unreadBg: "#0A0014",
-  },
-  streak_milestone: {
-    label: "Streak", Icon: Flame,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  streak_at_risk: {
-    label: "Streak", Icon: Flame,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  streak_broken: {
-    label: "Streak", Icon: Flame,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  evening_reflection: {
-    label: "Reflection", Icon: Moon,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  mission_update: {
-    label: "Mission", Icon: Compass,
-    color: "#3B82F6", accent: "#60A5FA",
-    bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.25)",
-    unreadBg: "#000D1A",
-  },
-  ocr_completed: {
-    label: "Screenshot", Icon: Camera,
-    color: "#0EA5E9", accent: "#38BDF8",
-    bg: "rgba(14,165,233,0.07)", border: "rgba(14,165,233,0.25)",
-    unreadBg: "#00101A",
-  },
-  ocr_failed: {
-    label: "Screenshot", Icon: Camera,
-    color: "#E53935", accent: "#FF5252",
-    bg: "rgba(229,57,53,0.07)", border: "rgba(229,57,53,0.3)",
-    unreadBg: "#110000",
-  },
-  support_agent_reply: {
-    label: "Support", Icon: LifeBuoy,
-    color: "#B8860B", accent: "#D4A017",
-    bg: "rgba(184,134,11,0.07)", border: "rgba(184,134,11,0.25)",
-    unreadBg: "#120D00",
-  },
+  morning_mentor: { label: "Morning mentor", Icon: Sunrise, tone: "warn" },
+  revenge_trading: { label: "Risk alert", Icon: AlertTriangle, tone: "bad" },
+  overtrading: { label: "Risk alert", Icon: AlertTriangle, tone: "bad" },
+  daily_loss_warning: { label: "Risk alert", Icon: Shield, tone: "bad" },
+  no_stop_loss: { label: "Risk alert", Icon: Shield, tone: "bad" },
+  setup_discipline: { label: "Discipline", Icon: Target, tone: "warn" },
+  mood_risk: { label: "Discipline", Icon: Brain, tone: "warn" },
+  repeated_mistake: { label: "Insight", Icon: TrendingUp, tone: "good" },
+  weekly_ai_insight: { label: "Weekly insight", Icon: TrendingUp, tone: "good" },
+  weekly_report_reminder: { label: "Weekly report", Icon: BookOpen, tone: "good" },
+  confidence_reminder: { label: "Coaching", Icon: Brain, tone: "info" },
+  session_reminder: { label: "Session", Icon: Clock, tone: "info" },
+  streak_milestone: { label: "Streak", Icon: Flame, tone: "info" },
+  streak_at_risk: { label: "Streak", Icon: Flame, tone: "warn" },
+  streak_broken: { label: "Streak", Icon: Flame, tone: "info" },
+  evening_reflection: { label: "Reflection", Icon: Moon, tone: "info" },
+  mission_update: { label: "Mission", Icon: Compass, tone: "info" },
+  ocr_completed: { label: "Screenshot", Icon: Camera, tone: "good" },
+  ocr_failed: { label: "Screenshot", Icon: Camera, tone: "bad" },
+  support_agent_reply: { label: "Support", Icon: LifeBuoy, tone: "info" },
 };
 
-const DEFAULT_META = {
-  label: "System", Icon: Bell,
-  color: "#38BDF8", accent: "#7DD3FC",
-  bg: "rgba(56,189,248,0.07)", border: "rgba(56,189,248,0.2)",
-  unreadBg: "#00101A",
-};
+const DEFAULT_META = { label: "Update", Icon: Bell, tone: "muted" };
+
+const FILTERS = [
+  { value: "all", label: "All" },
+  { value: "unread", label: "Unread" },
+];
 
 function getMeta(type) {
   return TYPE_META[type] || DEFAULT_META;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const SCENARIO_COLOR = {
-  revenge: "#E53935", no_stop_loss: "#E53935",
-  overtrading: "#F59E0B", emotional: "#F59E0B", low_setup: "#F59E0B",
-  loss_day: "#64748B", reset: "#64748B",
-  disciplined_win: "#0D9E6E", profitable: "#0D9E6E",
-  weekend: "#8B5CF6", no_trade: "#38BDF8",
-};
-
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr);
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return "Just now";
-  if (h < 24) return `${h}h ago`;
-  if (h < 48) return "Yesterday";
-  return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+function toDate(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// ─── Morning Mentor card — premium treatment ───────────────────────────────────
-
-function MorningMentorCard({ n, onRead }) {
-  const isRead = n.isRead;
-  const scenario = n.data?.scenario || "";
-  const scenarioColor = SCENARIO_COLOR[scenario] || "#F59E0B";
-
-  return (
-    <button
-      type="button"
-      onClick={onRead}
-      style={{
-        width: "100%", textAlign: "left", cursor: "pointer",
-        background: isRead ? "#0D0D0D" : "#120D00",
-        border: `1px solid ${isRead ? "#1C1600" : "rgba(245,158,11,0.4)"}`,
-        borderRadius: 14,
-        padding: 0,
-        overflow: "hidden",
-        position: "relative",
-        boxShadow: isRead ? "none" : "0 4px 24px rgba(245,158,11,0.1)",
-        transition: "box-shadow 0.2s",
-      }}
-    >
-      {/* Animated gold top bar — only on unread */}
-      {!isRead && (
-        <div style={{
-          height: 3,
-          background: "linear-gradient(90deg, transparent, #F59E0B, #FCD34D, #F59E0B, transparent)",
-        }} />
-      )}
-
-      <div style={{ padding: "16px 18px", paddingTop: !isRead ? 14 : 16 }}>
-        {/* Row 1 – badge + timestamp */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-              background: "rgba(245,158,11,0.12)",
-              border: "1px solid rgba(245,158,11,0.25)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Sunrise size={17} color="#F59E0B" />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{
-                fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.1em",
-                color: "#F59E0B", textTransform: "uppercase",
-              }}>
-                Morning Mentor
-              </span>
-              {!isRead && (
-                <span style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  background: "#F59E0B", display: "inline-block",
-                  boxShadow: "0 0 6px #F59E0B",
-                }} />
-              )}
-            </div>
-          </div>
-          <span style={{ fontSize: 11, color: "#475569" }}>{timeAgo(n.createdAt)}</span>
-        </div>
-
-        {/* Title */}
-        <p style={{
-          margin: "0 0 6px",
-          fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em",
-          color: isRead ? "#64748B" : "#F1F5F9",
-          lineHeight: 1.3,
-        }}>
-          {n.title}
-        </p>
-
-        {/* Body */}
-        <p style={{
-          margin: 0, fontSize: 14, lineHeight: 1.65,
-          color: isRead ? "#374151" : "#94A3B8",
-        }}>
-          {n.body}
-        </p>
-
-        {/* Scenario pill */}
-        {scenario && !isRead && (
-          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 5, height: 5, borderRadius: "50%", background: scenarioColor }} />
-            <span style={{
-              fontSize: "var(--fs-2xs)", color: "#475569",
-              letterSpacing: "0.06em", textTransform: "capitalize",
-            }}>
-              {scenario.replace(/_/g, " ")}
-            </span>
-          </div>
-        )}
-      </div>
-    </button>
-  );
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-// ─── Standard notification card ───────────────────────────────────────────────
+function timeLabel(value, now) {
+  const d = toDate(value);
+  if (!d) return "";
+  const mins = Math.floor((now - d.getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (startOfDay(d) === startOfDay(new Date(now))) return `${Math.floor(mins / 60)}h ago`;
+  // Older rows sit under a day heading, so the time of day is enough.
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
 
-function NotificationCard({ n, onRead }) {
+// Day buckets in the viewer's own timezone.
+function groupLabel(value, now) {
+  const d = toDate(value);
+  if (!d) return "Earlier";
+  const today = startOfDay(new Date(now));
+  const day = startOfDay(d);
+  const diffDays = Math.round((today - day) / 86400000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: d.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric" });
+}
+
+function NotificationRow({ n, now, onOpen }) {
   const meta = getMeta(n.type);
-  const isRead = n.isRead;
   const { Icon } = meta;
+  const unread = !n.isRead;
+  const featured = n.type === "morning_mentor";
+  const scenario = featured && n.data?.scenario ? String(n.data.scenario).replace(/_/g, " ") : null;
 
   return (
-    <button
-      type="button"
-      onClick={onRead}
-      style={{
-        width: "100%", textAlign: "left",
-        cursor: n.deepLink ? "pointer" : "default",
-        background: isRead ? "#0A0A0A" : meta.unreadBg,
-        border: `1px solid ${isRead ? "#161616" : meta.border}`,
-        borderRadius: 10,
-        padding: "13px 16px",
-        display: "flex", gap: 12, alignItems: "flex-start",
-        transition: "background 0.15s",
-      }}
-    >
-      {/* Icon */}
-      <div style={{
-        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-        background: isRead ? "rgba(255,255,255,0.03)" : meta.bg,
-        border: `1px solid ${isRead ? "#1E1E1E" : meta.border}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        marginTop: 1,
-      }}>
-        <Icon size={15} color={isRead ? "#374151" : meta.color} />
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{
-              fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.08em",
-              color: isRead ? "#2D3748" : meta.color, textTransform: "uppercase",
-            }}>
-              {meta.label}
-            </span>
-            {!isRead && (
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: meta.accent, display: "inline-block",
-              }} />
-            )}
-          </div>
-          <span style={{ fontSize: 11, color: "#2D3748", whiteSpace: "nowrap" }}>
-            {timeAgo(n.createdAt)}
+    <li>
+      <button
+        type="button"
+        className={`ec-notif${unread ? " ec-notif--unread" : ""}${featured ? " ec-notif--featured" : ""}`}
+        onClick={() => onOpen(n)}
+        aria-label={`${unread ? "Unread. " : ""}${meta.label}: ${n.title || ""}`}
+      >
+        <span className={`ec-notif__icon ec-notif__icon--${meta.tone}`} aria-hidden="true">
+          <Icon size={17} />
+        </span>
+        <span className="ec-notif__main">
+          <span className="ec-notif__top">
+            <span className={`ec-notif__label ec-tone--${meta.tone}`}>{meta.label}</span>
+            <span className="ec-notif__time">{timeLabel(n.createdAt, now)}</span>
           </span>
-        </div>
-
-        <p style={{
-          margin: "0 0 3px", fontSize: 14, fontWeight: 600,
-          color: isRead ? "#374151" : "#E2E8F0", lineHeight: 1.4,
-        }}>
-          {n.title}
-        </p>
-        <p style={{
-          margin: 0, fontSize: 13, lineHeight: 1.55,
-          color: isRead ? "#1E293B" : "#4B5563",
-        }}>
-          {n.body}
-        </p>
-      </div>
-    </button>
+          {n.title ? <span className="ec-notif__title">{n.title}</span> : null}
+          {n.body ? <span className="ec-notif__body">{n.body}</span> : null}
+          {scenario ? <span className="ec-notif__chip">{scenario}</span> : null}
+        </span>
+        <span className="ec-notif__end" aria-hidden="true">
+          {unread ? <span className="ec-notif__dot" /> : null}
+          {n.deepLink ? <ChevronRight size={16} className="ec-notif__chev" /> : null}
+        </span>
+      </button>
+    </li>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function LoadingList() {
+  return (
+    <ul className="ec-notif__list" aria-busy="true" aria-label="Loading notifications">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <li key={i} className="ec-notif ec-notif--skeleton">
+          <Placeholder width={36} height={36} radius={10} />
+          <span className="ec-notif__main">
+            <Placeholder width="30%" height={10} />
+            <Placeholder width="70%" height={14} style={{ marginTop: 8 }} />
+            <Placeholder width="90%" height={12} style={{ marginTop: 6 }} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-export default function NotificationsPage() {
+function NotificationsContent() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [markingAll, setMarkingAll] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     markOnboardingStep("notificationsSeen", true).catch(() => {});
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getNotifications({ limit: 75 });
       setNotifications(Array.isArray(data) ? data : []);
+      setNow(Date.now());
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const handleRead = async (n) => {
+  // This page loads by hand rather than through React Query, so it reloads
+  // itself when the global pull-to-refresh fires.
+  useEffect(() => {
+    const onPull = () => { load(); };
+    window.addEventListener("ec:pull-refresh", onPull);
+    return () => window.removeEventListener("ec:pull-refresh", onPull);
+  }, [load]);
+
+  // Keep "5m ago" labels honest while the page stays open.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleOpen = (n) => {
     if (!n.isRead) {
-      await markNotificationAsRead(n._id);
-      setNotifications((prev) =>
-        prev.map((item) => (item._id === n._id ? { ...item, isRead: true } : item))
-      );
+      // Optimistic and never blocking: a failed read receipt must not stop
+      // the link from opening.
+      setNotifications((prev) => prev.map((item) => (item._id === n._id ? { ...item, isRead: true } : item)));
+      markNotificationAsRead(n._id).catch(() => {});
     }
     if (n.deepLink) router.push(n.deepLink);
   };
 
+  const handleMarkAll = async () => {
+    if (markingAll) return;
+    const before = notifications;
+    setMarkingAll(true);
+    setNotifications((prev) => prev.map((item) => (item.isRead ? item : { ...item, isRead: true })));
+    try {
+      await markAllNotificationsAsRead();
+    } catch {
+      setNotifications(before);
+      addToast("Couldn't mark them as read. Please try again.", "error");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const visible = filter === "unread" ? notifications.filter((n) => !n.isRead) : notifications;
+
+  const groups = useMemo(() => {
+    const out = [];
+    for (const n of visible) {
+      const label = groupLabel(n.createdAt, now);
+      const last = out[out.length - 1];
+      if (last && last.label === label) last.items.push(n);
+      else out.push({ label, items: [n] });
+    }
+    return out;
+  }, [visible, now]);
+
+  let body;
+  if (loading && !notifications.length) {
+    body = <LoadingList />;
+  } else if (loadError) {
+    body = <ErrorState title="Couldn't load your notifications" onRetry={load} />;
+  } else if (!notifications.length) {
+    body = (
+      <div className="ec-card">
+        <EmptyState
+          icon={<Bell size={22} />}
+          title="No notifications yet"
+          body="Risk alerts, coaching nudges and your weekly report will show up here as you trade."
+          action={<Button as={Link} href="/settings/notifications" variant="secondary" icon={<Settings size={16} aria-hidden="true" />}>Choose what you get</Button>}
+        />
+      </div>
+    );
+  } else if (!visible.length) {
+    body = (
+      <div className="ec-card">
+        <EmptyState
+          icon={<CheckCheck size={22} />}
+          title="You're all caught up"
+          body="Nothing unread. Switch to All to see past notifications."
+          action={<Button variant="secondary" onClick={() => setFilter("all")}>Show all</Button>}
+        />
+      </div>
+    );
+  } else {
+    body = (
+      <div className="ec-notif__groups">
+        {groups.map((g) => (
+          <section key={g.label} aria-label={g.label}>
+            <h2 className="ec-notif__group">{g.label}</h2>
+            <ul className="ec-notif__list">
+              {g.items.map((n) => (
+                <NotificationRow key={n._id} n={n} now={now} onOpen={handleOpen} />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#080808",
-      color: "#E5E7EB",
-      padding: "24px 16px",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif",
-    }}>
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div className="ec-app ec-home">
+      <PageHeader themed title="Notifications" />
+      <main className="ec-page ec-disc ec-disc--narrow">
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Notifications</h1>
+            <p className="ec-log__sub" aria-live="polite">
+              {loading && !notifications.length
+                ? "Loading…"
+                : unreadCount > 0
+                  ? `${unreadCount} unread`
+                  : "You're all caught up"}
+            </p>
+          </div>
+          <Button
+            as={Link}
+            href="/settings/notifications"
+            variant="ghost"
+            size="sm"
+            icon={<Settings size={15} aria-hidden="true" />}
+          >
+            Settings
+          </Button>
+        </div>
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: "rgba(56,189,248,0.08)",
-                border: "1px solid rgba(56,189,248,0.15)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                position: "relative",
-              }}>
-                <Bell size={18} color="#38BDF8" />
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: "absolute", top: -4, right: -4,
-                    background: "#F59E0B", color: "#000",
-                    borderRadius: 10, fontSize: "var(--fs-2xs)", fontWeight: 800,
-                    padding: "1px 5px", lineHeight: 1.4,
-                  }}>
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em" }}>
-                  Notifications
-                </h1>
-                <p style={{ margin: 0, fontSize: 12, color: unreadCount > 0 ? "#F59E0B" : "#2D3748" }}>
-                  {unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? "s" : ""}` : "All caught up"}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
+        {notifications.length > 0 && !loadError ? (
+          <div className="ec-disc__filters">
+            <SegmentedControl label="Show" value={filter} onChange={setFilter} options={FILTERS} />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleMarkAll}
               disabled={!unreadCount}
-              onClick={async () => { await markAllNotificationsAsRead(); await load(); }}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                border: `1px solid ${unreadCount ? "#1E293B" : "#0F0F0F"}`,
-                background: "transparent",
-                color: unreadCount ? "#4B5563" : "#1A1A1A",
-                borderRadius: 8, padding: "7px 11px",
-                cursor: unreadCount ? "pointer" : "not-allowed",
-                fontSize: 12, fontWeight: 500,
-              }}
+              loading={markingAll}
+              icon={<CheckCheck size={15} aria-hidden="true" />}
             >
-              <CheckCheck size={13} />
               Mark all read
-            </button>
+            </Button>
           </div>
+        ) : null}
 
-          <div style={{ height: 1, background: "linear-gradient(90deg, #1E293B 0%, transparent 100%)", marginTop: 20 }} />
-        </header>
+        {body}
+      </main>
+    </div>
+  );
+}
 
-        {/* ── Body ────────────────────────────────────────────────────────── */}
-        {loading ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#2D3748", padding: "48px 0" }}>
-            <Loader2 size={16} className="animate-spin" />
-            <span style={{ fontSize: 14 }}>Loading…</span>
-          </div>
-
-        ) : notifications.length === 0 ? (
-          <div style={{
-            border: "1px solid #111",
-            borderRadius: 14, padding: "52px 24px",
-            textAlign: "center",
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 12,
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid #1E293B",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 16px",
-            }}>
-              <Bell size={22} color="#1E293B" />
-            </div>
-            <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600, color: "#374151" }}>
-              No notifications yet
-            </p>
-            <p style={{ margin: 0, fontSize: 13, color: "#1E293B" }}>
-              Smart alerts from your trading activity will appear here.
-            </p>
-          </div>
-
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {notifications.map((n) =>
-              n.type === "morning_mentor" ? (
-                <MorningMentorCard key={n._id} n={n} onRead={() => handleRead(n)} />
-              ) : (
-                <NotificationCard key={n._id} n={n} onRead={() => handleRead(n)} />
-              )
-            )}
-          </div>
-        )}
-      </div>
-    </main>
+export default function NotificationsPage() {
+  return (
+    <ErrorBoundary fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Notifications failed to load. Please refresh.</div>}>
+      <NotificationsContent />
+    </ErrorBoundary>
   );
 }

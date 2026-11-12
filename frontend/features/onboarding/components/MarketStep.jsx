@@ -33,8 +33,8 @@ export default function MarketStep({ value, onChange }) {
               padding: "14px 14px",
               borderRadius: 12,
               cursor: "pointer",
-              background: selected ? "rgba(34,199,142,0.12)" : "rgba(255,255,255,0.03)",
-              border: `1.5px solid ${selected ? "#22C78E" : "rgba(255,255,255,0.1)"}`,
+              background: selected ? "color-mix(in srgb, var(--ec-accent) 12%, transparent)" : "color-mix(in srgb, var(--ec-text) 3%, transparent)",
+              border: `1.5px solid ${selected ? "var(--ec-accent-text)" : "color-mix(in srgb, var(--ec-text) 10%, transparent)"}`,
               display: "flex",
               alignItems: "center",
               gap: 12,
@@ -45,15 +45,15 @@ export default function MarketStep({ value, onChange }) {
           >
             <span aria-hidden style={{ fontSize: 24, lineHeight: 1 }}>{opt.emoji}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#F1F5F9", marginBottom: 2 }}>{opt.title}</div>
-              <div style={{ fontSize: 11, color: "#94A3B8" }}>{opt.sub}</div>
-              <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>e.g. {opt.examples}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ec-text)", marginBottom: 2 }}>{opt.title}</div>
+              <div style={{ fontSize: 11, color: "var(--ec-text-2)" }}>{opt.sub}</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: "var(--ec-text-3)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>e.g. {opt.examples}</div>
             </div>
             <span style={{
               width: 22, height: 22, borderRadius: "50%",
-              border: `2px solid ${selected ? "#22C78E" : "#475569"}`,
-              background: selected ? "#22C78E" : "transparent",
-              color: "#0F1923", fontSize: 12, fontWeight: 900,
+              border: `2px solid ${selected ? "var(--ec-accent-text)" : "var(--ec-text-3)"}`,
+              background: selected ? "var(--ec-accent-text)" : "transparent",
+              color: "var(--ec-text)", fontSize: 12, fontWeight: 900,
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}>

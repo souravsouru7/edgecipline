@@ -49,16 +49,17 @@ describe("metric engine", () => {
     ], "Forex");
 
     // Forex profit is already net of commission/swap at save time (see
-    // deriveForexProfit) -- netPnL sums the stored profit as-is (75) and
-    // grossPnL adds the fees back as a pre-cost estimate (79.5).
+    // deriveForexProfit: net = gross - |commission| + swap) -- netPnL sums the
+    // stored profit as-is (75). Costs follow the same rule: commission 3.5 is
+    // a charge, the +1 swap is a credit, so fees are 2.5 and gross 77.5.
     expect(metrics).toMatchObject({
       totalTrades: 4,
       wins: 2,
       losses: 1,
       breakEven: 1,
       winRate: 50,
-      grossPnL: 79.5,
-      fees: 4.5,
+      grossPnL: 77.5,
+      fees: 2.5,
       netPnL: 75,
       avgPnL: 18.75,
       avgWin: 62.5,
@@ -66,6 +67,17 @@ describe("metric engine", () => {
       profitFactor: 2.5,
       expectancy: 18.75,
     });
+  });
+
+  test("Forex commission stored as a negative number is still a charge", () => {
+    // Broker exports often write commission as -50.65. It must not flip the
+    // sign of costs and push gross below net.
+    const metrics = calculatePerformanceMetrics([
+      trade({ _id: "a", profit: 356.75, commission: -50.65 }),
+    ], "Forex");
+    expect(metrics.netPnL).toBe(356.75);
+    expect(metrics.fees).toBe(50.65);
+    expect(metrics.grossPnL).toBe(407.4);
   });
 
   test("uses market-specific costs but shared core formulas", () => {

@@ -115,8 +115,9 @@ export default function Markdown({ source, style }) {
         <pre
           key={`b${blocks.length}`}
           style={{
-            background: "var(--color-dark)",
-            color: "#22C78E",
+            background: "var(--color-surface-hover)",
+            color: "var(--color-primary)",
+            border: "1px solid var(--color-border-subtle)",
             padding: 14,
             borderRadius: 10,
             overflowX: "auto",
@@ -194,8 +195,6 @@ export default function Markdown({ source, style }) {
                       borderBottom: "2px solid var(--color-border)",
                       color: "var(--color-text-muted)",
                       fontSize: 11,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
                     }}
                   >
                     {renderInline(cell, `th${ci}`)}

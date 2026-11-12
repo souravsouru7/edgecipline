@@ -1,5 +1,0 @@
-# Seeded accounts and minted access tokens — never commit.
-.testdata/
-
-# Generated k6 output, console captures, and monitor logs
-results/

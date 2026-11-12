@@ -8,7 +8,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
+import PageHeader from "@/features/shared/components/PageHeader";
+import { ArrowLeft } from "lucide-react";
+import { Button, ErrorState, Placeholder } from "@/features/shared/components/ui";
+import { useTheme } from "@/utils/theme";
+import { useSystemBars } from "@/features/shared/hooks/useSystemBars";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
 import { useToast } from "@/features/shared/components/ui/Toast";
@@ -24,48 +28,53 @@ import {
 } from "@/features/trade/lib/setupRules";
 
 const C = {
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  gold: "#B8860B",
+  bull: "var(--lg-green, #0D9E6E)",
+  bear: "var(--lg-red, #D63B3B)",
+  gold: "var(--lg-gold, #B8860B)",
   blue: "#2563EB",
   purple: "#7C3AED",
-  bg: "#F0EEE9",
-  card: "#FFFFFF",
-  border: "#E2E8F0",
-  muted: "#94A3B8",
-  ink: "#0F1923",
-  ink2: "#334155",
-  mono: "'JetBrains Mono',monospace",
-  sans: "'Plus Jakarta Sans',sans-serif",
+  bg: "var(--lg-soft, #F0EEE9)",
+  card: "var(--lg-card, #FFFFFF)",
+  border: "var(--lg-line, #E2E8F0)",
+  muted: "var(--lg-muted, #94A3B8)",
+  ink: "var(--lg-ink, #0F1923)",
+  ink2: "var(--lg-sub, #334155)",
+  mono: "var(--lg-mono, 'JetBrains Mono', monospace)",
+  sans: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
+};
+
+// "STRIKE PRICE" → "Strike price" (labels were written for the old all-caps style).
+const sentenceCase = (text) => {
+  const t = String(text || "").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
 function InputField({ label, name, value, onChange, type = "text", options = null, placeholder = "", required = false, min, max }) {
+  const id = `edit-${name}`;
   return (
-    <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
-        {label}{required && <span style={{ color: "#D63B3B", marginLeft: 2 }}>*</span>}
+    <div className="ec-field ec-edit__field">
+      <label className="ec-field__label" htmlFor={id}>
+        {sentenceCase(label)}{required && <span className="ec-edit__req" aria-hidden="true"> *</span>}
       </label>
       {options ? (
-        <select
-          name={name}
-          value={value || ""}
-          onChange={onChange}
-          style={{ width: "100%", boxSizing: "border-box", background: "#F8F6F2", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 12, fontFamily: C.mono, outline: "none" }}
-        >
+        <select id={id} name={name} value={value || ""} onChange={onChange} className="ec-input">
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       ) : (
         <input
+          id={id}
           type={type}
           name={name}
-          value={value || ""}
+          value={value ?? ""}
           onChange={onChange}
           placeholder={placeholder}
           min={min}
           max={max}
-          style={{ width: "100%", boxSizing: "border-box", background: "#F8F6F2", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 12, fontFamily: C.mono, outline: "none" }}
+          required={required}
+          inputMode={type === "number" ? "decimal" : undefined}
+          className="ec-input ec-input--mono"
         />
       )}
     </div>
@@ -112,12 +121,17 @@ function IndianEditTradeContent() {
   const evidenceRef = useRef(null);
   const [committingEvidence, setCommittingEvidence] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const { theme } = useTheme();
+  useSystemBars(theme);
   const [saving, setSaving] = useState(false);
   const [dateError, setDateError] = useState("");
   const equityTrade = isEquityTrade(formData);
 
   const fetchTrade = useCallback(async () => {
-    if (!id) return;
+    if (!id) { setLoadError({ status: 404 }); setLoading(false); return; }
+    setLoadError(null);
+    setLoading(true);
     try {
       const data = await getTrade(id, MARKETS.INDIAN_MARKET);
       setFormData({
@@ -127,8 +141,9 @@ function IndianEditTradeContent() {
         emotionalTags: Array.isArray(data.emotionalTags) ? data.emotionalTags.join(", ") : "",
         setupRules: normalizeSetupRules(data.setupRules),
       });
-    } catch {
+    } catch (err) {
       setFormData(null);
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -288,41 +303,44 @@ function IndianEditTradeContent() {
     }
   };
 
+  const backHref = id ? `/indian-market/trades/view?id=${id}` : "/indian-market/trades";
+  const frame = (content) => (
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher={false} title="Edit trade" />
+      <main className="ec-page ec-edit">
+        <Link href={backHref} className="ec-psy__back ec-focusable">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to trade
+        </Link>
+        {content}
+      </main>
+    </div>
+  );
+
   if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: C.sans, color: C.muted }}>
-        Loading trade...
+    return frame(
+      <div style={{ display: "grid", gap: 12 }} aria-busy="true">
+        <Placeholder height={40} width={220} radius={8} />
+        <Placeholder height={520} radius={16} />
       </div>
     );
   }
-
 
   if (!formData) {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg, padding: 24, fontFamily: C.sans }}>
-        <p style={{ color: C.bear, marginBottom: 12 }}>Trade not found.</p>
-        <Link href="/indian-market/trades" style={{ color: C.bull, fontWeight: 700, textDecoration: "none" }}>Back to Trade Log</Link>
-      </div>
+    const missing = loadError?.status === 404;
+    return frame(
+      <ErrorState
+        title={missing ? "Trade not found" : "Couldn't load this trade"}
+        body={missing ? "It may have been deleted." : "Check your connection and try again."}
+        onRetry={missing ? undefined : fetchTrade}
+      />
     );
   }
 
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: C.sans, color: C.ink }}>
-      <IndianMarketHeader />
-
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: "28px 20px 48px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-              Edit <span style={{ color: C.bull }}>{equityTrade ? "Stock Trade" : "Options Trade"}</span>
-            </h1>
-            <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono, letterSpacing: "0.08em", marginTop: 6 }}>
-              UPDATE ALL TRADE LOG DETAILS
-            </div>
-          </div>
-          <Link href={`/indian-market/trades/view?id=${id}`} style={{ textDecoration: "none", color: C.ink2, border: `1px solid ${C.border}`, background: "#FFF", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>
-            Back to Trade
-          </Link>
+  return frame(
+    <>
+        <div className="ec-edit__head">
+          <h1 className="ec-edit__title">Edit {equityTrade ? "stock trade" : "options trade"}</h1>
+          <p className="ec-edit__sub">{formData.pair || formData.stockSymbol || "Indian market"} · changes update your journal and analytics</p>
         </div>
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.06)" }}>
@@ -338,7 +356,7 @@ function IndianEditTradeContent() {
               <div>
                 <InputField label="TRADE DATE" name="tradeDate" type="date" value={formData.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} />
                 {dateError ? (
-                  <div style={{ fontSize: 11, color: "#D63B3B", marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
+                  <div style={{ fontSize: 11, color: "var(--lg-red, #D63B3B)", marginTop: -10, marginBottom: 8, fontFamily: C.mono }}>
                     {dateError}
                   </div>
                 ) : accountCreatedDate ? (
@@ -427,18 +445,18 @@ function IndianEditTradeContent() {
             </div>
 
             {/* ── Psychology Section ── */}
-            <div style={{ marginBottom: 18, border: `1px solid ${C.purple}30`, borderRadius: 12, overflow: "hidden", background: `${C.purple}05` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.purple}20`, background: `${C.purple}08` }}>
+            <div style={{ marginBottom: 18, border: `1px solid color-mix(in srgb, ${C.purple} 19%, transparent)`, borderRadius: 12, overflow: "hidden", background: `color-mix(in srgb, ${C.purple} 2%, transparent)` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid color-mix(in srgb, ${C.purple} 13%, transparent)`, background: `color-mix(in srgb, ${C.purple} 3%, transparent)` }}>
                 <span style={{ fontSize: 15 }}>🧠</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: C.purple, fontFamily: C.mono }}>PSYCHOLOGY</span>
-                <span style={{ fontSize: "var(--fs-2xs)", color: "#D63B3B", fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
+                <span style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-red, #D63B3B)", fontWeight: 700, fontFamily: C.mono, letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
               </div>
 
               <div style={{ padding: "16px" }}>
                 {/* Mood */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>
-                    MOOD <span style={{ color: "#D63B3B" }}>*</span>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>
+                    MOOD <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span>
                   </div>
                   {(() => {
                     const moodLabels = ["", "Stressed", "Anxious", "Neutral", "Focused", "Peak Focus"];
@@ -455,7 +473,7 @@ function IndianEditTradeContent() {
                               display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                               padding: "10px 12px", borderRadius: 10, cursor: "pointer",
                               border: current === i ? `2px solid ${moodColors[i]}` : `1px solid ${C.border}`,
-                              background: current === i ? `${moodColors[i]}12` : "#FFF",
+                              background: current === i ? `color-mix(in srgb, ${moodColors[i]} 7%, transparent)` : "var(--lg-card, #FFF)",
                               flex: 1, minWidth: 56, transition: "all 0.15s",
                             }}
                           >
@@ -472,7 +490,7 @@ function IndianEditTradeContent() {
                           <button
                             type="button"
                             onClick={() => setFormData(p => ({ ...p, mood: "" }))}
-                            style={{ padding: "10px 10px", borderRadius: 10, cursor: "pointer", border: `1px solid ${C.border}`, background: "#FFF", color: C.muted, fontSize: 11, alignSelf: "stretch" }}
+                            style={{ padding: "10px 10px", borderRadius: 10, cursor: "pointer", border: `1px solid ${C.border}`, background: "var(--lg-card, #FFF)", color: C.muted, fontSize: 11, alignSelf: "stretch" }}
                           >✕</button>
                         )}
                       </div>
@@ -482,7 +500,7 @@ function IndianEditTradeContent() {
 
                 {/* Confidence */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>CONFIDENCE <span style={{ color: "#D63B3B" }}>*</span></div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>CONFIDENCE <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {[
                       { value: "Low",           color: C.bear   },
@@ -499,7 +517,7 @@ function IndianEditTradeContent() {
                           style={{
                             padding: "8px 14px", borderRadius: 8, cursor: "pointer",
                             border: active ? `2px solid ${color}` : `1px solid ${C.border}`,
-                            background: active ? `${color}12` : "#FFF",
+                            background: active ? `color-mix(in srgb, ${color} 7%, transparent)` : "var(--lg-card, #FFF)",
                             color: active ? color : C.muted,
                             fontSize: 12, fontWeight: 700, fontFamily: C.sans,
                             transition: "all 0.15s",
@@ -514,7 +532,7 @@ function IndianEditTradeContent() {
 
                 {/* Would Retake */}
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>WOULD RETAKE?</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>WOULD RETAKE?</div>
                   <div style={{ display: "flex", gap: 10 }}>
                     {[
                       { value: "Yes", color: C.bull, icon: "✓" },
@@ -530,7 +548,7 @@ function IndianEditTradeContent() {
                             display: "flex", alignItems: "center", gap: 8,
                             padding: "10px 22px", borderRadius: 10, cursor: "pointer",
                             border: active ? `2px solid ${color}` : `1px solid ${C.border}`,
-                            background: active ? `${color}12` : "#FFF",
+                            background: active ? `color-mix(in srgb, ${color} 7%, transparent)` : "var(--lg-card, #FFF)",
                             color: active ? color : C.muted,
                             fontSize: 13, fontWeight: 700, fontFamily: C.sans,
                             transition: "all 0.15s",
@@ -545,11 +563,11 @@ function IndianEditTradeContent() {
 
                 {/* Trade Quality */}
                 <div>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>TRADE QUALITY (EXECUTION)</div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>TRADE QUALITY (EXECUTION)</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                     {[
                       { val: "Great", color: C.bull },
-                      { val: "Average", color: "#F59E0B" },
+                      { val: "Average", color: "var(--lg-gold, #F59E0B)" },
                       { val: "Poor", color: C.bear },
                     ].map(q => (
                       <button key={q.val} type="button"
@@ -557,7 +575,7 @@ function IndianEditTradeContent() {
                         style={{
                           padding: "10px 4px", borderRadius: 8, cursor: "pointer", textAlign: "center",
                           border: formData.tradeQuality === q.val ? `1.5px solid ${q.color}` : `1px solid ${C.border}`,
-                          background: formData.tradeQuality === q.val ? `${q.color}14` : "#FFF",
+                          background: formData.tradeQuality === q.val ? `color-mix(in srgb, ${q.color} 8%, transparent)` : "var(--lg-card, #FFF)",
                           transition: "all 0.15s",
                         }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: formData.tradeQuality === q.val ? q.color : C.ink, fontFamily: C.mono }}>{q.val}</div>
@@ -568,7 +586,7 @@ function IndianEditTradeContent() {
 
                 {/* Emotional Tags */}
                 <div>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></div>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 10, fontFamily: C.mono, fontWeight: 600 }}>EMOTIONAL TAGS <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></div>
                   {/* Quick-tap common tags */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     {["FOMO", "Revenge", "Fear", "Greed", "Calm", "Rushed", "Focused", "Frustrated", "Disciplined", "Impulsive"].map(tag => {
@@ -588,7 +606,7 @@ function IndianEditTradeContent() {
                           style={{
                             padding: "5px 10px", borderRadius: 20, cursor: "pointer",
                             border: active ? `1.5px solid ${color}` : `1px solid ${C.border}`,
-                            background: active ? `${color}12` : "#FFF",
+                            background: active ? `color-mix(in srgb, ${color} 7%, transparent)` : "var(--lg-card, #FFF)",
                             color, fontSize: 11, fontWeight: 700,
                             fontFamily: C.sans, transition: "all 0.15s",
                           }}
@@ -604,7 +622,7 @@ function IndianEditTradeContent() {
                     value={formData.emotionalTags || ""}
                     onChange={handleChange}
                     placeholder="Or type custom tags, comma separated…"
-                    style={{ width: "100%", boxSizing: "border-box", background: "#FFF", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.ink, fontSize: 12, fontFamily: C.sans, outline: "none" }}
+                    style={{ width: "100%", boxSizing: "border-box", background: "var(--lg-card, #FFF)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.ink, fontSize: 12, fontFamily: C.sans, outline: "none" }}
                   />
                 </div>
               </div>
@@ -613,7 +631,7 @@ function IndianEditTradeContent() {
             <div style={{ marginBottom: 18, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, background: "#FCFBF8" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", fontFamily: C.mono, fontWeight: 600 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", fontFamily: C.mono, fontWeight: 600 }}>
                     SETUP CHECKLIST
                   </div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
@@ -624,10 +642,10 @@ function IndianEditTradeContent() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: calculateSetupScore(formData.setupRules) >= 70 ? C.bull : calculateSetupScore(formData.setupRules) >= 40 ? C.gold : C.bear }}>
                     {calculateSetupScore(formData.setupRules) == null ? "No score yet" : `${calculateSetupScore(formData.setupRules)}%`}
                   </div>
-                  <button type="button" onClick={clearSetupRules} style={{ border: `1px solid ${C.border}`, background: "#FFF", color: C.ink2, borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  <button type="button" onClick={clearSetupRules} style={{ border: `1px solid ${C.border}`, background: "var(--lg-card, #FFF)", color: C.ink2, borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                     Clear Checks
                   </button>
-                  <button type="button" onClick={addSetupRule} style={{ border: "none", background: `${C.bull}15`, color: C.bull, borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  <button type="button" onClick={addSetupRule} style={{ border: "none", background: `color-mix(in srgb, ${C.bull} 8%, transparent)`, color: C.bull, borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                     Add Rule
                   </button>
                 </div>
@@ -645,7 +663,7 @@ function IndianEditTradeContent() {
                       value={rule.label}
                       onChange={(e) => updateSetupRuleLabel(rule.id, e.target.value)}
                       placeholder="Enter checklist rule"
-                      style={{ width: "100%", boxSizing: "border-box", background: "#FFF", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.ink, fontSize: 12, fontFamily: C.sans, outline: "none" }}
+                      style={{ width: "100%", boxSizing: "border-box", background: "var(--lg-card, #FFF)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.ink, fontSize: 12, fontFamily: C.sans, outline: "none" }}
                     />
                   </div>
                 ))}
@@ -677,7 +695,7 @@ function IndianEditTradeContent() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
+              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
                 NOTES
               </label>
               <textarea
@@ -685,12 +703,12 @@ function IndianEditTradeContent() {
                 value={formData.notes || ""}
                 onChange={handleChange}
                 rows={3}
-                style={{ width: "100%", boxSizing: "border-box", background: "#F8F6F2", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 13, fontFamily: C.sans, outline: "none", resize: "vertical" }}
+                style={{ width: "100%", boxSizing: "border-box", background: "var(--lg-soft, #F8F6F2)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 13, fontFamily: C.sans, outline: "none", resize: "vertical" }}
               />
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "#4A5568", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
+              <label style={{ display: "block", fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", marginBottom: 8, fontFamily: C.mono, fontWeight: 600 }}>
                 LESSON LEARNED
               </label>
               <textarea
@@ -698,36 +716,23 @@ function IndianEditTradeContent() {
                 value={formData.lesson || ""}
                 onChange={handleChange}
                 rows={3}
-                style={{ width: "100%", boxSizing: "border-box", background: "#F8F6F2", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 13, fontFamily: C.sans, outline: "none", resize: "vertical" }}
+                style={{ width: "100%", boxSizing: "border-box", background: "var(--lg-soft, #F8F6F2)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.ink, fontSize: 13, fontFamily: C.sans, outline: "none", resize: "vertical" }}
               />
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-              <Link href={`/indian-market/trades/view?id=${id}`} style={{ textDecoration: "none", padding: "12px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#FFF", color: C.ink2, fontSize: 12, fontWeight: 700 }}>
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving}
-                style={{ padding: "12px 18px", borderRadius: 10, border: "none", background: saving ? C.muted : `linear-gradient(135deg, ${C.bull}, #22C78E)`, color: "#FFF", fontSize: 12, fontWeight: 800, fontFamily: C.mono, cursor: saving ? "not-allowed" : "pointer", letterSpacing: "0.08em" }}
-              >
-                {saving ? "SAVING..." : "SAVE CHANGES"}
-              </button>
+            <div className="ec-edit__actions">
+              <Button as={Link} href={backHref} variant="secondary">Cancel</Button>
+              <Button type="submit" loading={saving}>{committingEvidence ? "Uploading images…" : saving ? "Saving…" : "Save changes"}</Button>
             </div>
           </form>
         </div>
-      </main>
-    </div>
+    </>
   );
 }
 
 export default function IndianEditTradePage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: C.sans, color: C.muted }}>
-        Loading trade...
-      </div>
-    }>
+    <Suspense fallback={null}>
       <IndianEditTradeContent />
     </Suspense>
   );

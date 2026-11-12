@@ -14,9 +14,14 @@ public class ChecklistBootReceiver extends BroadcastReceiver {
         if (intent == null) return;
 
         String action = intent.getAction();
+        // Timezone / clock changes too: the schedule is a millisecond delay, so
+        // after travel or a manual clock change it would fire at the old local
+        // time. (Both broadcasts are exempt from the implicit-broadcast limits.)
         if (!Intent.ACTION_BOOT_COMPLETED.equals(action)
                 && !"android.intent.action.QUICKBOOT_POWERON".equals(action)
-                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
+                && !Intent.ACTION_TIMEZONE_CHANGED.equals(action)
+                && !Intent.ACTION_TIME_CHANGED.equals(action)) {
             return;
         }
 

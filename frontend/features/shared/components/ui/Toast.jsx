@@ -98,19 +98,20 @@ const ToastItem = memo(({ id, message, type, onRemove }) => {
     loading: <Loader2 size={18} color="#718096" className="animate-spin" />,
   };
 
-  const bgColors = {
-    success: "#F0FFF4",
-    error: "#FFF5F5",
-    info: "#EBF8FF",
-    loading: "#F7FAFC",
+  // Theme tokens, so toasts read correctly in dark mode (they were fixed light
+  // boxes): a surface tinted with the message's colour.
+  const tone = {
+    success: "var(--ec-profit, #0D9E6E)",
+    error: "var(--ec-loss, #D63B3B)",
+    info: "var(--ec-info, #3182CE)",
+    loading: "var(--ec-text-3, #718096)",
   };
-
-  const borderColors = {
-    success: "rgba(13, 158, 110, 0.2)",
-    error: "rgba(214, 59, 59, 0.2)",
-    info: "rgba(49, 130, 206, 0.2)",
-    loading: "rgba(113, 128, 150, 0.2)",
-  };
+  const bgColors = Object.fromEntries(
+    Object.entries(tone).map(([k, c]) => [k, `color-mix(in srgb, ${c} 10%, var(--ec-surface, #FFFFFF))`])
+  );
+  const borderColors = Object.fromEntries(
+    Object.entries(tone).map(([k, c]) => [k, `color-mix(in srgb, ${c} 35%, transparent)`])
+  );
 
   return (
     <div 
@@ -123,21 +124,23 @@ const ToastItem = memo(({ id, message, type, onRemove }) => {
         gap: 12,
         padding: "12px 16px",
         borderRadius: 12,
-        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+        boxShadow: "0 10px 24px -6px rgba(0, 0, 0, 0.25)",
         transform: "translateX(0)",
         opacity: 1,
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
       <div style={{ flexShrink: 0 }}>{icons[type]}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#2D3748", flex: 1 }}>{message}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ec-text, #2D3748)", flex: 1, lineHeight: 1.45 }}>{message}</div>
       <button 
+        type="button"
+        aria-label="Dismiss"
         onClick={handleRemove}
         style={{ 
           background: "none", border: "none", padding: 4, cursor: "pointer", 
-          color: "#A0AEC0", borderRadius: 4, display: "flex" 
+          color: "var(--ec-text-3, #A0AEC0)", borderRadius: 4, display: "flex" 
         }}
-        onMouseEnter={e => e.currentTarget.style.background = "rgba(0,0,0,0.05)"}
+        onMouseEnter={e => e.currentTarget.style.background = "var(--ec-surface-2, rgba(0,0,0,0.05))"}
         onMouseLeave={e => e.currentTarget.style.background = "none"}
       >
         <X size={14} />

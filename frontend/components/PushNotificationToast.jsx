@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { getNotificationTarget } from "@/services/pushNotifications";
+import { trackNotificationAction } from "@/services/notificationApi";
 
 function getDisplayNotification(detail = {}) {
   return {
@@ -39,6 +40,9 @@ export default function PushNotificationToast() {
 
   const openNotification = () => {
     setNotification(null);
+    // Mark it read + record the tap, same as tapping the system notification.
+    const notificationId = notification.data?.notificationId;
+    if (notificationId) trackNotificationAction(notificationId, "toast_tap").catch(() => {});
     window.dispatchEvent(
       new CustomEvent("edgecipline:notification-route", { detail: { target } })
     );

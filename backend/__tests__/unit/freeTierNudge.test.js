@@ -115,6 +115,12 @@ describe("touchpoint table", () => {
     expect(p.push.title).toBe("Your Forex trade is logged");
   });
 
+  test("D+1 never claims a pattern that was not computed", () => {
+    const p = nudge.TOUCHPOINTS_BY_CODE.free_d_plus_1.build(makeContext({ teaserInsight: null, primaryTrade: null }));
+    expect(p.banner.headline).toBe("Your free trades are logged");
+    expect(`${p.push.title} ${p.push.body}`).not.toMatch(/pattern/i);
+  });
+
   test("D+3 copy is grammatical for one live trade and for none", () => {
     const one = nudge.TOUCHPOINTS_BY_CODE.free_d_plus_3.build(makeContext({ tradesLogged: 1 }));
     expect(one.banner.headline).toBe("Alex, your trade is waiting to be read.");

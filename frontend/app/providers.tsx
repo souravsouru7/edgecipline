@@ -24,7 +24,8 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { useEffect } from "react";
 import { initNetworkStatus } from "@/utils/networkStatus";
 import { initKeyboardBehaviour } from "@/utils/keyboardBehaviour";
-import { applySystemBars } from "@/features/shared/hooks/useSystemBars";
+import { getTheme, syncThemeChrome } from "@/utils/theme";
+import { initNativeLinks } from "@/utils/nativeLinks";
 // One-time client bootstrap for the native shell. Each call is idempotent
 // and a no-op on the web, so this is safe under React StrictMode.
 function useNativeShellBootstrap() {
@@ -36,7 +37,13 @@ function useNativeShellBootstrap() {
     document.documentElement.dataset.platform = platform;
     void initNetworkStatus();
     void initKeyboardBehaviour();
-    void applySystemBars("light");
+    // New-tab and external links open in the in-app browser instead of
+    // leaving (or doing nothing in) the WebView.
+    initNativeLinks();
+    // Match the native bars, the theme-color meta and the canvas to the saved
+    // theme. This used to force the light bars on every start, so dark-mode
+    // users (the default) got a beige status bar on most screens.
+    syncThemeChrome(getTheme());
   }, []);
 }
 

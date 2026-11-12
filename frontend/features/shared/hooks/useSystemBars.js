@@ -2,39 +2,45 @@
 
 import { useEffect } from "react";
 
-// Keeps the Android status/navigation bars in step with the screen.
+// Keeps the native status bar (and on Android the navigation bar) in step
+// with the app theme.
 //
-// The native theme (styles.xml) paints both bars #F4F2EE with dark icons,
-// which matches every light screen. A screen with a dark surface calls
-// useSystemBars("dark") so the icons flip to light and the bar colour
-// follows; it restores the light bars on unmount. No-op off Android.
+// The native shell boots dark (styles.xml / LaunchScreen, matching the app's
+// default theme). utils/theme.js calls applySystemBars() once at start-up and
+// on every theme change, so screens don't need to do anything.
 //
-// Colours are the app palette; keep in sync with styles.xml + globals.css.
+// Colours are the --ec-bg values in app/design-system.css.
 export const SYSTEM_BAR_THEMES = {
-  light: { color: "#F4F2EE", dark: false },
-  dark:  { color: "#0F1923", dark: true },
+  light: { color: "#F7F7F5", dark: false },
+  dark:  { color: "#0A0D12", dark: true },
 };
 
-export async function applySystemBars(theme = "light") {
+export async function applySystemBars(theme = "dark") {
   if (typeof window === "undefined" || !window.Capacitor?.isNativePlatform?.()) return;
-  if (window.Capacitor.getPlatform?.() !== "android") return;
-  const target = SYSTEM_BAR_THEMES[theme] || SYSTEM_BAR_THEMES.light;
+  const platform = window.Capacitor.getPlatform?.();
+  const target = SYSTEM_BAR_THEMES[theme] || SYSTEM_BAR_THEMES.dark;
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
-    await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: target.color });
-    // Style.Dark = light icons on a dark bar; Style.Light = dark icons.
+    // Style.Dark = light icons for a dark background; Style.Light = dark icons.
     await StatusBar.setStyle({ style: target.dark ? Style.Dark : Style.Light });
+    if (platform === "android") {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await StatusBar.setBackgroundColor({ color: target.color });
+    }
+    // iOS: the web content (viewport-fit=cover) shows under the status bar,
+    // so only the icon style needs to change.
   } catch {
-    // Plugin unavailable — the native theme's default colours remain.
+    // Plugin unavailable: the native defaults remain.
   }
 }
 
-export function useSystemBars(theme = "light") {
+/**
+ * Kept for existing callers. The bars now follow the global theme, so this
+ * only re-applies the theme it's given. It used to reset the bars to light
+ * on unmount, which left a beige status bar over dark screens.
+ */
+export function useSystemBars(theme) {
   useEffect(() => {
-    applySystemBars(theme);
-    return () => {
-      if (theme !== "light") applySystemBars("light");
-    };
+    if (theme) applySystemBars(theme);
   }, [theme]);
 }

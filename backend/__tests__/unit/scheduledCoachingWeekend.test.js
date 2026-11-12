@@ -17,8 +17,8 @@ jest.mock("../../config", () => ({
   },
 }));
 jest.mock("../../utils/logger", () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
-jest.mock("../../models/Trade", () => ({ find: jest.fn(), countDocuments: jest.fn() }));
-jest.mock("../../models/IndianTrade", () => ({ find: jest.fn(), countDocuments: jest.fn() }));
+jest.mock("../../models/Trade", () => ({ find: jest.fn(), countDocuments: jest.fn(), distinct: jest.fn() }));
+jest.mock("../../models/IndianTrade", () => ({ find: jest.fn(), countDocuments: jest.fn(), distinct: jest.fn() }));
 jest.mock("../../models/DailyReflection", () => ({ findOne: jest.fn() }));
 jest.mock("../../services/notificationService", () => ({
   notifyUser: jest.fn().mockResolvedValue({ _id: "n", status: "sent" }),
@@ -31,8 +31,8 @@ jest.mock("../../services/streak.service", () => ({
   dayKeyInTz: jest.fn(() => "2026-09-19"),
 }));
 jest.mock("../../repositories/user.repository", () => ({
-  findUsersForWeeklyReports: jest.fn().mockResolvedValue([{ _id: "u1" }]),
-  findUsersWithActiveJournalStreak: jest.fn().mockResolvedValue([
+  findDistinctReminderTimezones: jest.fn().mockResolvedValue(["Asia/Kolkata", null]),
+  findReachableUsersByTimezone: jest.fn().mockResolvedValue([
     { _id: "u1", streaks: { journal: { current: 5, lastQualifyingDate: "2026-09-18" }, timezone: "Asia/Kolkata" } },
   ]),
 }));
@@ -47,6 +47,7 @@ const { runReflectionReminderJob } = require("../../jobs/reflectionReminderCron"
 const { runStreakProtectorJob } = require("../../jobs/streakProtectorCron");
 
 const SATURDAY_0700_IST = new Date("2026-09-19T01:30:00.000Z");
+const SATURDAY_2100_IST = new Date("2026-09-19T15:30:00.000Z");
 const SUNDAY_1930_IST   = new Date("2026-09-20T14:00:00.000Z");
 
 beforeEach(() => {
@@ -57,6 +58,9 @@ beforeEach(() => {
   IndianTrade.find.mockReturnValue({ lean });
   Trade.countDocuments.mockResolvedValue(0);
   IndianTrade.countDocuments.mockResolvedValue(0);
+  // u1 has traded at some point (morning mentor / reflection require it).
+  Trade.distinct.mockResolvedValue(["u1"]);
+  IndianTrade.distinct.mockResolvedValue([]);
   DailyReflection.findOne.mockReturnValue({ select: () => ({ lean: () => Promise.resolve(null) }) });
 });
 afterEach(() => jest.useRealTimers());
@@ -83,6 +87,17 @@ describe("Evening Reflection on the weekend", () => {
     }));
   });
 
+  it("is not sent to a user who has never logged a trade", async () => {
+    Trade.distinct.mockResolvedValue([]);
+    await runReflectionReminderJob(SUNDAY_1930_IST);
+    expect(notificationService.notifyUser).not.toHaveBeenCalled();
+  });
+
+  it("is only due at 19:30 in the user's timezone", async () => {
+    await runReflectionReminderJob(SATURDAY_0700_IST);
+    expect(notificationService.notifyUser).not.toHaveBeenCalled();
+  });
+
   it("does not send when a DailyReflection already exists for the day", async () => {
     DailyReflection.findOne.mockReturnValue({ select: () => ({ lean: () => Promise.resolve({ _id: "r1" }) }) });
     await runReflectionReminderJob(SUNDAY_1930_IST);
@@ -92,16 +107,25 @@ describe("Evening Reflection on the weekend", () => {
 
 describe("Streak Protector on the weekend", () => {
   it("still nudges a user whose streak is at risk", async () => {
-    await runStreakProtectorJob();
+    await runStreakProtectorJob(SATURDAY_2100_IST);
     expect(sendAtRisk).toHaveBeenCalledWith("u1", { currentStreak: 5, dayKey: "2026-09-19" });
+  });
+
+  it("does not tell a lapsed user their (stale) streak is alive", async () => {
+    const repo = require("../../repositories/user.repository");
+    repo.findReachableUsersByTimezone.mockResolvedValueOnce([
+      { _id: "u1", streaks: { journal: { current: 12, lastQualifyingDate: "2026-09-01" }, timezone: "Asia/Kolkata" } },
+    ]);
+    await runStreakProtectorJob(SATURDAY_2100_IST);
+    expect(sendAtRisk).not.toHaveBeenCalled();
   });
 
   it("does not nudge when today is already the last qualifying date", async () => {
     const repo = require("../../repositories/user.repository");
-    repo.findUsersWithActiveJournalStreak.mockResolvedValueOnce([
+    repo.findReachableUsersByTimezone.mockResolvedValueOnce([
       { _id: "u1", streaks: { journal: { current: 5, lastQualifyingDate: "2026-09-19" }, timezone: "Asia/Kolkata" } },
     ]);
-    await runStreakProtectorJob();
+    await runStreakProtectorJob(SATURDAY_2100_IST);
     expect(sendAtRisk).not.toHaveBeenCalled();
   });
 });

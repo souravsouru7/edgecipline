@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import RiskLimitsPrompt from "@/features/settings/components/RiskLimitsPrompt";
+
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +14,7 @@ import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/featu
 import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { MARKETS } from "@/context/MarketContext";
 import { markOnboardingStep } from "@/services/api";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
+import PageHeader from "@/features/shared/components/PageHeader";
 import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -32,14 +34,14 @@ import {
 } from "@/features/trade/lib/setupRules";
 
 const theme = {
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  primary: "#0D9E6E",
-  secondary: "#0F1923",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  bg: "#F0EEE9",
-  card: "#FFFFFF"
+  bull: "var(--lg-green, #0D9E6E)",
+  bear: "var(--lg-red, #D63B3B)",
+  primary: "var(--lg-green, #0D9E6E)",
+  secondary: "var(--lg-ink, #0F1923)",
+  muted: "var(--lg-muted, #94A3B8)",
+  border: "var(--lg-line, #E2E8F0)",
+  bg: "var(--lg-soft, #F0EEE9)",
+  card: "var(--lg-card, #FFFFFF)"
 };
 
 
@@ -404,8 +406,8 @@ function IndianOptionsAddTradeContent() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, fontFamily: "'Plus Jakarta Sans',sans-serif", color: theme.secondary }}>
-      <IndianMarketHeader />
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Log trade" />
 
       <TradeLimitDialog
         open={Boolean(limitBlock)}
@@ -423,13 +425,12 @@ function IndianOptionsAddTradeContent() {
         }}
       />
 
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: theme.secondary }}>
-          Log New <span style={{ color: '#1B5E20' }}>{isEquity ? "Stock Trade" : "Options Trade"}</span>
-        </h1>
-        <p style={{ fontSize: 12, color: theme.muted, marginBottom: 12, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" }}>
-          {isEquity ? "NSE / BSE EQUITY INTRADAY" : "NSE / BSE F&O MARKET ENTRY"}
-        </p>
+      <main className="ec-page ec-log">
+        <RiskLimitsPrompt market="Indian_Market" disabled={onboardingMode} />
+        <div className="ec-log__head">
+          <h1 className="ec-log__title">Log {isEquity ? "a stock trade" : "an options trade"}</h1>
+          <p className="ec-log__sub">Indian market · {isEquity ? "NSE / BSE equity intraday" : "NSE / BSE F&O"}</p>
+        </div>
         <div style={{ marginBottom: 24 }}>
           <TradeQuotaPill marketType={MARKETS.INDIAN_MARKET} />
         </div>
@@ -437,7 +438,7 @@ function IndianOptionsAddTradeContent() {
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
           {/* Instrument type toggle */}
-          <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: "1.5px solid #E2E8F0" }}>
+          <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: "1.5px solid var(--lg-line, #E2E8F0)" }}>
             {[{ v: "OPTION", label: "Options" }, { v: "EQUITY", label: "Intraday Stocks" }].map(({ v, label }) => (
               <button
                 key={v}
@@ -447,13 +448,13 @@ function IndianOptionsAddTradeContent() {
                   flex: 1,
                   padding: "11px 0",
                   border: "none",
-                  background: tradeSubType === v ? theme.primary : "#FFFFFF",
-                  color: tradeSubType === v ? "#FFFFFF" : theme.muted,
+                  background: tradeSubType === v ? theme.primary : "var(--lg-card, #FFFFFF)",
+                  color: tradeSubType === v ? "var(--lg-card, #FFFFFF)" : theme.muted,
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
                   transition: "all 0.15s",
-                  fontFamily: "'Plus Jakarta Sans',sans-serif",
+                  fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
                   letterSpacing: "0.04em"
                 }}
               >
@@ -589,10 +590,10 @@ function IndianOptionsAddTradeContent() {
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Trade Date <span style={{ color: "#D63B3B" }}>*</span></label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Trade Date <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></label>
               <input name="tradeDate" type="date" value={trade.tradeDate} onChange={handleChange} required min={accountCreatedDate || undefined} max={getTodayInputValue()} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               {accountCreatedDate && (
-                <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 5, fontFamily: "'JetBrains Mono',monospace" }}>
+                <div style={{ fontSize: "var(--fs-2xs)", color: theme.muted, marginTop: 5, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                   Earliest allowed: {accountCreatedDate} (account creation date)
                 </div>
               )}
@@ -631,7 +632,7 @@ function IndianOptionsAddTradeContent() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: theme.muted, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800 }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: theme.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 800 }}>
                     SETUP CHECKLIST
                   </div>
                   <div style={{ fontSize: 12, color: theme.muted, marginTop: 4 }}>
@@ -641,7 +642,7 @@ function IndianOptionsAddTradeContent() {
                 <button
                   type="button"
                   onClick={clearSetupRules}
-                  style={{ padding: "8px 10px", borderRadius: 999, border: `1px solid ${theme.border}`, background: "#F8FAFC", cursor: "pointer", fontSize: 11, fontWeight: 700, color: theme.muted }}
+                  style={{ padding: "8px 10px", borderRadius: 999, border: `1px solid ${theme.border}`, background: "var(--lg-soft, #F8FAFC)", cursor: "pointer", fontSize: 11, fontWeight: 700, color: theme.muted }}
                 >
                   CLEAR
                 </button>
@@ -662,8 +663,8 @@ function IndianOptionsAddTradeContent() {
                           width: 20,
                           height: 20,
                           borderRadius: 6,
-                          border: rule.followed ? `1.5px solid ${theme.bull}` : "1.5px solid #CBD5E1",
-                          background: rule.followed ? `linear-gradient(135deg, ${theme.bull}, #22C78E)` : "#FFFFFF",
+                          border: rule.followed ? `1.5px solid ${theme.bull}` : "1.5px solid var(--lg-line-strong, #CBD5E1)",
+                          background: rule.followed ? `linear-gradient(135deg, ${theme.bull}, #22C78E)` : "var(--lg-card, #FFFFFF)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -711,7 +712,7 @@ function IndianOptionsAddTradeContent() {
             )}
 
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Planned Risk : Reward <span style={{ color: "#D63B3B" }}>*</span></label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Planned Risk : Reward <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></label>
               <select
                 name="riskRewardRatio"
                 value={trade.riskRewardRatio}
@@ -796,7 +797,7 @@ function IndianOptionsAddTradeContent() {
               <input type="file" ref={fileInputRef} accept="image/*" onChange={e => handleScreenshotChange(e.target.files[0])} style={{ display: "none" }} />
               <div
                 onClick={() => !(loading || uploadingScreenshot) && fileInputRef.current.click()}
-                style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: (loading || uploadingScreenshot) ? "not-allowed" : "pointer", background: "#fafafa", transition: "all 0.2s" }}
+                style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: (loading || uploadingScreenshot) ? "not-allowed" : "pointer", background: "var(--lg-soft, #fafafa)", transition: "all 0.2s" }}
                 onMouseEnter={e => !(loading || uploadingScreenshot) && (e.currentTarget.style.borderColor = theme.primary)}
                 onMouseLeave={e => !(loading || uploadingScreenshot) && (e.currentTarget.style.borderColor = theme.border)}
               >
@@ -843,14 +844,14 @@ function IndianOptionsAddTradeContent() {
             </div>
 
             {/* Psychology Section */}
-            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, border: "1px solid #E2E8F0" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 12, padding: 20, border: "1px solid var(--lg-line, #E2E8F0)" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>
                 <span>PSY</span> TRADE PSYCHOLOGY
-                <span style={{ fontSize: "var(--fs-2xs)", color: "#D63B3B", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
+                <span style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-red, #D63B3B)", fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.08em", background: "#FFF0F0", padding: "2px 6px", borderRadius: 4 }}>REQUIRED</span>
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>HOW ARE YOU FEELING? <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.05em" }}>HOW ARE YOU FEELING? <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {[
                     { score: "1", val: 1, label: "Stressed" },
@@ -870,20 +871,20 @@ function IndianOptionsAddTradeContent() {
                         cursor: "pointer",
                         textAlign: "center",
                         transition: "all 0.2s",
-                        border: trade.mood === m.val ? "1.5px solid #0D9E6E" : "1px solid #E2E8F0",
-                        background: trade.mood === m.val ? "rgba(13,158,110,0.06)" : "#F8FAFC",
+                        border: trade.mood === m.val ? "1.5px solid var(--lg-green, #0D9E6E)" : "1px solid var(--lg-line, #E2E8F0)",
+                        background: trade.mood === m.val ? "rgba(13,158,110,0.06)" : "var(--lg-soft, #F8FAFC)",
                         transform: trade.mood === m.val ? "scale(1.04)" : "scale(1)"
                       }}
                     >
                       <div style={{ fontSize: 20, fontWeight: 800 }}>{m.score}</div>
-                      <div style={{ fontSize: "var(--fs-2xs)", color: trade.mood === m.val ? "#0D9E6E" : "#64748B", fontWeight: 700, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{m.label}</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: trade.mood === m.val ? "var(--lg-green, #0D9E6E)" : "var(--lg-sub, #64748B)", fontWeight: 700, marginTop: 4, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>{m.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>CONFIDENCE LEVEL <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 6, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.05em" }}>CONFIDENCE LEVEL <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></label>
                 <select
                   name="confidence"
                   value={trade.confidence}
@@ -899,7 +900,7 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>EMOTIONAL TAGS <span style={{ color: "#D63B3B" }}>*</span></label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.05em" }}>EMOTIONAL TAGS <span style={{ color: "var(--lg-red, #D63B3B)" }}>*</span></label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused", "Frustrated"].map(tag => {
                     const selected = (trade.emotionalTags || []).includes(tag);
@@ -920,10 +921,10 @@ function IndianOptionsAddTradeContent() {
                           fontWeight: 600,
                           cursor: "pointer",
                           transition: "all 0.15s",
-                          fontFamily: "'Plus Jakarta Sans',sans-serif",
-                          border: selected ? "1px solid #0D9E6E" : "1px solid #E2E8F0",
-                          background: selected ? "rgba(13,158,110,0.08)" : "#FFFFFF",
-                          color: selected ? "#0D9E6E" : "#64748B"
+                          fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
+                          border: selected ? "1px solid var(--lg-green, #0D9E6E)" : "1px solid var(--lg-line, #E2E8F0)",
+                          background: selected ? "rgba(13,158,110,0.08)" : "var(--lg-card, #FFFFFF)",
+                          color: selected ? "var(--lg-green, #0D9E6E)" : "var(--lg-sub, #64748B)"
                         }}
                       >
                         {tag}
@@ -934,7 +935,7 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>WOULD YOU RETAKE THIS TRADE?</label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.05em" }}>WOULD YOU RETAKE THIS TRADE?</label>
                 <div style={{ display: "flex", gap: 10 }}>
                   {["Yes", "No"].map(option => (
                     <button
@@ -949,10 +950,10 @@ function IndianOptionsAddTradeContent() {
                         fontSize: 12,
                         fontWeight: 700,
                         transition: "all 0.2s",
-                        fontFamily: "'Plus Jakarta Sans',sans-serif",
-                        border: trade.wouldRetake === option ? `1.5px solid ${option === "Yes" ? "#0D9E6E" : "#D63B3B"}` : "1px solid #E2E8F0",
-                        background: trade.wouldRetake === option ? (option === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "#F8FAFC",
-                        color: trade.wouldRetake === option ? (option === "Yes" ? "#0D9E6E" : "#D63B3B") : "#64748B"
+                        fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
+                        border: trade.wouldRetake === option ? `1.5px solid ${option === "Yes" ? "var(--lg-green, #0D9E6E)" : "var(--lg-red, #D63B3B)"}` : "1px solid var(--lg-line, #E2E8F0)",
+                        background: trade.wouldRetake === option ? (option === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "var(--lg-soft, #F8FAFC)",
+                        color: trade.wouldRetake === option ? (option === "Yes" ? "var(--lg-green, #0D9E6E)" : "var(--lg-red, #D63B3B)") : "var(--lg-sub, #64748B)"
                       }}
                     >
                       {option}
@@ -962,12 +963,12 @@ function IndianOptionsAddTradeContent() {
               </div>
 
               <div style={{ marginTop: 18 }}>
-                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.05em" }}>TRADE QUALITY (EXECUTION)</label>
+                <label style={{ display: "block", fontSize: "var(--fs-2xs)", fontWeight: 700, color: theme.muted, marginBottom: 8, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.05em" }}>TRADE QUALITY (EXECUTION)</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                   {[
-                    { val: "Great", color: "#0D9E6E", desc: "Followed the plan" },
-                    { val: "Average", color: "#F59E0B", desc: "Partial execution" },
-                    { val: "Poor", color: "#D63B3B", desc: "Broke the rules" },
+                    { val: "Great", color: "var(--lg-green, #0D9E6E)", desc: "Followed the plan" },
+                    { val: "Average", color: "var(--lg-gold, #F59E0B)", desc: "Partial execution" },
+                    { val: "Poor", color: "var(--lg-red, #D63B3B)", desc: "Broke the rules" },
                   ].map(q => (
                     <button
                       key={q.val}
@@ -978,13 +979,13 @@ function IndianOptionsAddTradeContent() {
                         borderRadius: 10,
                         cursor: "pointer",
                         textAlign: "center",
-                        border: trade.tradeQuality === q.val ? `1.5px solid ${q.color}` : "1px solid #E2E8F0",
-                        background: trade.tradeQuality === q.val ? `${q.color}14` : "#F8FAFC",
+                        border: trade.tradeQuality === q.val ? `1.5px solid ${q.color}` : "1px solid var(--lg-line, #E2E8F0)",
+                        background: trade.tradeQuality === q.val ? `color-mix(in srgb, ${q.color} 8%, transparent)` : "var(--lg-soft, #F8FAFC)",
                         transition: "all 0.2s",
                       }}
                     >
-                      <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.val}</div>
-                      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 2, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{q.desc}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : "var(--lg-ink, #0F1923)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>{q.val}</div>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", marginTop: 2, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>{q.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -996,16 +997,14 @@ function IndianOptionsAddTradeContent() {
             padding: "14px 24px",
             borderRadius: 12,
             border: "none",
-            background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
+            background: theme.primary,
+            color: "var(--lg-on-accent, #fff)",
+            fontSize: 15,
+            fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.8 : 1
           }}>
-            {loading ? "Saving..." : "Save"}
+            {loading ? "Saving…" : "Save trade"}
           </button>
         </form>
       </main>

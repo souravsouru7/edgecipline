@@ -148,8 +148,8 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         .evidence-section {
           padding: 12px 14px;
           border-radius: 12px;
-          background: #F8FAFB;
-          border: 1px solid #E8ECF0;
+          background: var(--lg-soft, #F8FAFB);
+          border: 1px solid var(--lg-line, #E8ECF0);
         }
         .evidence-head {
           display: flex; align-items: center; justify-content: space-between;
@@ -157,12 +157,12 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         }
         .evidence-label {
           font-size: var(--fs-2xs); font-weight: 700;
-          letter-spacing: 0.1em; color: #64748B;
-          font-family: 'JetBrains Mono', monospace;
+          letter-spacing: 0.1em; color: var(--lg-sub, #64748B);
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         .evidence-count {
-          font-size: var(--fs-2xs); color: #94A3B8;
-          font-family: 'JetBrains Mono', monospace;
+          font-size: var(--fs-2xs); color: var(--lg-muted, #94A3B8);
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         .evidence-grid {
           display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start;
@@ -176,7 +176,7 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
           display: block;
         }
         .evidence-thumb--uploaded img {
-          border: 1px solid #E2E8F0;
+          border: 1px solid var(--lg-line, #E2E8F0);
         }
         .evidence-thumb--pending img {
           border: 2px dashed ${accentColor};
@@ -184,8 +184,8 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         .evidence-remove {
           position: absolute; top: -6px; right: -6px;
           width: 20px; height: 20px; border-radius: 50%;
-          border: 2px solid #FFFFFF; background: #EF4444;
-          color: #FFFFFF; cursor: pointer; z-index: 2;
+          border: 2px solid var(--lg-card, #FFFFFF); background: var(--lg-red, #EF4444);
+          color: var(--lg-card, #FFFFFF); cursor: pointer; z-index: 2;
           display: flex; align-items: center; justify-content: center;
         }
         .evidence-remove:disabled { opacity: 0.5; cursor: default; }
@@ -195,7 +195,7 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         }
         .evidence-move {
           width: 20px; height: 18px; border-radius: 4px; border: none;
-          background: rgba(15,25,35,0.62); color: #FFFFFF;
+          background: rgba(15,25,35,0.62); color: var(--lg-card, #FFFFFF);
           font-size: 11px; cursor: pointer;
           display: flex; align-items: center; justify-content: center;
         }
@@ -205,13 +205,13 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
           background: ${accentColor}; color: #FFFFFF;
           font-size: var(--fs-2xs); font-weight: 800;
           padding: 2px 5px; border-radius: 4px; letter-spacing: 0.08em;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         .evidence-add {
           width: ${thumbW}px; height: ${thumbH}px;
           border-radius: 9px;
-          border: 1.5px dashed #CBD5E0; background: #FFFFFF;
-          color: #64748B; font-size: var(--fs-2xs); font-weight: 600;
+          border: 1.5px dashed var(--lg-line-strong, #CBD5E0); background: var(--lg-card, #FFFFFF);
+          color: var(--lg-sub, #64748B); font-size: var(--fs-2xs); font-weight: 600;
           cursor: pointer;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           gap: 4px; transition: border-color 0.15s, background 0.15s;
@@ -225,7 +225,7 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
           margin-top: 6px; font-weight: 500;
         }
         .evidence-empty-hint {
-          font-size: 11px; color: #94A3B8;
+          font-size: 11px; color: var(--lg-muted, #94A3B8);
           margin-top: 4px;
         }
         .evidence-upload-bar {
@@ -239,8 +239,8 @@ const TradeEvidenceSection = forwardRef(function TradeEvidenceSection(
         @keyframes ev-spin { to { transform: rotate(360deg); } }
         .evidence-error {
           margin-top: 8px; padding: 6px 10px; border-radius: 8px;
-          background: #FEF2F2; border: 1px solid #FCA5A5;
-          font-size: 11px; color: #B91C1C;
+          background: var(--lg-red-soft, #FEF2F2); border: 1px solid var(--lg-red-soft, #FCA5A5);
+          font-size: 11px; color: var(--lg-red, #B91C1C);
         }
       `}</style>
 

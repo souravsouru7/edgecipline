@@ -24,7 +24,8 @@ const ChecklistNotificationSettingSchema = new mongoose.Schema(
     repeatMode: {
       type: String,
       enum: ["daily", "weekdays", "custom"],
-      default: "daily",
+      // Markets are shut at the weekend; "daily" pinged new users Sat/Sun.
+      default: "weekdays",
     },
     // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
     customDays: { type: [Number], default: [1, 2, 3, 4, 5] },

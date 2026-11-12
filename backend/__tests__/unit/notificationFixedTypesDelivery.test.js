@@ -1,3 +1,9 @@
+// notifyUser checks the account is reachable (not disabled / mid-deletion).
+jest.mock("../../models/Users", () => ({
+  findById: jest.fn(() => ({
+    select: () => ({ lean: async () => ({ accountStatus: "active", pendingDeletion: false }) }),
+  })),
+}));
 /**
  * End-to-end through the real notifyUser for the five types that used to die
  * on schema validation: history row (validated against the real schema) →
@@ -38,6 +44,9 @@ jest.mock("../../models/NotificationHistory", () => {
       return { ...row, toObject() { return { ...row }; } };
     }),
     updateMany: jest.fn(),
+    // Daily-cap lookups in notifyUser: no prior row, nothing sent yet today.
+    exists: jest.fn().mockResolvedValue(null),
+    countDocuments: jest.fn().mockResolvedValue(0),
   };
   return mock;
 });

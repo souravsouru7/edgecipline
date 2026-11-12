@@ -11,15 +11,15 @@ export default function TradeStep({ market }) {
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <Link href={uploadPath} style={ctaCard("#22C78E")}>
-        <span aria-hidden style={iconBubble("#22C78E")}>
+      <Link href={uploadPath} style={ctaCard("var(--ec-accent-text)")}>
+        <span aria-hidden style={iconBubble("var(--ec-accent-text)")}>
           <Camera size={18} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleStyle}>Import broker screenshot</div>
           <div style={subStyle}>Upload your screenshot and let AI fill the trade details.</div>
         </div>
-        <ArrowRight size={16} color="#22C78E" />
+        <ArrowRight size={16} color="var(--ec-accent-text)" />
       </Link>
 
       <Link href={demoPath} style={ctaCard("#0EA5E9")}>
@@ -44,7 +44,7 @@ export default function TradeStep({ market }) {
         <ArrowRight size={16} color="#8B5CF6" />
       </Link>
 
-      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748B", lineHeight: 1.55, textAlign: "center" }}>
+      <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--ec-text-3)", lineHeight: 1.55, textAlign: "center" }}>
         After saving the trade, we&apos;ll bring you to your coach to review it.
       </p>
     </div>
@@ -79,5 +79,5 @@ function iconBubble(accent) {
   };
 }
 
-const titleStyle = { fontSize: 13, fontWeight: 800, color: "#F1F5F9", marginBottom: 2 };
-const subStyle = { fontSize: 11, color: "#94A3B8", lineHeight: 1.5 };
+const titleStyle = { fontSize: 13, fontWeight: 800, color: "var(--ec-text)", marginBottom: 2 };
+const subStyle = { fontSize: 11, color: "var(--ec-text-2)", lineHeight: 1.5 };

@@ -24,6 +24,7 @@ out/
 # Environment variables
 .env
 .env.*
+.envsafe
 !.env.example
 !**/.env.example
 .env.local

@@ -36,6 +36,7 @@ export function useTrades() {
     data: pages,
     isLoading: loading,
     error,
+    refetch,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -174,8 +175,11 @@ export function useTrades() {
     period,
     search,
     summaryStats,
+    // Raw numbers behind summaryStats (journal stat cards).
+    performance,
     mounted,
     error,
+    refetch,
     handlers,
     // Paging
     totalTrades: totalForFilters ?? totalTrades,

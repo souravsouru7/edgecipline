@@ -131,7 +131,7 @@ function HelpCenter() {
 
   return (
     <SupportShell
-      eyebrow="SUPPORT"
+     
       actions={
         signedIn ? (
           <>
@@ -425,11 +425,9 @@ function HelpCenter() {
           margin-bottom: 34px;
         }
         .hc-h2 {
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 0.09em;
-          text-transform: uppercase;
-          color: var(--color-text-muted);
+          font-size: 17px;
+          font-weight: 600;
+          color: var(--color-dark);
           margin: 0 0 14px;
         }
         .hc-lead {
@@ -539,7 +537,7 @@ export default function SupportPage() {
   // The shell renders synchronously so the page never flashes blank while the
   // client bundle hydrates — which is what an app-store reviewer would see.
   return (
-    <Suspense fallback={<SupportShell eyebrow="SUPPORT"><LoadingBlock label="Loading support" rows={3} /></SupportShell>}>
+    <Suspense fallback={<SupportShell><LoadingBlock label="Loading support" rows={3} /></SupportShell>}>
       <HelpCenter />
     </Suspense>
   );

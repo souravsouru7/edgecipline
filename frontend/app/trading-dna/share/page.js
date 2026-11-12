@@ -3,424 +3,158 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Check, Lock, Target } from "lucide-react";
+import { Badge, Button, Placeholder } from "@/features/shared/components/ui";
 import { getSharedTradingDna } from "@/features/trading-dna";
+import { archetypeAccent } from "@/features/trading-dna/components/tokens";
+import { hasValidAuthToken } from "@/utils/auth";
 
-const C = {
-  bgDeep: "#0F1923",
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  primary: "#0F1923",
-  surface: "#FFFFFF",
-};
-
-const FONT_BODY = "'Plus Jakarta Sans',sans-serif";
-const FONT_MONO = "'JetBrains Mono',monospace";
-
-const ARCHETYPE_ACCENTS = {
-  "Patient Sniper": "#A855F7",
-  "Momentum Rider": "#F97316",
-  "Disciplined Grinder": "#0D9E6E",
-  "Volatility Surfer": "#06B6D4",
-  "Reactive Improviser": "#F43F5E",
-  "Range Hunter": "#10B981",
-  "Breakout Hunter": "#F59E0B",
-  "Risk Curator": "#3B82F6",
-  "Mean Reversion Specialist": "#8B5CF6",
-  "Trend Follower": "#0EA5E9",
-  Scalper: "#EC4899",
-  "Swing Builder": "#22C55E",
-};
+// Public page: anyone with the link can open it, logged in or not. No app
+// shell; just the shared summary and a way to make your own.
 
 function SharedReportView() {
   const params = useSearchParams();
   const token = params.get("t");
-  // Initialise lazily so the "missing token" branch never has to setState
-  // synchronously inside an effect.
   const [state, setState] = useState(() =>
     token
       ? { loading: true, error: null, data: null }
-      : { loading: false, error: "Missing share token in the URL.", data: null }
+      : { loading: false, error: "This link is missing its code. Ask the person who shared it to send it again.", data: null }
   );
-
   useEffect(() => {
     if (!token) return undefined;
-    let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        const data = await getSharedTradingDna(token);
-        if (!cancelled) setState({ loading: false, error: null, data });
+        const data = await getSharedTradingDna(token, controller.signal);
+        setState({ loading: false, error: null, data, signedIn: hasValidAuthToken() });
       } catch (err) {
-        if (cancelled) return;
-        const status = err?.response?.status || err?.status;
+        if (controller.signal.aborted) return;
+        const status = err?.status;
         const message =
-          err?.response?.data?.error?.message ||
-          err?.response?.data?.message ||
-          (status === 401
-            ? "This share link has expired or is no longer valid."
-            : "This shared report is no longer available.");
-        setState({ loading: false, error: message, data: null });
+          status === 401
+            ? "This link has expired or isn't valid any more."
+            : status === 404
+              ? "This report has been removed."
+              : status === 429
+                ? "Too many requests. Wait a minute and refresh."
+                : "Couldn't load this report. Check your connection and refresh.";
+        setState({ loading: false, error: message, data: null, signedIn: hasValidAuthToken() });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [token]);
 
   const data = state.data;
-  const archetype = data?.identity?.archetype || null;
-  const accent = archetype
-    ? ARCHETYPE_ACCENTS[archetype] || "#8B5CF6"
-    : "#8B5CF6";
+  const accent = archetypeAccent(data?.identity?.archetype);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.bgDeep,
-        color: "#F8FAFC",
-        fontFamily: FONT_BODY,
-        padding: "40px 20px",
-        boxSizing: "border-box",
-      }}
-    >
-
-      <main
-        style={{
-          maxWidth: 720,
-          margin: "0 auto",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div
-            style={{
-              fontSize: 11,
-              color: C.muted,
-              letterSpacing: "0.24em",
-              fontFamily: FONT_MONO,
-              marginBottom: 8,
-            }}
-          >
-            EDGECIPLINE · TRADING DNA
-          </div>
-          <div style={{ height: 2, width: 48, background: accent, margin: "0 auto" }} />
-        </div>
+    <div className="ec-app ec-dna-share">
+      <main className="ec-dna-share__main">
+        <p className="ec-dna-share__brand">Edgecipline · Trading DNA</p>
 
         {state.loading ? (
-          <Skeleton />
+          <div className="ec-disc__stack" aria-busy="true" aria-label="Loading shared report">
+            <div className="ec-card ec-card--pad">
+              <Placeholder width="35%" height={12} />
+              <Placeholder width="65%" height={34} style={{ marginTop: 14 }} />
+              <Placeholder width="90%" height={14} style={{ marginTop: 14 }} />
+            </div>
+            <div className="ec-card ec-card--pad">
+              <Placeholder width="30%" height={14} />
+              <Placeholder height={60} style={{ marginTop: 14 }} />
+            </div>
+          </div>
         ) : state.error ? (
-          <ErrorCard message={state.error} />
+          <div className="ec-card">
+            <div className="ec-state">
+              <span className="ec-state__icon" aria-hidden="true"><Lock size={22} /></span>
+              <h1 className="ec-state__title">This shared report isn&apos;t available</h1>
+              <p className="ec-state__body">{state.error}</p>
+            </div>
+          </div>
         ) : data ? (
           <ReportBody data={data} accent={accent} />
         ) : null}
 
-        <footer
-          style={{
-            marginTop: 48,
-            textAlign: "center",
-            fontSize: 11,
-            color: C.muted,
-          }}
-        >
-          <Link
-            href="/dashboard"
-            style={{
-              color: accent,
-              fontWeight: 700,
-              textDecoration: "none",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Build your own Trading DNA →
-          </Link>
-        </footer>
+        {state.loading ? null : (
+        <div className="ec-dna-share__cta">
+          <p>Find out what kind of trader you are, from your own trades.</p>
+          <Button as={Link} href={state.signedIn ? "/trading-dna" : "/register"}>
+            {state.signedIn ? "See my Trading DNA" : "Build my own Trading DNA"}
+          </Button>
+        </div>
+        )}
       </main>
     </div>
   );
 }
 
 function ReportBody({ data, accent }) {
+  const identity = data.identity || {};
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1A2538 0%,#0F1923 100%)",
-          borderRadius: 18,
-          padding: "32px 28px",
-          border: `1px solid ${accent}55`,
-        }}
-      >
-        <div
-          style={{
-            fontSize: "var(--fs-2xs)",
-            color: accent,
-            letterSpacing: "0.2em",
-            fontWeight: 800,
-            marginBottom: 16,
-          }}
-        >
-          TRADING IDENTITY
-        </div>
-        <div
-          style={{
-            fontSize: 36,
-            fontWeight: 900,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-            marginBottom: 10,
-          }}
-        >
-          {data.identity?.archetype || "Building DNA…"}
-        </div>
-        {data.identity?.tagline ? (
-          <div
-            style={{
-              fontSize: 12,
-              color: accent,
-              fontFamily: FONT_MONO,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              marginBottom: 16,
-            }}
-          >
-            {data.identity.tagline}
-          </div>
-        ) : null}
-        {data.identity?.oneLiner ? (
-          <p
-            style={{
-              fontSize: 15,
-              color: "#CBD5E1",
-              lineHeight: 1.7,
-              margin: 0,
-            }}
-          >
-            {data.identity.oneLiner}
-          </p>
-        ) : null}
-        <div
-          style={{
-            marginTop: 20,
-            display: "flex",
-            gap: 18,
-            fontSize: "var(--fs-2xs)",
-            color: "#64748B",
-            letterSpacing: "0.06em",
-            fontFamily: FONT_MONO,
-          }}
-        >
+    <div className="ec-disc__stack">
+      <section className="ec-card ec-card--pad ec-dna__hero" style={{ "--dna-accent": accent }}>
+        <p className="ec-dna__eyebrow">Trading identity</p>
+        <h1 className="ec-dna__archetype">{identity.archetype || "Still forming"}</h1>
+        {identity.tagline ? <p className="ec-dna__tagline">{identity.tagline}</p> : null}
+        {identity.oneLiner ? <p className="ec-dna__oneliner">{identity.oneLiner}</p> : null}
+        <div className="ec-dna__meta">
           {data.sample?.totalTrades != null ? (
-            <span>BASED ON {data.sample.totalTrades} TRADES</span>
+            <span>Based on <strong>{data.sample.totalTrades}</strong> trades</span>
           ) : null}
-          {data.sample?.lowSample ? (
-            <span style={{ color: "#F59E0B" }}>PRELIMINARY</span>
+          {data.sample?.lowSample ? <Badge tone="warning">Early read: small sample</Badge> : null}
+        </div>
+      </section>
+
+      {data.psychologyScore != null || data.planAdherencePct != null ? (
+        <div className="ec-dna-share__stats">
+          {data.psychologyScore != null ? (
+            <div className="ec-card ec-card--pad">
+              <p className="ec-disc__eyebrow">Psychology score</p>
+              <p className="ec-dna-share__num">{data.psychologyScore}<span>/100</span></p>
+            </div>
+          ) : null}
+          {data.planAdherencePct != null ? (
+            <div className="ec-card ec-card--pad">
+              <p className="ec-disc__eyebrow">Plan followed</p>
+              <p className="ec-dna-share__num">{data.planAdherencePct}<span>%</span></p>
+            </div>
           ) : null}
         </div>
-      </div>
+      ) : null}
 
       {data.coachSummary ? (
-        <Card title="COACH SUMMARY" accent={accent}>
-          <p
-            style={{
-              fontSize: 14,
-              color: "#E2E8F0",
-              lineHeight: 1.8,
-              margin: 0,
-            }}
-          >
-            {data.coachSummary}
-          </p>
-        </Card>
+        <section className="ec-card ec-card--pad">
+          <h2 className="ec-card__title">Coach summary</h2>
+          <p className="ec-dna__prose" style={{ marginTop: 10 }}>{data.coachSummary}</p>
+        </section>
       ) : null}
 
       {data.topStrengths?.length ? (
-        <Card title="TOP STRENGTHS" accent={accent}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <section className="ec-card ec-card--pad">
+          <h2 className="ec-card__title">Top strengths</h2>
+          <ul className="ec-dna-share__list">
             {data.topStrengths.map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  fontSize: 14,
-                  color: "#E2E8F0",
-                }}
-              >
-                <span style={{ color: accent, fontWeight: 900 }}>✓</span>
-                {s.title}
-              </div>
+              <li key={`${s.title}-${i}`}>
+                <Check size={16} aria-hidden="true" className="ec-tone--good" />
+                <span>{s.title}</span>
+              </li>
             ))}
-          </div>
-        </Card>
+          </ul>
+        </section>
       ) : null}
 
       {data.topImprovement ? (
-        <Card title="HIGHEST-LEVERAGE FOCUS" accent={accent}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: "#F8FAFC",
-              marginBottom: 8,
-            }}
-          >
-            {data.topImprovement.priority}
-          </div>
-          {data.topImprovement.action ? (
-            <div
-              style={{
-                fontSize: 13,
-                color: "#CBD5E1",
-                lineHeight: 1.6,
-              }}
-            >
-              {data.topImprovement.action}
-            </div>
-          ) : null}
-        </Card>
+        <section className="ec-card ec-card--pad">
+          <h2 className="ec-card__title ec-dna__title-icon">
+            <Target size={16} aria-hidden="true" className="ec-tone--good" /> Working on next
+          </h2>
+          <p className="ec-dna__item-title" style={{ marginTop: 10 }}>{data.topImprovement.priority}</p>
+          {data.topImprovement.action ? <p className="ec-dna__item-text">{data.topImprovement.action}</p> : null}
+        </section>
       ) : null}
 
-      {data.psychologyScore != null || data.planAdherencePct != null ? (
-        <Card title="HEADLINE METRICS" accent={accent}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))",
-              gap: 14,
-            }}
-          >
-            {data.psychologyScore != null ? (
-              <Metric label="Psychology score" value={`${data.psychologyScore}/100`} accent={accent} />
-            ) : null}
-            {data.planAdherencePct != null ? (
-              <Metric label="Plan adherence" value={`${data.planAdherencePct}%`} accent={accent} />
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
-
-      {data.confidenceNote ? (
-        <div
-          style={{
-            fontSize: 11,
-            color: C.muted,
-            textAlign: "center",
-            fontFamily: FONT_MONO,
-            letterSpacing: "0.04em",
-            paddingTop: 4,
-          }}
-        >
-          {data.confidenceNote}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function Card({ title, accent, children }) {
-  return (
-    <div
-      style={{
-        background: "#0B1422",
-        borderRadius: 14,
-        padding: "20px 22px",
-        border: "1px solid rgba(148,163,184,0.15)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "var(--fs-2xs)",
-          color: accent,
-          letterSpacing: "0.18em",
-          fontWeight: 800,
-          marginBottom: 14,
-        }}
-      >
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Metric({ label, value, accent }) {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: "var(--fs-2xs)",
-          color: C.muted,
-          letterSpacing: "0.1em",
-          marginBottom: 6,
-        }}
-      >
-        {label.toUpperCase()}
-      </div>
-      <div
-        style={{
-          fontSize: 22,
-          fontWeight: 900,
-          color: accent,
-          fontFamily: FONT_MONO,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function ErrorCard({ message }) {
-  return (
-    <div
-      style={{
-        background: "#0B1422",
-        borderRadius: 14,
-        padding: "32px 24px",
-        border: "1px solid rgba(214,59,59,0.4)",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ fontSize: 30, marginBottom: 14 }}>🔒</div>
-      <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
-        Share link unavailable
-      </div>
-      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-        {message}
-      </div>
-    </div>
-  );
-}
-
-function Skeleton() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div
-        style={{
-          background: "#0B1422",
-          borderRadius: 18,
-          padding: "32px 24px",
-          height: 240,
-        }}
-      />
-      <div
-        style={{
-          background: "#0B1422",
-          borderRadius: 14,
-          padding: "20px 22px",
-          height: 140,
-        }}
-      />
-      <div
-        style={{
-          background: "#0B1422",
-          borderRadius: 14,
-          padding: "20px 22px",
-          height: 120,
-        }}
-      />
+      {data.confidenceNote ? <p className="ec-dna__fine" style={{ textAlign: "center" }}>{data.confidenceNote}</p> : null}
     </div>
   );
 }

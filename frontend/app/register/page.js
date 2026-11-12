@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { googleLogin, appleLogin, registerUser, testConnection as apiTestConnection } from "@/services/api";
 import {
   signInWithFirebaseGoogle,
@@ -18,8 +18,11 @@ import { useToast } from "@/features/shared/components/ui/Toast";
 import { getUserMessage, reportUserError } from "@/utils/userMessage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import TickerTape from "@/features/shared/components/TickerTape";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
+import { Eye, EyeOff } from "lucide-react";
+import AuthShell, { AuthNotice } from "@/features/auth/components/AuthShell";
+import { AppleButton, GoogleButton, OrDivider } from "@/features/auth/components/SocialButtons";
+import { Button, Field, Input } from "@/features/shared/components/ui";
+import { firstPasswordProblem, isValidEmail, passwordRuleState } from "@/features/auth/lib/passwordRules";
 
 function resetFreshStartState() {
   if (typeof window === "undefined") return;
@@ -32,88 +35,11 @@ function resetFreshStartState() {
 }
 
 /* ─────────────────────────────────────────
-   LIGHT THEME DESIGN TOKENS
-   Base bg:      #F0EEE9  (warm parchment)
-   Card:         #FFFFFF
-   Header:       rgba(255,255,255,0.92)
-   Bull:         #0D9E6E
-   Bear:         #D63B3B
-   Gold:         #B8860B
-   Text primary: #0F1923
-   Text muted:   #94A3B8
-   Border:       #E2E8F0
-───────────────────────────────────────── */
-
-/* ─────────────────────────────────────────
-   COACH FEED PREVIEW — auto-cycling widget
-───────────────────────────────────────── */
-const feedItems = [
-  { pair:"BTC/USD", pnl:"+$342", rr:"2.4R", bull:true,  note:"AI flagged breakout before entry ✓" },
-  { pair:"EUR/JPY", pnl:"-$88",  rr:"-0.8R",bull:false, note:"Ignored SR level — noted by AI" },
-  { pair:"GOLD",    pnl:"+$210", rr:"1.9R", bull:true,  note:"Perfect retest, AI confidence 91%" },
-];
-
-function CoachFeedPreview() {
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setActive(a => (a+1) % feedItems.length), 2800);
-    return () => clearInterval(t);
-  }, []);
-  const item = feedItems[active];
-  return (
-    <div style={{
-      background:"rgba(255,255,255,0.96)",
-      border:"1px solid var(--color-border)", borderRadius:10,
-      padding:"14px 16px", marginBottom:20,
-      boxShadow:"0 2px 10px rgba(15,25,35,0.06)",
-      animation:"fadeUp 0.5s ease 0s both",
-    }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <div style={{ width:5, height:5, borderRadius:"50%", background:"#0D9E6E", animation:"blink 1.2s ease-in-out infinite" }}/>
-          <span style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.12em", color:"#94A3B8", fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
-            AI COACH FEED
-          </span>
-        </div>
-        <div style={{ display:"flex", gap:4 }}>
-          {feedItems.map((_,i) => (
-            <div key={i} style={{
-              width: i===active ? 18 : 5, height:5, borderRadius:3,
-              background: i===active ? "#0D9E6E" : "#E2E8F0",
-              transition:"all 0.3s",
-            }}/>
-          ))}
-        </div>
-      </div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <div style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", color:"#0F1923", fontWeight:700, marginBottom:3 }}>
-            {item.pair}
-          </div>
-          <div style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            {item.note}
-          </div>
-        </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace", color: item.bull?"#0D9E6E":"#D63B3B", fontWeight:700 }}>
-            {item.pnl}
-          </div>
-          <div style={{ fontSize: "var(--fs-2xs)", color: item.bull?"#0D9E6E":"#D63B3B", fontFamily:"'JetBrains Mono',monospace", opacity:0.7 }}>
-            {item.rr}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
    MAIN REGISTER PAGE
 ───────────────────────────────────────── */
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm]         = useState({ name:"", email:"", password:"" });
-  const [focused, setFocused]   = useState(null);
   const [loading, setLoading]   = useState(false);
   const { addToast } = useToast();
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -121,13 +47,14 @@ export default function RegisterPage() {
   // Resolved after mount, so the button is absent from the prerendered HTML and
   // there is no hydration mismatch.
   const [showAppleSignIn, setShowAppleSignIn] = useState(false);
-  const [strength, setStrength] = useState(0);
-  const [mounted, setMounted]   = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [formError, setFormError] = useState("");
+  const termsRef = useRef(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError]       = useState("");
 
   useEffect(() => {
-    setMounted(true);
+
     setShowAppleSignIn(isAppleSignInAvailable());
 
     // Pick up the idToken after a mobile redirect sign-in. One read serves both
@@ -158,18 +85,28 @@ export default function RegisterPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
-    if (name === "password") {
-      let s = 0;
-      if (value.length >= 8) s++;
-      if (/[A-Z]/.test(value)) s++;
-      if (/[0-9]/.test(value)) s++;
-      if (/[^A-Za-z0-9]/.test(value)) s++;
-      setStrength(s);
-    }
+    if (formError) setFormError("");
   };
+
+  // A Google/Apple tap without consent sets termsError; bring the checkbox into
+  // view, since on a phone it can be below the fold.
+  useEffect(() => {
+    if (!termsError) return;
+    termsRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    termsRef.current?.focus?.({ preventScroll: true });
+  }, [termsError]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    // Mirror the server's rules here so a bad password is caught before the
+    // round trip. The old strength meter checked different rules (no
+    // lowercase, any symbol), so "Strong" passwords could still be refused.
+    if (!form.name.trim()) { setFormError("Enter your name."); return; }
+    if (!isValidEmail(form.email)) { setFormError("Enter a valid email address."); return; }
+    const pwProblem = firstPasswordProblem(form.password);
+    if (pwProblem) { setFormError(pwProblem); return; }
+    setFormError("");
     if (!termsAccepted) {
       setTermsError("You must accept the Terms & Privacy Policy to continue");
       return;
@@ -179,6 +116,8 @@ export default function RegisterPage() {
     try {
       const data = await registerUser({
         ...form,
+        name: form.name.trim(),
+        email: form.email.trim(),
         acceptedTerms: true,
         acceptedPrivacy: true,
       });
@@ -292,499 +231,81 @@ export default function RegisterPage() {
     }
   };
 
-  // Strength bar config
-  const strengthMeta = [
-    { label:"Weak",     color:"#D63B3B", bg:"#FEF2F2", bar:"#D63B3B" },
-    { label:"Fair",     color:"#D97706", bg:"#FFFBEB", bar:"#F59E0B" },
-    { label:"Good",     color:"#B8860B", bg:"#FEFCE8", bar:"#EAB308" },
-    { label:"Strong",   color:"#0D9E6E", bg:"#ECFDF5", bar:"#0D9E6E" },
-  ];
-
-  const fields = [
-    {
-      name:"name", type:"text",
-      label:"Trader Name", placeholder:"Your full name",
-      icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-    },
-    {
-      name:"email", type:"email",
-      label:"Email Address", placeholder:"your@email.com",
-      icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>,
-    },
-    {
-      name:"password", type:"password",
-      label:"Password", placeholder:"Min. 8 characters",
-      icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
-    },
-  ];
+  const rules = passwordRuleState(form.password);
+  const anyLoading = loading || googleLoading || appleLoading;
+  const googleConfigured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
 
   return (
-    <div style={{
-      minHeight:"100vh", background:"#F0EEE9",
-      display:"flex", flexDirection:"column",
-      fontFamily:"'Plus Jakarta Sans',sans-serif",
-      color:"#0F1923", position:"relative", overflow:"hidden",
-    }}>
-
-      {/* Background */}
-      <div style={{ position:"fixed", inset:0, zIndex:0 }}>
-        <CandlestickBackground canvasId="register-bg-canvas" position="absolute" />
-        {/* Warm overlay */}
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,rgba(240,238,233,0.78) 0%,rgba(240,238,233,0.72) 100%)" }}/>
-        {/* Green glow top-left */}
-        <div style={{ position:"absolute", top:-60, left:-60, width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(13,158,110,0.08) 0%,transparent 70%)" }}/>
-        {/* Red glow bottom-right */}
-        <div style={{ position:"absolute", bottom:-80, right:-50, width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(214,59,59,0.06) 0%,transparent 70%)" }}/>
+    <AuthShell
+      title="Create your account"
+      subtitle="Free to start. Set up your first strategy in about five minutes."
+    >
+      <div className="ec-auth__social">
+        {googleConfigured && (
+          <GoogleButton onClick={handleGoogleSignIn} disabled={anyLoading} loading={googleLoading} label="Sign up with Google" />
+        )}
+        {showAppleSignIn && (
+          <AppleButton onClick={handleAppleSignIn} disabled={anyLoading} loading={appleLoading} />
+        )}
       </div>
+      {(googleConfigured || showAppleSignIn) && <OrDivider label="or sign up with email" />}
 
-      {/* ── HEADER ── */}
-      {/* Topmost element on the register screen, so it owns the top inset. */}
-      <header style={{
-        position:"relative", zIndex:20,
-        display:"flex", alignItems:"center", justifyContent:"space-between",
-        padding: "env(safe-area-inset-top, 0px) calc(24px + env(safe-area-inset-right, 0px)) 0 calc(24px + env(safe-area-inset-left, 0px))",
-        height: "calc(60px + env(safe-area-inset-top, 0px))",
-        background:"rgba(240,238,233,0.97)",
-        borderBottom:"1px solid var(--color-border)",
-        boxShadow:"0 1px 12px rgba(15,25,35,0.06)",
-      }}>
-        {/* Logo */}
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width: 168, height: 44, position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start" }}><img src="/mainlogo1.webp" alt="Edgecipline" style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "left center" }} /></div>
-          <div>
-            <div style={{ display: "none" }}>EDGEDISCIPLINE</div>
-            <div style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.18em", color:"#0D9E6E", marginTop:1, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>AI DISCIPLINE COACH</div>
-          </div>
+      <form onSubmit={handleSubmit} noValidate className="ec-auth__form">
+        <Field label="Name" required>
+          <Input name="name" type="text" autoComplete="name" placeholder="Your name" value={form.name} onChange={handleChange} suppressHydrationWarning />
+        </Field>
+        <Field label="Email" required>
+          <Input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" value={form.email} onChange={handleChange} suppressHydrationWarning />
+        </Field>
+        <div className="ec-auth__pw">
+          <Field label="Password" required>
+            <Input name="password" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Create a password" value={form.password} onChange={handleChange} suppressHydrationWarning />
+          </Field>
+          <button type="button" className="ec-auth__pw-toggle" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? "Hide password" : "Show password"} aria-pressed={showPass}>
+            {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
         </div>
+        {form.password.length > 0 && (
+          <ul className="ec-auth__rules" aria-label="Password requirements">
+            {rules.map((rule) => (
+              <li key={rule.id} className={rule.met ? "is-met" : undefined}>
+                <span aria-hidden="true">{rule.met ? "✓" : "○"}</span> {rule.label}
+                <span className="ec-sr-only">{rule.met ? " (done)" : " (not yet)"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        {/* AI chip */}
-        <div style={{
-          display:"flex", alignItems:"center", gap:6,
-          background:"#ECFDF5", border:"1px solid #A7F3D0",
-          borderRadius:20, padding:"5px 14px",
-        }}>
-          <div style={{ width:6, height:6, borderRadius:"50%", background:"#0D9E6E", animation:"blink 1.2s ease-in-out infinite" }}/>
-          <span style={{ fontSize: "var(--fs-2xs)", letterSpacing:"0.1em", color:"#0D9E6E", fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>
-            AI ENGINE ACTIVE
+        <label className={`ec-auth__check${termsError ? " is-invalid" : ""}`}>
+          <input
+            ref={termsRef}
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => { setTermsAccepted(e.target.checked); setTermsError(""); }}
+            aria-invalid={termsError ? true : undefined}
+            aria-describedby={termsError ? "terms-error" : undefined}
+          />
+          <span>
+            I agree to the <Link href="/terms" target="_blank" className="ec-auth__link">Terms</Link> and{" "}
+            <Link href="/privacy-policy" target="_blank" className="ec-auth__link">Privacy Policy</Link>.
           </span>
-        </div>
-      </header>
+        </label>
+        {termsError && <p id="terms-error" className="ec-auth__field-error" role="alert">Tick the box to agree to the Terms and Privacy Policy first.</p>}
 
-      <TickerTape />
+        {formError && <AuthNotice tone="error">{formError}</AuthNotice>}
 
-      {/* ── MAIN ── */}
-      <main style={{
-        flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-        position:"relative", zIndex:5, padding:"32px 20px",
-      }}>
-        <div style={{
-          width:"100%", maxWidth:440,
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(20px)",
-          transition:"all 0.6s cubic-bezier(0.22,1,0.36,1)",
-        }}>
+        <Button type="submit" block size="lg" loading={loading} disabled={anyLoading} suppressHydrationWarning>
+          {loading ? "Creating account…" : "Create account"}
+        </Button>
 
-          {/* Coach feed preview widget */}
-          <CoachFeedPreview/>
+        {process.env.NODE_ENV !== "production" && (
+          <button type="button" onClick={testConnection} className="ec-auth__devlink">Test backend connection</button>
+        )}
+      </form>
 
-          {/* ── CARD ── */}
-          <div style={{
-            background:"#FFFFFF", borderRadius:16, overflow:"hidden",
-            border:"1px solid #E2E8F0",
-            boxShadow:"0 8px 40px rgba(15,25,35,0.1), 0 2px 8px rgba(15,25,35,0.05)",
-          }}>
-            {/* Top accent gradient */}
-            <div style={{ height:3, background:"linear-gradient(90deg,#0D9E6E 0%,#0D9E6E55 40%,#D63B3B55 60%,#D63B3B 100%)" }}/>
-
-            {/* Card header */}
-            <div style={{ padding:"26px 28px 20px", borderBottom:"1px solid #F1F5F9" }}>
-              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
-                <div>
-                  <h2 style={{
-                    fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:24, fontWeight:800,
-                    color:"#0F1923", lineHeight:1.15, margin:0, marginBottom:6, letterSpacing:"-0.02em",
-                  }}>
-                    Build your<br/>
-                    <span style={{ color:"#0D9E6E" }}>Discipline</span> account
-                  </h2>
-                  <p style={{ fontSize:11, color:"#94A3B8", margin:0, fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.06em" }}>
-                    LET AI COACH YOUR TRADING
-                  </p>
-                </div>
-
-                {/* Candle icon cluster */}
-                <svg width="44" height="42" viewBox="0 0 40 38" fill="none" style={{ flexShrink:0, marginTop:2 }}>
-                  <rect x="4"  y="12" width="8" height="14" fill="rgba(13,158,110,0.85)" rx="1"/>
-                  <line x1="8"  y1="5"  x2="8"  y2="12" stroke="rgba(13,158,110,0.85)" strokeWidth="1.5"/>
-                  <line x1="8"  y1="26" x2="8"  y2="33" stroke="rgba(13,158,110,0.85)" strokeWidth="1.5"/>
-                  <rect x="16" y="8"  width="8" height="10" fill="rgba(214,59,59,0.85)" rx="1"/>
-                  <line x1="20" y1="2"  x2="20" y2="8"  stroke="rgba(214,59,59,0.85)" strokeWidth="1.5"/>
-                  <line x1="20" y1="18" x2="20" y2="27" stroke="rgba(214,59,59,0.85)" strokeWidth="1.5"/>
-                  <rect x="28" y="10" width="8" height="16" fill="rgba(13,158,110,0.85)" rx="1"/>
-                  <line x1="32" y1="4"  x2="32" y2="10" stroke="rgba(13,158,110,0.85)" strokeWidth="1.5"/>
-                  <line x1="32" y1="26" x2="32" y2="35" stroke="rgba(13,158,110,0.85)" strokeWidth="1.5"/>
-                  <circle cx="20" cy="36" r="2.5" fill="#0D9E6E" opacity="0.7"/>
-                  <circle cx="20" cy="36" r="4.5" stroke="#0D9E6E" strokeWidth="0.8" opacity="0.25"/>
-                </svg>
-              </div>
-
-              {/* Feature pills */}
-              <div style={{ display:"flex", gap:6, marginTop:16, flexWrap:"wrap" }}>
-                {[
-                  { label:"AI Trade Analysis", icon:"🤖" },
-                  { label:"Pattern Detection",  icon:"📊" },
-                  { label:"Risk Scoring",        icon:"🎯" },
-                ].map(f => (
-                  <div key={f.label} style={{
-                    fontSize: "var(--fs-2xs)", color:"#0D9E6E", fontWeight:600,
-                    fontFamily:"'Plus Jakarta Sans',sans-serif",
-                    background:"#ECFDF5", border:"1px solid #A7F3D0",
-                    borderRadius:20, padding:"4px 10px",
-                    display:"flex", alignItems:"center", gap:5,
-                  }}>
-                    <span>{f.icon}</span> {f.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── FORM ── */}
-            <form onSubmit={handleSubmit} style={{ padding:"26px 28px" }}>
-              {fields.map((field, idx) => (
-                <div key={field.name} style={{
-                  marginBottom:18,
-                  opacity: mounted ? 1 : 0,
-                  transform: mounted ? "translateX(0)" : "translateX(-10px)",
-                  transition:`all 0.5s ${0.1 + idx*0.09}s`,
-                }}>
-                  <label style={{
-                    display:"block", fontSize:11, fontWeight:600, marginBottom:7,
-                    color: focused === field.name ? "#0D9E6E" : "#4A5568",
-                    transition:"color 0.2s",
-                    fontFamily:"'Plus Jakarta Sans',sans-serif", letterSpacing:"0.01em",
-                  }}>
-                    {field.label}
-                  </label>
-                  <div style={{ position:"relative" }}>
-                    {/* Left icon */}
-                    <div style={{
-                      position:"absolute", left:12, top:"50%", transform:"translateY(-50%)",
-                      color: focused===field.name ? "#0D9E6E" : "#CBD5E1",
-                      transition:"color 0.2s", pointerEvents:"none",
-                    }}>
-                      {field.icon}
-                    </div>
-
-                    <input
-                      type={field.type}
-                      name={field.name}
-                      placeholder={field.placeholder}
-                      onChange={handleChange}
-                      onFocus={() => setFocused(field.name)}
-                      onBlur={() => setFocused(null)}
-                      style={{
-                        width:"100%", boxSizing:"border-box",
-                        background: focused===field.name ? "#F0FDF9" : "#F8FAFC",
-                        border:`1.5px solid ${focused===field.name ? "#0D9E6E" : "#E2E8F0"}`,
-                        borderRadius:8, padding:"12px 40px 12px 38px",
-                        color:"#0F1923", fontSize:13,
-                        fontFamily:"'JetBrains Mono',monospace",
-                        outline:"none", transition:"all 0.2s",
-                        boxShadow: focused===field.name ? "0 0 0 3px rgba(13,158,110,0.1)" : "none",
-                      }}
-                    />
-
-                    {/* Green tick when filled */}
-                    {form[field.name] && (
-                      <div style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)" }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="2.5">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Password strength meter */}
-                  {field.name === "password" && form.password && (
-                    <div style={{ marginTop:8 }}>
-                      <div style={{ display:"flex", gap:3, marginBottom:5 }}>
-                        {[0,1,2,3].map(i => (
-                          <div key={i} style={{
-                            flex:1, height:3, borderRadius:3,
-                            background: i < strength ? strengthMeta[strength-1].bar : "#E2E8F0",
-                            transition:"background 0.3s",
-                            boxShadow: i < strength ? `0 0 6px ${strengthMeta[strength-1].bar}55` : "none",
-                          }}/>
-                        ))}
-                      </div>
-                      {strength > 0 && (
-                        <div style={{
-                          display:"inline-flex", alignItems:"center", gap:5,
-                          fontSize: "var(--fs-2xs)", color: strengthMeta[strength-1].color,
-                          background: strengthMeta[strength-1].bg,
-                          borderRadius:20, padding:"2px 8px",
-                          fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:600,
-                        }}>
-                          ◆ {strengthMeta[strength-1].label} password
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {/* Divider */}
-              <div style={{ height:1, background:"#F1F5F9", margin:"4px 0 14px" }}/>
-
-              {/* Google */}
-              <div style={{ marginBottom: 14 }}>
-                {process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? (
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={googleLoading || loading}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      padding: "11px 16px",
-                      border: "1.5px solid #E2E8F0",
-                      borderRadius: 8,
-                      background: !termsAccepted ? "#F8FAFC" : "#fff",
-                      cursor: !termsAccepted || googleLoading || loading ? "not-allowed" : "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: !termsAccepted ? "#94A3B8" : "#0F1923",
-                      fontFamily: "'Plus Jakarta Sans',sans-serif",
-                      opacity: googleLoading ? 0.7 : 1,
-                      boxShadow: "0 1px 6px rgba(15,25,35,0.08)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 48 48" style={{ opacity: !termsAccepted ? 0.4 : 1 }}>
-                      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.7 0 6.7 5.5 2.7 13.5l7.8 6C12.4 13.2 17.8 9.5 24 9.5z"/>
-                      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.5 2.8-2.2 5.2-4.7 6.8l7.4 5.7c4.3-4 6.8-9.9 6.8-16.5z"/>
-                      <path fill="#FBBC05" d="M10.5 28.5c-.5-1.5-.8-3-.8-4.5s.3-3 .8-4.5l-7.8-6C1 16.5 0 20.1 0 24s1 7.5 2.7 10.7l7.8-6.2z"/>
-                      <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.4-5.7c-2.1 1.4-4.7 2.2-7.8 2.2-6.2 0-11.5-3.7-13.5-9l-7.8 6C6.7 42.5 14.7 48 24 48z"/>
-                    </svg>
-                    {googleLoading ? "Signing in..." : "Continue with Google"}
-                  </button>
-                ) : (
-                  <div style={{
-                    fontSize: 11,
-                    color: "#94A3B8",
-                    fontFamily: "'JetBrains Mono',monospace",
-                    textAlign: "center",
-                    padding: "10px 12px",
-                    background: "#F8FAFC",
-                    border: "1px dashed #E2E8F0",
-                    borderRadius: 8,
-                  }}>
-                    Google login is not configured (missing <b>NEXT_PUBLIC_FIREBASE_API_KEY</b>).
-                  </div>
-                )}
-
-                {/* Sign in with Apple — same width and height as the Google
-                    button, stacked directly beneath it, and subject to the same
-                    terms gate. Rendered only where it can complete (native iOS
-                    today), so Android and web never show a dead control. */}
-                {showAppleSignIn && (
-                  <button
-                    type="button"
-                    onClick={handleAppleSignIn}
-                    disabled={appleLoading || googleLoading || loading}
-                    aria-label="Sign in with Apple"
-                    style={{
-                      width: "100%",
-                      marginTop: 10,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      padding: "11px 16px",
-                      border: `1.5px solid ${!termsAccepted ? "#E2E8F0" : "#0F1923"}`,
-                      borderRadius: 8,
-                      background: !termsAccepted ? "#F8FAFC" : "#0F1923",
-                      cursor: !termsAccepted || appleLoading || googleLoading || loading ? "not-allowed" : "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: !termsAccepted ? "#94A3B8" : "#FFFFFF",
-                      fontFamily: "'Plus Jakarta Sans',sans-serif",
-                      opacity: appleLoading ? 0.7 : 1,
-                      boxShadow: "0 1px 6px rgba(15,25,35,0.08)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill={!termsAccepted ? "#94A3B8" : "#FFFFFF"} aria-hidden="true">
-                      <path d="M17.05 12.73c.02 2.4 2.1 3.2 2.13 3.21-.02.06-.34 1.15-1.11 2.28-.67.98-1.36 1.95-2.46 1.97-1.07.02-1.42-.63-2.65-.63-1.23 0-1.61.61-2.63.65-1.05.04-1.85-1.05-2.52-2.02-1.46-2.11-2.58-5.97-1.08-8.58.74-1.3 2.07-2.12 3.51-2.14 1.04-.02 2.02.7 2.65.7.63 0 1.82-.86 3.07-.74.52.02 1.99.19 2.93 1.42-.08.05-1.73 1.01-1.71 3.01M14.9 4.6c.56-.68.94-1.62.84-2.56-.83.03-1.83.55-2.41 1.23-.52.6-.98 1.56-.86 2.48.92.07 1.87-.47 2.43-1.15"/>
-                    </svg>
-                    {appleLoading ? "Signing in..." : "Sign in with Apple"}
-                  </button>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div style={{ height:1, background:"#F1F5F9", margin:"0 0 18px" }}/>
-
-              {/* ── TERMS CHECKBOX ── */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                  cursor: "pointer", userSelect: "none",
-                }}>
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={termsAccepted}
-                    aria-label="I agree to the Terms &amp; Conditions and Privacy Policy"
-                    onClick={() => setTermsAccepted(v => !v)}
-                    style={{
-                      flexShrink: 0,
-                      width: 18, height: 18, marginTop: 1, padding: 0,
-                      borderRadius: 4,
-                      border: `2px solid ${termsAccepted ? "#0D9E6E" : termsError ? "#D63B3B" : "#CBD5E1"}`,
-                      background: termsAccepted ? "#0D9E6E" : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      transition: "all 0.15s",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {termsAccepted && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    )}
-                  </button>
-                  <span style={{ fontSize: 12, color: "#4A5568", lineHeight: 1.6, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                    I agree to the{" "}
-                    <Link href="/terms" target="_blank" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none", borderBottom: "1px solid rgba(13,158,110,0.35)" }}>
-                      Terms &amp; Conditions
-                    </Link>
-                    {" "}and{" "}
-                    <Link href="/privacy-policy" target="_blank" style={{ color: "#0D9E6E", fontWeight: 700, textDecoration: "none", borderBottom: "1px solid rgba(13,158,110,0.35)" }}>
-                      Privacy Policy
-                    </Link>
-                    . Trading involves risk of loss.
-                  </span>
-                </label>
-                {termsError && (
-                  <div style={{
-                    marginTop: 8, display: "flex", alignItems: "center", gap: 6,
-                    fontSize: 11, color: "#D63B3B",
-                    fontFamily: "'Plus Jakarta Sans',sans-serif",
-                    background: "#FEF2F2", border: "1px solid #FECACA",
-                    borderRadius: 6, padding: "6px 10px",
-                  }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    {termsError}
-                  </div>
-                )}
-              </div>
-
-              {/* CTA Button */}
-              <button
-                type="submit"
-                disabled={loading || googleLoading}
-                style={{
-                  width:"100%", padding:"13px 0",
-                  background: loading
-                    ? "#F0FDF9"
-                    : !termsAccepted
-                      ? "#F1F5F9"
-                      : "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-                  border: loading ? "1.5px solid #A7F3D0" : !termsAccepted ? "1.5px solid #E2E8F0" : "none",
-                  borderRadius:8,
-                  color: loading ? "#0D9E6E" : !termsAccepted ? "#94A3B8" : "#FFFFFF",
-                  fontSize:12, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
-                  letterSpacing:"0.15em", cursor: loading || !termsAccepted ? "not-allowed" : "pointer",
-                  transition:"all 0.25s",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-                  boxShadow: loading || !termsAccepted ? "none" : "0 4px 20px rgba(13,158,110,0.35), 0 1px 4px rgba(13,158,110,0.2)",
-                  position:"relative", overflow:"hidden",
-                }}
-                onMouseEnter={e => { if(!loading && termsAccepted) e.currentTarget.style.transform="translateY(-1px)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; }}
-              >
-                {/* Shimmer */}
-                {!loading && (
-                  <div style={{
-                    position:"absolute", inset:0,
-                    background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.18) 50%,transparent 60%)",
-                    animation:"shimmer 2.5s linear infinite",
-                  }}/>
-                )}
-                {loading ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation:"spin 0.8s linear infinite" }}>
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                    </svg>
-                    ANALYZING...
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-                      <polyline points="16 7 22 7 22 13"/>
-                    </svg>
-                    START BUILDING DISCIPLINE
-                  </>
-                )}
-              </button>
-
-              {process.env.NODE_ENV !== "production" && (
-                <div style={{ textAlign:"center", marginTop:10 }}>
-                  <button type="button" onClick={testConnection} style={{ fontSize: "var(--fs-2xs)", color:"#94A3B8", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
-                    Test Backend Connection
-                  </button>
-                </div>
-              )}
-
-              {/* Sign in link */}
-              <div style={{ textAlign:"center", marginTop:20, fontSize:12, color:"#94A3B8", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                Already have an account?{" "}
-                <span
-                  style={{ color:"#D63B3B", cursor:"pointer", fontWeight:700, borderBottom:"1px solid rgba(214,59,59,0.3)", paddingBottom:1 }}
-                  onClick={() => router.push("/login")}
-                >
-                  Sign in →
-                </span>
-              </div>
-            </form>
-          </div>
-
-          {/* Footer badges */}
-          <div style={{ marginTop:18, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2">
-                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span style={{ fontSize: "var(--fs-2xs)", color:"#CBD5E1", letterSpacing:"0.06em", fontFamily:"'JetBrains Mono',monospace" }}>256-BIT ENCRYPTED</span>
-            </div>
-            <div style={{ display:"flex", gap:14 }}>
-              {["FOREX","CRYPTO","STOCKS","FUTURES"].map(m => (
-                <span key={m} style={{ fontSize: "var(--fs-2xs)", color:"#CBD5E1", letterSpacing:"0.1em", fontFamily:"'JetBrains Mono',monospace" }}>{m}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <style>{`
-        @keyframes blink    { 0%,100%{opacity:1}      50%{opacity:0.2} }
-        @keyframes spin     { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes shimmer  { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-        @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        input::placeholder {
-          color: #CBD5E1;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 12px;
-        }
-        * { box-sizing:border-box; margin:0; padding:0; }
-      `}</style>
-    </div>
+      <p className="ec-auth__switch">
+        Already have an account? <Link href="/login" className="ec-auth__link">Sign in</Link>
+      </p>
+    </AuthShell>
   );
 }

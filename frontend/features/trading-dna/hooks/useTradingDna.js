@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   generateTradingDna,
@@ -36,13 +36,6 @@ export function useTradingDna({
   );
   const [period, setPeriodState] = useState(normalizePeriod(initialPeriod));
 
-  const setMarketType = useCallback((next) => {
-    setMarketTypeState(normalizeMarket(next));
-  }, []);
-
-  const setPeriod = useCallback((next) => {
-    setPeriodState(normalizePeriod(next));
-  }, []);
 
   const query = useQuery({
     queryKey: getQueryKey(marketType, period),
@@ -58,12 +51,43 @@ export function useTradingDna({
   });
 
   const regenerate = useMutation({
-    mutationFn: ({ force = false } = {}) =>
-      generateTradingDna({ marketType, period, force }),
-    onSuccess: (fresh) => {
-      queryClient.setQueryData(getQueryKey(marketType, period), fresh);
+    // The market/period travel with the call: if the user switches period
+    // while the model is still running (it can take a minute), the fresh
+    // report must land in the cache of the period it was generated for, not
+    // whichever one is on screen when it finishes.
+    mutationFn: ({ force = false, market, window: win }) =>
+      generateTradingDna({ marketType: market, period: win, force }),
+    onSuccess: (fresh, vars) => {
+      queryClient.setQueryData(getQueryKey(vars.market, vars.window), fresh);
     },
   });
+  const resetRegenerate = regenerate.reset;
+  const mutateRegenerate = regenerate.mutateAsync;
+
+  // A conflict or failure from one market/period must not follow the user to
+  // another one, so clear a settled mutation whenever the view changes. An
+  // in-flight one is left alone; it still saves to its own period's cache.
+  const regeneratePending = regenerate.isPending;
+  const pendingRef = useRef(regeneratePending);
+  useEffect(() => {
+    pendingRef.current = regeneratePending;
+  }, [regeneratePending]);
+  useEffect(() => {
+    if (!pendingRef.current) resetRegenerate();
+  }, [marketType, period, resetRegenerate]);
+
+  const setMarketType = useCallback((next) => {
+    setMarketTypeState(normalizeMarket(next));
+  }, []);
+
+  const setPeriod = useCallback((next) => {
+    setPeriodState(normalizePeriod(next));
+  }, []);
+
+  const runRegenerate = useCallback(
+    ({ force = false } = {}) => mutateRegenerate({ force, market: marketType, window: period }),
+    [mutateRegenerate, marketType, period]
+  );
 
   // The backend currently returns the full Mongo doc — the AI report and the
   // signals bundle each live on dedicated fields. Memoise the surface the UI
@@ -95,9 +119,11 @@ export function useTradingDna({
     bundle,
     isStale,
     error: query.error || regenerate.error || null,
+    loadError: query.error || null,
+    generateError: regenerate.error || null,
     isLoading: query.isLoading,
     isRegenerating: regenerate.isPending,
-    regenerate: regenerate.mutateAsync,
+    regenerate: runRegenerate,
     refetch: query.refetch,
   };
 }

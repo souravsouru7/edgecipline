@@ -57,10 +57,16 @@ const TOUCHPOINTS = [
     channels: { banner: true, push: true, email: false },
     tone: "dna_fading",
     build: (ctx) => ({
+      // Only claim "a pattern" when one was actually computed (teaserInsight);
+      // the old copy promised one to every free user.
       banner: {
-        headline: ctx.primaryTrade?.symbol
-          ? `Your ${ctx.primaryTrade.symbol} trade is logged. There's a pattern worth checking 🔒`
-          : "Your free trades are logged. There's a pattern worth checking 🔒",
+        headline: ctx.teaserInsight?.text
+          ? (ctx.primaryTrade?.symbol
+            ? `Your ${ctx.primaryTrade.symbol} trade is logged. There's a pattern worth checking 🔒`
+            : "Your free trades are logged. There's a pattern worth checking 🔒")
+          : (ctx.primaryTrade?.symbol
+            ? `Your ${ctx.primaryTrade.symbol} trade is logged`
+            : "Your free trades are logged"),
         body: ctx.teaserInsight?.text || "Unlock Premium to keep logging and see what your trades are telling you.",
         ctaLabel: "Unlock Premium",
         metricLabel: "Trades logged",
@@ -68,7 +74,9 @@ const TOUCHPOINTS = [
       },
       push: {
         title: `Your ${symbolOr(ctx, ctx.primaryMarketLabel)} trade is logged`,
-        body: "There's a pattern worth checking — unlock Premium to see it.",
+        body: ctx.teaserInsight?.text
+          ? "There's a pattern worth checking. Unlock Premium to see it."
+          : "Unlock Premium to keep logging and see what your trades are telling you.",
       },
     }),
   },

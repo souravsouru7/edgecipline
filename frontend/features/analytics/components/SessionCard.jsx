@@ -1,13 +1,13 @@
 "use client";
 
 const colors = {
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  gold: "#B8860B",
-  primary: "#0F1923",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  card: "#FFFFFF",
+  bull: "var(--lg-green, #0D9E6E)",
+  bear: "var(--lg-red, #D63B3B)",
+  gold: "var(--lg-gold, #B8860B)",
+  primary: "var(--lg-ink, #0F1923)",
+  muted: "var(--lg-muted, #94A3B8)",
+  border: "var(--lg-line, #E2E8F0)",
+  card: "var(--lg-card, #FFFFFF)",
 };
 
 /**
@@ -25,7 +25,7 @@ export default function SessionCard({ label, data, color, delay = 0 }) {
       flex: "1 1 180px",
       background: colors.card,
       borderRadius: 12,
-      border: `2px solid ${color}33`,
+      border: `2px solid color-mix(in srgb, ${color} 20%, transparent)`,
       padding: "16px",
       boxShadow: "0 2px 8px rgba(15,25,35,0.04)",
       animation: `fadeUp 0.5s ease ${delay}s both`,
@@ -36,14 +36,14 @@ export default function SessionCard({ label, data, color, delay = 0 }) {
         fontWeight: 700,
         letterSpacing: "0.1em",
         marginBottom: 10,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
       }}>
         {label}
       </div>
       <div style={{
         fontSize: 20,
         fontWeight: 700,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
         color: colors.primary,
         marginBottom: 6,
       }}>
@@ -53,7 +53,7 @@ export default function SessionCard({ label, data, color, delay = 0 }) {
         display: "flex",
         justifyContent: "space-between",
         fontSize: 12,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
       }}>
         <div>
           <div style={{ fontSize: "var(--fs-2xs)", color: colors.muted }}>P&L</div>

@@ -74,22 +74,22 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
         .cal-month-title {
           font-size: 18px;
           font-weight: 800;
-          color: #0F1923;
+          color: var(--lg-ink, #0F1923);
           line-height: 1.1;
         }
         .cal-month-sub {
           font-size: 11px;
-          color: #94A3B8;
-          font-family: 'JetBrains Mono', monospace;
+          color: var(--lg-muted, #94A3B8);
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           margin-top: 4px;
         }
         .cal-nav-btn {
           width: 36px;
           height: 36px;
           border-radius: 10px;
-          border: 1px solid #E2E8F0;
-          background: #FFFFFF;
-          color: #0F1923;
+          border: 1px solid var(--lg-line, #E2E8F0);
+          background: var(--lg-card, #FFFFFF);
+          color: var(--lg-ink, #0F1923);
           cursor: pointer;
           font-size: 18px;
           display: flex;
@@ -98,7 +98,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           flex-shrink: 0;
           transition: background 0.15s;
         }
-        .cal-nav-btn:hover { background: #F8FAFC; }
+        .cal-nav-btn:hover { background: var(--lg-soft, #F8FAFC); }
 
         /* ── Grid ───────────────────────────────────── */
         .cal-grid {
@@ -110,9 +110,9 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           font-size: var(--fs-2xs);
           font-weight: 700;
           letter-spacing: 0.06em;
-          color: #94A3B8;
+          color: var(--lg-muted, #94A3B8);
           text-align: center;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           padding-bottom: 6px;
         }
         .cal-empty {
@@ -146,7 +146,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
         }
         .cal-cell-badge {
           font-size: var(--fs-2xs);
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           font-weight: 700;
           padding: 1px 4px;
           border-radius: 4px;
@@ -156,14 +156,14 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
         .cal-cell-profit {
           font-size: 11px;
           font-weight: 800;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           line-height: 1.2;
           white-space: nowrap;
         }
         .cal-cell-wr {
           font-size: var(--fs-2xs);
           margin-top: 2px;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
           font-weight: 600;
         }
         .cal-cell-empty-label {
@@ -186,8 +186,8 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           align-items: center;
           gap: 5px;
           font-size: var(--fs-2xs);
-          color: #94A3B8;
-          font-family: 'JetBrains Mono', monospace;
+          color: var(--lg-muted, #94A3B8);
+          font-family: var(--lg-mono, 'JetBrains Mono', monospace);
         }
         .cal-legend-dot {
           width: 10px;
@@ -256,24 +256,24 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           const intensity = cell.entry ? Math.max(0.14, Math.abs(profit) / maxAbsProfit) : 0;
 
           const bg = !cell.entry
-            ? "#FFFFFF"
+            ? "var(--lg-card, #FFFFFF)"
             : profit >= 0
               ? `rgba(13,158,110,${Math.min(0.85, intensity * 0.92)})`
               : `rgba(214,59,59,${Math.min(0.85, intensity * 0.92)})`;
 
           const border = !cell.entry
-            ? "1px solid #E8ECF0"
+            ? "1px solid var(--lg-line, #E8ECF0)"
             : `1px solid ${profit >= 0 ? "rgba(13,158,110,0.2)" : "rgba(214,59,59,0.2)"}`;
 
           const isLight    = !cell.entry || intensity < 0.42;
-          const textColor  = isLight ? "#0F1923" : "#FFFFFF";
-          const mutedColor = isLight ? "#94A3B8" : "rgba(255,255,255,0.75)";
+          const textColor  = isLight ? "var(--lg-ink, #0F1923)" : "var(--lg-card, #FFFFFF)";
+          const mutedColor = isLight ? "var(--lg-muted, #94A3B8)" : "rgba(255,255,255,0.75)";
           const badgeBg    = isLight
             ? (profit >= 0 ? "rgba(13,158,110,0.1)" : "rgba(214,59,59,0.1)")
             : "rgba(255,255,255,0.2)";
           const badgeColor = isLight
-            ? (profit >= 0 ? "#0D9E6E" : "#D63B3B")
-            : "#FFFFFF";
+            ? (profit >= 0 ? "var(--lg-green, #0D9E6E)" : "var(--lg-red, #D63B3B)")
+            : "var(--lg-card, #FFFFFF)";
 
           return (
             <div key={cell.key} className="cal-cell" style={{ background: bg, border }}>
@@ -311,7 +311,7 @@ export default function CalendarPnL({ byDate, activeMonth, onPrevMonth, onNextMo
           Loss
         </div>
         <div className="cal-legend-item">
-          <div className="cal-legend-dot" style={{ background: "#FFFFFF", border: "1px solid #E2E8F0" }} />
+          <div className="cal-legend-dot" style={{ background: "var(--lg-card, #FFFFFF)", border: "1px solid var(--lg-line, #E2E8F0)" }} />
           No trades
         </div>
       </div>

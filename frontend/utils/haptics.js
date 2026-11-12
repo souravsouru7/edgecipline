@@ -48,3 +48,14 @@ export async function warning() {
   if (!m || reducedMotion()) return;
   try { await m.Haptics.notification({ type: m.NotificationType.Warning }); } catch { /* unsupported */ }
 }
+
+//   selection() — moving between tabs or segments: the lightest native tick
+export async function selection() {
+  const m = await plugin();
+  if (!m || reducedMotion()) return;
+  try {
+    await m.Haptics.selectionStart();
+    await m.Haptics.selectionChanged();
+    await m.Haptics.selectionEnd();
+  } catch { /* unsupported */ }
+}

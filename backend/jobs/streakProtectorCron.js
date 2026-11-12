@@ -1,18 +1,14 @@
 const cron = require("node-cron");
 const { appConfig } = require("../config");
-const userRepository = require("../repositories/user.repository");
-const streakService = require("../services/streak.service");
 const { sendAtRisk } = require("../services/streakNotification.service");
+const { runLocalTimeJob } = require("../services/localTimeJobRunner");
+const { LOCAL_TIME_TICK, parseLocalTime } = require("../utils/localTimeSchedule");
+const { getLocalCalendarDateAfter, getLocalDateKey, getTimeZoneParts } = require("../utils/timezone");
 const { logger } = require("../utils/logger");
-const { runCronWithMetrics } = require("../utils/cronMetrics");
-const { withCronLock, isoDateKey } = require("../utils/distributedLock");
 
 const CRON_NAME = "streakProtectorCron";
 const LOCK_NAME = "streak-protector";
-// 2-hour TTL covers worst-case processing at 100K users with concurrency 50;
-// the daily key changes at midnight so a stale lock can never block more
-// than one tick.
-const LOCK_TTL_SECONDS = 2 * 60 * 60;
+const DEFAULT_TARGET = { hour: 21, minute: 0 };
 
 let isRunning = false;
 
@@ -20,89 +16,67 @@ function resolveConcurrency() {
   return appConfig.cron.streakProtectorConcurrency || appConfig.cron.concurrency;
 }
 
-async function notifyOne(user, todayKey) {
-  // Skip if today is already their last qualifying date — the streak is
-  // safe.  We trust the denormalized value here (cron only); a real user
-  // visit always re-reads via getStreakSnapshot.
-  const lastDay = user?.streaks?.journal?.lastQualifyingDate;
-  if (lastDay === todayKey) return null;
-  const current = user?.streaks?.journal?.current || 0;
-  return sendAtRisk(user._id, { currentStreak: current, dayKey: todayKey });
+function yesterdayKey(now, timezone) {
+  const day = getLocalCalendarDateAfter(getTimeZoneParts(now, timezone), -1);
+  return `${day.year}-${String(day.month).padStart(2, "0")}-${String(day.day).padStart(2, "0")}`;
 }
 
-async function runStreakProtectorJob() {
+/**
+ * A journal streak is alive only while its last qualifying day is today or
+ * yesterday (streak.service computeStreaksFromEntries). It is "at risk" —
+ * worth a push — only when that day is exactly YESTERDAY: alive, but needs
+ * today. The stored `current` is only recomputed when the user acts, so a
+ * user who stopped weeks ago still had current=12 and was told "Your 12-day
+ * streak is alive" every night.
+ */
+function streakAtRisk(user, now, timezone, minStreak) {
+  const journal = user?.streaks?.journal || {};
+  if ((journal.current || 0) < minStreak) return false;
+  return journal.lastQualifyingDate === yesterdayKey(now, timezone);
+}
+
+async function runStreakProtectorJob(now = new Date()) {
   if (isRunning) {
     logger.warn(`[${CRON_NAME}] previous run still in progress; skipping`);
     return null;
   }
   isRunning = true;
-  const minStreak = appConfig.streakProtector.minStreak;
-
+  const minStreak = appConfig.streakProtector?.minStreak ?? 3;
   try {
-    const lockSuffix = isoDateKey(new Date(), appConfig.streakProtector.timezone);
-    const lockResult = await withCronLock(
-      { name: LOCK_NAME, lockSuffix, ttlSeconds: LOCK_TTL_SECONDS },
-      async () => {
-        let users;
-        try {
-          users = await userRepository.findUsersWithActiveJournalStreak(minStreak);
-        } catch (error) {
-          logger.error(`[${CRON_NAME}] failed to fetch users`, {
-            error: error.message,
-            stack: error.stack,
-          });
-          return null;
-        }
-
-        const concurrency = resolveConcurrency();
-        logger.info(`[${CRON_NAME}] starting`, { totalUsers: users.length, concurrency, minStreak });
-
-        return runCronWithMetrics({
-          name:        CRON_NAME,
-          items:       users,
-          concurrency,
-          work:        (user) => {
-            // Each user's day-key uses their own timezone so we never
-            // nudge them after their local midnight has rolled the day.
-            const tz = user?.streaks?.timezone || appConfig.streakProtector.timezone;
-            const todayKey = streakService.dayKeyInTz(new Date(), tz);
-            return notifyOne(user, todayKey);
-          },
-        });
-      }
-    );
-
-    if (lockResult.skipped) {
-      logger.info(`[${CRON_NAME}] lock held by peer; skipping`, { key: lockResult.key });
-      return null;
-    }
-    return lockResult.result;
+    return await runLocalTimeJob({
+      name: CRON_NAME,
+      lockName: LOCK_NAME,
+      target: parseLocalTime(appConfig.streakProtector?.localTime, DEFAULT_TARGET),
+      concurrency: resolveConcurrency(),
+      now,
+      filterUsers: (users, { timezone }) => users.filter((u) => streakAtRisk(u, now, timezone, minStreak)),
+      work: (user, ctx) => sendAtRisk(user._id, {
+        currentStreak: user.streaks.journal.current,
+        dayKey: getLocalDateKey(ctx.now, ctx.timezone),
+      }),
+    });
   } finally {
     isRunning = false;
   }
 }
 
 function startStreakProtectorCron() {
-  const { enabled, schedule, timezone } = appConfig.streakProtector;
-
-  if (!enabled) {
+  if (!appConfig.streakProtector?.enabled) {
     logger.info(`[${CRON_NAME}] disabled by ENABLE_STREAK_PROTECTOR_CRON`);
     return;
   }
 
-  if (!cron.validate(schedule)) {
-    logger.warn(`[${CRON_NAME}] invalid cron schedule, skipping`, { schedule });
-    return;
-  }
-
-  cron.schedule(schedule, () => {
-    logger.info(`[${CRON_NAME}] triggered`);
+  cron.schedule(LOCAL_TIME_TICK, () => {
     runStreakProtectorJob().catch((e) =>
       logger.error(`[${CRON_NAME}] job error`, { error: e?.message, stack: e?.stack })
     );
-  }, { timezone });
+  });
 
-  logger.info(`[${CRON_NAME}] scheduled`, { schedule, timezone, concurrency: resolveConcurrency() });
+  logger.info(`[${CRON_NAME}] scheduled`, {
+    tick: LOCAL_TIME_TICK,
+    localTime: appConfig.streakProtector?.localTime || "21:00",
+    concurrency: resolveConcurrency(),
+  });
 }
 
-module.exports = { startStreakProtectorCron, runStreakProtectorJob };
+module.exports = { startStreakProtectorCron, runStreakProtectorJob, streakAtRisk };

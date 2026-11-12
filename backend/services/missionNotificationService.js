@@ -14,7 +14,7 @@ const MISSION_NOTIF_TYPE = "mission_update";
  * @param {object} assignment - MissionAssignment document (plain object or Mongoose doc)
  * @param {'completed'|'halfway'|'streak_broken'|'morning_reminder'} eventType
  */
-async function sendMissionNotification(userId, assignment, eventType) {
+async function sendMissionNotification(userId, assignment, eventType, options = {}) {
   try {
     const snap = assignment.missionSnapshot || {};
     const name = snap.name || "Your Mission";
@@ -42,9 +42,11 @@ async function sendMissionNotification(userId, assignment, eventType) {
         break;
 
       case "streak_broken":
-        title = "Mission Reset";
-        body = `Your streak on "${name}" reset today. That's okay — restart from here. Progress is not linear.`;
-        dedupeKey = `mission:reset:${assignment._id}:${today}`;
+        title = "Mission reset";
+        // The cron grades the PREVIOUS day, so say which day failed.
+        body = `Your streak on "${name}" reset after yesterday's check. Restart from today. Progress is not linear.`;
+        // Keyed on the graded day, so one failed day can only ever produce one push.
+        dedupeKey = `mission:reset:${assignment._id}:${options.dayKey || today}`;
         break;
 
       case "morning_reminder":

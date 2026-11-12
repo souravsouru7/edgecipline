@@ -129,12 +129,12 @@ export default function DeleteAccountSection({ email, subscription = null, authP
       <style>{`
         .das-section { margin-top: 28px; }
         .das-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 700; color: ${C.red}; display: flex; align-items: center; gap: 6px; }
-        .das-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: ${C.card}; border: 1px solid #FECACA; border-radius: 16px; }
+        .das-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: var(--ec-surface, ${C.card}); border: 1px solid var(--ec-loss-soft, #FECACA); border-radius: 16px; }
         .das-text { flex: 1; min-width: 0; }
-        .das-label { font-size: 15px; font-weight: 600; color: #0F1923; }
-        .das-desc { margin-top: 2px; font-size: 13px; color: #64748B; line-height: 1.5; }
-        .das-btn { flex-shrink: 0; height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid ${C.red}; background: #FFFFFF; color: ${C.red}; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-        .das-btn:hover { background: #FEF2F2; }
+        .das-label { font-size: 15px; font-weight: 600; color: var(--ec-text, #0F1923); }
+        .das-desc { margin-top: 2px; font-size: 13px; color: var(--ec-text-2, #64748B); line-height: 1.5; }
+        .das-btn { flex-shrink: 0; height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--ec-loss, ${C.red}); background: transparent; color: var(--ec-loss, ${C.red}); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .das-btn:hover { background: var(--ec-loss-soft, #FEF2F2); }
         @media (max-width: 600px) {
           .das-card { flex-direction: column; align-items: stretch; padding: 16px; }
           .das-btn { width: 100%; }

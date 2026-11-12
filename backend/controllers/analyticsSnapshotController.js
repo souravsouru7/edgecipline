@@ -58,7 +58,12 @@ function buildPerformance(performance = {}) {
   const totalLosses = Math.abs(toNum(performance.avgLoss) * toNum(performance.losingTrades || performance.losses));
   const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
   const winRate = toNum(performance.winRate) / 100;
-  const expectancy = (toNum(performance.avgWin) * winRate) - (toNum(performance.avgLoss) * (1 - winRate));
+  // Prefer the engine's exact expectancy (net P&L / trades). Rebuilding it from
+  // the already-rounded winRate drifted (5.11 vs 5.17 on a 69-trade account).
+  const engineExpectancy = Number(performance.expectancy);
+  const expectancy = Number.isFinite(engineExpectancy) && performance.expectancy !== null
+    ? engineExpectancy
+    : (toNum(performance.avgWin) * winRate) - (toNum(performance.avgLoss) * (1 - winRate));
   const bestTradeProfit = toNum(performance.bestTrade?.profit);
   const worstTradeProfit = toNum(performance.worstTrade?.profit);
 
@@ -207,6 +212,15 @@ function average(rows) {
   return rows.length ? rows.reduce((sum, row) => sum + row, 0) / rows.length : null;
 }
 
+function sharpeLike(trades = []) {
+  const returns = trades.map((trade) => toNum(trade.profit));
+  if (returns.length < 2) return "0.00";
+  const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+  const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / returns.length;
+  const stdDev = Math.sqrt(variance);
+  return stdDev > 0 ? fixed(mean / stdDev) : "0.00";
+}
+
 function computeRiskReward(trades = []) {
   const winners = trades.filter((trade) => toNum(trade.profit) > 0);
   const losers = trades.filter((trade) => toNum(trade.profit) < 0);
@@ -242,7 +256,9 @@ function computeRiskReward(trades = []) {
     avgWinRR: fixedOrNull(avgWinRR),
     avgLossRR: fixedOrNull(avgLossRR),
     riskPerTrade: fixedOrNull(tradesWithPriceRisk ? totalRisk / tradesWithPriceRisk : null),
-    riskAdjustedReturn: "0.00",
+    // Sharpe-like: mean per-trade P&L over its population stdev. Same formula
+    // as the legacy /analytics/risk-reward endpoint; was hard-coded "0.00".
+    riskAdjustedReturn: sharpeLike(trades),
     totalTrades: trades.length,
     tradesWithRR: plannedRows.length,
     tradesWithoutRR: Math.max(0, trades.length - plannedRows.length),

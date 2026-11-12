@@ -756,3 +756,138 @@ exports.sendRenewalReminder = async (email, userName, expiryDate) => {
 
   return true;
 };
+
+// ─── Welcome (first signup) ──────────────────────────────────────────────────
+//
+// Sent once per account by services/welcomeEmailService. Table layout + inline
+// styles only: that is what Gmail, Outlook and Apple Mail all agree on. The
+// logo is a hosted PNG (data: URIs are stripped by Gmail, SVG is unsupported
+// in most clients), with styled alt text for clients that block images.
+function getAppBaseUrl() {
+  return String(appConfig.support?.appBaseUrl || "https://app.edgecipline.com").replace(/\/+$/, "");
+}
+
+function buildWelcomeEmail({ userName, trialEndsAt }) {
+  const base = getAppBaseUrl();
+  const logoUrl = String(getEmailConfig().logoUrl || "").trim() || `${base}/brand-opener-logo-dark.png`;
+  const markUrl = `${base}/logo.png`;
+  const support = appConfig.support || {};
+  const supportEmail = support.email || "dream@edgecipline.com";
+  const firstName = String(userName || "").trim().split(/\s+/)[0] || "trader";
+  const safeFirst = escapeHtml(firstName);
+
+  const trialDate = trialEndsAt ? new Date(trialEndsAt) : null;
+  const trialPill = trialDate && !Number.isNaN(trialDate.getTime())
+    ? `<tr><td align="center" style="padding:22px 0 0;">
+         <span style="display:inline-block;background:#12302A;border:1px solid #1E6B52;color:#22C78E;font-size:12px;font-weight:700;letter-spacing:0.04em;padding:7px 16px;border-radius:999px;">
+           &#10022; 7-day Premium trial &middot; ends ${escapeHtml(trialDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" }))}
+         </span>
+       </td></tr>`
+    : "";
+
+  const step = (num, title, text) => `
+            <tr><td style="padding:0 0 12px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F8FAFC;border:1px solid #E8EEF4;border-radius:14px;">
+                <tr>
+                  <td width="56" valign="top" style="padding:18px 0 18px 18px;">
+                    <div style="width:38px;height:38px;line-height:38px;border-radius:12px;background:#0F1923;color:#22C78E;font-family:'Courier New',monospace;font-size:14px;font-weight:800;text-align:center;">${num}</div>
+                  </td>
+                  <td valign="top" style="padding:18px 18px 18px 14px;">
+                    <div style="font-size:15px;font-weight:700;color:#0F1923;margin:0 0 4px;">${title}</div>
+                    <div style="font-size:13px;line-height:1.55;color:#64748B;">${text}</div>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>`;
+
+  const html = `
+<div style="margin:0;padding:0;background:#EEF2F6;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Your account is ready. Here is how to get the most out of your first week.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF2F6;">
+    <tr><td align="center" style="padding:32px 12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+        <tr><td style="background:#0F1923;border-radius:20px 20px 0 0;padding:36px 32px 34px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center">
+              <img src="${escapeHtml(logoUrl)}" width="220" alt="EDGECIPLINE" style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#22C78E;font-size:22px;font-weight:800;letter-spacing:0.08em;" />
+            </td></tr>
+            <tr><td style="padding:28px 0 0;">
+              <div style="height:2px;line-height:2px;font-size:0;background:#0D9E6E;background:linear-gradient(90deg,#0F1923 0%,#B8860B 20%,#0D9E6E 50%,#B8860B 80%,#0F1923 100%);">&nbsp;</div>
+            </td></tr>
+            <tr><td align="center" style="padding:28px 0 0;">
+              <h1 style="margin:0;color:#FFFFFF;font-size:30px;line-height:1.2;font-weight:800;letter-spacing:-0.02em;">Welcome aboard, ${safeFirst}.</h1>
+              <p style="margin:12px 0 0;color:#94A3B8;font-size:15px;line-height:1.6;">Your trading journal that keeps you disciplined &mdash; every trade, every rule, every week.</p>
+            </td></tr>
+            ${trialPill}
+          </table>
+        </td></tr>
+
+        <tr><td style="background:#FFFFFF;padding:32px 32px 8px;">
+          <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;color:#0D9E6E;text-transform:uppercase;margin:0 0 6px;">Get started</div>
+          <div style="font-size:20px;font-weight:800;color:#0F1923;letter-spacing:-0.01em;margin:0 0 20px;">Three steps to your edge</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${step("01", "Log your first trade", "Add it by hand or upload a screenshot &mdash; we pull the details out for you.")}
+            ${step("02", "Set your pre-trade checklist", "Write down the rules you trade by, and tick them off before every entry.")}
+            ${step("03", "Read your weekly AI report", "Every week, see what is working, what is leaking, and what to fix next.")}
+          </table>
+        </td></tr>
+
+        <tr><td align="center" style="background:#FFFFFF;padding:16px 32px 36px;">
+          <a href="${escapeHtml(base)}/dashboard" style="display:inline-block;background:#0F1923;color:#22C78E;text-decoration:none;font-size:15px;font-weight:800;letter-spacing:0.02em;padding:16px 36px;border-radius:12px;">Open Edgecipline &rarr;</a>
+          <p style="margin:18px 0 0;color:#94A3B8;font-size:12px;line-height:1.6;">Questions? Just reply to this email &mdash; a real person reads it.</p>
+        </td></tr>
+
+        <tr><td style="background:#F8FAFC;border-top:1px solid #E8EEF4;border-radius:0 0 20px 20px;padding:24px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="40" valign="middle"><img src="${escapeHtml(markUrl)}" width="32" height="32" alt="" style="display:block;border:0;" /></td>
+              <td valign="middle" style="padding-left:10px;font-size:12px;line-height:1.6;color:#94A3B8;">
+                <strong style="color:#64748B;">Edgecipline</strong> &middot; Discipline over emotion<br />
+                <a href="mailto:${escapeHtml(supportEmail)}" style="color:#64748B;">${escapeHtml(supportEmail)}</a>${support.whatsappNumber ? ` &middot; WhatsApp +${escapeHtml(support.whatsappNumber)}` : ""}
+              </td>
+            </tr>
+          </table>
+          <p style="margin:16px 0 0;font-size:11px;color:#B0BCC9;">&copy; 2026 Edgecipline. You are receiving this because you just created an Edgecipline account.</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</div>`;
+
+  return { subject: `Welcome to Edgecipline, ${firstName} 👋`, html };
+}
+
+// Never throws: a welcome email must never be the reason a signup fails.
+exports.sendWelcomeEmail = async ({ to, userName, trialEndsAt }) => {
+  if (!getProvider()) {
+    logger.warn("No email provider configured — skipping welcome email");
+    return { sent: false, reason: "not_configured" };
+  }
+  if (!to) return { sent: false, reason: "no_recipient" };
+
+  try {
+    const { subject, html } = buildWelcomeEmail({ userName, trialEndsAt });
+    const { error, provider } = await deliver({ to, subject, html });
+    if (error) {
+      logger.error("WELCOME_EMAIL_FAILED", {
+        provider,
+        recipientId: hashRecipient(to),
+        senderDomain: getSenderDomain(),
+        providerStatus: error.providerStatus,
+        providerErrorName: error.providerErrorName,
+        permanent: error.permanent,
+        operatorAction: operatorActionFor(error, "Welcome email"),
+        error: error.message,
+      });
+      return { sent: false, reason: error.permanent ? "permanent" : "transient" };
+    }
+    return { sent: true };
+  } catch (error) {
+    logger.error("WELCOME_EMAIL_THREW", { recipientId: hashRecipient(to), error: error.message });
+    return { sent: false, reason: "exception" };
+  }
+};
+
+exports.buildWelcomeEmail = buildWelcomeEmail;

@@ -3,9 +3,9 @@
 import { Sparkles, Minus } from "lucide-react";
 
 const PLAN_COLOR = {
-  yes:       "#0D9E6E",
-  partly:    "#F59E0B",
-  no:        "#D63B3B",
+  yes:       "var(--lg-green, #0D9E6E)",
+  partly:    "var(--lg-gold, #F59E0B)",
+  no:        "var(--lg-red, #D63B3B)",
   no_trades: "#0EA5E9",
 };
 
@@ -33,7 +33,7 @@ export default function ReflectionHistoryList({ items = [], loading }) {
     return (
       <div style={{ display: "grid", gap: 10 }}>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} style={{ height: 78, borderRadius: 12, background: "#F1F5F9" }} />
+          <div key={i} style={{ height: 78, borderRadius: 12, background: "var(--lg-line, #F1F5F9)" }} />
         ))}
       </div>
     );
@@ -43,10 +43,10 @@ export default function ReflectionHistoryList({ items = [], loading }) {
     return (
       <div style={{
         padding: "20px 16px",
-        border: "1px dashed #CBD5E1",
+        border: "1px dashed var(--lg-line-strong, #CBD5E1)",
         borderRadius: 12,
         textAlign: "center",
-        color: "#64748B",
+        color: "var(--lg-sub, #64748B)",
         fontSize: 13,
       }}>
         {"No reflections yet. Tonight's the night to start."}
@@ -65,14 +65,14 @@ export default function ReflectionHistoryList({ items = [], loading }) {
             key={r._id || r.day}
             style={{
               padding: "12px 14px",
-              background: "#FFFFFF",
+              background: "var(--lg-card, #FFFFFF)",
               borderRadius: 12,
-              border: "1px solid #E2E8F0",
+              border: "1px solid var(--lg-line, #E2E8F0)",
               boxShadow: "0 1px 4px rgba(15,25,35,0.04)",
             }}
           >
             <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--lg-ink, #0F1923)" }}>
                 {formatDay(r.day)}
               </div>
               <span style={{
@@ -80,8 +80,8 @@ export default function ReflectionHistoryList({ items = [], loading }) {
                 fontWeight: 800,
                 padding: "3px 8px",
                 borderRadius: 99,
-                background: r.skipped ? "#F1F5F9" : `${planColor}18`,
-                color: r.skipped ? "#64748B" : planColor,
+                background: r.skipped ? "var(--lg-line, #F1F5F9)" : `color-mix(in srgb, ${planColor} 9%, transparent)`,
+                color: r.skipped ? "var(--lg-sub, #64748B)" : planColor,
                 letterSpacing: "0.04em",
                 textTransform: "uppercase",
               }}>
@@ -90,7 +90,7 @@ export default function ReflectionHistoryList({ items = [], loading }) {
               </span>
             </header>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: "#475569" }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: "var(--lg-sub, #475569)" }}>
               {Number.isFinite(r.mood) && <span>Mood {r.mood}/5</span>}
               {Number.isFinite(r.confidence) && <span>Confidence {r.confidence}/5</span>}
               {r.wouldRepeat && <span>Repeat: {r.wouldRepeat}</span>}
@@ -100,8 +100,8 @@ export default function ReflectionHistoryList({ items = [], loading }) {
             </div>
 
             {r.improvement && (
-              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#0F1923", lineHeight: 1.5 }}>
-                <strong style={{ color: "#64748B", fontWeight: 700, marginRight: 4 }}>Tomorrow:</strong>
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--lg-ink, #0F1923)", lineHeight: 1.5 }}>
+                <strong style={{ color: "var(--lg-sub, #64748B)", fontWeight: 700, marginRight: 4 }}>Tomorrow:</strong>
                 {r.improvement}
               </p>
             )}
@@ -118,7 +118,7 @@ export default function ReflectionHistoryList({ items = [], loading }) {
                 alignItems: "flex-start",
               }}>
                 <Sparkles size={13} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: "#1E293B", lineHeight: 1.5 }}>
+                <span style={{ fontSize: 11, color: "var(--lg-ink, #1E293B)", lineHeight: 1.5 }}>
                   {r.aiInsight}
                 </span>
               </div>

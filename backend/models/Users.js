@@ -185,6 +185,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    // Set (atomically, before sending) when the signup welcome email is
+    // claimed by services/welcomeEmailService. Absent = never sent.
+    welcomeEmailSentAt: {
+      type: Date,
+    },
     hasSeenWelcomeGuide: {
       type: Boolean,
       default: false
@@ -197,6 +202,21 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Forex", "Indian_Market"],
       default: null,
+    },
+    // Limits the trader sets for themselves, per market because the currencies
+    // differ. Alerts and the "Protect Your Daily Limit" mission read these
+    // instead of guessing from today's trades. null = not set.
+    riskLimits: {
+      Forex: {
+        dailyLossLimit:   { type: Number, default: null, min: 0 },
+        maxTradesPerDay:  { type: Number, default: null, min: 1 },
+        promptAnsweredAt: { type: Date, default: null },
+      },
+      Indian_Market: {
+        dailyLossLimit:   { type: Number, default: null, min: 0 },
+        maxTradesPerDay:  { type: Number, default: null, min: 1 },
+        promptAnsweredAt: { type: Date, default: null },
+      },
     },
     // Trader profile signal captured during onboarding. Drives the suggested
     // setup template, the first-insight phrasing, and (later) coaching tone.

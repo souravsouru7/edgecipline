@@ -2,45 +2,32 @@
 
 import { Suspense, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { SegmentedControl, ErrorState } from "@/features/shared/components/ui";
 import ReflectionCard from "@/features/reflections/components/ReflectionCard";
 import ReflectionHistoryList from "@/features/reflections/components/ReflectionHistoryList";
-import ReflectionSheet from "@/features/reflections/components/ReflectionSheet";
-import { useMarket } from "@/context/MarketContext";
-import {
-  useReflectionHistory,
-  useReflectionSummary,
-} from "@/features/reflections/hooks/useReflection";
+import { useReflectionHistory, useReflectionSummary } from "@/features/reflections/hooks/useReflection";
+
+const WINDOWS = [
+  { value: "7", label: "7 days" },
+  { value: "14", label: "14 days" },
+  { value: "30", label: "30 days" },
+];
 
 function Page() {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [windowDays, setWindowDays] = useState(14);
-  const { isIndianMarket } = useMarket();
+  const [windowKey, setWindowKey] = useState("14");
   const summary = useReflectionSummary();
-  const history = useReflectionHistory(windowDays);
+  const history = useReflectionHistory(Number(windowKey));
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F4F2EE",
-      display: "flex",
-      flexDirection: "column",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923",
-    }}>
-      {isIndianMarket ? <IndianMarketHeader /> : <PageHeader showClock={false} />}
-      <main style={{ flex: 1, maxWidth: 760, width: "100%", margin: "0 auto", padding: "24px 16px 80px", boxSizing: "border-box" }}>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            Habit loop
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Reflection" />
+      <main className="ec-page ec-disc ec-disc--narrow">
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Reflection</h1>
+            <p className="ec-log__sub">A 30-second check-in at the end of the day. The weekly score and coaching build from it.</p>
           </div>
-          <h1 style={{ margin: "4px 0 0", fontSize: 24, fontWeight: 800, color: "#0F1923" }}>
-            Reflections
-          </h1>
-          <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: 13 }}>
-            One quick check-in at the end of the day. Watch the streak, the score, and the coaching tighten with you.
-          </p>
         </div>
 
         <ReflectionCard
@@ -61,43 +48,18 @@ function Page() {
           loading={summary.isLoading}
         />
 
-        <section style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0F1923" }}>History</h2>
-            <div style={{ display: "inline-flex", gap: 4, padding: 3, borderRadius: 999, background: "#F1F5F9" }}>
-              {[7, 14, 30].map((days) => {
-                const active = windowDays === days;
-                return (
-                  <button
-                    key={days}
-                    type="button"
-                    onClick={() => setWindowDays(days)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      border: "none",
-                      background: active ? "#0F1923" : "transparent",
-                      color: active ? "#FFFFFF" : "#475569",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {days}d
-                  </button>
-                );
-              })}
-            </div>
+        <section aria-labelledby="reflection-history">
+          <div className="ec-reflect__head">
+            <h2 id="reflection-history" className="ec-card__title">History</h2>
+            <SegmentedControl label="History window" value={windowKey} onChange={setWindowKey} options={WINDOWS} />
           </div>
-
-          <ReflectionHistoryList
-            items={history.data?.items || []}
-            loading={history.isLoading}
-          />
+          {history.isError ? (
+            <ErrorState title="Couldn't load history" onRetry={() => history.refetch()} />
+          ) : (
+            <ReflectionHistoryList items={history.data?.items || []} loading={history.isLoading} />
+          )}
         </section>
       </main>
-
-      <ReflectionSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </div>
   );
 }

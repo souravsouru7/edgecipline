@@ -74,10 +74,11 @@ export default function ReflectionCard({ data, loading }) {
     <>
       <section
         aria-label="End of day reflection"
+      themed
         style={{
-          background: "#FFFFFF",
+          background: "var(--lg-card, #FFFFFF)",
           borderRadius: 14,
-          border: "1px solid #E2E8F0",
+          border: "1px solid var(--lg-line, #E2E8F0)",
           boxShadow: "0 2px 12px rgba(15,25,35,0.05)",
           overflow: "hidden",
           marginBottom: 20,
@@ -89,9 +90,9 @@ export default function ReflectionCard({ data, loading }) {
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                 <Moon size={14} color="#8B5CF6" />
-                <span style={{ fontSize: 14, fontWeight: 800, color: "#0F1923" }}>End-of-Day Reflection</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "var(--lg-ink, #0F1923)" }}>End-of-Day Reflection</span>
               </div>
-              <div style={{ fontSize: 11, color: "#94A3B8" }}>
+              <div style={{ fontSize: 11, color: "var(--lg-muted, #94A3B8)" }}>
                 Morning prepares · Evening reflects
               </div>
             </div>
@@ -101,7 +102,7 @@ export default function ReflectionCard({ data, loading }) {
                 onClick={toggleGuide}
                 aria-expanded={guideOpen}
                 aria-controls="reflection-guide"
-                style={{ fontSize: 11, fontWeight: 800, color: "#64748B", background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+                style={{ fontSize: 11, fontWeight: 800, color: "var(--lg-sub, #64748B)", background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
               >
                 <HelpCircle size={12} /> How it works <ChevronDown size={12} style={{ transform: guideOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
               </button>
@@ -117,19 +118,19 @@ export default function ReflectionCard({ data, loading }) {
           {guideOpen && <ReflectionGuide onStart={() => setSheetOpen(true)} />}
 
           {loading ? (
-            <div style={{ height: 86, borderRadius: 10, background: "#F1F5F9" }} />
+            <div style={{ height: 86, borderRadius: 10, background: "var(--lg-line, #F1F5F9)" }} />
           ) : (
             <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 240px", minWidth: 0 }}>
                 <ReflectionScoreRing score={score} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.08em", fontWeight: 700, textTransform: "uppercase" }}>
+                  <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", letterSpacing: "0.08em", fontWeight: 700, textTransform: "uppercase" }}>
                     Weekly score
                   </div>
-                  <div style={{ fontSize: 13, color: "#0F1923", fontWeight: 700, marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: "var(--lg-ink, #0F1923)", fontWeight: 700, marginTop: 2 }}>
                     {weekly?.submittedDays ?? 0}/7 days reflected
                   </div>
-                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: "var(--lg-sub, #64748B)", marginTop: 2 }}>
                     {today?.completed
                       ? `Today: ${prettyPlan(today.followedPlan)}.`
                       : today?.skipped
@@ -151,8 +152,8 @@ export default function ReflectionCard({ data, loading }) {
                   minWidth: 0,
                   padding: "12px 14px",
                   borderRadius: 12,
-                  background: today?.completed ? "#F1F5F9" : "#0D9E6E",
-                  color: today?.completed ? "#0F1923" : "#FFFFFF",
+                  background: today?.completed ? "var(--lg-line, #F1F5F9)" : "var(--lg-green, #0D9E6E)",
+                  color: today?.completed ? "var(--lg-ink, #0F1923)" : "var(--lg-on-accent, #FFFFFF)",
                   border: "none",
                   fontWeight: 800,
                   fontSize: 13,
@@ -190,7 +191,7 @@ export default function ReflectionCard({ data, loading }) {
                 <div style={{ fontSize: "var(--fs-2xs)", color: "#7C3AED", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>
                   AI coach{latestInsight.fallback ? " · offline" : ""}
                 </div>
-                <div style={{ fontSize: 12, color: "#1E293B", lineHeight: 1.55, fontWeight: 600, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: "var(--lg-ink, #1E293B)", lineHeight: 1.55, fontWeight: 600, marginBottom: 8 }}>
                   {latestInsight.insight}
                 </div>
                 <AskCoachButton
@@ -225,7 +226,7 @@ const GUIDE_STEPS = [
     n: "2",
     title: "Close the day in 30 seconds",
     body: "In the evening tap the green button and answer 5 quick taps: followed your plan? · how did it feel? · confidence · would you repeat it? · one thing to improve tomorrow.",
-    accent: "#0D9E6E",
+    accent: "var(--lg-green, #0D9E6E)",
   },
   {
     n: "3",
@@ -243,34 +244,34 @@ function ReflectionGuide({ onStart }) {
         marginBottom: 14,
         padding: "12px 14px",
         borderRadius: 12,
-        background: "#F8FAFC",
-        border: "1px solid #E2E8F0",
+        background: "var(--lg-soft, #F8FAFC)",
+        border: "1px solid var(--lg-line, #E2E8F0)",
       }}
     >
-      <div style={{ fontSize: "var(--fs-2xs)", color: "#64748B", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
+      <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-sub, #64748B)", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
         How to use this in your trading journey
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
         {GUIDE_STEPS.map((step) => (
           <div key={step.n} style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 7, background: `${step.accent}18`, color: step.accent, fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 7, background: `color-mix(in srgb, ${step.accent} 9%, transparent)`, color: step.accent, fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {step.n}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1923", marginBottom: 2 }}>{step.title}</div>
-              <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.55 }}>{step.body}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--lg-ink, #0F1923)", marginBottom: 2 }}>{step.title}</div>
+              <div style={{ fontSize: 11, color: "var(--lg-sub, #475569)", lineHeight: 1.55 }}>{step.body}</div>
             </div>
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px dashed #E2E8F0" }}>
-        <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.5 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px dashed var(--lg-line, #E2E8F0)" }}>
+        <div style={{ fontSize: 11, color: "var(--lg-sub, #64748B)", lineHeight: 1.5 }}>
           Tip: honesty beats a high score. Logging &ldquo;broke the plan&rdquo; is what lets the coach catch the pattern. Skipping a quiet day is fine — it won&rsquo;t drag you down like a broken plan does.
         </div>
         <button
           type="button"
           onClick={onStart}
-          style={{ fontSize: 11, fontWeight: 800, color: "#0D9E6E", background: "none", border: "1px solid #0D9E6E55", borderRadius: 8, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ fontSize: 11, fontWeight: 800, color: "var(--lg-green, #0D9E6E)", background: "none", border: "1px solid color-mix(in srgb, var(--lg-green, #0D9E6E) 35%, transparent)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
         >
           Start now →
         </button>

@@ -4,6 +4,7 @@ const User = require("../models/Users");
 const DeviceToken = require("../models/DeviceToken");
 const bcrypt = require("bcryptjs");
 const { sendOTPEmail } = require("../services/mailService");
+const { maybeSendWelcomeEmail } = require("../services/welcomeEmailService");
 const { appConfig } = require("../config");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const ApiError = require("../utils/ApiError");
@@ -271,6 +272,9 @@ exports.registerUser = asyncHandler(async (req, res) => {
 
   const token = await issueTokenPair(user, req, res);
   bindAttribution(req, user._id);
+
+  // Fire and forget: never resolves to a rejection, never delays the signup.
+  maybeSendWelcomeEmail(user._id);
 
   res.status(201).json({
     _id: user._id,
@@ -1011,6 +1015,11 @@ exports.acceptTerms = asyncHandler(async (req, res) => {
 
   // termsAcceptance + trial are cached fields — middleware gate reads them.
   await invalidateAuthCache(req.user._id);
+
+  // Google/Apple accounts only count as "signed up" once they consent, so this
+  // is where they are welcomed. The service skips re-acceptances by existing
+  // users (7-day account age window) and anyone already welcomed.
+  maybeSendWelcomeEmail(req.user._id);
 
   if (shouldGrantTrial) {
     analytics.track("trial_started", {

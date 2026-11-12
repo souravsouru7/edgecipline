@@ -20,7 +20,8 @@ async function sendNewIssueAlert(issue, reporter) {
         type: "admin_issue_report",
         title: `New issue: ${issue.issueCode}`,
         body: buildIssueBody(issue, reporter),
-        deepLink: `/admin/issues/${issue._id}`,
+        // The admin console's only issue route is /admin/issues/detail?id=.
+        deepLink: `/admin/issues/detail?id=${issue._id}`,
         data: {
           issueId: String(issue._id),
           issueCode: issue.issueCode || "",

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Copy, Download, Link2, Share2 } from "lucide-react";
 import { toPng } from "html-to-image";
-import { C, FONT } from "./tokens";
+import { Button, ResponsiveModal } from "@/features/shared/components/ui";
 import ShareableCard from "./ShareableCard";
 import { createTradingDnaShareToken } from "../api/tradingDnaApi";
 
@@ -30,19 +31,47 @@ async function dataUrlToBlob(dataUrl) {
   return res.blob();
 }
 
-function statusColor(kind) {
-  if (kind === "error") return C.bear;
-  if (kind === "success") return C.bull;
-  return C.muted;
+function isNativeApp() {
+  return typeof window !== "undefined" && Boolean(window.Capacitor?.isNativePlatform?.());
 }
 
-export default function ShareModal({
-  open,
-  onClose,
-  report,
-  ai,
-  bundle,
-}) {
+// Inside the Android/iOS app the WebView has no Web Share API and ignores
+// <a download>, so the image goes to the app cache and out through the
+// system share sheet (which also offers Save to Photos / Files).
+async function shareImageNatively(dataUrl, filename, { title, text }) {
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+    import("@capacitor/filesystem"),
+    import("@capacitor/share"),
+  ]);
+  // cache/images/ is the folder Android's FileProvider exposes
+  // (res/xml/file_paths.xml), so the share target can read the file.
+  const written = await Filesystem.writeFile({
+    path: `images/${filename}`,
+    data: dataUrl.split(",")[1] || "",
+    directory: Directory.Cache,
+    recursive: true,
+  });
+  await Share.share({ title, text, files: [written.uri], dialogTitle: "Share your Trading DNA" });
+}
+
+async function shareLinkNatively(url, title) {
+  const { Share } = await import("@capacitor/share");
+  await Share.share({ title, text: title, url, dialogTitle: "Share link" });
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Clipboard is blocked in some WebViews and on http: — fall through.
+  }
+  return false;
+}
+
+export default function ShareModal({ open, onClose, report, ai, bundle }) {
   const cardRef = useRef(null);
   const [busy, setBusy] = useState(null);
   const [status, setStatus] = useState({ kind: null, message: "" });
@@ -56,307 +85,210 @@ export default function ShareModal({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e) {
-      if (e.key === "Escape") onClose?.();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const archetype = ai?.identity?.archetype;
 
   const renderPng = useCallback(async () => {
     if (!cardRef.current) throw new Error("Share card not ready");
-    // html-to-image does not wait for the page's @font-face declarations to
-    // finish loading, so the first capture after page open can fall back to
-    // the system font and look off-brand. document.fonts.ready resolves once
-    // every face referenced by a *currently-rendered* element is loaded —
-    // since the ShareableCard is mounted (offscreen) the moment the modal
-    // opens, this is the right signal.
+    // html-to-image doesn't wait for web fonts; without this the first
+    // capture can fall back to the system font.
     if (typeof document !== "undefined" && document.fonts?.ready) {
       try {
         await document.fonts.ready;
       } catch {
-        // Non-fatal — proceed even if the font-loading API rejects.
+        // Non-fatal.
       }
     }
-    // pixelRatio: 2 gives a crisp 2160x2160 export from a 1080x1080 surface,
-    // which is the right resolution for most social platforms.
+    // 2x of a 1080 surface gives a crisp 2160px square for social posts.
     return toPng(cardRef.current, {
       pixelRatio: PNG_SCALE,
       cacheBust: true,
-      // Keep the gradient + radial backgrounds rendered. Default is fine,
-      // but we explicitly set backgroundColor so transparent fonts don't
-      // sample the page background mid-capture.
       backgroundColor: "#0F1923",
     });
   }, []);
 
   const handleDownload = useCallback(async () => {
     setBusy("download");
-    setStatus({ kind: "info", message: "Rendering image…" });
+    setStatus({ kind: "info", message: "Making the image…" });
     try {
       const dataUrl = await renderPng();
-      downloadDataUrl(dataUrl, buildFilename(ai?.identity?.archetype));
-      setStatus({ kind: "success", message: "Image downloaded." });
+      downloadDataUrl(dataUrl, buildFilename(archetype));
+      setStatus({ kind: "success", message: "Image saved." });
     } catch (err) {
       console.error("[TradingDNA] PNG download failed", err);
-      setStatus({
-        kind: "error",
-        message: "Could not render the image. Please try again.",
-      });
+      setStatus({ kind: "error", message: "Couldn't make the image. Please try again." });
     } finally {
       setBusy(null);
     }
-  }, [renderPng, ai]);
+  }, [renderPng, archetype]);
 
   const handleNativeShare = useCallback(async () => {
     setBusy("native");
-    setStatus({ kind: "info", message: "Preparing image…" });
+    setStatus({ kind: "info", message: "Preparing the image…" });
     try {
       const dataUrl = await renderPng();
-      const blob = await dataUrlToBlob(dataUrl);
-      const file = new File([blob], buildFilename(ai?.identity?.archetype), {
-        type: "image/png",
-      });
-      const canShareFiles =
-        typeof navigator !== "undefined" &&
-        navigator.canShare &&
-        navigator.canShare({ files: [file] });
-      if (!canShareFiles) {
-        // Fall back to plain download — the parent caller's UI conditionally
-        // shows this button, but we guard here in case the support check
-        // diverges between mount time and click time.
-        downloadDataUrl(dataUrl, buildFilename(ai?.identity?.archetype));
-        setStatus({
-          kind: "success",
-          message: "Sharing not supported on this device — image downloaded.",
+      if (isNativeApp()) {
+        await shareImageNatively(dataUrl, buildFilename(archetype), {
+          title: `My Trading DNA: ${archetype || "Trader"}`,
+          text: ai?.identity?.tagline || "My Trading DNA from Edgecipline",
         });
+        setStatus({ kind: null, message: "" });
+        return;
+      }
+      const blob = await dataUrlToBlob(dataUrl);
+      const file = new File([blob], buildFilename(archetype), { type: "image/png" });
+      const canShareFiles = navigator.canShare?.({ files: [file] });
+      if (!canShareFiles) {
+        downloadDataUrl(dataUrl, buildFilename(archetype));
+        setStatus({ kind: "success", message: "This device can't share images directly, so it was saved instead." });
         return;
       }
       await navigator.share({
         files: [file],
-        title: `My Trading DNA — ${ai?.identity?.archetype || "Trader"}`,
+        title: `My Trading DNA: ${archetype || "Trader"}`,
         text: ai?.identity?.tagline || "My Trading DNA from Edgecipline",
       });
       setStatus({ kind: "success", message: "Shared." });
     } catch (err) {
-      if (err?.name === "AbortError") {
+      if (err?.name === "AbortError" || /cancel/i.test(err?.message || "")) {
         setStatus({ kind: null, message: "" });
       } else {
         console.error("[TradingDNA] Native share failed", err);
-        setStatus({
-          kind: "error",
-          message: "Could not open the share sheet. Try Download instead.",
-        });
+        setStatus({ kind: "error", message: "Couldn't open the share sheet. Try saving the image instead." });
       }
     } finally {
       setBusy(null);
     }
-  }, [renderPng, ai]);
+  }, [renderPng, archetype, ai]);
 
   const handleCopyLink = useCallback(async () => {
     if (!report?._id) {
-      setStatus({
-        kind: "error",
-        message: "No report loaded to share.",
-      });
+      setStatus({ kind: "error", message: "There's no report to share yet." });
+      return;
+    }
+    // A link already made in this dialog is reused rather than minting another.
+    if (linkState.url) {
+      const copied = await copyText(linkState.url);
+      setStatus(copied
+        ? { kind: "success", message: "Link copied." }
+        : { kind: "info", message: "Copy the link below." });
       return;
     }
     setBusy("link");
-    setStatus({ kind: "info", message: "Generating share link…" });
+    setStatus({ kind: "info", message: "Making a link…" });
+    let payload;
     try {
-      const payload = await createTradingDnaShareToken({
-        reportId: report._id,
-      });
-      await navigator.clipboard.writeText(payload.url);
-      setLinkState({ url: payload.url, expiresAt: payload.expiresAt });
-      setStatus({
-        kind: "success",
-        message: "Link copied to clipboard.",
-      });
+      payload = await createTradingDnaShareToken({ reportId: report._id });
     } catch (err) {
       console.error("[TradingDNA] Share-link mint failed", err);
-      setStatus({
-        kind: "error",
-        message:
-          err?.response?.data?.message ||
-          err?.message ||
-          "Could not generate a share link.",
-      });
-    } finally {
+      setStatus({ kind: "error", message: err?.message || "Couldn't make a share link. Please try again." });
       setBusy(null);
+      return;
     }
-  }, [report]);
+    // The link exists even if the clipboard is blocked, so always show it.
+    setLinkState({ url: payload?.url || "", expiresAt: payload?.expiresAt || null });
+    if (isNativeApp() && payload?.url) {
+      setBusy(null);
+      try {
+        await shareLinkNatively(payload.url, `My Trading DNA: ${ai?.identity?.archetype || "Trader"}`);
+        setStatus({ kind: null, message: "" });
+      } catch {
+        setStatus({ kind: "info", message: "Link ready. Copy it below." });
+      }
+      return;
+    }
+    const copied = payload?.url ? await copyText(payload.url) : false;
+    setStatus(copied
+      ? { kind: "success", message: "Link copied." }
+      : { kind: "info", message: "Link ready. Copy it below." });
+    setBusy(null);
+  }, [report, linkState.url, ai]);
 
-  if (!open) return null;
-
+  const native = isNativeApp();
   const canNativeShare =
-    typeof navigator !== "undefined" &&
-    typeof navigator.share === "function" &&
-    typeof navigator.canShare === "function";
+    native ||
+    (typeof navigator !== "undefined" &&
+      typeof navigator.share === "function" &&
+      typeof navigator.canShare === "function");
+
+  const expires = linkState.expiresAt ? new Date(linkState.expiresAt) : null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="trading-dna-share-title"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "rgba(15,25,35,0.74)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        fontFamily: FONT.body,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 480,
-          background: C.surface,
-          borderRadius: 16,
-          padding: "24px 24px 22px",
-          color: C.primary,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <div
-              id="trading-dna-share-title"
-              style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}
+    <>
+      <ResponsiveModal open={open} onClose={onClose} title="Share your Trading DNA" width={480}>
+        <p className="ec-dna__share-sub">
+          Share an image of your trading style, or a private link to a summary page.
+        </p>
+        <div className="ec-dna__share-actions">
+          {!native && (
+            <Button
+              onClick={handleDownload}
+              disabled={Boolean(busy)}
+              loading={busy === "download"}
+              icon={<Download size={16} aria-hidden="true" />}
             >
-              Share your Trading DNA
-            </div>
-            <div style={{ fontSize: 11, color: C.muted }}>
-              Download a 1080×1080 image, or copy a private share link.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 20,
-              lineHeight: 1,
-              color: C.muted,
-              padding: 4,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={Boolean(busy)}
-            style={primaryButton}
-          >
-            {busy === "download" ? "Rendering…" : "Download image"}
-          </button>
-
+              Save image
+            </Button>
+          )}
           {canNativeShare ? (
-            <button
-              type="button"
+            <Button
+              variant={native ? "primary" : "secondary"}
               onClick={handleNativeShare}
               disabled={Boolean(busy)}
-              style={secondaryButton}
+              loading={busy === "native"}
+              icon={<Share2 size={16} aria-hidden="true" />}
             >
-              {busy === "native" ? "Opening share…" : "Share image"}
-            </button>
+              {native ? "Share or save image" : "Share image"}
+            </Button>
           ) : null}
-
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={handleCopyLink}
             disabled={Boolean(busy)}
-            style={secondaryButton}
+            loading={busy === "link"}
+            icon={<Link2 size={16} aria-hidden="true" />}
           >
-            {busy === "link" ? "Generating…" : "Copy share link"}
-          </button>
+            {native ? "Share link" : linkState.url ? "Copy link again" : "Copy share link"}
+          </Button>
         </div>
 
         {linkState.url ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: "10px 12px",
-              background: C.surfaceAlt,
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              fontSize: 11,
-              color: C.primary,
-              wordBreak: "break-all",
-              fontFamily: FONT.mono,
-            }}
-          >
-            {linkState.url}
-            {linkState.expiresAt ? (
-              <div style={{ marginTop: 6, color: C.muted }}>
-                Expires{" "}
-                {new Date(linkState.expiresAt).toLocaleDateString()}
-              </div>
-            ) : null}
+          <div className="ec-dna__link">
+            <input
+              className="ec-input"
+              readOnly
+              value={linkState.url}
+              aria-label="Share link"
+              onFocus={(e) => e.target.select()}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
+              aria-label="Copy link"
+              icon={<Copy size={16} />}
+              onClick={handleCopyLink}
+            />
           </div>
         ) : null}
-
-        {status.message ? (
-          <div
-            style={{
-              marginTop: 12,
-              fontSize: 11,
-              color: statusColor(status.kind),
-              letterSpacing: "0.02em",
-            }}
-          >
-            {status.message}
-          </div>
+        {expires && !Number.isNaN(expires.getTime()) ? (
+          <p className="ec-dna__fine">Link works until {expires.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}.</p>
         ) : null}
 
-        <div
-          style={{
-            marginTop: 16,
-            fontSize: "var(--fs-2xs)",
-            color: C.muted,
-            lineHeight: 1.6,
-          }}
-        >
-          Shared links show your archetype, coach summary, and top strengths
-          only — raw trade P&amp;L is never exposed.
-        </div>
+        <p className={`ec-dna__status ec-tone--${status.kind === "error" ? "bad" : status.kind === "success" ? "good" : "muted"}`} role="status" aria-live="polite">
+          {status.message}
+        </p>
 
-        {/* Offscreen render target — kept in the DOM at fixed pixel size so
-            html-to-image can rasterise it. visibility:hidden preserves layout
-            but keeps it invisible to the user. */}
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            top: -10000,
-            left: -10000,
-            pointerEvents: "none",
-            visibility: "hidden",
-          }}
-        >
+        <p className="ec-dna__fine">
+          Shared pages show your trading style, coach summary and top strengths. Your P&amp;L and individual trades are never shown.
+        </p>
+      </ResponsiveModal>
+
+      {/* Off-screen render target for the PNG. It sits outside the dialog
+          (a bottom sheet's transform would pin a fixed child inside it), and is
+          not visibility:hidden: html-to-image copies computed styles, so a
+          hidden source came out as an empty image. */}
+      {open ? (
+        <div aria-hidden="true" className="ec-dna__offscreen">
           <ShareableCard
             ref={cardRef}
             identity={ai?.identity}
@@ -365,31 +297,7 @@ export default function ShareModal({
             sample={bundle?.sample}
           />
         </div>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }
-
-const primaryButton = {
-  padding: "12px 16px",
-  borderRadius: 10,
-  border: "none",
-  background: C.primary,
-  color: "#F8FAFC",
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.04em",
-  cursor: "pointer",
-};
-
-const secondaryButton = {
-  padding: "12px 16px",
-  borderRadius: 10,
-  border: `1px solid ${C.border}`,
-  background: C.surface,
-  color: C.primary,
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: "0.04em",
-  cursor: "pointer",
-};

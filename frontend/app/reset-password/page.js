@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { resetPassword } from "@/services/api";
 import { useRouter } from "next/navigation";
 import {
@@ -9,22 +9,9 @@ import {
 } from "@/features/auth/lib/passwordResetSession";
 import { firstPasswordProblem, passwordRuleState } from "@/features/auth/lib/passwordRules";
 import Link from "next/link";
-
-const card = {
-  width: "100%", maxWidth: 400,
-  background: "#FFFFFF", borderRadius: 16, overflow: "hidden",
-  border: "1px solid #E2E8F0",
-  boxShadow: "0 8px 40px rgba(15,25,35,0.1)",
-};
-
-const inputStyle = {
-  width: "100%", boxSizing: "border-box",
-  background: "#F8FAFC",
-  border: "1.5px solid #E2E8F0",
-  borderRadius: 8, padding: "12px",
-  fontSize: 13, fontFamily: "'JetBrains Mono',monospace",
-  outline: "none", transition: "all 0.2s",
-};
+import { Eye, EyeOff } from "lucide-react";
+import AuthShell, { AuthNotice } from "@/features/auth/components/AuthShell";
+import { Button, Field, Input, Placeholder } from "@/features/shared/components/ui";
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -34,12 +21,14 @@ function ResetPasswordContent() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const redirectTimer = useRef(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  useEffect(() => () => clearTimeout(redirectTimer.current), []);
+
   useEffect(() => {
-    setMounted(true);
     // Written by /verify-otp after the code checked out. Reading it here (not
     // during render) keeps server and first client render identical.
     setSession(readPasswordResetSession() || false);
@@ -70,7 +59,7 @@ function ResetPasswordContent() {
       clearPasswordResetSession();
       setSession(false);
       setMessage(data?.message || "Password reset successful. Redirecting to login...");
-      setTimeout(() => router.replace("/login"), 2000);
+      redirectTimer.current = setTimeout(() => router.replace("/login"), 2500);
     } catch (err) {
       // A rejected token can never succeed on retry; send them back to the start
       // rather than leaving them re-submitting a dead form.
@@ -85,176 +74,100 @@ function ResetPasswordContent() {
   };
 
   if (session === null && !message) {
-    return <Shell mounted={mounted}><p style={{ fontSize: 13, color: "#94A3B8" }}>Loading…</p></Shell>;
+    return (
+      <AuthShell aside={false} title="Choose a new password">
+        <Placeholder height={44} />
+        <Placeholder height={44} style={{ marginTop: 16 }} />
+      </AuthShell>
+    );
   }
 
   if (message) {
     return (
-      <Shell mounted={mounted}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10 }}>Password Reset</h2>
-        <div
-          role="status"
-          style={{ background: "#F0FDF4", color: "#0D6E52", padding: "12px 14px", borderRadius: 8, fontSize: 13, lineHeight: 1.55, marginBottom: 18, border: "1px solid #DCFCE7" }}
-        >
-          {message}
-        </div>
-        <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, marginBottom: 18 }}>
-          For your security, every device that was signed in has been signed out.
-          Use your new password to sign in again.
+      <AuthShell aside={false} title="Password changed">
+        <AuthNotice tone="success">{message}</AuthNotice>
+        <p className="ec-auth__text">
+          For your security, every device that was signed in has been signed out. Sign in again with your new password.
         </p>
-        <Link
-          href="/login"
-          style={{
-            display: "block", textAlign: "center", padding: "13px", borderRadius: 8,
-            background: "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-            color: "#FFFFFF", fontSize: 12, fontWeight: 700, textDecoration: "none",
-          }}
-        >
-          GO TO LOGIN
-        </Link>
-      </Shell>
+        <Button as={Link} href="/login" block size="lg">Go to sign in</Button>
+      </AuthShell>
     );
   }
 
   // No usable token: opened directly, refreshed after the token was spent,
-  // reopened in another tab, or sat here past the 10-minute window.
+  // reopened in another tab, or left here past the 10-minute window.
   if (!session) {
     return (
-      <Shell mounted={mounted}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10 }}>Reset Password</h2>
-        {error && (
-          <div
-            role="alert"
-            style={{ background: "#FEF2F2", color: "#D63B3B", padding: "10px", borderRadius: 6, fontSize: 12, marginBottom: 14, border: "1px solid #FEE2E2" }}
-          >
-            {error}
-          </div>
-        )}
-        <p style={{ fontSize: 13, color: "#64748B", marginBottom: 20, lineHeight: 1.55 }}>
-          This reset session is no longer valid — codes and reset links are single-use and
-          expire after 10 minutes. Request a new code to continue.
+      <AuthShell aside={false} title="This reset link has expired">
+        {error && <AuthNotice tone="error">{error}</AuthNotice>}
+        <p className="ec-auth__text">
+          Reset codes work once and expire after 10 minutes. Ask for a new code to continue.
         </p>
-        <Link
-          href="/forgot-password"
-          style={{
-            display: "block", textAlign: "center", padding: "13px", borderRadius: 8,
-            background: "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-            color: "#FFFFFF", fontSize: 12, fontWeight: 700, textDecoration: "none",
-          }}
-        >
-          REQUEST A NEW CODE
-        </Link>
-        <div style={{ textAlign: "center", marginTop: 18, fontSize: 12 }}>
-          <Link href="/login" style={{ color: "#94A3B8", textDecoration: "none" }}>← Back to Login</Link>
-        </div>
-      </Shell>
+        <Button as={Link} href="/forgot-password" block size="lg">Send a new code</Button>
+        <p className="ec-auth__switch"><Link href="/login" className="ec-auth__link">Back to sign in</Link></p>
+      </AuthShell>
     );
   }
 
-  return (
-    <Shell mounted={mounted}>
-      <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10 }}>Reset Password</h2>
-      <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 24, lineHeight: 1.5 }}>
-        Create a new password for <b style={{ color: "#0F1923" }}>{session.email}</b>.
-      </p>
+  const mismatch = confirmPassword.length > 0 && confirmPassword !== password;
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div style={{ marginBottom: 18 }}>
-          <label htmlFor="new-password" style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 7, color: "#4A5568" }}>
-            New Password
-          </label>
-          <input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
-            disabled={loading}
-            style={inputStyle}
-          />
+  return (
+    <AuthShell aside={false} title="Choose a new password">
+      <p className="ec-auth__sub">For <strong>{session.email}</strong>.</p>
+
+      <form onSubmit={handleSubmit} noValidate className="ec-auth__form">
+        <div className="ec-auth__pw">
+          <Field label="New password" required>
+            <Input
+              type={showPass ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Create a password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
+              disabled={loading}
+              autoFocus
+            />
+          </Field>
+          <button type="button" className="ec-auth__pw-toggle" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? "Hide passwords" : "Show passwords"} aria-pressed={showPass}>
+            {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
         </div>
 
         {password.length > 0 && (
-          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px", display: "grid", gap: 4 }}>
+          <ul className="ec-auth__rules" aria-label="Password requirements">
             {rules.map((rule) => (
-              <li key={rule.id} style={{ fontSize: 11, color: rule.met ? "#0D9E6E" : "#94A3B8" }}>
-                {rule.met ? "✓" : "○"} {rule.label}
+              <li key={rule.id} className={rule.met ? "is-met" : undefined}>
+                <span aria-hidden="true">{rule.met ? "✓" : "○"}</span> {rule.label}
+                <span className="ec-sr-only">{rule.met ? " (done)" : " (not yet)"}</span>
               </li>
             ))}
           </ul>
         )}
 
-        <div style={{ marginBottom: 20 }}>
-          <label htmlFor="confirm-password" style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 7, color: "#4A5568" }}>
-            Confirm New Password
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
+        <Field label="Confirm new password" required error={mismatch ? "These don't match yet." : undefined}>
+          <Input
+            type={showPass ? "text" : "password"}
             autoComplete="new-password"
-            required
-            placeholder="••••••••"
+            placeholder="Type it again"
             value={confirmPassword}
             onChange={(e) => { setConfirmPassword(e.target.value); if (error) setError(""); }}
             disabled={loading}
-            style={inputStyle}
           />
-        </div>
+        </Field>
 
-        {error && (
-          <div
-            role="alert"
-            style={{ background: "#FEF2F2", color: "#D63B3B", padding: "10px", borderRadius: 6, fontSize: 12, marginBottom: 16, border: "1px solid #FEE2E2" }}
-          >
-            {error}
-          </div>
-        )}
+        {error && <AuthNotice tone="error">{error}</AuthNotice>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%", padding: "13px",
-            background: loading ? "#F0FDF9" : "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-            border: loading ? "1.5px solid #A7F3D0" : "none",
-            borderRadius: 8, color: loading ? "#0D9E6E" : "#FFFFFF",
-            fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          {loading ? "RESETTING..." : "RESET PASSWORD"}
-        </button>
+        <Button type="submit" block size="lg" loading={loading}>
+          {loading ? "Saving…" : "Save new password"}
+        </Button>
       </form>
-    </Shell>
-  );
-}
-
-function Shell({ mounted, children }) {
-  return (
-    <div style={{
-      minHeight: "100vh", background: "#F0EEE9",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923", padding: "20px",
-    }}>
-      <div style={{
-        ...card,
-        opacity: mounted ? 1 : 0,
-        transform: mounted ? "translateY(0)" : "translateY(20px)",
-        transition: "all 0.6s cubic-bezier(0.22,1,0.36,1)",
-      }}>
-        <div style={{ height: 3, background: "#0D9E6E" }} />
-        <div style={{ padding: "32px" }}>{children}</div>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense>
       <ResetPasswordContent />
     </Suspense>
   );

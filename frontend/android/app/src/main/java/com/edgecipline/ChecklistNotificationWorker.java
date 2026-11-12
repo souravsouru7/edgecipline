@@ -82,7 +82,11 @@ public class ChecklistNotificationWorker extends Worker {
                     }
                 }
 
-                if (prefs != null) {
+                if (prefs != null && !prefs.getBoolean(ChecklistNotificationManager.KEY_ENABLED, false)) {
+                    // Turned off (possibly while this run was in flight): end
+                    // the chain instead of re-enqueueing a reminder nobody wants.
+                    Log.i(LOG_TAG, "WORKER_CHAIN_STOPPED reason=disabled market=" + market);
+                } else if (prefs != null) {
                     ChecklistScheduler.scheduleNext(ctx, prefs, market);
                     Log.i(LOG_TAG, "WORKER_RESCHEDULED market=" + market
                             + " displayed=" + displayed
@@ -113,7 +117,8 @@ public class ChecklistNotificationWorker extends Worker {
 
     private boolean shouldRunToday(SharedPreferences prefs) {
         try {
-            String mode = prefs.getString(ChecklistNotificationManager.KEY_REPEAT, "daily");
+            // Weekdays when unset: markets are shut at the weekend.
+            String mode = prefs.getString(ChecklistNotificationManager.KEY_REPEAT, "weekdays");
             if ("daily".equals(mode)) return true;
 
             int calDay = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);

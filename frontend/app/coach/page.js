@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, MessageSquare, ChevronLeft } from "lucide-react";
+import { Sparkles, Plus, Trash2, MessageSquare } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { reportUserError } from "@/utils/userMessage";
+import { registerDismissable } from "@/utils/backNavigation";
 import CoachChat from "@/features/coach-chat/components/CoachChat";
 import CoachQuotaPill from "@/features/coach-chat/components/CoachQuotaPill";
 import {
@@ -16,6 +17,85 @@ import {
   useDeleteConversation,
 } from "@/features/coach-chat/hooks/useCoach";
 
+const MOBILE_QUERY = "(max-width: 820px)";
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  return mobile;
+}
+
+// "now", "5m", "3h", "Yesterday", "Mon", "12 Oct": the row only needs a hint
+// of recency, the way messaging apps show it.
+function relativeTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const ms = Date.now() - date.getTime();
+  if (Number.isNaN(ms)) return "";
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "now";
+  if (min < 60) return `${min}m`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return date.toLocaleDateString("en-IN", { weekday: "short" });
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+// While the full-screen chat is open on a phone:
+//  - Android back / Escape returns to the list. /coach is not a root tab, so
+//    without this the back press navigated away from Coach entirely.
+//  - The page behind is scroll-locked so swipes don't bleed through.
+//  - The layer tracks window.visualViewport. Capacitor shrinks the body for
+//    the keyboard (KeyboardResize.Body), but iOS Safari does not, and 100dvh
+//    there would leave the composer under the keyboard.
+function useMobileChatLayer(active, onBack) {
+  const [viewport, setViewport] = useState(null);
+
+  useEffect(() => {
+    // A stale viewport from a previous open is harmless: the caller only
+    // applies it while the layer is active.
+    if (!active || typeof window === "undefined") return undefined;
+    const vv = window.visualViewport;
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = { html: html.style.overflow, body: body.style.overflow };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    const sync = () => {
+      if (vv) setViewport({ height: Math.round(vv.height), top: Math.round(vv.offsetTop) });
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onBack();
+    };
+    sync();
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+    window.addEventListener("keydown", onKeyDown);
+    const unregister = registerDismissable(onBack);
+
+    return () => {
+      html.style.overflow = prev.html;
+      body.style.overflow = prev.body;
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+      window.removeEventListener("keydown", onKeyDown);
+      unregister();
+    };
+  }, [active, onBack]);
+
+  return viewport;
+}
+
 function Page() {
   const { addToast } = useToast();
   const conversationsQuery = useCoachConversations();
@@ -23,10 +103,10 @@ function Page() {
   const createConversation = useCreateConversation();
   const deleteConversation = useDeleteConversation();
   const [selectedId, setSelectedId] = useState(null);
-  // Master-detail on one screen. Below 820px only one pane is shown at a time —
-  // stacking the full conversation list on top of a 100dvh chat pushed the
-  // message input a screen and a half down the page.
+  // Master-detail. Below 820px only one pane shows at a time, and the chat
+  // pane goes full screen over the tab bar like any messaging app.
   const [mobilePane, setMobilePane] = useState("list");
+  const isMobile = useIsMobile();
 
   const conversations = useMemo(
     () => conversationsQuery.data?.conversations || [],
@@ -38,17 +118,28 @@ function Page() {
     return conversations[0]?._id || null;
   }, [selectedId, conversations]);
 
+  const backToList = useCallback(() => setMobilePane("list"), []);
+  const chatOpenOnMobile = isMobile && mobilePane === "chat" && Boolean(activeId);
+  const viewport = useMobileChatLayer(chatOpenOnMobile, backToList);
+
   const openConversation = (id) => {
     setSelectedId(id);
     setMobilePane("chat");
   };
 
   const handleNew = async () => {
-    const result = await createConversation.mutateAsync({
-      anchor: { kind: "dashboard", label: "New coach session" },
-      market: "any",
-    });
-    openConversation(result.conversation._id);
+    try {
+      const result = await createConversation.mutateAsync({
+        anchor: { kind: "dashboard", label: "New coach session" },
+        market: "any",
+      });
+      openConversation(result.conversation._id);
+    } catch (err) {
+      addToast(
+        reportUserError("coach_conversation_create_failed", err, "We couldn't start a conversation. Please try again."),
+        "error"
+      );
+    }
   };
 
   const handleDelete = async (id, title) => {
@@ -75,40 +166,19 @@ function Page() {
     }
   };
 
+  const layerStyle = chatOpenOnMobile && viewport
+    ? { top: viewport.top, height: viewport.height }
+    : undefined;
+
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F4F2EE",
-      display: "flex",
-      flexDirection: "column",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923",
-    }}>
-      <PageHeader showClock={false} />
-      <main style={{
-        flex: 1,
-        maxWidth: 1100,
-        width: "100%",
-        margin: "0 auto",
-        padding: "20px 16px 100px",
-        boxSizing: "border-box",
-        display: "grid",
-        gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
-        gap: 16,
-      }} className="coach-grid" data-pane={mobilePane}>
-        <aside className="coach-list" style={{
-          background: "#FFFFFF",
-          border: "1px solid #E2E8F0",
-          borderRadius: 14,
-          padding: 14,
-          height: "fit-content",
-          minWidth: 0,
-          overflow: "hidden",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Coach</div>
-              <h1 style={{ margin: "2px 0 0", fontSize: 16, fontWeight: 800 }}>Conversations</h1>
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher={false} title="Coach" />
+      <main className="coach-grid" data-pane={mobilePane}>
+        <aside className="coach-list">
+          <div className="coach-list-head">
+            <div className="coach-list-heading">
+              <div className="coach-eyebrow">Coach</div>
+              <h1>Conversations</h1>
             </div>
             <CoachQuotaPill quota={quotaQuery.data?.quota} />
           </div>
@@ -117,54 +187,48 @@ function Page() {
             type="button"
             onClick={handleNew}
             disabled={createConversation.isPending}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-              width: "100%", padding: "10px", marginBottom: 12, fontWeight: 800,
-              border: "none", borderRadius: 12, background: "#0D9E6E", color: "#FFFFFF",
-              cursor: createConversation.isPending ? "default" : "pointer",
-            }}
+            className="coach-new"
           >
-            <Plus size={14} /> New conversation
+            <Plus size={16} strokeWidth={2.6} /> New conversation
           </button>
 
           {conversationsQuery.isLoading && (
-            <div style={{ height: 72, borderRadius: 10, background: "#F1F5F9" }} />
-          )}
-
-          {!conversationsQuery.isLoading && conversations.length === 0 && (
-            <div style={{ padding: "18px 12px", textAlign: "center", color: "#94A3B8", fontSize: 12, border: "1px dashed #CBD5E1", borderRadius: 10 }}>
-              No conversations yet. Tap &quot;New conversation&quot; to start.
+            <div className="coach-skeletons" aria-hidden>
+              <div /><div /><div />
             </div>
           )}
 
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6, minWidth: 0 }}>
+          {!conversationsQuery.isLoading && conversations.length === 0 && (
+            <div className="coach-empty-list">
+              <Sparkles size={22} color="#7C3AED" />
+              <strong>Your coach is ready</strong>
+              <span>It already knows your last 20 trades, reflections and weekly report. Start with any question.</span>
+            </div>
+          )}
+
+          <ul className="coach-rows">
             {conversations.map((c) => {
               const active = c._id === activeId;
+              const when = relativeTime(c.lastMessageAt || c.updatedAt || c.createdAt);
               return (
                 /* Row and delete are siblings, not nested buttons — a <button>
                    inside role="button" is invalid and confuses screen readers. */
-                <li
-                  key={c._id}
-                  style={{
-                    display: "flex",
-                    alignItems: "stretch",
-                    minWidth: 0,
-                    overflow: "hidden",
-                    border: active ? "1px solid rgba(139,92,246,0.5)" : "1px solid #E2E8F0",
-                    borderRadius: 10,
-                    background: active ? "rgba(139,92,246,0.06)" : "#FFFFFF",
-                  }}
-                >
+                <li key={c._id} className={`coach-item${active ? " is-active" : ""}`}>
                   <button
                     type="button"
                     onClick={() => openConversation(c._id)}
                     aria-current={active ? "true" : undefined}
                     className="coach-row"
                   >
-                    <MessageSquare size={15} color={active ? "#7C3AED" : "#94A3B8"} style={{ marginTop: 2, flexShrink: 0 }} />
-                    <span style={{ minWidth: 0, flex: 1 }}>
-                      <span className="coach-title">{c.title || "Coach session"}</span>
-                      <span className="coach-preview">{c.lastMessagePreview || "—"}</span>
+                    <span className="coach-row-icon" aria-hidden>
+                      <MessageSquare size={16} />
+                    </span>
+                    <span className="coach-row-text">
+                      <span className="coach-row-top">
+                        <span className="coach-title">{c.title || "Coach session"}</span>
+                        {when && <span className="coach-time">{when}</span>}
+                      </span>
+                      <span className="coach-preview">{c.lastMessagePreview || "No messages yet"}</span>
                     </span>
                   </button>
                   <button
@@ -173,7 +237,7 @@ function Page() {
                     aria-label={`Delete conversation: ${c.title || "Coach session"}`}
                     className="coach-del"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={16} />
                   </button>
                 </li>
               );
@@ -181,55 +245,31 @@ function Page() {
           </ul>
         </aside>
 
-        {/* dvh, not vh: mobile browser chrome makes 100vh taller than the
-            visible viewport, which pushed the composer under the bottom nav. */}
-        <section className="coach-detail" style={{ minHeight: 540, height: "calc(100dvh - 160px)", minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <button type="button" className="coach-back" onClick={() => setMobilePane("list")}>
-            <ChevronLeft size={17} /> Conversations
-          </button>
+        <section
+          className={`coach-detail${chatOpenOnMobile ? " is-fullscreen" : ""}`}
+          style={layerStyle}
+          aria-label="Coach chat"
+        >
           {activeId ? (
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <CoachChat
-                mode="inline"
-                open
-                conversationId={activeId}
-                anchor={{ kind: "dashboard" }}
-              />
-            </div>
+            <CoachChat
+              mode="inline"
+              open
+              conversationId={activeId}
+              anchor={{ kind: "dashboard" }}
+              onBack={isMobile ? backToList : undefined}
+            />
           ) : (
-            <div style={{
-              flex: 1, minHeight: 0,
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center",
-              border: "1px dashed #CBD5E1", borderRadius: 14,
-              background: "rgba(255,255,255,0.6)",
-              color: "#64748B",
-              padding: 24,
-              textAlign: "center",
-            }}>
-              <Sparkles size={28} color="#7C3AED" />
-              <h2 style={{ margin: "10px 0 4px", fontSize: 16, fontWeight: 800, color: "#0F1923" }}>Ask your coach anything.</h2>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, maxWidth: 440 }}>
+            <div className="coach-welcome">
+              <span className="coach-welcome-badge"><Sparkles size={26} /></span>
+              <h2>Ask your coach anything.</h2>
+              <p>
                 Every reply is grounded in your last 20 trades, your reflections, your discipline streak, and your most recent weekly report.
                 Nothing generic.
               </p>
-              <button
-                type="button"
-                onClick={handleNew}
-                style={{
-                  marginTop: 14,
-                  padding: "10px 16px",
-                  background: "#0D9E6E",
-                  color: "#FFFFFF",
-                  border: "none",
-                  borderRadius: 12,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" onClick={handleNew} disabled={createConversation.isPending} className="coach-new coach-welcome-cta">
                 Start a conversation
               </button>
-              <Link href="/intelligence" style={{ marginTop: 8, fontSize: 11, color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}>
+              <Link href="/intelligence" className="coach-welcome-link">
                 Or browse insights first →
               </Link>
             </div>
@@ -238,43 +278,158 @@ function Page() {
       </main>
 
       <style jsx global>{`
+        .coach-grid {
+          flex: 1;
+          max-width: 1100px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 20px 16px 40px;
+          box-sizing: border-box;
+          display: grid;
+          grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+          gap: 16px;
+        }
+
+        .coach-list {
+          background: var(--lg-card, #FFFFFF);
+          border: 1px solid var(--lg-line, #E2E8F0);
+          border-radius: 14px;
+          padding: 14px;
+          height: fit-content;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .coach-list-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .coach-eyebrow {
+          font-size: 11px;
+          color: var(--lg-muted, #94A3B8);
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .coach-list-heading h1 { margin: 2px 0 0; font-size: 16px; font-weight: 800; color: var(--lg-ink, #0F1923); }
+
+        .coach-new {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          min-height: 44px;
+          padding: 0 16px;
+          margin-bottom: 12px;
+          border: none;
+          border-radius: 12px;
+          background: var(--lg-green, #0D9E6E);
+          color: #FFFFFF;
+          font: inherit;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          touch-action: manipulation;
+          box-shadow: 0 6px 16px rgba(13, 158, 110, 0.22);
+          transition: transform 0.1s ease, opacity 0.15s ease;
+        }
+        .coach-new:active:not(:disabled) { transform: scale(0.98); }
+        .coach-new:disabled { opacity: 0.65; cursor: default; }
+
+        .coach-skeletons { display: grid; gap: 8px; }
+        .coach-skeletons div {
+          height: 64px;
+          border-radius: 12px;
+          background: var(--lg-line, #F1F5F9);
+          animation: coachpulse 1.2s ease-in-out infinite;
+        }
+        @keyframes coachpulse { 50% { opacity: 0.55; } }
+
+        .coach-empty-list {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          padding: 22px 14px;
+          text-align: center;
+          border: 1px dashed var(--lg-line-strong, #CBD5E1);
+          border-radius: 12px;
+          color: var(--lg-sub, #64748B);
+          font-size: 12.5px;
+          line-height: 1.55;
+        }
+        .coach-empty-list strong { color: var(--lg-ink, #0F1923); font-size: 14px; }
+
+        .coach-rows { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+        .coach-item {
+          display: flex;
+          align-items: stretch;
+          min-width: 0;
+          overflow: hidden;
+          border: 1px solid var(--lg-line, #E2E8F0);
+          border-radius: 12px;
+          background: var(--lg-card, #FFFFFF);
+        }
+        .coach-item.is-active {
+          border-color: rgba(139, 92, 246, 0.5);
+          background: rgba(139, 92, 246, 0.06);
+        }
+
         /* Conversation row: fills the card, leaves the delete button its own
            hit area beside it rather than nested inside. */
         .coach-row {
           flex: 1;
           min-width: 0;
-          min-height: 56px;
+          min-height: 64px;
           display: flex;
-          gap: 9px;
-          align-items: flex-start;
+          gap: 10px;
+          align-items: center;
           text-align: left;
-          padding: 11px 6px 11px 12px;
+          padding: 10px 6px 10px 12px;
           background: none;
           border: none;
           font: inherit;
           color: inherit;
           cursor: pointer;
           touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
         }
-        .coach-row:active { background: rgba(15,25,35,0.04); }
-
+        .coach-row:active { background: rgba(15, 25, 35, 0.04); }
+        .coach-row-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 11px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+          background: var(--lg-soft, #F1F5F9);
+          color: var(--lg-muted, #94A3B8);
+        }
+        .coach-item.is-active .coach-row-icon { background: rgba(139, 92, 246, 0.14); color: #7C3AED; }
+        .coach-row-text { min-width: 0; flex: 1; display: block; }
+        .coach-row-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
         .coach-title {
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 2;
+          flex: 1;
+          min-width: 0;
           overflow: hidden;
-          font-size: 13px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13.5px;
           font-weight: 800;
-          color: #0F1923;
+          color: var(--lg-ink, #0F1923);
           line-height: 1.35;
         }
+        .coach-time { flex-shrink: 0; font-size: 11px; color: var(--lg-muted, #94A3B8); font-weight: 600; }
         .coach-preview {
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 1;
+          display: block;
           overflow: hidden;
-          font-size: 11.5px;
-          color: #64748B;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 12px;
+          color: var(--lg-sub, #64748B);
           margin-top: 3px;
           line-height: 1.45;
         }
@@ -289,45 +444,117 @@ function Page() {
           flex-shrink: 0;
           background: none;
           border: none;
-          border-left: 1px solid rgba(15,25,35,0.06);
-          color: #94A3B8;
+          color: var(--lg-muted, #94A3B8);
+          opacity: 0.7;
           cursor: pointer;
           touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
         }
-        .coach-del:active { background: rgba(214,59,59,0.09); color: #D63B3B; }
+        .coach-del:hover { opacity: 1; }
+        .coach-del:active { background: rgba(214, 59, 59, 0.09); color: var(--lg-red, #D63B3B); opacity: 1; }
 
-        .coach-back { display: none; }
+        .coach-detail {
+          min-height: 540px;
+          height: calc(100dvh - 160px);
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .coach-welcome {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border: 1px dashed var(--lg-line-strong, #CBD5E1);
+          border-radius: 14px;
+          background: var(--lg-soft, #F8F9FB);
+          color: var(--lg-sub, #64748B);
+          padding: 24px;
+          text-align: center;
+        }
+        .coach-welcome-badge {
+          display: grid;
+          place-items: center;
+          width: 56px;
+          height: 56px;
+          border-radius: 18px;
+          background: rgba(139, 92, 246, 0.12);
+          color: #7C3AED;
+        }
+        .coach-welcome h2 { margin: 14px 0 6px; font-size: 18px; font-weight: 800; color: var(--lg-ink, #0F1923); }
+        .coach-welcome p { margin: 0; font-size: 13.5px; line-height: 1.6; max-width: 440px; }
+        .coach-welcome-cta { width: auto; margin: 18px 0 0; }
+        .coach-welcome-link {
+          display: inline-flex;
+          align-items: center;
+          min-height: 44px;
+          font-size: 12.5px;
+          color: #7C3AED;
+          font-weight: 700;
+          text-decoration: none;
+        }
 
         @media (max-width: 820px) {
-          .coach-grid { grid-template-columns: 1fr !important; }
+          .coach-grid {
+            grid-template-columns: 1fr;
+            padding: 12px 12px 16px;
+          }
 
           /* One pane at a time. Both panes stacked meant scrolling past the
              whole list to reach the composer. */
           .coach-grid[data-pane="list"] .coach-detail { display: none; }
-          .coach-grid[data-pane="chat"] .coach-list   { display: none; }
+          .coach-grid[data-pane="chat"] .coach-list { display: none; }
 
-          .coach-back {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            align-self: flex-start;
-            min-height: 44px;
-            padding: 0 12px 0 4px;
-            margin-bottom: 6px;
-            background: none;
-            border: none;
-            color: #7C3AED;
-            font-family: inherit;
-            font-size: 13.5px;
-            font-weight: 800;
-            cursor: pointer;
-            touch-action: manipulation;
-          }
+          /* The page header already says "Coach". */
+          .coach-eyebrow { display: none; }
+          .coach-list { padding: 14px 12px; border-radius: 16px; }
+          .coach-list-heading h1 { font-size: 18px; margin: 0; }
+          .coach-new { min-height: 48px; font-size: 15px; border-radius: 14px; }
+          .coach-row { min-height: 68px; }
+          .coach-title { font-size: 14.5px; }
+          .coach-preview { font-size: 13px; }
 
           .coach-detail {
-            height: calc(100dvh - 210px) !important;
-            min-height: 380px !important;
+            height: auto;
+            min-height: calc(100dvh - 220px);
           }
+
+          /* Full-screen chat: covers the app header and the tab bar, like
+             WhatsApp / ChatGPT. top/height come from visualViewport inline
+             so the composer rides on top of the keyboard. */
+          .coach-detail.is-fullscreen {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 100dvh;
+            min-height: 0;
+            z-index: 1050;
+            background: var(--lg-card, #FFFFFF);
+            animation: coachslide 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+          .coach-detail.is-fullscreen .coach-inline-shell {
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+          }
+          .coach-detail.is-fullscreen .cc-header {
+            padding-top: calc(10px + env(safe-area-inset-top, 0px));
+          }
+          .coach-detail.is-fullscreen .cc-footer {
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+          }
+        }
+
+        @keyframes coachslide {
+          from { transform: translateX(24px); opacity: 0; }
+          to { transform: none; opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .coach-detail.is-fullscreen, .coach-skeletons div { animation: none; }
         }
       `}</style>
     </div>

@@ -35,6 +35,7 @@ const {
   windowForTouchpoint,
   pickActiveTouchpointForUser,
   dispatchTouchpoint,
+  statusFilterForPhase,
 } = require("../../services/subscriptionRescueService");
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
@@ -86,6 +87,21 @@ describe("windowForTouchpoint", () => {
     const w = windowForTouchpoint({ daysOffset: 0 }, now);
     expect(w.to.getTime() - w.from.getTime()).toBe(24 * 60 * 60 * 1000);
     expect((w.from.getTime() + w.to.getTime()) / 2).toBe(now);
+  });
+});
+
+describe("expiry-day touchpoint (d_plus_0)", () => {
+  it("only matches subscriptions that have ALREADY ended (last 24h, never the future)", () => {
+    const now = Date.UTC(2026, 5, 1, 12, 0, 0);
+    const w = windowForTouchpoint(TOUCHPOINTS_BY_CODE.d_plus_0, now);
+    expect(w.to.getTime()).toBe(now);
+    expect(w.from.getTime()).toBe(now - 24 * 60 * 60 * 1000);
+  });
+
+  it("accepts active-or-expired status, since the expiry cron may not have run yet", () => {
+    expect(statusFilterForPhase("expiry")).toEqual({ $in: ["active", "expired"] });
+    expect(statusFilterForPhase("pre_expiry")).toBe("active");
+    expect(statusFilterForPhase("win_back")).toBe("expired");
   });
 });
 

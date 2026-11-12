@@ -5,8 +5,6 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { markOnboardingStep } from "@/services/api";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
-import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
 import StatCard              from "@/features/analytics/components/StatCard";
 import SectionCard           from "@/features/analytics/components/SectionCard";
@@ -19,7 +17,7 @@ import PatternInsightsCard   from "@/features/analytics/components/PatternInsigh
 import AICoachFeedWidget     from "@/features/ai-coach/components/AICoachFeedWidget";
 import { Skeleton }          from "@/features/shared";
 
-const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
+const C = { bull: "var(--lg-green, #0D9E6E)", bear: "var(--lg-red, #D63B3B)", gold: "var(--lg-gold, #B8860B)", purple: "#8B5CF6", primary: "var(--lg-ink, #0F1923)", muted: "var(--lg-muted, #94A3B8)" };
 
 // Mirrors MIN_CALIBRATED_REVIEWS in backend/utils/tradeEvaluation.js — below
 // this a self-awareness score is one or two reviews and means nothing.
@@ -159,12 +157,12 @@ function objToRows(obj, keyName = "name", limit = 6) {
 function PairRow({ name, count, winRate, profit }) {
   const p = parseFloat(profit);
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F4F2EE" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--lg-soft, #F4F2EE)" }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: "'JetBrains Mono',monospace" }}>{name}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{name}</div>
         <div style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>{count} trades · {winRate}% WR</div>
       </div>
-      <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: p >= 0 ? C.bull : C.bear }}>
+      <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: p >= 0 ? C.bull : C.bear }}>
         {p >= 0 ? "+" : "-"}${Math.abs(p).toFixed(2)}
       </div>
     </div>
@@ -241,10 +239,10 @@ function generatePsychInsights({ moodRows, confRows, tagRows, wouldRetakeAnalysi
 // -- Psychology insight card ----------------------------------------------------
 function PsychInsightCard({ icon, title, body, type }) {
   const colors = {
-    success: { bg: "#F0FDF4", border: "#BBF7D0", title: "#166534" },
-    danger:  { bg: "#FFF8F8", border: "#FED7D7", title: "#9B1C1C" },
-    warning: { bg: "#FFFBEB", border: "#FDE68A", title: "#92400E" },
-    info:    { bg: "#F0F7FF", border: "#BFDBFE", title: "#1E40AF" },
+    success: { bg: "var(--lg-green-soft, #F0FDF4)", border: "#BBF7D0", title: "var(--lg-green, #166534)" },
+    danger:  { bg: "var(--lg-red-soft, #FFF8F8)", border: "var(--lg-red-soft, #FED7D7)", title: "var(--lg-red, #9B1C1C)" },
+    warning: { bg: "var(--lg-gold-soft, #FFFBEB)", border: "var(--lg-gold-soft, #FDE68A)", title: "var(--lg-gold, #92400E)" },
+    info:    { bg: "var(--lg-soft, #F0F7FF)", border: "var(--lg-line, #BFDBFE)", title: "var(--lg-ink, #1E40AF)" },
   };
   const s = colors[type] || colors.info;
   return (
@@ -252,7 +250,7 @@ function PsychInsightCard({ icon, title, body, type }) {
       <div style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>{icon}</div>
       <div>
         <div style={{ fontSize: 12, fontWeight: 800, color: s.title, marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 11, color: "#374151", lineHeight: 1.65 }}>{body}</div>
+        <div style={{ fontSize: 11, color: "var(--lg-sub, #374151)", lineHeight: 1.65 }}>{body}</div>
       </div>
     </div>
   );
@@ -267,12 +265,12 @@ function PsychRow({ label, winRate, trades, avgProfit, color }) {
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: C.primary }}>{label}</span>
         <div style={{ display: "flex", gap: 12 }}>
-          <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{trades}t</span>
-          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: ap >= 0 ? C.bull : C.bear }}>{ap >= 0 ? "+" : "-"}${Math.abs(ap).toFixed(2)}</span>
+          <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{trades}t</span>
+          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: ap >= 0 ? C.bull : C.bear }}>{ap >= 0 ? "+" : "-"}${Math.abs(ap).toFixed(2)}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: wr >= 50 ? C.bull : C.bear }}>{wr}%</span>
         </div>
       </div>
-      <div style={{ height: 4, background: "#F4F2EE", borderRadius: 99 }}>
+      <div style={{ height: 4, background: "var(--lg-soft, #F4F2EE)", borderRadius: 99 }}>
         <div style={{ height: "100%", width: `${Math.min(100, wr)}%`, background: color || (wr >= 50 ? C.bull : C.bear), borderRadius: 99, transition: "width 0.4s" }} />
       </div>
     </div>
@@ -292,9 +290,9 @@ function InterpretationGrid({ items, accent = C.purple }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, marginTop: 14 }}>
       {visible.map((item) => (
-        <div key={item.label} style={{ borderRadius: 10, border: `1px solid ${accent}24`, background: `${accent}08`, padding: "12px 14px" }}>
+        <div key={item.label} style={{ borderRadius: 10, border: `1px solid color-mix(in srgb, ${accent} 14%, transparent)`, background: `color-mix(in srgb, ${accent} 3%, transparent)`, padding: "12px 14px" }}>
           <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
-          <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.65 }}>{item.text}</div>
+          <div style={{ fontSize: 12, color: "var(--lg-sub, #334155)", lineHeight: 1.65 }}>{item.text}</div>
         </div>
       ))}
     </div>
@@ -303,9 +301,9 @@ function InterpretationGrid({ items, accent = C.purple }) {
 
 function UnlockState({ title, text, accent = C.purple }) {
   return (
-    <div style={{ borderRadius: 12, border: `1px dashed ${accent}55`, background: `${accent}08`, padding: "16px 18px", marginTop: 12 }}>
+    <div style={{ borderRadius: 12, border: `1px dashed color-mix(in srgb, ${accent} 33%, transparent)`, background: `color-mix(in srgb, ${accent} 3%, transparent)`, padding: "16px 18px", marginTop: 12 }}>
       <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>{text}</div>
+      <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.6 }}>{text}</div>
     </div>
   );
 }
@@ -573,7 +571,8 @@ function AnalyticsContent({ section = "overview" }) {
   } = data || {};
 
   const has    = summary?.totalTrades > 0;
-  const pnl    = parseFloat(summary?.totalProfit ?? 0);
+  // Net, not gross: `totalProfit` is the pre-cost figure. The card is "Net P&L".
+  const pnl    = parseFloat(summary?.netPnL ?? summary?.netProfit ?? summary?.totalProfit ?? 0);
   const bullPnl = pnl >= 0;
 
   // Rate limit error banner
@@ -581,8 +580,7 @@ function AnalyticsContent({ section = "overview" }) {
     const minutes = Math.floor(retryAfterSeconds / 60);
     const seconds = retryAfterSeconds % 60;
     return (
-      <div style={{ minHeight: "100vh", background: "#F4F2EE", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "40px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 48, marginBottom: 24 }}>?</div>
+      <div className="ec-app" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "40px 20px", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: C.primary, marginBottom: 12 }}>Rate Limited</h1>
         <p style={{ fontSize: 16, color: C.muted, marginBottom: 24, maxWidth: "400px" }}>
           Too many analytics requests. Server cooldown: <strong>{minutes}m {seconds}s</strong>
@@ -603,7 +601,7 @@ function AnalyticsContent({ section = "overview" }) {
             cursor: "pointer"
           }}
         >
-          ?? Refresh Now
+          Refresh now
         </button>
       </div>
     );
@@ -646,33 +644,30 @@ function AnalyticsContent({ section = "overview" }) {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F2EE", display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#0F1923", position: "relative" }}>
-      <CandlestickBackground canvasId="analytics-bg-canvas" />
+    <div className="ec-app ec-home">
+      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+        <PageHeader themed showMarketSwitcher title="Analytics" />
 
-      <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <PageHeader showMarketSwitcher />
-        <TickerTape />
-
-        <main style={{ flex: 1, maxWidth: 1200, width: "100%", margin: "0 auto", padding: "28px 24px", boxSizing: "border-box" }}>
+        <main className="ec-page ec-analytics">
 
           {/* -- Page title --------------------------------------- */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.primary, letterSpacing: "-0.02em", margin: 0 }}>
+          <div className="ec-log__head">
+            <div style={{ minWidth: 0 }}>
+              <h1 className="ec-log__title">
                 {isOverview ? "Analytics" : (ANALYTICS_SECTIONS.find((item) => item.section === section)?.title || "Analytics")}
               </h1>
-              <p style={{ fontSize: 12, color: C.muted, fontFamily: "'JetBrains Mono',monospace", margin: "4px 0 0", letterSpacing: "0.04em" }}>
+              <p className="ec-log__sub">
                 {isOverview ? "Performance intelligence" : (ANALYTICS_SECTIONS.find((item) => item.section === section)?.subtitle || "Performance intelligence")}
               </p>
             </div>
-            <Link href={isOverview ? "/trades" : "/analytics"} style={{ fontSize: 12, color: C.primary, border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 14px", textDecoration: "none", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, background: "#FFFFFF" }}>
-              {isOverview ? "Trade Log" : "Analytics Home"}
+            <Link href={isOverview ? "/trades" : "/analytics"} className="ec-psy__back ec-focusable" style={{ marginBottom: 0 }}>
+              {isOverview ? "Journal" : "← Analytics"}
             </Link>
           </div>
 
           {!isOverview && (
-            <div style={{ marginBottom: 20, border: "1px solid #E2E8F0", background: "#FFFFFF", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 20, border: "1px solid var(--lg-line, #E2E8F0)", background: "var(--lg-card, #FFFFFF)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.6 }}>
                 This premium intelligence module keeps its full analysis here. Use the Intelligence Hub for discovery across modules.
               </div>
               <Link href="/intelligence" style={{ fontSize: 11, fontWeight: 900, color: C.purple, textDecoration: "none", whiteSpace: "nowrap" }}>
@@ -712,7 +707,10 @@ function AnalyticsContent({ section = "overview" }) {
                 color: parseFloat(riskReward?.riskAdjustedReturn || 0) >= 1 ? C.bull : C.bear,
                 tooltip: "Risk-adjusted return — how much reward you earn per unit of risk. Above 1.0 is good, 2.0+ is excellent. Negative means losses outpace your risk.",
               },
-              { label: "Max Drawdown", value: has ? `${drawdown?.maxDrawdown || 0}%`  : "—", sub: "largest equity drop", color: C.bear, tooltip: "Largest peak-to-trough drop in your cumulative P&L. Lower is better. Keep drawdowns under 20% to stay in the game long-term." },
+              // maxDrawdown is a dollar amount. The % is only sent when it means
+              // something (P&L never went below zero); the app doesn't know the
+              // account size, so it is null otherwise.
+              { label: "Max Drawdown", value: has ? `$${parseFloat(drawdown?.maxDrawdown || 0).toFixed(2)}${drawdown?.maxDrawdownPercent == null ? "" : ` (${drawdown.maxDrawdownPercent}%)`}` : "—", sub: "largest equity drop", color: C.bear, tooltip: "Largest peak-to-trough drop in your cumulative P&L, in dollars. A percentage is shown only when your P&L stayed positive, since Edgecipline doesn't know your account size. Lower is better." },
               { label: "Expectancy",   value: has ? `$${parseFloat(performance?.expectancy || 0).toFixed(2)}` : "—", sub: "per trade expectancy", color: parseFloat(performance?.expectancy || 0) >= 0 ? C.bull : C.bear, tooltip: "Expected average profit per trade. Formula: (Win Rate × Avg Win) - (Loss Rate × Avg Loss). Positive = you have a statistical edge in the market." },
               { label: "Best Streak",  value: has ? String(performance?.maxWinStreak || 0) : "—", sub: "win streak record", color: C.gold, tooltip: "Your longest consecutive winning streak on record. A high streak shows consistency, but never use it as a reason to oversize your positions." },
               { label: "Worst Streak", value: has ? String(performance?.maxLossStreak || 0) : "—", sub: "loss streak record", color: C.bear, tooltip: "Your longest consecutive losing streak. Know this number — if you're approaching it again, pause and review your setups before continuing." },
@@ -730,9 +728,9 @@ function AnalyticsContent({ section = "overview" }) {
               ].map((row, ri) => (
                 <div key={ri} style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`, gap: 16, marginBottom: 24 }}>
                   {row.heights.map((h, ci) => (
-                    <div key={ci} style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.05)" }}>
-                      <div style={{ height: 3, background: "#EDF2F7" }} />
-                      <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0" }}>
+                    <div key={ci} style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E2E8F0)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.05)" }}>
+                      <div style={{ height: 3, background: "var(--lg-soft, #EDF2F7)" }} />
+                      <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--lg-line, #E2E8F0)" }}>
                         <Skeleton width="120px" height="14px" style={{ marginBottom: 6 }} />
                         <Skeleton width="80px" height="10px" />
                       </div>
@@ -769,12 +767,12 @@ function AnalyticsContent({ section = "overview" }) {
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         <ProgressBar label={`Long (${longT})`}  value={longT}  max={total} color={C.bull} />
                         <ProgressBar label={`Short (${shortT})`} value={shortT} max={total} color={C.bear} />
-                        <div style={{ height: 1, background: "#E2E8F0", margin: "4px 0" }} />
+                        <div style={{ height: 1, background: "var(--lg-line, #E2E8F0)", margin: "4px 0" }} />
                         <ProgressBar label={`Long Win Rate  ${longWR}%`}  value={parseFloat(longWR)}  showPercent={false} color={C.bull} />
                         <ProgressBar label={`Short Win Rate ${shortWR}%`} value={parseFloat(shortWR)} showPercent={false} color={C.bear} />
                         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-                          <span style={{ fontSize: "var(--fs-2xs)", color: C.bull, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : "-"}${Math.abs(longP).toFixed(2)}</span>
-                          <span style={{ fontSize: "var(--fs-2xs)", color: C.bear, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : "-"}${Math.abs(shortP).toFixed(2)}</span>
+                          <span style={{ fontSize: "var(--fs-2xs)", color: longP >= 0 ? C.bull : C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 700 }}>Long P&L: {longP >= 0 ? "+" : "-"}${Math.abs(longP).toFixed(2)}</span>
+                          <span style={{ fontSize: "var(--fs-2xs)", color: shortP >= 0 ? C.bull : C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 700 }}>Short P&L: {shortP >= 0 ? "+" : "-"}${Math.abs(shortP).toFixed(2)}</span>
                         </div>
                       </div>
                     ) : <p style={{ color: C.muted, fontSize: 12 }}>No trade direction data yet.</p>;
@@ -810,12 +808,12 @@ function AnalyticsContent({ section = "overview" }) {
                   {riskReward ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {riskRewardRows(riskReward, performance).map(r => (
-                        <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: "1px solid #F4F2EE" }}>
+                        <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: "1px solid var(--lg-soft, #F4F2EE)" }}>
                           <span>
-                            <span style={{ display: "block", fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{r.label}</span>
+                            <span style={{ display: "block", fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{r.label}</span>
                             <span style={{ display: "block", marginTop: 2, fontSize: "var(--fs-2xs)", color: C.muted }}>{r.sub}</span>
                           </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: r.color }}>{r.value}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: r.color }}>{r.value}</span>
                         </div>
                       ))}
                     </div>
@@ -857,7 +855,7 @@ function AnalyticsContent({ section = "overview" }) {
 
               <SectionCard title="Analytics Scope" subtitle="RAW PERFORMANCE EXPLORATION" delay={0.52} accentColor={C.primary}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7, maxWidth: 760 }}>
+                  <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.7, maxWidth: 760 }}>
                     Use Analytics for performance, sessions, pairs, strategies, risk, calendar, and psychology data exploration. Use Intelligence when you want Edgecipline to explain what the data means and what to improve next.
                   </div>
                   <Link href="/intelligence" style={{ fontSize: 11, fontWeight: 900, color: C.purple, textDecoration: "none", border: "1px solid #8B5CF633", background: "#8B5CF608", borderRadius: 8, padding: "9px 12px", whiteSpace: "nowrap" }}>
@@ -887,9 +885,9 @@ function AnalyticsContent({ section = "overview" }) {
                         { label: "Revenge Trades",   value: String(revengeTrades), color: revengeTrades > 0 ? C.bear : C.bull },
                         { label: "Plan Adherence",   value: sb.planAdherencePct ? `${parseFloat(sb.planAdherencePct).toFixed(0)}%` : "—", color: C.gold },
                       ].map(m => (
-                        <div key={m.label} style={{ background: "#FAFAFA", borderRadius: 10, padding: "12px 14px", border: "1px solid #E8EDF2" }}>
+                        <div key={m.label} style={{ background: "var(--lg-soft, #FAFAFA)", borderRadius: 10, padding: "12px 14px", border: "1px solid #E8EDF2" }}>
                           <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>{m.label.toUpperCase()}</div>
-                          <div style={{ fontSize: 20, fontWeight: 800, color: m.color, fontFamily: "'JetBrains Mono',monospace" }}>{m.value}</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: m.color, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{m.value}</div>
                         </div>
                       ))}
                     </div>
@@ -1024,7 +1022,7 @@ function AnalyticsContent({ section = "overview" }) {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
                         <div>
                           <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>PSYCHOLOGY COST SCORE</div>
-                          <div style={{ fontSize: 28, fontWeight: 900, color: (psychologyCost.psychologyCostScore || 0) >= 70 ? C.bull : (psychologyCost.psychologyCostScore || 0) >= 40 ? C.gold : C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
+                          <div style={{ fontSize: 28, fontWeight: 900, color: (psychologyCost.psychologyCostScore || 0) >= 70 ? C.bull : (psychologyCost.psychologyCostScore || 0) >= 40 ? C.gold : C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                             {psychologyCost.psychologyCostScore ?? 0}/100
                           </div>
                         </div>
@@ -1040,8 +1038,8 @@ function AnalyticsContent({ section = "overview" }) {
                               type="button"
                               onClick={() => setPsychologyCostDays(range.value)}
                               style={{
-                                border: `1px solid ${psychologyCostDays === range.value ? C.purple : "#E2E8F0"}`,
-                                background: psychologyCostDays === range.value ? "#F5F3FF" : "#FFFFFF",
+                                border: `1px solid ${psychologyCostDays === range.value ? C.purple : "var(--lg-line, #E2E8F0)"}`,
+                                background: psychologyCostDays === range.value ? "var(--lg-soft, #F5F3FF)" : "var(--lg-card, #FFFFFF)",
                                 color: psychologyCostDays === range.value ? C.purple : C.muted,
                                 borderRadius: 8,
                                 padding: "6px 10px",
@@ -1064,13 +1062,13 @@ function AnalyticsContent({ section = "overview" }) {
                             /* Kind and sample size shown: an emotional state and
                                a broken rule need different fixes, and the list
                                previously rendered them identically. */
-                            <div key={leak.name} style={{ borderRadius: 10, border: "1px solid #FED7D7", background: "#FFF8F8", padding: "10px 12px" }}>
-                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#B45B5B", marginBottom: 3 }}>
+                            <div key={leak.name} style={{ borderRadius: 10, border: "1px solid var(--lg-red-soft, #FED7D7)", background: "var(--lg-red-soft, #FFF8F8)", padding: "10px 12px" }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--lg-red, #B45B5B)", marginBottom: 3 }}>
                                 {LEAK_KIND_LABEL[leak.type] || "Behavior"}
                               </div>
                               <div style={{ fontSize: 12, fontWeight: 800, color: C.primary }}>{leak.name}</div>
                               <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>{moneyText(leak.cost)}</span>
+                                <span style={{ fontSize: 14, fontWeight: 900, color: C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{moneyText(leak.cost)}</span>
                                 {leak.count != null && (
                                   <span style={{ fontSize: "var(--fs-2xs)", color: C.muted }}>
                                     {leak.count} trade{leak.count === 1 ? "" : "s"}
@@ -1101,7 +1099,7 @@ function AnalyticsContent({ section = "overview" }) {
                   {tradingDNA && !tradingDNA.insufficient ? (
                     <>
                       {tradingDNA.dnaSummary?.tradingIdentity && (
-                        <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.7, borderLeft: `3px solid ${C.purple}`, background: "#F8FAFC", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: "var(--lg-sub, #334155)", lineHeight: 1.7, borderLeft: `3px solid ${C.purple}`, background: "var(--lg-soft, #F8FAFC)", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
                           {tradingDNA.dnaSummary.tradingIdentity}
                         </div>
                       )}
@@ -1112,10 +1110,10 @@ function AnalyticsContent({ section = "overview" }) {
                           tradingDNA.emotionDNA?.mostProfitable && { label: "Best Emotion", value: tradingDNA.emotionDNA.mostProfitable.name, sub: moneyText(tradingDNA.emotionDNA.mostProfitable.netPnL) },
                           tradingDNA.mistakeDNA?.mostExpensive && { label: "Costliest Mistake", value: tradingDNA.mistakeDNA.mostExpensive.name, sub: moneyText(tradingDNA.mistakeDNA.mostExpensive.netPnL) },
                         ].filter(Boolean).map((row) => (
-                          <div key={row.label} style={{ borderRadius: 10, border: "1px solid #E2E8F0", background: "#FFFFFF", padding: "10px 12px" }}>
+                          <div key={row.label} style={{ borderRadius: 10, border: "1px solid var(--lg-line, #E2E8F0)", background: "var(--lg-card, #FFFFFF)", padding: "10px 12px" }}>
                             <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 800, letterSpacing: "0.08em" }}>{row.label.toUpperCase()}</div>
                             <div style={{ fontSize: 13, fontWeight: 900, color: C.primary, marginTop: 3 }}>{row.value}</div>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: row.sub.startsWith("-") ? C.bear : C.bull, fontFamily: "'JetBrains Mono',monospace" }}>{row.sub}</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: row.sub.startsWith("-") ? C.bear : C.bull, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{row.sub}</div>
                           </div>
                         ))}
                       </div>
@@ -1128,6 +1126,13 @@ function AnalyticsContent({ section = "overview" }) {
                       accent={C.purple}
                     />
                   )}
+                  {/* The AI-written report had no way in from the app. */}
+                  <Link
+                    href="/trading-dna"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 14, fontSize: 13, fontWeight: 700, color: "var(--lg-green, #0D9E6E)", textDecoration: "none" }}
+                  >
+                    Read your full AI Trading DNA report →
+                  </Link>
                 </SectionCard>
               </div>
               )}
@@ -1168,10 +1173,10 @@ function AnalyticsContent({ section = "overview" }) {
                         const rankColors = ["#DC2626", "#EA580C", "#D97706", "#65A30D", "#0284C7"];
                         const rankColor = rankColors[i] || C.muted;
                         return (
-                          <div key={m.tag} style={{ borderRadius: 12, border: `1px solid ${rankColor}22`, background: `${rankColor}06`, padding: "14px 16px" }}>
+                          <div key={m.tag} style={{ borderRadius: 12, border: `1px solid color-mix(in srgb, ${rankColor} 13%, transparent)`, background: `color-mix(in srgb, ${rankColor} 2%, transparent)`, padding: "14px 16px" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                                <div style={{ width: 28, height: 28, borderRadius: 8, background: `${rankColor}18`, border: `1.5px solid ${rankColor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: rankColor, flexShrink: 0, fontFamily: "'JetBrains Mono',monospace" }}>
+                                <div style={{ width: 28, height: 28, borderRadius: 8, background: `color-mix(in srgb, ${rankColor} 9%, transparent)`, border: `1.5px solid color-mix(in srgb, ${rankColor} 27%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: rankColor, flexShrink: 0, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                                   {i + 1}
                                 </div>
                                 <div>
@@ -1180,16 +1185,16 @@ function AnalyticsContent({ section = "overview" }) {
                                 </div>
                               </div>
                               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                <div style={{ fontSize: 15, fontWeight: 900, color: isLoss ? C.bear : C.bull, fontFamily: "'JetBrains Mono',monospace" }}>
+                                <div style={{ fontSize: 15, fontWeight: 900, color: isLoss ? C.bear : C.bull, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                                   {isLoss ? "-" : "+"}${Math.abs(m.totalPnl).toFixed(2)}
                                 </div>
                                 <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, marginTop: 2 }}>total cost</div>
                               </div>
                             </div>
                             {m.lessons?.length > 0 && (
-                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${rankColor}20` }}>
+                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid color-mix(in srgb, ${rankColor} 13%, transparent)` }}>
                                 <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, color: rankColor, letterSpacing: "0.1em", marginBottom: 6 }}>LESSON LOGGED</div>
-                                <div style={{ fontSize: 11, color: "#374151", fontStyle: "italic", lineHeight: 1.6 }}>{m.lessons[0]}</div>
+                                <div style={{ fontSize: 11, color: "var(--lg-sub, #374151)", fontStyle: "italic", lineHeight: 1.6 }}>{m.lessons[0]}</div>
                               </div>
                             )}
                           </div>
@@ -1228,13 +1233,13 @@ function AnalyticsContent({ section = "overview" }) {
                           const trendColor = trend === "?" ? C.bull : trend === "?" ? C.bear : C.muted;
                           return (
                             <div key={w.week} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: isLatest ? C.primary : C.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
-                              <div style={{ flex: 1, height: 6, background: "#F4F2EE", borderRadius: 99, overflow: "hidden" }}>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: isLatest ? C.primary : C.muted, width: 48, flexShrink: 0, fontWeight: isLatest ? 700 : 400 }}>{weekLabel}</div>
+                              <div style={{ flex: 1, height: 6, background: "var(--lg-soft, #F4F2EE)", borderRadius: 99, overflow: "hidden" }}>
                                 <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: barColor, borderRadius: 99, transition: "width 0.4s" }} />
                               </div>
-                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: barColor, width: 36, textAlign: "right" }}>{pct}%</div>
                               <div style={{ fontSize: "var(--fs-2xs)", color: trendColor, width: 12 }}>{trend}</div>
-                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "'JetBrains Mono',monospace", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toFixed(0)}</div>
+                              <div style={{ fontSize: "var(--fs-2xs)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: w.pnl >= 0 ? C.bull : C.bear, width: 54, textAlign: "right" }}>{w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toFixed(0)}</div>
                             </div>
                           );
                         })}
@@ -1247,7 +1252,7 @@ function AnalyticsContent({ section = "overview" }) {
                         const delta = last - first;
                         if (Math.abs(delta) < 5) return null;
                         return (
-                          <div style={{ marginTop: 12, padding: "8px 12px", borderRadius: 8, background: delta > 0 ? "#F0FDF4" : "#FFF8F8", border: `1px solid ${delta > 0 ? "#BBF7D0" : "#FED7D7"}`, fontSize: 11, color: delta > 0 ? "#166534" : "#9B1C1C" }}>
+                          <div style={{ marginTop: 12, padding: "8px 12px", borderRadius: 8, background: delta > 0 ? "var(--lg-green-soft, #F0FDF4)" : "var(--lg-red-soft, #FFF8F8)", border: `1px solid ${delta > 0 ? "#BBF7D0" : "var(--lg-red-soft, #FED7D7)"}`, fontSize: 11, color: delta > 0 ? "var(--lg-green, #166534)" : "var(--lg-red, #9B1C1C)" }}>
                             {delta > 0 ? "?" : "?"} Discipline {delta > 0 ? "improving" : "declining"} {Math.abs(delta).toFixed(0)}pp over last 4 weeks
                           </div>
                         );
@@ -1261,7 +1266,7 @@ function AnalyticsContent({ section = "overview" }) {
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                           <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>REVENGE TRADES</div>
                           <div style={{
-                            fontSize: 18, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace",
+                            fontSize: 18, fontWeight: 900, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                             color: (aiInsights.behaviorDiscipline?.revengeTradesCount || 0) > 0 ? C.bear : C.bull,
                           }}>
                             {aiInsights.behaviorDiscipline?.revengeTradesCount || 0}
@@ -1269,16 +1274,16 @@ function AnalyticsContent({ section = "overview" }) {
                         </div>
                         {(aiInsights.behaviorDiscipline?.revengeTradesCount || 0) > 0 ? (
                           <>
-                            <div style={{ fontSize: 11, color: "#374151", lineHeight: 1.6, marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--lg-sub, #374151)", lineHeight: 1.6, marginBottom: 8 }}>
                               Trades taken immediately after a loss with 1.5× bigger risk. Total cost:{" "}
-                              <span style={{ fontWeight: 700, color: C.bear, fontFamily: "'JetBrains Mono',monospace" }}>
+                              <span style={{ fontWeight: 700, color: C.bear, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                                 ${Math.abs(parseFloat(aiInsights.behaviorDiscipline.revengeCostTotal || 0)).toFixed(2)}
                               </span>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               {(aiInsights.behaviorDiscipline.revengeTrades || []).slice(-3).map((t, i) => (
-                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
-                                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{t.pair}</span>
+                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "var(--lg-red-soft, #FFF8F8)", borderRadius: 6, border: "1px solid var(--lg-red-soft, #FED7D7)" }}>
+                                  <span style={{ fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", fontWeight: 600 }}>{t.pair}</span>
                                   <span>{new Date(t.createdAt).toLocaleDateString()}</span>
                                   <span style={{ color: C.bear, fontWeight: 700 }}>${Math.abs(t.prevProfit || 0).toFixed(2)} trigger loss</span>
                                 </div>
@@ -1292,11 +1297,11 @@ function AnalyticsContent({ section = "overview" }) {
                       </div>
 
                       {/* Tilt days */}
-                      <div style={{ borderTop: "1px solid #F4F2EE", paddingTop: 14 }}>
+                      <div style={{ borderTop: "1px solid var(--lg-soft, #F4F2EE)", paddingTop: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                           <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>TILT DAYS</div>
                           <div style={{
-                            fontSize: 18, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace",
+                            fontSize: 18, fontWeight: 900, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)",
                             color: (aiInsights.psychologicalPatterns?.tiltDays?.length || 0) > 0 ? C.bear : C.bull,
                           }}>
                             {aiInsights.psychologicalPatterns?.tiltDays?.length || 0}
@@ -1304,14 +1309,14 @@ function AnalyticsContent({ section = "overview" }) {
                         </div>
                         {(aiInsights.psychologicalPatterns?.tiltDays?.length || 0) > 0 ? (
                           <>
-                            <div style={{ fontSize: 11, color: "#374151", lineHeight: 1.6, marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--lg-sub, #374151)", lineHeight: 1.6, marginBottom: 8 }}>
                               Days with 3+ consecutive losses + increasing position size detected.
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               {aiInsights.psychologicalPatterns.tiltDays.slice(-3).map((td, i) => (
-                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#FFF8F8", borderRadius: 6, border: "1px solid #FED7D7" }}>
+                                <div key={i} style={{ fontSize: "var(--fs-2xs)", color: C.muted, display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "var(--lg-red-soft, #FFF8F8)", borderRadius: 6, border: "1px solid var(--lg-red-soft, #FED7D7)" }}>
                                   <span>{td.day}</span>
-                                  <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{td.streakLength} losses</span>
+                                  <span style={{ fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{td.streakLength} losses</span>
                                   <span style={{ color: C.bear, fontWeight: 700 }}>-${Math.abs(parseFloat(td.totalLoss)).toFixed(2)}</span>
                                 </div>
                               ))}
@@ -1362,7 +1367,7 @@ function AnalyticsContent({ section = "overview" }) {
             <div style={{ textAlign: "center", padding: "80px 20px", color: C.muted }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.primary, marginBottom: 8 }}>No trades yet</div>
               <div style={{ fontSize: 13, marginBottom: 24 }}>Upload your first trade to unlock analytics.</div>
-              <Link href="/upload-trade" style={{ display: "inline-block", background: C.bull, color: "#FFFFFF", padding: "12px 24px", borderRadius: 10, textDecoration: "none", fontSize: 13, fontWeight: 700 }}>
+              <Link href="/upload-trade" style={{ display: "inline-block", background: C.bull, color: "var(--lg-card, #FFFFFF)", padding: "12px 24px", borderRadius: 10, textDecoration: "none", fontSize: 13, fontWeight: 700 }}>
                 Upload First Trade
               </Link>
             </div>

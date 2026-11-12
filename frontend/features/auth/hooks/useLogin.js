@@ -77,7 +77,7 @@ function clearFreshStartClientState() {
 // seed, /onboarding mounts with an empty cache and fetches the SAME endpoint a
 // second time, and the user stares at a full-screen "Loading your onboarding…"
 // for the length of that round-trip immediately after signing in.
-async function resolveLandingPath() {
+export async function resolveLandingPath() {
   try {
     const state = await apiClient.get("/onboarding");
     if (hasCompletedActivation(state)) return { path: "/dashboard", state };

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { CreditCard, LogOut } from "lucide-react";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import { MARKET_SWITCH_TIMING } from "@/context/marketTransition";
@@ -11,12 +10,10 @@ import PricingModal from "@/components/PricingModal";
 import TrialCountdownBanner from "@/components/TrialCountdownBanner";
 import RescueBanner from "@/components/RescueBanner";
 import { useMarket, MARKETS } from "@/context/MarketContext";
-import { signOutFirebase } from "@/services/firebaseAuth";
-import apiClient, { publishAuthLogout } from "@/services/apiClient";
-import { clearAuthToken } from "@/utils/auth";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import MobileUserDrawer from "./MobileUserDrawer";
-import { onUserLoggedOut } from "@/services/pushNotifications";
+import { useLogout } from "@/features/auth/hooks/useLogout";
+import { primaryNav, secondaryNav } from "@/features/shared/navigation";
 import { canShowPurchaseUI } from "@/config/payments";
 
 function getInitials(name) {
@@ -26,39 +23,23 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-const FOREX_NAV_LINKS = [
-  { href: "/dashboard",                    label: "Dashboard" },
-  { href: "/trades",                       label: "Trades"    },
-  { href: "/upload-trade",                 label: "Import"    },
-  { href: "/checklist",                    label: "Checklist" },
-  { href: "/setups",                       label: "Setups"    },
-  { href: "/intelligence",                 label: "Intelligence" },
-  { href: "/analytics",                    label: "Analytics" },
-  { href: "/weekly-reports?market=Forex",  label: "Reports"   },
-  { href: "/settings",                      label: "Settings"  },
-];
-
-const INDIAN_NAV_LINKS = [
-  { href: "/indian-market/dashboard",            label: "Dashboard" },
-  { href: "/indian-market/trades",                label: "Trades"    },
-  { href: "/indian-market/upload-trade",          label: "Import"    },
-  { href: "/checklist",                           label: "Checklist" },
-  { href: "/indian-market/setups",                label: "Setups"    },
-  { href: "/indian-market/intelligence",          label: "Intelligence" },
-  { href: "/indian-market/analytics",             label: "Analytics" },
-  { href: "/weekly-reports?market=Indian_Market", label: "Reports"   },
-  { href: "/settings",                             label: "Settings"  },
-];
 
 export default function PageHeader({
   showMarketSwitcher = true,
   showClock = false,
   clock = "",
   rightSlot = null,
+  // Redesigned screens (wrapped in .ec-app) pass `themed` so the header
+  // follows the design-system tokens and the dark/light preference. Legacy
+  // screens keep the original light header until they are migrated.
+  themed = false,
+  // Page name shown in place of the logo when the desktop sidebar is present.
+  title = "",
 }) {
+  const bar = themed ? "var(--ec-bg)" : "rgba(240,238,233,0.97)";
   const router   = useRouter();
   const pathname = usePathname();
-  const queryClient = useQueryClient();
+  const handleLogout = useLogout();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const { profile } = useUserProfile();
@@ -68,18 +49,40 @@ export default function PageHeader({
   const showUpgrade = canShowPurchaseUI() && !profile?.isPremium;
   const { currentMarket } = useMarket();
   const isIndianMarket = currentMarket === MARKETS.INDIAN_MARKET;
-  const navLinks = isIndianMarket ? INDIAN_NAV_LINKS : FOREX_NAV_LINKS;
+  // Same destinations as the sidebar and bottom tabs (features/shared/navigation).
+  const navLinks = [...primaryNav(currentMarket), ...secondaryNav(currentMarket)].map(
+    ({ href, label, Icon }) => ({ href, label, icon: <Icon size={16} /> }),
+  );
   const dashboardHref = isIndianMarket ? "/indian-market/dashboard" : "/dashboard";
 
-  const handleLogout = async () => {
-    await onUserLoggedOut();
-    try { await apiClient.post("/auth/logout"); } catch {}
-    queryClient.clear();
-    await clearAuthToken();
-    publishAuthLogout("explicit_logout");
-    await signOutFirebase();
-    router.replace("/login");
-  };
+  // Phones: once the page's big title scrolls under the bar, show it in the
+  // bar instead of the logo (the iOS large-title pattern), so the screen name
+  // is always visible.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (!themed || !title || typeof IntersectionObserver === "undefined") return undefined;
+    let observer;
+    let tries = 0;
+    let timer;
+    const attach = () => {
+      const target = document.querySelector("main h1");
+      if (!target) {
+        if (tries++ < 10) timer = setTimeout(attach, 250);
+        return;
+      }
+      observer = new IntersectionObserver(
+        ([entry]) => setCompact(!entry.isIntersecting && entry.boundingClientRect.top < 80),
+        { rootMargin: "-72px 0px 0px 0px", threshold: 0 },
+      );
+      observer.observe(target);
+    };
+    attach();
+    return () => {
+      clearTimeout(timer);
+      observer?.disconnect();
+      setCompact(false);
+    };
+  }, [themed, title, pathname]);
 
   const isActive = (href) => {
     const base = href.split("?")[0];
@@ -113,7 +116,7 @@ export default function PageHeader({
           // get a light strip across their top edge.
           position: "fixed", top: 0, left: 0, right: 0,
           height: "env(safe-area-inset-top, 0px)",
-          background: "rgba(240,238,233,0.97)",
+          background: bar,
           zIndex: 999,
           pointerEvents: "none",
         }}
@@ -133,25 +136,37 @@ export default function PageHeader({
         padding: "0 calc(20px + env(safe-area-inset-right, 0px)) 0 calc(20px + env(safe-area-inset-left, 0px))",
         height: 60,
         minHeight: 60,
-        background: "rgba(240,238,233,0.97)",
-        borderBottom: "1px solid var(--color-border-subtle)",
-        boxShadow: "0 1px 0 rgba(15,25,35,0.06)",
-      }}>
+        background: bar,
+        borderBottom: themed ? "1px solid var(--ec-border)" : "1px solid var(--color-border-subtle)",
+        boxShadow: themed ? "none" : "0 1px 0 rgba(15,25,35,0.06)",
+      }} className={themed ? `hdr-themed${compact ? " is-compact" : ""}` : undefined}>
 
-        {/* Logo */}
-        <Link href={dashboardHref} style={{ textDecoration: "none", flexShrink: 0 }}>
-          <img src="/mainlogo1.webp" alt="Edgecipline"
-            style={{ width: 130, height: 36, objectFit: "contain", display: "block" }} />
+        {/* Logo. The wordmark image has black lettering, so themed headers use
+            the green mark + live text, which follows the theme. */}
+        {title && <h1 className="hdr-title">{title}</h1>}
+        <Link href={dashboardHref} className="hdr-logo" style={{ textDecoration: "none", flexShrink: 0 }}>
+          {themed ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="/logo.png" alt="" width={28} height={28} style={{ display: "block" }} />
+              <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--ec-text)" }}>
+                Edgecipline
+              </span>
+            </span>
+          ) : (
+            <img src="/mainlogo1.webp" alt="Edgecipline"
+              style={{ width: 130, height: 36, objectFit: "contain", display: "block" }} />
+          )}
         </Link>
 
         {/* Desktop nav */}
         <div className="hdr-desktop" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <nav id="tour-nav" style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 8 }}>
+          <nav id="tour-nav" className="hdr-nav" style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 8 }}>
             {navLinks.map(n => {
               const active = isActive(n.href);
               const tourId = `tour-nav-${n.label.toLowerCase()}`;
               return (
                 <Link key={n.href} href={n.href} id={tourId} className="hdr-link"
+                  aria-current={active ? "page" : undefined}
                   style={{
                     fontSize: 13, fontWeight: active ? 700 : 500,
                     color: active ? "var(--color-primary)" : "var(--color-text-secondary)",
@@ -167,7 +182,7 @@ export default function PageHeader({
             })}
           </nav>
 
-          <div style={{ width: 1, height: 20, background: "var(--color-border)", margin: "0 8px" }} />
+          <div className="hdr-sep" style={{ width: 1, height: 20, background: "var(--color-border)", margin: "0 8px" }} />
 
           {showMarketSwitcher && <span id="tour-market-switcher"><MarketSwitcher /></span>}
 
@@ -186,6 +201,7 @@ export default function PageHeader({
 
           {showUpgrade && (
             <button
+              className="hdr-upgrade"
               onClick={() => setPricingOpen(true)}
               style={{
                 display: "flex", alignItems: "center", gap: 7,
@@ -258,6 +274,26 @@ export default function PageHeader({
         />
       )}
 
+      <style jsx global>{`
+        /* Themed header (redesigned screens): token colours, overriding the
+           legacy inline values above. */
+        .hdr-themed .hdr-link { color: var(--ec-text-2) !important; background: transparent !important; }
+        .hdr-themed .hdr-link[aria-current="page"] {
+          color: var(--ec-text) !important; background: var(--ec-surface-2) !important;
+        }
+        .hdr-themed .hdr-link:hover { color: var(--ec-text) !important; background: var(--ec-surface-2) !important; }
+        .hdr-themed .hdr-desktop > div[style] { background: var(--ec-border-strong) !important; }
+        .hdr-themed .hdr-upgrade {
+          background: var(--ec-accent) !important; border-color: var(--ec-accent) !important;
+          color: var(--ec-on-accent) !important;
+        }
+        .hdr-themed .hdr-logout { border-color: var(--ec-border-strong) !important; color: var(--ec-text-3) !important; }
+        .hdr-themed .hdr-mobile {
+          background: var(--ec-surface-2) !important; color: var(--ec-text) !important;
+          border: 1px solid var(--ec-border-strong) !important; box-shadow: none !important;
+          width: 40px !important; height: 40px !important; min-height: 40px !important;
+        }
+      `}</style>
       <style jsx>{`
         .hdr-link:hover {
           background: var(--color-primary-bg) !important;
@@ -274,6 +310,41 @@ export default function PageHeader({
         }
         @media (min-width: 1440px) {
           .hdr-mobile  { display: none !important; }
+        }
+      `}</style>
+      <style jsx global>{`
+        /* With the desktop sidebar on screen it owns the logo, links, upgrade
+           and logout; the header keeps banners, page title and the market
+           switcher. (AppSidebar sets body.has-app-sidebar; it shows at >= 1024px, signed in.) */
+        .hdr-title { display: none; margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
+        /* Phones/tablets: the page title slides into the bar when the page's
+           own heading has scrolled away (see the IntersectionObserver). */
+        @media (max-width: 1023px) {
+          .hdr-themed .hdr-title {
+            display: block; position: absolute;
+            left: calc(20px + env(safe-area-inset-left, 0px)); right: 132px;
+            font-size: 17px; font-weight: 600; color: var(--ec-text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            opacity: 0; transform: translateY(6px); pointer-events: none;
+            transition: opacity .18s ease, transform .18s ease;
+          }
+          .hdr-themed .hdr-logo { transition: opacity .18s ease; }
+          .hdr-themed.is-compact .hdr-title { opacity: 1; transform: none; }
+          .hdr-themed.is-compact .hdr-logo { opacity: 0; pointer-events: none; }
+        }
+        @media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
+          .hdr-themed .hdr-title, .hdr-themed .hdr-logo { transition: none; }
+        }
+        @media (min-width: 1024px) {
+          body.has-app-sidebar .hdr-logo,
+          body.has-app-sidebar .hdr-nav,
+          body.has-app-sidebar .hdr-sep,
+          body.has-app-sidebar .hdr-upgrade,
+          body.has-app-sidebar .hdr-logout,
+          body.has-app-sidebar .hdr-mobile { display: none !important; }
+          body.has-app-sidebar .hdr-desktop { display: flex !important; margin-left: auto; }
+          body.has-app-sidebar .hdr-title { display: block; color: var(--color-dark); }
+          body.has-app-sidebar .hdr-themed .hdr-title { color: var(--ec-text); }
         }
       `}</style>
     </>

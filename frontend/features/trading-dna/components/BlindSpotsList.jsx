@@ -1,62 +1,28 @@
 "use client";
 
-import { C, cardSurface } from "./tokens";
-import SectionTitle from "./SectionTitle";
+import { EyeOff } from "lucide-react";
+import { Card, CardHeader } from "@/features/shared/components/ui";
 
 export default function BlindSpotsList({ items = [] }) {
   if (!items.length) return null;
 
   return (
-    <div style={cardSurface}>
-      <SectionTitle>BLIND SPOTS</SectionTitle>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <Card>
+      <CardHeader
+        title={<span className="ec-dna__title-icon"><EyeOff size={16} aria-hidden="true" className="ec-tone--warn" /> Blind spots</span>}
+        subtitle="Habits that are easy to miss in the moment"
+      />
+      <ul className="ec-dna__items">
         {items.map((entry, i) => (
-          <div
-            key={`${entry.title || "blind"}-${i}`}
-            style={{
-              padding: "14px 16px",
-              borderRadius: 12,
-              background: "#FFFBEB",
-              border: "1px solid #FDE68A",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 800,
-                color: "#92400E",
-                marginBottom: 6,
-                letterSpacing: "0.02em",
-              }}
-            >
-              {entry.title}
-            </div>
-            {entry.why ? (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#374151",
-                  lineHeight: 1.6,
-                  marginBottom: entry.watchFor ? 8 : 0,
-                }}
-              >
-                {entry.why}
-              </div>
-            ) : null}
+          <li key={`${entry.title || "blind"}-${i}`} className="ec-dna__item ec-dna__item--warn">
+            <p className="ec-dna__item-title">{entry.title}</p>
+            {entry.why ? <p className="ec-dna__item-text">{entry.why}</p> : null}
             {entry.watchFor ? (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: C.gold,
-                  fontWeight: 600,
-                }}
-              >
-                Watch for: {entry.watchFor}
-              </div>
+              <p className="ec-dna__item-text"><span className="ec-dna__label">Watch for</span> {entry.watchFor}</p>
             ) : null}
-          </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </Card>
   );
 }

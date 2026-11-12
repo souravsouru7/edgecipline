@@ -123,7 +123,7 @@ for (const plugin of androidOnly) {
 // Android code path — extra round trips, and UI that promises a missing feature.
 const CALLERS = [
   "frontend/services/checklistNotificationSync.js",
-  "frontend/app/checklist/notification-settings/page.js",
+  "frontend/app/settings/checklist-reminder/page.js",
   "frontend/app/checklist/page.js",
   "frontend/components/PlayBillingPaywall.js",
   "frontend/features/premium/hooks/usePlayBillingReconcile.js",

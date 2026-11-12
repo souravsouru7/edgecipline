@@ -458,12 +458,16 @@ async function getStreakSnapshot(userId) {
   const tz = streaks?.timezone || (await getUserTimezone(userId));
   const todayKey = dayKeyInTz(new Date(), tz);
   const journalLast = streaks?.journal?.lastQualifyingDate || null;
-  const atRisk =
-    (streaks?.journal?.current || 0) >= 3 &&
-    journalLast !== todayKey;
+  // The stored `current` is only recomputed when the user acts. A streak whose
+  // last qualifying day is older than yesterday is already broken (same rule
+  // as computeStreaksFromEntries), so report 0 instead of a stale "12 days".
+  const daysSinceLast = journalLast ? diffDays(todayKey, journalLast) : null;
+  const journalAlive = daysSinceLast !== null && daysSinceLast >= 0 && daysSinceLast <= 1;
+  const journalCurrent = journalAlive ? (streaks?.journal?.current || 0) : 0;
+  const atRisk = journalCurrent >= 3 && daysSinceLast === 1;
   return {
     journal: {
-      current: streaks?.journal?.current || 0,
+      current: journalCurrent,
       longest: streaks?.journal?.longest || 0,
       lastQualifyingDate: journalLast,
       atRisk,

@@ -15,6 +15,7 @@ const {
   SMART_NOTIFICATION_QUEUE_NAME,
 } = require("../queues/smartNotificationQueue");
 const { logger } = require("../utils/logger");
+const { isQueueJobStale } = require("../utils/notificationPolicy");
 bindFatalHandlers({ logger, processName: "smart-notification-worker" });
 
 let workerInstance = null;
@@ -43,6 +44,21 @@ function bindShutdownHandlers() {
 // at first job — after the queue and evaluator modules are both initialised.
 function createProcessor() {
   return async (job) => {
+    // A job that sat in Redis too long (worker down, backlog) is dropped, not
+    // delivered late. Age counts from when it was due, so a promotional push
+    // deliberately delayed until 09:00 is not mistaken for stale.
+    const dueAt = (job.timestamp || 0) + (job.opts?.delay || 0);
+    const kind = job.name === DELIVER_NOTIFICATION_JOB_NAME ? "delivery" : "smartChecks";
+    if (job.timestamp && isQueueJobStale(kind, dueAt)) {
+      logger.warn("SMART_WORKER_STALE_JOB_DROPPED", {
+        jobId: job.id,
+        kind,
+        ageMs: Date.now() - dueAt,
+        notificationType: job.data?.notification?.type || null,
+      });
+      return { skipped: true, reason: "stale" };
+    }
+
     if (job.name === DELIVER_NOTIFICATION_JOB_NAME) {
       const { userId, notification } = job.data || {};
       if (!userId || !notification?.type || !notification?.dedupeKey) {

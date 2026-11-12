@@ -1,137 +1,34 @@
 "use client";
 
-import { C, FONT } from "./tokens";
-
-// Maps archetype → accent colour. Falls back to purple for unknowns and grey
-// for the null archetype (low-sample case).
-const ARCHETYPE_ACCENTS = {
-  "Patient Sniper": "#A855F7",
-  "Momentum Rider": "#F97316",
-  "Disciplined Grinder": "#0D9E6E",
-  "Volatility Surfer": "#06B6D4",
-  "Reactive Improviser": "#F43F5E",
-  "Range Hunter": "#10B981",
-  "Breakout Hunter": "#F59E0B",
-  "Risk Curator": "#3B82F6",
-  "Mean Reversion Specialist": "#8B5CF6",
-  "Trend Follower": "#0EA5E9",
-  Scalper: "#EC4899",
-  "Swing Builder": "#22C55E",
-};
+import { Badge } from "@/features/shared/components/ui";
+import { archetypeAccent, formatReportDate } from "./tokens";
 
 export default function IdentityHero({ identity, sample, generatedAt }) {
   const archetype = identity?.archetype || null;
-  const accent = archetype
-    ? ARCHETYPE_ACCENTS[archetype] || C.purple
-    : C.muted;
+  const accent = archetypeAccent(archetype);
+  const date = formatReportDate(generatedAt);
 
   return (
-    <div
-      style={{
-        background: C.bgDeep,
-        borderRadius: 18,
-        padding: "28px 28px",
-        color: "#F8FAFC",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: `radial-gradient(circle at 100% 0%, ${accent}40 0%, transparent 55%)`,
-          pointerEvents: "none",
-        }}
-      />
-      <div style={{ position: "relative" }}>
-        <div
-          style={{
-            fontSize: "var(--fs-2xs)",
-            fontWeight: 800,
-            color: accent,
-            letterSpacing: "0.18em",
-            marginBottom: 12,
-          }}
-        >
-          YOUR TRADING IDENTITY
-        </div>
+    <section className="ec-card ec-card--pad ec-dna__hero" style={{ "--dna-accent": accent }} aria-labelledby="dna-archetype">
+      <p className="ec-dna__eyebrow">Your trading identity</p>
+      <h2 id="dna-archetype" className="ec-dna__archetype">
+        {archetype || "Still forming"}
+      </h2>
+      {identity?.tagline ? <p className="ec-dna__tagline">{identity.tagline}</p> : null}
+      {identity?.oneLiner ? <p className="ec-dna__oneliner">{identity.oneLiner}</p> : null}
+      {!archetype ? (
+        <p className="ec-dna__oneliner">
+          There isn&apos;t enough in this window to name a style yet. Log more trades, or try a longer window.
+        </p>
+      ) : null}
 
-        <div
-          style={{
-            fontSize: 32,
-            fontWeight: 900,
-            color: "#F8FAFC",
-            letterSpacing: "-0.02em",
-            marginBottom: 8,
-            lineHeight: 1.1,
-          }}
-        >
-          {archetype || "Building your DNA…"}
-        </div>
-
-        {identity?.tagline ? (
-          <div
-            style={{
-              fontSize: 12,
-              color: accent,
-              fontFamily: FONT.mono,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              marginBottom: 18,
-            }}
-          >
-            {identity.tagline}
-          </div>
+      <div className="ec-dna__meta">
+        {sample?.totalTrades != null ? (
+          <span>Based on <strong>{sample.totalTrades}</strong> {sample.totalTrades === 1 ? "trade" : "trades"}</span>
         ) : null}
-
-        {identity?.oneLiner ? (
-          <p
-            style={{
-              fontSize: 14,
-              color: "#CBD5E1",
-              lineHeight: 1.7,
-              margin: 0,
-              marginBottom: 18,
-              maxWidth: 640,
-            }}
-          >
-            {identity.oneLiner}
-          </p>
-        ) : null}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 18,
-            flexWrap: "wrap",
-            fontSize: "var(--fs-2xs)",
-            color: "#64748B",
-            letterSpacing: "0.05em",
-          }}
-        >
-          {sample?.totalTrades != null ? (
-            <span>
-              SAMPLE:{" "}
-              <strong style={{ color: "#E2E8F0" }}>
-                {sample.totalTrades} trades
-              </strong>
-            </span>
-          ) : null}
-          {sample?.lowSample ? (
-            <span style={{ color: "#F59E0B" }}>PRELIMINARY</span>
-          ) : null}
-          {generatedAt ? (
-            <span>
-              GENERATED:{" "}
-              <strong style={{ color: "#E2E8F0" }}>
-                {new Date(generatedAt).toLocaleDateString()}
-              </strong>
-            </span>
-          ) : null}
-        </div>
+        {date ? <span>Updated <strong>{date}</strong></span> : null}
+        {sample?.lowSample ? <Badge tone="warning">Early read: small sample</Badge> : null}
       </div>
-    </div>
+    </section>
   );
 }

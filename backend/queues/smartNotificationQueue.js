@@ -2,6 +2,7 @@ const { Queue, QueueEvents } = require("bullmq");
 const { appConfig } = require("../config");
 const { bullmqConnection } = require("../config/redis");
 const { logger } = require("../utils/logger");
+const { isPromotionalType, msUntilPromoWindow } = require("../utils/notificationPolicy");
 
 // ─── Identity ────────────────────────────────────────────────────────────────
 const SMART_NOTIFICATION_QUEUE_NAME = appConfig.smartNotificationQueue.name;
@@ -56,8 +57,20 @@ async function enqueueSmartNotificationChecks(payload) {
   const existing = await smartNotificationQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
-    logger.warn("SMART_QUEUE_DUPLICATE_BLOCKED", { jobId, state });
-    return existing;
+    // Still pending: a retried save — the queued run will read the latest
+    // trade anyway, so one job is enough.
+    if (!["completed", "failed"].includes(state)) {
+      logger.warn("SMART_QUEUE_DUPLICATE_BLOCKED", { jobId, state });
+      return existing;
+    }
+    // Finished: this is a later edit (e.g. profit +50 → -50). Completed jobs
+    // are kept for an hour, which used to block the re-check entirely.
+    try {
+      await existing.remove();
+    } catch (error) {
+      logger.warn("SMART_QUEUE_RERUN_REMOVE_FAILED", { jobId, state, error: error.message });
+      return existing;
+    }
   }
 
   const job = await smartNotificationQueue.add(
@@ -68,6 +81,17 @@ async function enqueueSmartNotificationChecks(payload) {
 
   logger.info("SMART_QUEUE_ENQUEUED", { jobId, userId, tradeId, marketType });
   return job;
+}
+
+// Lazy require: the preference model is only needed for promotional pushes.
+async function resolveUserTimezone(userId) {
+  try {
+    const NotificationPreference = require("../models/NotificationPreference");
+    const prefs = await NotificationPreference.findOne({ user: userId }).select("quietHours.timezone").lean();
+    return prefs?.quietHours?.timezone || "Asia/Kolkata";
+  } catch {
+    return "Asia/Kolkata";
+  }
 }
 
 async function enqueueNotificationDelivery({ userId, notification }) {
@@ -84,15 +108,22 @@ async function enqueueNotificationDelivery({ userId, notification }) {
   const existing = await smartNotificationQueue.getJob(jobId);
   if (existing) return existing;
 
+  // Upsell / win-back pushes are delayed into the user's daytime instead of
+  // landing at 3am from an hourly server-clock cron.
+  const delay = isPromotionalType(notification.type)
+    ? msUntilPromoWindow(new Date(), await resolveUserTimezone(normalizedUserId))
+    : 0;
+
   const job = await smartNotificationQueue.add(
     DELIVER_NOTIFICATION_JOB_NAME,
     { userId: normalizedUserId, notification },
-    { jobId }
+    { jobId, ...(delay > 0 ? { delay } : {}) }
   );
   logger.info("NOTIFICATION_QUEUE_ENQUEUED", {
     jobId,
     userId: normalizedUserId,
     notificationType: notification.type,
+    delayMs: delay,
   });
   return job;
 }

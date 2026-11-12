@@ -1,5 +1,7 @@
 "use client";
 
+import RiskLimitsPrompt from "@/features/settings/components/RiskLimitsPrompt";
+
 import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,9 +10,7 @@ import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSecti
 import TradeLimitDialog from "@/features/trade/components/TradeLimitDialog";
 import LastFreeTradeSheet from "@/features/trade/components/LastFreeTradeSheet";
 import TradeQuotaPill from "@/features/trade/components/TradeQuotaPill";
-import TickerTape            from "@/features/shared/components/TickerTape";
 import PageHeader            from "@/features/shared/components/PageHeader";
-import { useClock }          from "@/features/shared/hooks/useClock";
 import { useMarket }         from "@/context/MarketContext";
 import SetupChecklist        from "@/features/trade/components/SetupChecklist";
 import { useAddTrade, UNDERLYINGS } from "@/features/trade/hooks/useAddTrade";
@@ -34,19 +34,19 @@ const EMOTIONS = ["FOMO", "Revenge", "Fear", "Greed", "Calm", "Bored", "Focused"
 // fields inside each section differ where the instrument genuinely does
 // (e.g. strike/CE-PE for Indian options vs pair/lot size for Forex).
 const theme = {
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  primary: "#0D9E6E",
-  secondary: "#0F1923",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  bg: "#F0EEE9",
-  card: "#FFFFFF",
+  bull: "var(--lg-green, #0D9E6E)",
+  bear: "var(--lg-red, #D63B3B)",
+  primary: "var(--lg-green, #0D9E6E)",
+  secondary: "var(--lg-ink, #0F1923)",
+  muted: "var(--lg-muted, #94A3B8)",
+  border: "var(--lg-line, #E2E8F0)",
+  bg: "var(--lg-soft, #F0EEE9)",
+  card: "var(--lg-card, #FFFFFF)",
 };
 
-const monoStyle = { fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em" };
+const monoStyle = { fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.06em" };
 const fieldLabel = { display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 };
-const fieldInput = { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontFamily: "'Plus Jakarta Sans',sans-serif" };
+const fieldInput = { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" };
 
 function Field({ label, required, children }) {
   return (
@@ -59,7 +59,6 @@ function Field({ label, required, children }) {
 
 function AddTradeContent() {
   const { currentMarket, getCurrencySymbol, isIndianMarket } = useMarket();
-  const clock = useClock();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams?.get("onboarding") === "1";
   const fileInputRef = useRef(null);
@@ -99,11 +98,11 @@ function AddTradeContent() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, fontFamily: "'Plus Jakarta Sans',sans-serif", color: theme.secondary }}>
-      <PageHeader showMarketSwitcher showClock clock={clock} />
-      <TickerTape />
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Log trade" />
 
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: "28px 20px", opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)" }}>
+      <main className="ec-page ec-log" style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.3s ease" }}>
+        <RiskLimitsPrompt market="Forex" disabled={onboardingMode} />
         {onboardingMode && (
           <div style={{
             padding: "12px 14px", borderRadius: 10,
@@ -120,18 +119,18 @@ function AddTradeContent() {
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 4, color: theme.secondary }}>
-              Log New <span style={{ color: theme.primary }}>{isIndianMarket ? (isEquity ? "Stock Trade" : "Options Trade") : "Forex Trade"}</span>
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">
+              Log {isIndianMarket ? (isEquity ? "a stock trade" : "an options trade") : "a Forex trade"}
             </h1>
-            <p style={{ fontSize: 12, color: theme.muted, marginBottom: 0, ...monoStyle }}>
-              {isIndianMarket ? (isEquity ? "NSE / BSE EQUITY INTRADAY" : "NSE / BSE F&O MARKET ENTRY") : "GLOBAL CURRENCY MARKET ENTRY"}
+            <p className="ec-log__sub">
+              {isIndianMarket ? (isEquity ? "NSE / BSE equity intraday" : "NSE / BSE F&O") : "Enter the details by hand, or use a broker screenshot instead"}
             </p>
             <TradeQuotaPill marketType={currentMarket} style={{ marginTop: 10 }} />
           </div>
-          <Link href="/trades" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 700, color: "#4A5568", textDecoration: "none", padding: "10px 14px", minHeight: 44, background: theme.card, borderRadius: 8, border: `1px solid ${theme.border}`, whiteSpace: "nowrap" }}>
-            <ArrowLeft size={14} /> TRADE LOG
+          <Link href={isIndianMarket ? "/indian-market/trades" : "/trades"} className="ec-psy__back ec-focusable" style={{ marginBottom: 0 }}>
+            <ArrowLeft size={16} aria-hidden="true" /> Journal
           </Link>
         </div>
 
@@ -147,9 +146,9 @@ function AddTradeContent() {
                   style={{
                     flex: 1, padding: "11px 0", border: "none",
                     background: tradeSubType === v ? theme.primary : theme.card,
-                    color: tradeSubType === v ? "#FFFFFF" : theme.muted,
+                    color: tradeSubType === v ? "var(--lg-card, #FFFFFF)" : theme.muted,
                     fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.15s",
-                    fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.04em",
+                    fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", letterSpacing: "0.04em",
                   }}
                 >
                   {label}
@@ -383,7 +382,7 @@ function AddTradeContent() {
             <input type="file" ref={fileInputRef} accept="image/*" onChange={e => handleScreenshotChange(e.target.files[0])} style={{ display: "none" }} />
             <div
               onClick={() => !inProgress && fileInputRef.current.click()}
-              style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: inProgress ? "not-allowed" : "pointer", background: "#fafafa", transition: "all 0.2s" }}
+              style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: inProgress ? "not-allowed" : "pointer", background: "var(--lg-soft, #fafafa)", transition: "all 0.2s" }}
               onMouseEnter={e => !inProgress && (e.currentTarget.style.borderColor = theme.primary)}
               onMouseLeave={e => !inProgress && (e.currentTarget.style.borderColor = theme.border)}
             >
@@ -418,7 +417,7 @@ function AddTradeContent() {
               value={trade.tradeImages || []}
               onChange={imgs => setTrade(prev => ({ ...prev, tradeImages: imgs }))}
               disabled={inProgress}
-              accentColor={isIndianMarket ? "#22C78E" : theme.primary}
+              accentColor={isIndianMarket ? "var(--lg-green, #22C78E)" : theme.primary}
             />
           </div>
 
@@ -510,7 +509,7 @@ function AddTradeContent() {
                     style={{
                       flex: 1, padding: "10px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: 700, transition: "all 0.2s",
                       border: trade.wouldRetake === option ? `1.5px solid ${option === "Yes" ? theme.bull : theme.bear}` : `1px solid ${theme.border}`,
-                      background: trade.wouldRetake === option ? (option === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "#F8FAFC",
+                      background: trade.wouldRetake === option ? (option === "Yes" ? "rgba(13,158,110,0.06)" : "rgba(214,59,59,0.06)") : "var(--lg-soft, #F8FAFC)",
                       color: trade.wouldRetake === option ? (option === "Yes" ? theme.bull : theme.bear) : theme.muted
                     }}>
                     {option}
@@ -524,14 +523,14 @@ function AddTradeContent() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8 }}>
                 {[
                   { val: "Great", color: theme.bull, desc: "Followed the plan" },
-                  { val: "Average", color: "#F59E0B", desc: "Partial execution" },
+                  { val: "Average", color: "var(--lg-gold, #F59E0B)", desc: "Partial execution" },
                   { val: "Poor", color: theme.bear, desc: "Broke the rules" },
                 ].map(q => (
                   <button key={q.val} type="button" onClick={() => setTrade(p => ({ ...p, tradeQuality: p.tradeQuality === q.val ? "" : q.val }))}
                     style={{
                       padding: "10px 4px", borderRadius: 12, cursor: "pointer", textAlign: "center",
                       border: trade.tradeQuality === q.val ? `2px solid ${q.color}` : `1.5px solid ${theme.border}`,
-                      background: trade.tradeQuality === q.val ? `${q.color}14` : theme.card,
+                      background: trade.tradeQuality === q.val ? `color-mix(in srgb, ${q.color} 8%, transparent)` : theme.card,
                       transition: "all 0.2s"
                     }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: trade.tradeQuality === q.val ? q.color : theme.secondary }}>{q.val}</div>
@@ -547,8 +546,9 @@ function AddTradeContent() {
             disabled={inProgress}
             style={{
               width: "100%", padding: "20px", borderRadius: 16,
-              background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
-              color: "#FFF", fontSize: 14, fontWeight: 800,
+              background: theme.primary,
+              color: "var(--lg-on-accent, #FFF)", fontSize: 15, fontWeight: 700,
+              opacity: inProgress ? 0.7 : 1,
               cursor: inProgress ? "not-allowed" : "pointer",
               marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
               boxShadow: "0 10px 20px rgba(13,158,110,0.15)", border: "none", transition: "all 0.2s"
@@ -559,12 +559,12 @@ function AddTradeContent() {
             {inProgress ? (
               <>
                 <Spinner size="18px" color="#FFF" />
-                {uploading ? "UPLOADING..." : "SYNCING DATA..."}
+                {uploading ? "Uploading…" : "Saving…"}
               </>
             ) : (
               <>
                 <Save size={18} />
-                COMMIT TRADE TO LOG
+                Save trade
               </>
             )}
           </button>
@@ -586,7 +586,6 @@ function AddTradeContent() {
 
       <style jsx>{`
         @media (max-width: 640px) {
-          main { padding: 16px !important; }
           .form-2col { grid-template-columns: 1fr !important; }
           .mood-grid  { grid-template-columns: repeat(5, 1fr) !important; gap: 6px !important; }
         }

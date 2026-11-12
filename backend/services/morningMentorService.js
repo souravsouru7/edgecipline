@@ -1,41 +1,36 @@
 const Trade = require("../models/Trade");
 const IndianTrade = require("../models/IndianTrade");
 const notificationService = require("./notificationService");
-const { appConfig } = require("../config");
+const {
+  getDayRange,
+  getLocalCalendarDateAfter,
+  getLocalDateKey,
+  getTimeZoneParts,
+  getUserNotificationTimezone,
+  zonedTimeToUtc,
+} = require("../utils/timezone");
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 //
-// All time bucketing is parameterised by an `offsetHours` argument. The cron
-// SHOULD pass each user's preferred offset; today the User model has no
-// timezone field, so callers fall back to the configured default (5.5 = IST).
-// TODO: add `User.timezoneOffsetHours` and have sendMorningMentor read it.
+// Everything is in the USER's timezone (User.streaks.timezone, reported by the
+// device on push registration). This used to be a fixed +5:30 for everyone,
+// so a London user's "yesterday" ended at 18:30 their time.
 
-function getDefaultOffsetHours() {
-  return appConfig.morningMentor?.timezoneOffsetHours ?? appConfig.timezoneOffsetHours ?? 5.5;
+function localDayOfWeek(now, timezone) {
+  const p = getTimeZoneParts(now, timezone);
+  return new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
 }
 
-function toOffsetMs(offsetHours) {
-  const hrs = Number.isFinite(Number(offsetHours)) ? Number(offsetHours) : getDefaultOffsetHours();
-  return hrs * 60 * 60 * 1000;
-}
-
-function getLocalDayOfWeek(offsetHours) {
-  return new Date(Date.now() + toOffsetMs(offsetHours)).getUTCDay();
-}
-
-function getLocalDateKey(offsetHours) {
-  return new Date(Date.now() + toOffsetMs(offsetHours)).toISOString().slice(0, 10);
-}
-
-function getYesterdayRange(offsetHours) {
-  const offsetMs = toOffsetMs(offsetHours);
-  const localNow = new Date(Date.now() + offsetMs);
-  const localTodayMidnight = new Date(localNow);
-  localTodayMidnight.setUTCHours(0, 0, 0, 0);
-  return {
-    start: new Date(localTodayMidnight.getTime() - 24 * 60 * 60 * 1000 - offsetMs),
-    end:   new Date(localTodayMidnight.getTime() - 1 - offsetMs),
-  };
+// The previous weekday's local day. Monday looks back at Friday — markets are
+// shut at the weekend, so "you took no trades yesterday" on a Monday morning
+// was praising people for Sunday.
+function previousTradingDay(now, timezone) {
+  const today = getTimeZoneParts(now, timezone);
+  const dow = localDayOfWeek(now, timezone);
+  const back = dow === 1 ? 3 : dow === 0 ? 2 : 1;
+  const day = getLocalCalendarDateAfter(today, -back);
+  const middayUtc = zonedTimeToUtc({ ...day, hour: 12, minute: 0, second: 0 }, timezone);
+  return { ...getDayRange(middayUtc, timezone), label: back === 1 ? "yesterday" : "on Friday" };
 }
 
 // ─── Trade analyser ───────────────────────────────────────────────────────────
@@ -64,10 +59,14 @@ function analyzeTrades(trades) {
 
   const noStopLossCount = trades.filter((t) => !t.stopLoss || t.stopLoss <= 0).length;
 
-  const avgSetupScore =
-    total > 0
-      ? Math.round(trades.reduce((s, t) => s + (t.setupScore || 0), 0) / total)
-      : 0;
+  // Only trades that actually have a checklist score. setupScore defaults to
+  // null, so averaging `|| 0` over everything told checklist non-users (even
+  // profitable ones) "Your edge is slipping … 0%".
+  const scored = trades.filter((t) => typeof t.setupScore === "number" && Number.isFinite(t.setupScore));
+  const avgSetupScore = scored.length
+    ? Math.round(scored.reduce((s, t) => s + t.setupScore, 0) / scored.length)
+    : null;
+  const setupScoreCoverage = total > 0 ? scored.length / total : 0;
 
   let emotionCount = 0;
   for (const t of trades) {
@@ -84,10 +83,12 @@ function analyzeTrades(trades) {
     total, wins, losses,
     totalPnl,
     winRate: total > 0 ? Math.round((wins / total) * 100) : 0,
+    maxLossStreak: maxStreak,
     isRevengeTrading: maxStreak >= 3,
     noStopLossCount,
     noStopLossRate: total > 0 ? noStopLossCount / total : 0,
     avgSetupScore,
+    setupScoreCoverage,
     emotionCount,
     impulsiveEntries,
     isOvertrading: total > 5,
@@ -97,193 +98,216 @@ function analyzeTrades(trades) {
 
 // ─── Message generators ───────────────────────────────────────────────────────
 
-function generateTradedMessage(a) {
-  const { total, wins, losses, winRate, isRevengeTrading, noStopLossCount,
-    noStopLossRate, avgSetupScore, emotionCount, impulsiveEntries,
+// `when` is "yesterday" or "on Friday" (Monday mornings look back to Friday).
+// Copy rules: process and risk, never outcome promises ("profits follow",
+// "accounts compound"), and every number shown must be the real one.
+function generateTradedMessage(a, when = "yesterday") {
+  const { total, wins, losses, winRate, isRevengeTrading, maxLossStreak, noStopLossCount,
+    noStopLossRate, avgSetupScore, setupScoreCoverage, emotionCount, impulsiveEntries,
     isOvertrading, isProfitable } = a;
+  const When = when.charAt(0).toUpperCase() + when.slice(1);
 
   // Priority order: highest-risk violation first, then discipline, then reinforcement
 
   if (isRevengeTrading) {
     return {
-      title: "🛑 Stop. Breathe. Think.",
-      body: `Yesterday shows emotional re-entry after losses: ${losses} consecutive losses and ${total} total trades. Protect discipline first today. Profits follow calm execution. 🧠`,
+      title: "Stop. Breathe. Think.",
+      body: `${When} you took ${maxLossStreak} losses in a row across ${total} trades. Protect your discipline first today: one planned setup at a time.`,
       scenario: "revenge",
     };
   }
 
   if (noStopLossRate >= 0.5) {
     return {
-      title: "🛡️ Protect Your Capital First.",
-      body: `${noStopLossCount} of your ${total} trades yesterday had no stop loss. Every unprotected trade puts the account at risk. Stop loss before entry today. No exceptions. ⚠️`,
+      title: "Protect your capital first",
+      body: `${noStopLossCount} of your ${total} trades ${when} had no stop loss. Set the stop before every entry today.`,
       scenario: "no_stop_loss",
     };
   }
 
   if (isOvertrading) {
     return {
-      title: "🎯 Quality Over Quantity.",
-      body: `You took ${total} trades yesterday, beyond your optimal session size. Today, filter hard. One clean A+ setup beats five forced entries. 📌`,
+      title: "Quality over quantity",
+      body: `You took ${total} trades ${when}. Today, filter hard: one clean A+ setup beats five forced entries.`,
       scenario: "overtrading",
     };
   }
 
   if (emotionCount >= 2 || impulsiveEntries >= 2) {
     return {
-      title: "🧘 Rules, Not Emotions.",
-      body: "Yesterday's entries showed emotional decision-making. Today, let rules decide, not feelings. If the checklist is incomplete, no entry. ✅",
+      title: "Rules, not emotions",
+      body: `Your entries ${when} showed emotional decisions. Today, let the rules decide: if the checklist is incomplete, no entry.`,
       scenario: "emotional",
     };
   }
 
-  if (avgSetupScore < 60 && total > 0) {
+  // Only when most trades were actually scored — otherwise the average says
+  // nothing about the process.
+  if (avgSetupScore !== null && setupScoreCoverage >= 0.5 && avgSetupScore < 60) {
     return {
-      title: "📉 Your Edge Is Slipping.",
-      body: `Average setup quality yesterday was ${avgSetupScore}%. Your edge works only when the full process is followed. Checklist before every entry today. 🔍`,
+      title: "Your setup quality dipped",
+      body: `Average setup score ${when} was ${avgSetupScore}%. Run the full checklist before every entry today.`,
       scenario: "low_setup",
     };
   }
 
   if (!isProfitable && total > 0) {
     return {
-      title: "🔄 Losses Are Part of the Process.",
-      body: `Yesterday ended negative: ${wins}W / ${losses}L. Losing days happen. The pro move today is simple: back to process, not revenge. 💪`,
+      title: "Losses are part of the process",
+      body: `${When}: ${wins}W / ${losses}L. Losing days happen. Today's job is the same plan, not revenge.`,
       scenario: "loss_day",
     };
   }
 
-  if (isProfitable && avgSetupScore >= 70) {
+  if (isProfitable && avgSetupScore !== null && avgSetupScore >= 70) {
     return {
-      title: "🔥 Discipline Is Delivering.",
-      body: `Yesterday: ${wins}W / ${losses}L, ${winRate}% win rate with solid setup quality. That is how accounts compound. Same process today. Protect it. 📈`,
+      title: "Your process held up",
+      body: `${When}: ${wins}W / ${losses}L, ${winRate}% win rate with solid setup quality. Same process today.`,
       scenario: "disciplined_win",
     };
   }
 
   if (isProfitable) {
     return {
-      title: "✅ Stay Consistent.",
-      body: `Yesterday was profitable: ${wins} wins from ${total} trades. Do not change what is working. Execute the same plan with the same focus. 🚀`,
+      title: "Stay consistent",
+      body: `${When}: ${wins} wins from ${total} trades. Don't change what's working: same plan, same focus.`,
       scenario: "profitable",
     };
   }
 
   return {
-    title: "🌅 Reset. Refocus. Execute.",
-    body: "New session, clean slate. Yesterday is data. Use it to trade better today: follow rules, manage risk, trust the process. 🎯",
+    title: "Reset. Refocus. Execute.",
+    body: "New session, clean slate. Follow your rules, manage risk, trust the process.",
     scenario: "reset",
   };
 }
 
-// 5 rotating weekend messages (index driven by calendar day so they vary)
+// Rotating weekend messages (index driven by calendar day so they vary)
 const WEEKEND_MESSAGES = [
   {
-    title: "🧠 Build Your Edge This Weekend.",
-    body: "Charts are closed, but growth is open. Review your journal, study mistakes, and prepare the plan. Profitable weeks start here. 📚",
+    title: "Build your edge this weekend",
+    body: "Markets are closed. Review your journal, study your mistakes and prepare next week's plan.",
   },
   {
-    title: "🔍 Weekend Reflection Builds Discipline.",
-    body: "Audit last week's trades. What worked, what did not, and why? Traders who review consistently improve. ✅",
+    title: "Weekend review builds discipline",
+    body: "Look back at last week's trades: what worked, what didn't, and why.",
   },
   {
-    title: "🚀 Your Next Profitable Week Starts Now.",
-    body: "The market is closed, but your edge is built here. Review patterns, prepare setups, and let weekend work compound next week. 📈",
+    title: "Prepare for the week ahead",
+    body: "Review your patterns, refine your setups and write down the rules you'll follow next week.",
   },
   {
-    title: "⏳ Patience and Preparation Win.",
-    body: "Professional traders use weekends wisely. Study setups, review mistakes, and build the mental edge for next week. 🎯",
+    title: "Patience and preparation",
+    body: "Use the weekend to study setups and review mistakes, so next week starts with a clear plan.",
   },
   {
-    title: "🌤️ Reset and Refocus.",
-    body: "Take a disciplined break, review your journal, and prepare the watchlist. Weekend preparation builds consistency. 📝",
+    title: "Reset and refocus",
+    body: "Take a break, review your journal and prepare your watchlist for the week.",
   },
 ];
 
-// 5 rotating no-trade messages
+// Rotating messages for a trading day with no trades logged. WHEN is replaced
+// with "yesterday" or "on Friday".
 const NO_TRADE_MESSAGES = [
   {
-    title: "🧘 No Trade Is a Trade.",
-    body: "You took no trades yesterday. Waiting for the right setup is professional trading. Patience protects capital. Stay selective today. 🎯",
+    title: "No trade is a trade",
+    body: "You logged no trades WHEN. Waiting for the right setup is part of the job. Stay selective today.",
   },
   {
-    title: "✅ Discipline Is Choosing Not to Trade.",
-    body: "No setup, no trade yesterday. That is how consistency is built. Today, enter only when every rule is fully met. 📌",
+    title: "Discipline is choosing not to trade",
+    body: "No trades WHEN. Today, enter only when every rule is fully met.",
   },
   {
-    title: "🎯 Quality Over Activity.",
-    body: "Sitting out yesterday showed discipline. Professionals do not chase trades. Let the market come to your setup. 🧠",
+    title: "Quality over activity",
+    body: "You sat out WHEN. Let the market come to your setup today.",
   },
   {
-    title: "🛡️ Patience Protects Capital.",
-    body: "No trades can be the best trade. Yesterday you stayed disciplined. Keep the same standard today: only execute when conditions are right. ⚡",
+    title: "Patience protects capital",
+    body: "No trades WHEN. Keep the same standard today: only execute when conditions are right.",
   },
   {
-    title: "⏳ Waiting Is a Skill.",
-    body: "Most traders lose by forcing action. Yesterday you did not force anything. That is a professional habit. Build on it today. 💪",
+    title: "Waiting is a skill",
+    body: "You didn't force a trade WHEN. Build on that today.",
   },
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-async function sendMorningMentor(userId, options = {}) {
-  // offsetHours can be supplied by the caller (cron) once per-user TZ is
-  // stored on the user record. Until then, all users get the default.
-  const offsetHours = options.offsetHours;
-  const dayOfWeek = getLocalDayOfWeek(offsetHours);
+function tradesRoute(user) {
+  return user?.preferredMarket === "Indian_Market"
+    ? { deepLink: "/indian-market/trades", screen: "indian-trades" }
+    : { deepLink: "/trades", screen: "trades" };
+}
+
+function dayNumber(dateKey) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+}
+
+/**
+ * @param {object|string} user  { _id, preferredMarket, streaks.timezone } (or an id)
+ * @param {{ now?: Date }} options
+ */
+async function sendMorningMentor(user, options = {}) {
+  const userId = user?._id ?? user;
+  const now = options.now || new Date();
+  const timezone = getUserNotificationTimezone(typeof user === "object" ? user : null);
+  const dayOfWeek = localDayOfWeek(now, timezone);
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const dateKey   = getLocalDateKey(offsetHours);
+  const dateKey = getLocalDateKey(now, timezone);
   const dedupeKey = `morning-mentor:${userId}:${dateKey}`;
+  const route = tradesRoute(typeof user === "object" ? user : null);
+  const rotation = dayNumber(dateKey);
 
   // ── Weekend ────────────────────────────────────────────────────────────────
   if (isWeekend) {
-    const idx = Math.floor(Date.now() / 86400000) % WEEKEND_MESSAGES.length;
-    const msg = WEEKEND_MESSAGES[idx];
+    const msg = WEEKEND_MESSAGES[rotation % WEEKEND_MESSAGES.length];
     return notificationService.notifyUser(userId, {
       type:       "morning_mentor",
       title:      msg.title,
       body:       msg.body,
       sourceType: "cron",
       dedupeKey,
-      deepLink:   "/notifications",
-      data:       { screen: "notifications", scenario: "weekend" },
+      deepLink:   route.deepLink,
+      data:       { screen: route.screen, scenario: "weekend" },
     });
   }
 
-  // ── Fetch yesterday's trades ───────────────────────────────────────────────
-  const { start, end } = getYesterdayRange(offsetHours);
+  // ── Fetch the previous trading day's trades (by trade date) ──────────────
+  const { start, end, label } = previousTradingDay(now, timezone);
   const FIELDS = { profit: 1, stopLoss: 1, setupScore: 1, mood: 1, emotionalTags: 1, entryBasis: 1, tradeDate: 1, createdAt: 1 };
+  // When the trade happened, not when it was saved: importing a backlog of
+  // old trades yesterday must not read as "you took 40 trades yesterday".
+  const inRange = { $gte: start, $lt: end };
+  const dateFilter = { $or: [{ tradeDate: inRange }, { tradeDate: null, createdAt: inRange }] };
 
   const [forexTrades, indianTrades] = await Promise.all([
     Trade.find(
-      { user: userId, deletedAt: null, createdAt: { $gte: start, $lte: end }, "parsedData.multiTradeGhost": { $ne: true } },
+      { user: userId, deletedAt: null, "parsedData.multiTradeGhost": { $ne: true }, ...dateFilter },
       FIELDS
     ).lean(),
-    IndianTrade.find(
-      { user: userId, deletedAt: null, createdAt: { $gte: start, $lte: end } },
-      FIELDS
-    ).lean(),
+    IndianTrade.find({ user: userId, deletedAt: null, ...dateFilter }, FIELDS).lean(),
   ]);
 
   const allTrades = [...forexTrades, ...indianTrades];
 
-  // ── No trades yesterday ───────────────────────────────────────────────────
+  // ── No trades on the previous trading day ─────────────────────────────────
   if (allTrades.length === 0) {
-    const idx = Math.floor(Date.now() / 86400000) % NO_TRADE_MESSAGES.length;
-    const msg = NO_TRADE_MESSAGES[idx];
+    const msg = NO_TRADE_MESSAGES[rotation % NO_TRADE_MESSAGES.length];
     return notificationService.notifyUser(userId, {
       type:       "morning_mentor",
       title:      msg.title,
-      body:       msg.body,
+      body:       msg.body.replace("WHEN", label),
       sourceType: "cron",
       dedupeKey,
-      deepLink:   "/trades",
-      data:       { screen: "trades", scenario: "no_trade" },
+      deepLink:   route.deepLink,
+      data:       { screen: route.screen, scenario: "no_trade" },
     });
   }
 
-  // ── Traded yesterday — personalised mentor message ────────────────────────
+  // ── Traded — personalised mentor message ──────────────────────────────────
   const analysis = analyzeTrades(allTrades);
-  const message  = generateTradedMessage(analysis);
+  const message  = generateTradedMessage(analysis, label);
 
   return notificationService.notifyUser(userId, {
     type:       "morning_mentor",
@@ -291,13 +315,13 @@ async function sendMorningMentor(userId, options = {}) {
     body:       message.body,
     sourceType: "cron",
     dedupeKey,
-    deepLink:   "/trades",
+    deepLink:   route.deepLink,
     data: {
-      screen:      "trades",
+      screen:      route.screen,
       scenario:    message.scenario,
       totalTrades: allTrades.length,
     },
   });
 }
 
-module.exports = { sendMorningMentor };
+module.exports = { sendMorningMentor, analyzeTrades, generateTradedMessage, previousTradingDay };

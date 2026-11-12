@@ -131,7 +131,8 @@ function getTradeModel(marketLabel) {
 function getFeeExpression(marketLabel) {
   return marketLabel === "Indian_Market"
     ? { $add: [{ $ifNull: ["$brokerage", 0] }, { $ifNull: ["$sttTaxes", 0] }] }
-    : { $add: [{ $ifNull: ["$commission", 0] }, { $ifNull: ["$swap", 0] }] };
+    // Mirrors metricEngine.getTradeCosts: |commission| - swap for Forex.
+    : { $subtract: [{ $abs: { $ifNull: ["$commission", 0] } }, { $ifNull: ["$swap", 0] }] };
 }
 
 // The pipeline equivalent of metricEngine.withNetPnL. Forex banks profit

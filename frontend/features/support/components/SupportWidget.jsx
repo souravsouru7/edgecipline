@@ -383,7 +383,7 @@ export default function SupportWidget() {
           onPointerCancel={(event) => {
             suppressClick.current = drag.endGesture(event);
           }}
-          className={`sw-bubble${drag.dragging ? " sw-bubble-dragging" : ""}`}
+          className={`ec-support sw-bubble${drag.dragging ? " sw-bubble-dragging" : ""}`}
           style={{ translate: `${drag.offset.dx}px ${drag.offset.dy}px` }}
           aria-label="Open support help (drag to move)"
           title="Drag to move"
@@ -397,7 +397,7 @@ export default function SupportWidget() {
 
       {open && (
         <FocusTrap active>
-          <div className="sw-panel" role="dialog" aria-modal="false" aria-label="Support help">
+          <div className="ec-support sw-panel" role="dialog" aria-modal="false" aria-label="Support help">
             <header className="sw-head">
               <div className="sw-head-brand">
                 <span className="sw-avatar sw-avatar-lg" aria-hidden="true">
@@ -633,10 +633,10 @@ export default function SupportWidget() {
           gap: 10px;
           height: 52px;
           padding: 0 20px 0 6px;
-          border: none;
+          border: 1px solid var(--ec-border-strong);
           border-radius: 999px;
-          background: var(--color-dark);
-          color: #fff;
+          background: var(--ec-surface-2);
+          color: var(--ec-text);
           font-family: var(--font-plus-jakarta-sans);
           font-size: 14px;
           font-weight: 700;
@@ -668,8 +668,8 @@ export default function SupportWidget() {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-          color: #fff;
+          background: var(--ec-accent);
+          color: var(--sup-on-accent);
           box-shadow: 0 4px 12px rgba(13, 158, 110, 0.4);
         }
         .sw-bubble:hover:not(.sw-bubble-dragging) {
@@ -694,7 +694,7 @@ export default function SupportWidget() {
              room, so the composer is always reachable. */
           max-height: min(600px, calc(100dvh - 160px));
           border-radius: 22px;
-          border: 1px solid rgba(15, 25, 35, 0.08);
+          border: 1px solid var(--ec-border-strong);
           background: var(--color-surface);
           box-shadow: 0 30px 70px -18px rgba(15, 25, 35, 0.45), 0 2px 8px rgba(15, 25, 35, 0.08);
           overflow: hidden;
@@ -750,8 +750,8 @@ export default function SupportWidget() {
           justify-content: center;
           flex-shrink: 0;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-          color: #fff;
+          background: var(--ec-accent);
+          color: var(--sup-on-accent);
         }
         .sw-avatar-lg {
           width: 40px;
@@ -818,8 +818,8 @@ export default function SupportWidget() {
           flex: 1;
           overflow-y: auto;
           padding: 16px 14px 12px;
-          background: #f6f5f1;
-          background-image: radial-gradient(rgba(15, 25, 35, 0.045) 1px, transparent 1px);
+          background: var(--ec-bg);
+          background-image: radial-gradient(var(--ec-border) 1px, transparent 1px);
           background-size: 18px 18px;
         }
         .sw-row {
@@ -847,9 +847,9 @@ export default function SupportWidget() {
           box-shadow: 0 1px 2px rgba(15, 25, 35, 0.04);
         }
         .sw-msg-user {
-          background: linear-gradient(135deg, var(--color-primary) 0%, #0b8a60 100%);
+          background: var(--ec-accent);
           border-top-right-radius: 6px;
-          color: #fff;
+          color: var(--sup-on-accent);
           font-weight: 500;
           box-shadow: 0 6px 16px -6px rgba(13, 158, 110, 0.5);
         }
@@ -899,7 +899,7 @@ export default function SupportWidget() {
           gap: 10px;
           padding: 10px 11px;
           border-radius: 12px;
-          background: #fff;
+          background: var(--color-surface);
           border: 1px solid var(--color-border);
           color: var(--color-dark);
           text-decoration: none;
@@ -977,7 +977,7 @@ export default function SupportWidget() {
           padding: 0 11px;
           border-radius: 999px;
           border: 1px solid var(--color-border);
-          background: #fff;
+          background: var(--color-surface);
           color: var(--color-text-secondary);
           font-size: 11.5px;
           font-weight: 700;
@@ -1013,9 +1013,7 @@ export default function SupportWidget() {
           align-items: center;
           gap: 5px;
           font-size: 10.5px;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
+          font-weight: 600;
           color: var(--color-text-disabled);
           margin-bottom: 8px;
         }
@@ -1030,7 +1028,7 @@ export default function SupportWidget() {
           padding: 0 13px;
           border-radius: 999px;
           border: 1px solid rgba(13, 158, 110, 0.35);
-          background: #fff;
+          background: var(--color-surface);
           color: var(--color-primary);
           font-family: inherit;
           font-size: 12px;
@@ -1058,7 +1056,7 @@ export default function SupportWidget() {
           gap: 10px;
           padding: 10px 11px;
           border-radius: 13px;
-          background: #fff;
+          background: var(--color-surface);
           border: 1px solid var(--color-border);
           text-decoration: none;
           color: var(--color-dark);
@@ -1086,8 +1084,8 @@ export default function SupportWidget() {
           color: var(--color-primary);
         }
         :global(.sw-tile-icon-dark) {
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
         }
         :global(.sw-tile-text) {
           display: flex;
@@ -1115,7 +1113,7 @@ export default function SupportWidget() {
           padding: 14px;
           border-radius: 16px;
           border: 1px solid var(--color-border);
-          background: #fff;
+          background: var(--color-surface);
           box-shadow: 0 8px 24px -14px rgba(15, 25, 35, 0.35);
         }
         .sw-escalate-head {
@@ -1141,7 +1139,7 @@ export default function SupportWidget() {
           padding: 10px 12px;
           border-radius: 11px;
           border: 1px solid var(--color-border);
-          background: #fff;
+          background: var(--color-surface);
           color: var(--color-dark);
           font-size: 12.5px;
           font-weight: 700;
@@ -1162,15 +1160,15 @@ export default function SupportWidget() {
           padding: 13px 14px;
           margin-bottom: 8px;
           border: none;
-          background: linear-gradient(135deg, var(--color-primary) 0%, #0f1923 140%);
-          color: #fff;
+          background: var(--ec-accent);
+          color: var(--sup-on-accent);
           font-size: 13.5px;
           font-weight: 800;
           box-shadow: 0 10px 22px -10px rgba(13, 158, 110, 0.6);
         }
         :global(.sw-action-primary:hover) {
-          color: #fff;
-          background: linear-gradient(135deg, var(--color-primary-light) 0%, #0f1923 150%);
+          color: var(--sup-on-accent);
+          background: var(--ec-accent-hover);
         }
         :global(.sw-action-arrow) {
           margin-left: auto;
@@ -1196,12 +1194,12 @@ export default function SupportWidget() {
           padding: 5px 5px 5px 6px;
           border-radius: 999px;
           border: 1px solid var(--color-border);
-          background: #fafaf8;
+          background: var(--ec-surface-2);
           transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
         }
         .sw-composer:focus-within {
           border-color: var(--color-primary);
-          background: #fff;
+          background: var(--color-surface);
           box-shadow: 0 0 0 3px var(--color-primary-bg);
         }
         .sw-input {
@@ -1229,8 +1227,8 @@ export default function SupportWidget() {
           flex-shrink: 0;
           border: none;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-          color: #fff;
+          background: var(--ec-accent);
+          color: var(--sup-on-accent);
           cursor: pointer;
           box-shadow: 0 4px 12px rgba(13, 158, 110, 0.35);
           transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
@@ -1239,8 +1237,9 @@ export default function SupportWidget() {
           transform: scale(1.05);
         }
         .sw-send:disabled {
-          background: #e2e8f0;
-          color: #94a3b8;
+          background: var(--ec-surface-2);
+          color: var(--ec-text-3);
+          box-shadow: none;
           box-shadow: none;
           cursor: not-allowed;
         }

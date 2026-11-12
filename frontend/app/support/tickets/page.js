@@ -176,8 +176,8 @@ function TicketList() {
           height: 36px;
           padding: 0 14px;
           border-radius: 9px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 12.5px;
           font-weight: 700;
           text-decoration: none;
@@ -313,9 +313,7 @@ function TicketList() {
         }
         .tl-bug {
           font-size: var(--fs-2xs);
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
+          font-weight: 600;
           padding: 3px 8px;
           border-radius: 999px;
           background: rgba(184, 134, 11, 0.12);
@@ -334,8 +332,8 @@ function TicketList() {
           display: inline-block;
           padding: 11px 22px;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13px;
           font-weight: 700;
           text-decoration: none;

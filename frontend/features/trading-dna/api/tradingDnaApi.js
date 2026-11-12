@@ -1,4 +1,8 @@
 import apiClient from "@/services/apiClient";
+import { API_URL } from "@/config/api";
+
+// apiClient already unwraps the server's { success, data } envelope, so each
+// call returns the payload itself (reading `.data` again gave undefined).
 
 const BASE = "/trading-dna";
 
@@ -25,7 +29,7 @@ export async function getLatestTradingDna({ marketType, period } = {}, signal) {
     },
     signal,
   });
-  return res.data;
+  return res;
 }
 
 /**
@@ -36,7 +40,7 @@ export async function listTradingDnaReports({ marketType, limit = 12 } = {}, sig
     params: { marketType: normalizeMarket(marketType), limit },
     signal,
   });
-  return res.data;
+  return res;
 }
 
 /**
@@ -49,7 +53,7 @@ export async function createTradingDnaShareToken({ reportId, ttlDays } = {}) {
     `${BASE}/${encodeURIComponent(reportId)}/share-token`,
     ttlDays ? { ttlDays } : {}
   );
-  return res.data;
+  return res;
 }
 
 /**
@@ -58,13 +62,29 @@ export async function createTradingDnaShareToken({ reportId, ttlDays } = {}) {
  */
 export async function getSharedTradingDna(token, signal) {
   if (!token) throw new Error("token is required");
-  const res = await apiClient.get(`${BASE}/share/${encodeURIComponent(token)}`, {
+  // Plain fetch, not apiClient: the viewer may be logged out (or someone
+  // else), and an expired link answers 401. Through apiClient that 401 set off
+  // a session refresh and could log the viewer out or bounce them to /login
+  // instead of showing "this link has expired".
+  const res = await fetch(`${API_URL}${BASE}/share/${encodeURIComponent(token)}`, {
     signal,
-    // Public endpoint — do not send the user's Bearer token. apiClient's
-    // interceptor will attach one if present; clear it for this call.
-    headers: { Authorization: "" },
+    credentials: "omit",
+    headers: { Accept: "application/json" },
   });
-  return res.data;
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok || body?.success === false) {
+    const err = new Error(
+      body?.error?.message || body?.message || `Request failed with status ${res.status}`
+    );
+    err.status = res.status;
+    throw err;
+  }
+  return body?.success === true && "data" in body ? body.data : body;
 }
 
 /**
@@ -86,5 +106,5 @@ export async function generateTradingDna({ marketType, period, force = false } =
       timeout: 120000,
     }
   );
-  return res.data;
+  return res;
 }

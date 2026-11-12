@@ -77,6 +77,50 @@ describe("analyticsSnapshotController", () => {
     }));
   });
 
+  it("reports drawdown in currency (no %) once P&L dips below zero, and a real Sharpe-like ratio", async () => {
+    // Shape of the reported account: P&L falls straight below zero before any
+    // peak, then recovers. Drawdown is a currency amount; a "% of peak" has no
+    // denominator, so it must be null (the UI previously printed "500.54%").
+    const profits = [-200, -300.54, 400, 300, 157.29];
+    analyticsSnapshotService.getSnapshot.mockResolvedValueOnce({
+      generatedAt: "2026-11-08T00:00:00.000Z",
+      sourceTradeCount: profits.length,
+      performance: { totalTrades: profits.length },
+      basicStats: { totalTrades: profits.length },
+      trades: profits.map((profit, i) => ({
+        _id: `t${i}`, profit, tradeDate: new Date(Date.UTC(2026, 9, i + 1)), createdAt: new Date(Date.UTC(2026, 9, i + 1)),
+      })),
+      timeline: { buckets: [] }, discipline: {}, tradingDNA: {}, selfAwareness: {}, psychologyCost: {}, patterns: {},
+      cache: { hit: false },
+    });
+    const res = { json: jest.fn() };
+    await getAnalyticsSnapshot({ user: { _id: "507f1f77bcf86cd799439011" }, query: {}, baseUrl: "/api", isIndianMarket: false }, res, jest.fn());
+
+    const body = res.json.mock.calls[0][0];
+    expect(body.drawdown.maxDrawdown).toBe("500.54");
+    expect(body.drawdown.maxDrawdownPercent).toBeNull();
+
+    const mean = profits.reduce((a, b) => a + b, 0) / profits.length;
+    const sd = Math.sqrt(profits.reduce((a, r) => a + (r - mean) ** 2, 0) / profits.length);
+    expect(body.riskReward.riskAdjustedReturn).toBe((mean / sd).toFixed(2));
+    expect(body.riskReward.riskAdjustedReturn).not.toBe("0.00");
+  });
+
+  it("uses the engine's exact expectancy instead of rebuilding it from a rounded win rate", async () => {
+    analyticsSnapshotService.getSnapshot.mockResolvedValueOnce({
+      generatedAt: "2026-11-08T00:00:00.000Z",
+      sourceTradeCount: 69,
+      // Real account shape: 25W / 44L, net 356.75 → expectancy 5.17.
+      performance: { totalTrades: 69, wins: 25, losses: 44, winRate: 36.2, avgWin: 123.34, avgLoss: 61.97, netPnL: 356.75, expectancy: 5.17 },
+      basicStats: { totalTrades: 69 },
+      trades: [], timeline: { buckets: [] }, discipline: {}, tradingDNA: {}, selfAwareness: {}, psychologyCost: {}, patterns: {},
+      cache: { hit: false },
+    });
+    const res = { json: jest.fn() };
+    await getAnalyticsSnapshot({ user: { _id: "507f1f77bcf86cd799439011" }, query: {}, baseUrl: "/api", isIndianMarket: false }, res, jest.fn());
+    expect(res.json.mock.calls[0][0].performance.expectancy).toBe("5.17");
+  });
+
   it("does not invent timing insights from a single trade", async () => {
     analyticsSnapshotService.getSnapshot.mockResolvedValue({
       generatedAt: "2026-06-28T00:00:00.000Z",

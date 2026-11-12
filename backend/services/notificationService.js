@@ -5,6 +5,17 @@ const NotificationPreference = require("../models/NotificationPreference");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 const { logger } = require("../utils/logger");
 const { buildPagination } = require("../utils/apiResponse");
+const User = require("../models/Users");
+const {
+  DAILY_PUSH_CAP,
+  UNCAPPED_TYPES,
+  getCollapseKey,
+  getTtlMs,
+  isCappedType,
+  isPromotionalType,
+  isWithinPromoWindow,
+} = require("../utils/notificationPolicy");
+const { getDayRange } = require("../utils/timezone");
 
 function requireUserId(userId) {
   if (!userId) {
@@ -66,6 +77,8 @@ const CHANNEL_COLOR = {
 };
 
 // ─── Preference gate ──────────────────────────────────────────────────────────
+// Trade-analysis coaching. These sit under the `smartCoach` master switch AND
+// their own flag.
 const SMART_TYPE_TO_PREF = {
   revenge_trading:        "revengeTrading",
   overtrading:            "overtrading",
@@ -73,17 +86,22 @@ const SMART_TYPE_TO_PREF = {
   repeated_mistake:       "repeatedMistakes",
   mood_risk:              "moodRisk",
   no_stop_loss:           "noStopLoss",
-  daily_loss_warning:     "noStopLoss",
+  daily_loss_warning:     "dailyLossWarning",
   weekly_ai_insight:      "weeklyInsight",
-  weekly_report_reminder: "weeklyInsight",
   confidence_reminder:    "smartCoach",
+  mission_update:         "smartCoach",
+};
+
+// Scheduled reminders. Each has its own switch only — turning off the smart
+// coach used to silence all of these too, which is not what that toggle says.
+const REMINDER_TYPE_TO_PREF = {
+  weekly_report_reminder: "weeklyInsight",
   session_reminder:       "sessionReminders",
   morning_mentor:         "morningMentor",
   streak_milestone:       "streakProtection",
   streak_at_risk:         "streakProtection",
   streak_broken:          "streakProtection",
   evening_reflection:     "eveningReflection",
-  mission_update:         "smartCoach",
 };
 
 // Support notifications are transactional, not coaching. They are kept OUT of
@@ -102,17 +120,18 @@ const SUPPORT_TYPE_TO_PREF = {
 };
 
 function resolvePreferenceFlag(type) {
-  return SMART_TYPE_TO_PREF[type] || SUPPORT_TYPE_TO_PREF[type] || null;
+  if (isPromotionalType(type)) return "promotions";
+  return SMART_TYPE_TO_PREF[type] || REMINDER_TYPE_TO_PREF[type] || SUPPORT_TYPE_TO_PREF[type] || null;
 }
 
 const INVALID_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
-  // Fails FCM's own format validation (corrupt/malformed value) — just as
-  // permanently unsendable as a revoked token, so it gets the same cleanup
-  // instead of retrying (and incrementing failureCount) forever.
-  "messaging/invalid-argument",
 ]);
+// FCM returns this both for a malformed token AND for a malformed message
+// (oversized data, reserved key). Only the first means the token is dead, so
+// it is handled per send: see classifyInvalidArgument.
+const INVALID_ARGUMENT_CODE = "messaging/invalid-argument";
 const TRANSIENT_FCM_CODES = new Set([
   "messaging/internal-error",
   "messaging/server-unavailable",
@@ -302,21 +321,51 @@ function buildAndroidConfig(notification) {
   const color     = CHANNEL_COLOR[channelId] || "#0D9E6E";
   const isUrgent  = channelId === "edgecipline_risk";
 
+  const collapseKey = getCollapseKey(notification.type);
+
   return {
     priority: isUrgent ? "high" : "normal",
-    ttl: isUrgent ? 3600 * 1000 : 86400 * 1000, // 1h for urgent, 24h otherwise
+    // Per-type expiry (utils/notificationPolicy): a session reminder that
+    // could not be delivered within 30 min is dropped, not shown tomorrow.
+    ttl: getTtlMs(notification.type),
+    ...(collapseKey ? { collapseKey } : {}),
     notification: {
       channelId,
       icon:        "ic_stat_edgecipline",   // white monochrome icon in res/drawable
       color,
       sound:       "default",
-      clickAction: "OPEN_APP",
-      // BigText style — expands in the tray to show the full body
+      // No clickAction: FCM turns it into an Intent action that no activity in
+      // AndroidManifest declares ("OPEN_APP" never was), so a tap on a push
+      // while the app was closed did nothing. Without it the tap opens the
+      // launcher activity and Capacitor fires pushNotificationActionPerformed.
       body:        notification.body,
-      // Tag deduplication: same tag replaces the previous notification of that type
-      tag:         `edgecipline_${notification._id?.toString?.() || notification.type}`,
+      // Same-type reminders replace each other in the tray; one-off alerts
+      // keep a unique tag so they never overwrite each other.
+      tag:         collapseKey || `edgecipline_${notification._id?.toString?.() || notification.type}`,
       // Visibility: show on lock screen for urgent alerts, private otherwise
       visibility:  isUrgent ? "public" : "private",
+    },
+  };
+}
+
+// iOS had no `apns` block at all: no sound, and FCM's ~4-week default expiry,
+// so an offline iPhone could receive a week of stale session reminders.
+function buildApnsConfig(notification, now = Date.now()) {
+  const channelId = TYPE_CHANNEL[notification.type] || "edgecipline_insights";
+  const isUrgent = channelId === "edgecipline_risk";
+  const collapseKey = getCollapseKey(notification.type);
+  const headers = {
+    "apns-expiration": String(Math.floor((now + getTtlMs(notification.type)) / 1000)),
+    "apns-priority": isUrgent ? "10" : "5",
+  };
+  if (collapseKey) headers["apns-collapse-id"] = collapseKey;
+  return {
+    headers,
+    payload: {
+      aps: {
+        sound: "default",
+        "thread-id": channelId,
+      },
     },
   };
 }
@@ -348,9 +397,24 @@ async function sendPushToUser(userId, notification, acceptedTokenIds = []) {
       ...(notification.data || {}),
     }),
     android: buildAndroidConfig(notification),
+    apns: buildApnsConfig(notification),
   };
 
   const response = await admin.messaging().sendEachForMulticast(message);
+
+  // invalid-argument on EVERY token = the message itself is malformed; the
+  // tokens are fine and must not be disabled. On only some tokens = those
+  // tokens are corrupt.
+  const invalidArgumentCount = response.responses
+    .filter((result) => result.error?.code === INVALID_ARGUMENT_CODE).length;
+  const payloadRejected = invalidArgumentCount > 0 && invalidArgumentCount === response.responses.length;
+  if (payloadRejected) {
+    logger.error("NOTIFICATION_PAYLOAD_REJECTED", {
+      userId: userId?.toString?.(),
+      notificationType: notification.type,
+      tokenCount: tokens.length,
+    });
+  }
 
   const invalidTokens = [];
   const acceptedIds = [];
@@ -362,7 +426,9 @@ async function sendPushToUser(userId, notification, acceptedTokenIds = []) {
       acceptedIds.push(String(tokenRecord._id));
       return;
     }
-    if (INVALID_TOKEN_CODES.has(result.error.code)) {
+    const tokenIsDead = INVALID_TOKEN_CODES.has(result.error.code)
+      || (result.error.code === INVALID_ARGUMENT_CODE && !payloadRejected);
+    if (tokenIsDead) {
       invalidTokens.push(tokenRecord.token);
       permanentFailures.push({ tokenId: String(tokenRecord._id), code: result.error.code });
       return;
@@ -409,7 +475,41 @@ const SKIP_REASONS = Object.freeze({
   QUIET_HOURS: "quiet_hours",       // persisted in delivery.error — keep legacy spelling
   DUPLICATE: "DUPLICATE",
   NO_DEVICE_TOKEN: "NO_DEVICE_TOKEN",
+  ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE",
+  OUTSIDE_PROMO_WINDOW: "OUTSIDE_PROMO_WINDOW",
+  DAILY_CAP: "DAILY_CAP",
 });
+
+// One timezone per user for every "local" rule. The device reports it on
+// push registration (deviceTokenController), which writes it here.
+function getPreferenceTimezone(prefs) {
+  return prefs?.quietHours?.timezone || DEFAULT_QUIET_HOURS_TIMEZONE;
+}
+
+// Disabled accounts (admin action) and accounts mid-deletion get nothing —
+// their device tokens survive until the purge step finishes.
+async function isAccountReachable(userId) {
+  const user = await User.findById(userId).select("accountStatus pendingDeletion").lean();
+  if (!user) return false;
+  return user.accountStatus !== "disabled" && !user.pendingDeletion;
+}
+
+async function pushesSentToday(userId, timezone, now = new Date()) {
+  const { start, end } = getDayRange(now, timezone);
+  return NotificationHistory.countDocuments({
+    user: userId,
+    createdAt: { $gte: start, $lt: end },
+    status: { $in: ["sent", "partial", "sending"] },
+    type: { $nin: [...UNCAPPED_FOR_COUNT] },
+  });
+}
+
+// Types excluded from the cap count — the same set isCappedType exempts
+// (support types are matched by prefix there, listed explicitly here).
+const UNCAPPED_FOR_COUNT = new Set([
+  ...UNCAPPED_TYPES,
+  ...Object.keys(TYPE_CHANNEL).filter((type) => type.startsWith("support_")),
+]);
 
 function logSkipped(userId, payload, reason, extra = {}) {
   logger.info("NOTIFICATION_SKIPPED", {
@@ -431,6 +531,34 @@ async function notifyUser(userId, payload) {
     });
     return null;
   }
+
+  if (!(await isAccountReachable(userId))) {
+    logSkipped(userId, payload, SKIP_REASONS.ACCOUNT_INACTIVE);
+    return null;
+  }
+
+  const timezone = getPreferenceTimezone(prefs);
+  // Promotions are normally delayed into the window at enqueue time
+  // (queues/smartNotificationQueue); this catches a timezone change since.
+  if (isPromotionalType(payload.type) && !isWithinPromoWindow(new Date(), timezone)) {
+    logSkipped(userId, payload, SKIP_REASONS.OUTSIDE_PROMO_WINDOW, { timezone });
+    return null;
+  }
+
+  if (isCappedType(payload.type)) {
+    const alreadyExists = payload.dedupeKey
+      ? await NotificationHistory.exists({ user: userId, dedupeKey: payload.dedupeKey })
+      : null;
+    // A retry of an existing row is not a new push — never cap it.
+    if (!alreadyExists) {
+      const sentToday = await pushesSentToday(userId, timezone);
+      if (sentToday >= DAILY_PUSH_CAP) {
+        logSkipped(userId, payload, SKIP_REASONS.DAILY_CAP, { sentToday, cap: DAILY_PUSH_CAP });
+        return null;
+      }
+    }
+  }
+
   const quietHoursBlocked = isBlockedByQuietHours(prefs, userId, payload.type);
 
   const dedupeKey = payload.dedupeKey || `${payload.type}:${userId}:${payload.sourceId || Date.now()}`;
@@ -683,6 +811,10 @@ async function markAllAsRead(userId) {
 
 module.exports = {
   SKIP_REASONS,
+  buildAndroidConfig,
+  buildApnsConfig,
+  getPreferenceTimezone,
+  resolvePreferenceFlag,
   getAllowedPreferences,
   getOrCreatePreferences,
   isBlockedByQuietHours,

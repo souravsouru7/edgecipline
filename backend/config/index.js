@@ -180,6 +180,8 @@ const appConfig = {
   morningMentor: {
     enabled: readBoolean("ENABLE_MORNING_MENTOR_CRON", true),
     schedule: process.env.MORNING_MENTOR_CRON || "0 7 * * *",
+    // Sent at this time in EACH USER's timezone (jobs tick every 15 min).
+    localTime: process.env.MORNING_MENTOR_LOCAL_TIME || "07:00",
     timezone: process.env.MORNING_MENTOR_TIMEZONE || "Asia/Kolkata",
     timezoneOffsetHours: readNumber("MORNING_MENTOR_TIMEZONE_OFFSET_HOURS", 5.5),
   },
@@ -244,16 +246,21 @@ const appConfig = {
     // Default 21:00 IST — late enough that an active trader has logged,
     // early enough to act before midnight breaks the streak.
     schedule: process.env.STREAK_PROTECTOR_CRON || "0 21 * * *",
+    localTime: process.env.STREAK_PROTECTOR_LOCAL_TIME || "21:00",
     timezone: process.env.STREAK_PROTECTOR_TIMEZONE || "Asia/Kolkata",
     // Minimum streak length that qualifies for a protective nudge. We don't
     // nag users with a 1- or 2-day streak — premature reminders erode trust.
     minStreak: readNumber("STREAK_PROTECTOR_MIN_STREAK", 3),
+  },
+  missions: {
+    enabled: readBoolean("ENABLE_MISSION_CRON", true),
   },
   reflectionReminder: {
     enabled: readBoolean("ENABLE_REFLECTION_REMINDER_CRON", true),
     // Default 19:30 IST — markets are closed, dinner crowd, before the user
     // disengages for the night. Window the next cron firing must beat: 23:59.
     schedule: process.env.REFLECTION_REMINDER_CRON || "30 19 * * *",
+    localTime: process.env.REFLECTION_REMINDER_LOCAL_TIME || "19:30",
     timezone: process.env.REFLECTION_REMINDER_TIMEZONE || "Asia/Kolkata",
     concurrency: readNumber("REFLECTION_REMINDER_CRON_CONCURRENCY", 0),
   },
@@ -480,6 +487,10 @@ const appConfig = {
     // send, so a hung Resend/SMTP connection would otherwise pin the user's
     // request until the HTTP timeout and surface as a generic 5xx.
     sendTimeoutMs: readNumber("EMAIL_SEND_TIMEOUT_MS", 15000),
+    // Absolute URL of the logo lockup in branded emails. Empty = served from
+    // the frontend's /public at support.appBaseUrl. Must be an https PNG/JPG:
+    // Gmail strips data: URIs and most clients will not render SVG.
+    logoUrl: process.env.EMAIL_LOGO_URL || "",
   },
   rateLimit: {
     globalWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),

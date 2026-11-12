@@ -3,10 +3,11 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, ArrowLeft, Clock, RefreshCw } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
-import TickerTape from "@/features/shared/components/TickerTape";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { Button, ErrorState } from "@/features/shared/components/ui";
+import { marketRoutes } from "@/features/shared/navigation";
 import { hasValidAuthToken } from "@/utils/auth";
 import { useMarket } from "@/context/MarketContext";
 import {
@@ -24,13 +25,17 @@ import {
   StrengthsWeaknessesGrid,
   useTradingDna,
 } from "@/features/trading-dna";
+import { DNA_PERIODS } from "@/features/trading-dna/components/ControlsBar";
 
-const C = {
-  bgPage: "#F4F2EE",
-  primary: "#0F1923",
-  muted: "#94A3B8",
-  bear: "#D63B3B",
-};
+function Notice({ tone = "warn", icon, children, action }) {
+  return (
+    <div className={`ec-dna__notice ec-dna__notice--${tone}`} role={tone === "bad" ? "alert" : "status"}>
+      <span className="ec-dna__notice-icon" aria-hidden="true">{icon}</span>
+      <p>{children}</p>
+      {action}
+    </div>
+  );
+}
 
 function TradingDnaContent() {
   const router = useRouter();
@@ -50,12 +55,12 @@ function TradingDnaContent() {
     period,
     setMarketType,
     setPeriod,
-    status,
     report,
     ai,
     bundle,
     isStale,
-    error,
+    loadError,
+    generateError,
     isLoading,
     isRegenerating,
     regenerate,
@@ -67,16 +72,13 @@ function TradingDnaContent() {
   });
 
   const [shareOpen, setShareOpen] = useState(false);
-  // Synchronous lock to swallow rapid duplicate clicks on Regenerate before
-  // React commits the `isRegenerating` state. The button disables visually,
-  // but two clicks fired within the same microtask both pass the JSX check —
-  // a useRef flip happens in the call itself, so the second click is a no-op.
+  // Synchronous lock: two clicks in the same tick both pass the disabled
+  // check before React re-renders, and each generate call costs a model run.
   const submittingRef = useRef(false);
 
-  // Keep the local market in sync if the user flips the global MarketSwitcher.
+  // The report follows the header's market switcher.
   useEffect(() => {
-    if (!currentMarket) return;
-    setMarketType(currentMarket);
+    if (currentMarket) setMarketType(currentMarket);
   }, [currentMarket, setMarketType]);
 
   const handleRegenerate = async ({ force = false } = {}) => {
@@ -85,287 +87,151 @@ function TradingDnaContent() {
     try {
       await regenerate({ force });
     } catch (e) {
-      // useMutation surfaces the error via the `error` field; nothing else
-      // to do here. Console log so devtools captures it.
+      // Surfaced through generateError; logged for devtools.
       console.error("[TradingDNA] regenerate failed", e);
     } finally {
       submittingRef.current = false;
     }
   };
 
+  const periodMeta = DNA_PERIODS.find((p) => p.value === period) || DNA_PERIODS[1];
+  const conflict = generateError?.status === 409;
+  const rateLimited = generateError?.status === 429;
   const showSkeleton = !mounted || (isLoading && !report);
-  const isEmpty = mounted && !isLoading && !report;
-  const conflict = error?.status === 409;
+  const hasReport = Boolean(report);
+  const back = marketRoutes(marketType).analytics;
+  const marketLabel = marketType === "Indian_Market" ? "Indian market" : "Forex";
+
+  let body;
+  if (showSkeleton) {
+    body = <ReportSkeleton />;
+  } else if (loadError && !hasReport) {
+    body = (
+      <ErrorState
+        title="Couldn't load your Trading DNA"
+        body={loadError?.message || "Check your connection and try again."}
+        onRetry={() => refetch?.()}
+      />
+    );
+  } else if (!hasReport || !ai) {
+    body = (
+      <EmptyState
+        onGenerate={() => handleRegenerate({ force: false })}
+        isGenerating={isRegenerating}
+        market={marketType}
+        periodLabel={periodMeta.long}
+      />
+    );
+  } else {
+    body = (
+      <div className="ec-disc__stack">
+        <IdentityHero
+          identity={ai.identity}
+          sample={bundle?.sample}
+          generatedAt={report?.updatedAt || report?.createdAt}
+        />
+        {ai.coachSummary || ai.confidenceNote ? (
+          <CoachSummaryCard summary={ai.coachSummary} confidenceNote={ai.confidenceNote} />
+        ) : null}
+        <ImprovementPrioritiesList items={ai.improvementPriorities} />
+        <StrengthsWeaknessesGrid strengths={ai.strengths} weaknesses={ai.weaknesses} />
+        <BlindSpotsList items={ai.blindSpots} />
+        <BehaviorPatternsCard items={ai.behaviorPatterns} />
+        <EvolutionChart data={bundle?.monthlyEvolution || []} />
+        <QuarterlyCompareCard comparison={bundle?.quarterlyComparison} market={marketType} />
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.bgPage,
-        fontFamily: "'Plus Jakarta Sans',sans-serif",
-        color: C.primary,
-        position: "relative",
-      }}
-    >
-      <CandlestickBackground canvasId="trading-dna-bg" />
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 10,
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100vh",
-        }}
-      >
-        <PageHeader />
-        <TickerTape />
-
-        <main
-          style={{
-            flex: 1,
-            maxWidth: 960,
-            width: "100%",
-            margin: "0 auto",
-            padding: "28px 20px",
-            boxSizing: "border-box",
-          }}
-        >
-          <div style={{ marginBottom: 22 }}>
-            <Link
-              href="/analytics"
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                marginBottom: 10,
-              }}
-            >
-              ← Back to Analytics
-            </Link>
-            <h1
-              style={{
-                fontSize: 24,
-                fontWeight: 900,
-                color: C.primary,
-                letterSpacing: "-0.03em",
-                margin: 0,
-                marginBottom: 4,
-              }}
-            >
-              Trading DNA
-            </h1>
-            <p
-              style={{
-                fontSize: 12,
-                color: C.muted,
-                fontFamily: "'JetBrains Mono',monospace",
-                margin: 0,
-                letterSpacing: "0.04em",
-              }}
-            >
-              YOUR BEHAVIORAL FINGERPRINT — DERIVED FROM YOUR TRADE DATA
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Trading DNA" />
+      <main className="ec-page ec-disc ec-dna">
+        <Link href={back} className="ec-psy__back">
+          <ArrowLeft size={14} aria-hidden="true" /> Analytics
+        </Link>
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Trading DNA</h1>
+            <p className="ec-log__sub">
+              {marketLabel} · Your trading style, read by the AI coach from the trades you&apos;ve logged.
             </p>
           </div>
+        </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <ControlsBar
-              marketType={marketType}
-              period={period}
-              onMarketChange={setMarketType}
-              onPeriodChange={setPeriod}
-              onRegenerate={() => handleRegenerate({ force: false })}
-              onShare={() => setShareOpen(true)}
-              isRegenerating={isRegenerating}
-              canShare={Boolean(ai?.identity?.archetype && report?._id)}
-            />
-          </div>
+        <ControlsBar
+          period={period}
+          onPeriodChange={setPeriod}
+          onRegenerate={() => handleRegenerate({ force: false })}
+          onShare={() => setShareOpen(true)}
+          isRegenerating={isRegenerating}
+          canShare={Boolean(ai?.identity?.archetype && report?._id)}
+          canRegenerate={hasReport && Boolean(ai)}
+        />
 
-          {conflict ? (
-            <div
-              style={{
-                marginBottom: 20,
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "#FFFBEB",
-                border: "1px solid #FDE68A",
-                color: "#92400E",
-                fontSize: 12,
-                lineHeight: 1.6,
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                You already generated a DNA report recently. You can force a
-                regeneration if your trade log has changed.
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRegenerate({ force: true })}
-                disabled={isRegenerating}
-                style={{
-                  padding: "8px 14px",
-                  background: "#92400E",
-                  color: "#FFF",
-                  borderRadius: 8,
-                  border: "none",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  cursor: isRegenerating ? "not-allowed" : "pointer",
-                }}
-              >
-                {isRegenerating ? "Regenerating…" : "Force regenerate"}
-              </button>
-            </div>
-          ) : null}
+        {conflict ? (
+          <Notice
+            icon={<Clock size={16} />}
+            action={
+              <Button size="sm" variant="secondary" onClick={() => handleRegenerate({ force: true })} loading={isRegenerating}>
+                Rebuild anyway
+              </Button>
+            }
+          >
+            This report was built in the last 24 hours. Rebuild it now only if you&apos;ve logged or edited trades since.
+          </Notice>
+        ) : null}
 
-          {error && !conflict ? (
-            <div
-              style={{
-                marginBottom: 20,
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "#FEF2F2",
-                border: "1px solid #FECACA",
-                color: C.bear,
-                fontSize: 12,
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-              }}
-            >
-              <span>
-                {error?.message || "Something went wrong loading your DNA."}
-              </span>
-              <button
-                type="button"
-                onClick={() => refetch?.()}
-                disabled={isLoading}
-                style={{
-                  padding: "6px 14px",
-                  background: C.bear,
-                  color: "#FFF",
-                  borderRadius: 8,
-                  border: "none",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  cursor: isLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                {isLoading ? "Retrying…" : "Retry"}
-              </button>
-            </div>
-          ) : null}
+        {generateError && !conflict ? (
+          <Notice
+            tone="bad"
+            icon={<AlertTriangle size={16} />}
+            action={
+              rateLimited ? null : (
+                <Button size="sm" variant="secondary" onClick={() => handleRegenerate({ force: false })} loading={isRegenerating}>
+                  Try again
+                </Button>
+              )
+            }
+          >
+            {rateLimited
+              ? "Too many rebuilds in a row. Wait a minute, then try again."
+              : generateError?.message || "Couldn't build the report. Please try again."}
+          </Notice>
+        ) : null}
 
-          {isStale ? (
-            <div
-              style={{
-                marginBottom: 20,
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "#FFFBEB",
-                border: "1px solid #FDE68A",
-                color: "#92400E",
-                fontSize: 12,
-                lineHeight: 1.6,
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                Your trades have changed since this report was generated.
-                Regenerate to refresh the insights.
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRegenerate({ force: true })}
-                disabled={isRegenerating}
-                style={{
-                  padding: "8px 14px",
-                  background: "#92400E",
-                  color: "#FFF",
-                  borderRadius: 8,
-                  border: "none",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  cursor: isRegenerating ? "not-allowed" : "pointer",
-                }}
-              >
-                {isRegenerating ? "Regenerating…" : "Refresh now"}
-              </button>
-            </div>
-          ) : null}
+        {loadError && hasReport ? (
+          <Notice
+            tone="bad"
+            icon={<AlertTriangle size={16} />}
+            action={<Button size="sm" variant="secondary" onClick={() => refetch?.()}>Try again</Button>}
+          >
+            Couldn&apos;t refresh this report. You&apos;re seeing the last saved copy.
+          </Notice>
+        ) : null}
 
-          {showSkeleton ? (
-            <ReportSkeleton />
-          ) : isEmpty ? (
-            <EmptyState
-              onGenerate={() => handleRegenerate({ force: false })}
-              isGenerating={isRegenerating}
-            />
-          ) : ai ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <IdentityHero
-                identity={ai.identity}
-                sample={bundle?.sample}
-                generatedAt={report?.updatedAt || report?.createdAt}
-              />
+        {isStale && !isRegenerating && !conflict ? (
+          <Notice
+            tone="info"
+            icon={<RefreshCw size={16} />}
+            action={
+              <Button size="sm" variant="secondary" onClick={() => handleRegenerate({ force: true })}>
+                Rebuild
+              </Button>
+            }
+          >
+            You&apos;ve changed trades since this report was built, so parts of it may be out of date.
+          </Notice>
+        ) : null}
 
-              {ai.coachSummary || ai.confidenceNote ? (
-                <CoachSummaryCard
-                  summary={ai.coachSummary}
-                  confidenceNote={ai.confidenceNote}
-                />
-              ) : null}
+        {isRegenerating && hasReport ? (
+          <Notice tone="info" icon={<RefreshCw size={16} className="ec-spin" />}>
+            Rebuilding from your latest trades. This can take up to a minute.
+          </Notice>
+        ) : null}
 
-              <StrengthsWeaknessesGrid
-                strengths={ai.strengths}
-                weaknesses={ai.weaknesses}
-              />
-
-              <BlindSpotsList items={ai.blindSpots} />
-              <BehaviorPatternsCard items={ai.behaviorPatterns} />
-              <ImprovementPrioritiesList items={ai.improvementPriorities} />
-
-              <EvolutionChart data={bundle?.monthlyEvolution || []} />
-
-              <QuarterlyCompareCard
-                comparison={bundle?.quarterlyComparison}
-                market={marketType}
-              />
-            </div>
-          ) : null}
-
-          {status === "regenerating" ? (
-            <div
-              style={{
-                marginTop: 18,
-                fontSize: 11,
-                color: C.muted,
-                textAlign: "center",
-                letterSpacing: "0.06em",
-              }}
-            >
-              Calling the model — this can take up to a minute.
-            </div>
-          ) : null}
-        </main>
-      </div>
+        {body}
+      </main>
 
       <ShareModal
         open={shareOpen}

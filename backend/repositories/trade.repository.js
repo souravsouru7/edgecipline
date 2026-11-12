@@ -4,6 +4,10 @@ const tradeLifecycleService = require("../services/tradeLifecycle.service");
 const { pickForexTradeFields } = require("../utils/tradeFieldAllowlist");
 
 const TRADE_LIST_PROJECTION = [
+  // Journal rows show setup, checklist score and mistake tag.
+  "setup",
+  "setupScore",
+  "mistakeTag",
   "pair",
   "type",
   "quantity",

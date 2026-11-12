@@ -6,6 +6,8 @@ const { resolveActiveMarketsForUsers } = require("../services/userMarketService"
 const { logger } = require("../utils/logger");
 const { runCronWithMetrics } = require("../utils/cronMetrics");
 const { withCronLock, isoWeekKey } = require("../utils/distributedLock");
+const Trade = require("../models/Trade");
+const IndianTrade = require("../models/IndianTrade");
 
 const CRON_NAME = "weeklyReportsCron";
 const LOCK_NAME = "weekly-report";
@@ -53,7 +55,9 @@ async function sendRemindersForUser(user, weekKey, activeMarkets = new Set(MARKE
         body: "Your weekly trading review is ready. Generate it when you want AI feedback.",
         sourceType: "cron",
         dedupeKey: `weekly-report-reminder:${user._id}:${marketType}:${weekKey}`,
-        deepLink: `/weekly-reports?marketType=${encodeURIComponent(marketType)}`,
+        // The reports page reads `market`; `marketType` was ignored and the
+        // page opened whichever market the app happened to be on.
+        deepLink: `/weekly-reports?market=${encodeURIComponent(marketType)}`,
         data: {
           screen: "weekly-report",
           marketType,
@@ -81,6 +85,16 @@ async function sendRemindersForUser(user, weekKey, activeMarkets = new Set(MARKE
   }
 }
 
+async function usersWhoTradedLastWeek(now = new Date()) {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const recent = { $or: [{ tradeDate: { $gte: since } }, { tradeDate: null, createdAt: { $gte: since } }] };
+  const [forex, indian] = await Promise.all([
+    Trade.distinct("user", { deletedAt: null, "parsedData.multiTradeGhost": { $ne: true }, ...recent }),
+    IndianTrade.distinct("user", { deletedAt: null, ...recent }),
+  ]);
+  return { Forex: new Set(forex.map(String)), Indian_Market: new Set(indian.map(String)) };
+}
+
 async function runWeeklyReportsJob() {
   if (isRunning) {
     logger.warn(`[${CRON_NAME}] previous run still in progress; skipping`);
@@ -101,6 +115,13 @@ async function runWeeklyReportsJob() {
         try {
           users = await userRepository.findUsersForSessionReminders();
           marketsByUser = await resolveActiveMarketsForUsers(users);
+          // "Your weekly review is ready" only for a market the user actually
+          // traded in the last 7 days — it went to everyone with a market
+          // signal, including weeks with zero trades.
+          const traded = await usersWhoTradedLastWeek();
+          for (const [userId, markets] of marketsByUser) {
+            marketsByUser.set(userId, new Set([...markets].filter((m) => traded[m]?.has(userId))));
+          }
         } catch (error) {
           logger.error(`[${CRON_NAME}] failed to fetch users`, {
             error: error.message,

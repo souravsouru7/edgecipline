@@ -16,6 +16,11 @@
 // This runs after `next build` and before `cap sync`, so the web build is
 // untouched. It only deletes generated output — never source.
 //
+// It is also the `capacitor:copy:before` hook in package.json, which the
+// Capacitor CLI runs before every `cap copy` and `cap sync` (sync copies too).
+// So even a bare `npx cap sync` after a plain web build can't put /admin
+// into the app. Running it twice is harmless.
+//
 // Usage:  node scripts/prune-mobile-bundle.mjs
 
 import { rm, readdir, stat } from "node:fs/promises";

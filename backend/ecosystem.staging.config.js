@@ -11,6 +11,19 @@ module.exports = {
         NODE_ENV: "production",
         PORT: 4000,
         ENABLE_EMBEDDED_OCR_WORKER: "false",
+        // Staging must never send real users anything. It runs the same
+        // server.js as production; if it ever shares Mongo/Firebase/Redis with
+        // prod, every one of these would double-send. Flip one on deliberately
+        // when testing that job.
+        ENABLE_WEEKLY_REPORTS_CRON: "false",
+        ENABLE_SESSION_REMINDERS_CRON: "false",
+        ENABLE_MORNING_MENTOR_CRON: "false",
+        ENABLE_SUBSCRIPTION_RESCUE_CRON: "false",
+        ENABLE_FREE_TIER_NUDGE_CRON: "false",
+        ENABLE_STREAK_PROTECTOR_CRON: "false",
+        ENABLE_REFLECTION_REMINDER_CRON: "false",
+        ENABLE_MISSION_CRON: "false",
+        ENABLE_EMBEDDED_SMART_NOTIFICATION_WORKER: "false",
         OCR_QUEUE_NAME: "ocrQueue-staging",
         OCR_SERVICE_TIMEOUT_MS: "180000",
         ADMIN_COOKIE_CROSS_SITE: "true",

@@ -22,7 +22,7 @@ export default function TradeQuotaPill({ marketType, style }) {
 
   const exhausted = (Number(quota.remaining) || 0) <= 0;
   const low = !exhausted && Number(quota.remaining) === 1;
-  const colour = exhausted ? "#D63B3B" : low ? "#B8860B" : "#0D9E6E";
+  const colour = exhausted ? "var(--lg-red, #D63B3B)" : low ? "var(--lg-gold, #B8860B)" : "var(--lg-green, #0D9E6E)";
 
   return (
     <span
@@ -40,9 +40,9 @@ export default function TradeQuotaPill({ marketType, style }) {
         letterSpacing: "0.04em",
         textTransform: "uppercase",
         color: colour,
-        background: `${colour}14`,
-        border: `1px solid ${colour}33`,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        background: `color-mix(in srgb, ${colour} 8%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${colour} 20%, transparent)`,
+        fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
         whiteSpace: "nowrap",
         ...style,
       }}

@@ -29,8 +29,8 @@ export default function CoachQuotaPill({ quota }) {
       style={{
         display: "inline-flex", alignItems: "center", gap: 4,
         fontSize: "var(--fs-2xs)", fontWeight: 800,
-        color: low ? "#D63B3B" : "#475569",
-        background: low ? "rgba(214,59,59,0.08)" : "#F1F5F9",
+        color: low ? "var(--lg-red, #D63B3B)" : "var(--lg-sub, #475569)",
+        background: low ? "rgba(214,59,59,0.08)" : "var(--lg-line, #F1F5F9)",
         padding: "3px 8px", borderRadius: 999,
         letterSpacing: "0.04em", textTransform: "uppercase",
         textDecoration: "none",

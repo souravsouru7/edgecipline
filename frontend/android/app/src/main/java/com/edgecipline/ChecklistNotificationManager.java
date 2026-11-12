@@ -72,6 +72,27 @@ public class ChecklistNotificationManager {
         return getPrefs(ctx, "Forex");
     }
 
+    /**
+     * True when this market's checklist notification is currently in the tray.
+     * The midnight reset uses it to refresh ticks on a notification the user can
+     * already see, without posting a new one (which used to ping at 00:00 every
+     * day, Saturdays and Sundays included).
+     */
+    public static boolean isShowing(Context ctx, String market) {
+        try {
+            android.app.NotificationManager nm =
+                (android.app.NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return false;
+            int id = getNotificationId(market);
+            for (android.service.notification.StatusBarNotification sbn : nm.getActiveNotifications()) {
+                if (sbn.getId() == id) return true;
+            }
+        } catch (Throwable ignored) {
+            // Treat as not showing: never post on uncertainty.
+        }
+        return false;
+    }
+
     public static int getNotificationId(String market) {
         return "Indian_Market".equals(market) ? NOTIFICATION_ID_INDIAN : NOTIFICATION_ID_FOREX;
     }

@@ -22,6 +22,10 @@ jest.mock("../../models/IndianTrade", () => ({ countDocuments: jest.fn(), find: 
 jest.mock("../../models/NotificationDebugLog", () => ({
   findOneAndUpdate: jest.fn(() => ({ catch: jest.fn() })),
 }));
+// The evaluator looks up the user's own timezone when the caller passes none.
+jest.mock("../../models/Users", () => ({
+  findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ streaks: { timezone: "Europe/London" } }) }) })),
+}));
 jest.mock("../../services/notificationService", () => ({
   notifyUser: jest.fn().mockResolvedValue({ _id: "n1", status: "sent" }),
 }));
@@ -35,8 +39,9 @@ jest.mock("../../utils/logger", () => ({
 const Trade = require("../../models/Trade");
 const IndianTrade = require("../../models/IndianTrade");
 const notificationService = require("../../services/notificationService");
+const Users = require("../../models/Users");
 const { enqueueSmartNotificationChecks } = require("../../queues/smartNotificationQueue");
-const { evaluateSmartNotifications, runAsyncChecks } = require("../../services/smartNotificationEvaluator");
+const { evaluateSmartNotifications, runAsyncChecks, formatMoney } = require("../../services/smartNotificationEvaluator");
 
 const USER = "507f1f77bcf86cd799439011";
 const TZ = "Asia/Kolkata";
@@ -72,6 +77,15 @@ function sentPayload(type) {
   return notificationService.notifyUser.mock.calls.find(([, p]) => p.type === type)?.[1];
 }
 
+// The user's own limits for one market, as stored on Users.riskLimits.
+function setLimits(marketType, limits) {
+  Users.findById.mockImplementation(() => ({
+    select: () => ({
+      lean: async () => ({ streaks: { timezone: "Europe/London" }, riskLimits: { [marketType]: limits } }),
+    }),
+  }));
+}
+
 async function runAll(market, t) {
   const payload = { userId: USER, trade: t, marketType: market.marketType, collection: market.collection, timezone: TZ };
   await evaluateSmartNotifications(payload);          // sync checks + enqueue
@@ -80,6 +94,12 @@ async function runAll(market, t) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // Fixtures are dated NOW; the evaluator ignores trades older than 36h.
+  jest.spyOn(Date, "now").mockReturnValue(NOW.getTime());
+  // No limits set unless a test says so (clearAllMocks keeps implementations).
+  Users.findById.mockImplementation(() => ({
+    select: () => ({ lean: async () => ({ streaks: { timezone: "Europe/London" } }) }),
+  }));
   for (const M of [Trade, IndianTrade]) {
     M.countDocuments.mockResolvedValue(0);
     M.find.mockImplementation(() => chainable([]));
@@ -89,7 +109,7 @@ beforeEach(() => {
 
 describe("evaluateSmartNotifications split", () => {
   it("runs the 3 fast checks inline and hands the 5 heavy checks to the queue", async () => {
-    await evaluateSmartNotifications({ userId: USER, trade: trade({ stopLoss: null }), marketType: "Forex", collection: "forex" });
+    await evaluateSmartNotifications({ userId: USER, trade: trade({ stopLoss: null }), marketType: "Forex", collection: "forex", timezone: TZ });
     expect(sentTypes()).toEqual(["no_stop_loss"]);
     expect(enqueueSmartNotificationChecks).toHaveBeenCalledWith(expect.objectContaining({
       userId: USER, tradeId: "64b000000000000000000001", collection: "forex", marketType: "Forex", timezone: TZ,
@@ -207,7 +227,7 @@ describe.each(Object.entries(MARKETS))("rule 4 · revenge_trading (%s)", (_name,
     const p = sentPayload("revenge_trading");
     expect(p.dedupeKey).toBe(`revenge-warning:${USER}:${market.marketType}:2026-09-21`);
     expect(p.deepLink).toBe(`${market.root}/trades?filter=today`);
-    expect(p.body).toContain("-30.00");
+    expect(p.body).toContain(market.collection === "indian" ? "−₹30.00" : "−$30.00");
   });
 
   it("does not fire when the losses span more than 4h", async () => {
@@ -306,53 +326,171 @@ describe.each(Object.entries(MARKETS))("rule 6 · repeated_mistake (%s)", (_name
   });
 });
 
-describe.each(Object.entries(MARKETS))("rule 7 · daily_loss_warning (%s)", (_name, market) => {
+describe.each(Object.entries(MARKETS))("rule 7 · daily_loss_warning against the user's limit (%s)", (_name, market) => {
   const day = (profits) => market.Model().find.mockImplementation(() => chainable(profits.map((profit) => ({ profit }))));
+  const sym = market === MARKETS.indian ? "₹" : "$";
+  const lossCalls = () => notificationService.notifyUser.mock.calls.filter(([, p]) => p.type === "daily_loss_warning").map(([, p]) => p);
 
-  it("fires when today's net ≤ 2× the average loss", async () => {
-    day([-10, -10, 5]); // avg loss -10, threshold -20, net -15 → no; use a worse day
-    day([-10, -10, -5]); // avg loss -8.33, threshold -16.67, net -25 → fire
+  it("never fires without a limit — two small losses used to trigger it", async () => {
+    setLimits(market.marketType, { dailyLossLimit: null });
+    day([-5, -5]);
     await runAll(market, trade({ profit: -5 }));
-    const p = sentPayload("daily_loss_warning");
-    expect(p.dedupeKey).toBe(`daily-loss:${USER}:${market.marketType}:2026-09-21`);
+    day([-500, -500, -500]);
+    await runAll(market, trade({ profit: -500 }));
+    expect(lossCalls()).toHaveLength(0);
+  });
+
+  it("stays silent below 80% of the limit", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-40, -39]); // 79%
+    await runAll(market, trade({ profit: -39 }));
+    expect(lossCalls()).toHaveLength(0);
+  });
+
+  it("warns at 80% with the market's currency", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-50, -30]);
+    await runAll(market, trade({ profit: -30 }));
+    const [p] = lossCalls();
+    expect(p.title).toBe("Close to your daily loss limit.");
+    expect(p.body).toContain(`−${sym}80.00 today, 80% of your ${sym}100.00 limit`);
+    expect(p.dedupeKey).toBe(`daily-loss:80:${USER}:${market.marketType}:2026-09-21`);
     expect(p.deepLink).toBe(`${market.root}/trades?filter=today`);
+    expect(p.priority).toBe("high");
   });
 
-  it("fires at exactly the threshold", async () => {
-    day([-10, -10]); // avg -10, threshold -20, net -20 → totalLoss > threshold is false → fire
-    await runAll(market, trade({ profit: -10 }));
-    expect(sentTypes()).toContain("daily_loss_warning");
+  it("says 'limit hit' at exactly 100%", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-60, -40]);
+    await runAll(market, trade({ profit: -40 }));
+    const [p] = lossCalls();
+    expect(p.title).toBe("Daily loss limit hit.");
+    expect(p.dedupeKey).toBe(`daily-loss:100:${USER}:${market.marketType}:2026-09-21`);
+    expect(p.data.level).toBe("100");
   });
 
-  it("does not fire just above the threshold", async () => {
-    day([-10, -10, 1]); // net -19 > -20
-    await runAll(market, trade({ profit: 1 }));
-    expect(sentTypes()).not.toContain("daily_loss_warning");
+  it("one trade jumping past 100% sends only 'hit', not the 80% warning", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-250]);
+    await runAll(market, trade({ profit: -250 }));
+    expect(lossCalls().map((p) => p.data.level)).toEqual(["100"]);
   });
 
-  it("does not fire with a single trade", async () => {
-    day([-50]);
-    await runAll(market, trade({ profit: -50 }));
-    expect(sentTypes()).not.toContain("daily_loss_warning");
+  it("fires on a single big losing trade (no 2-trade minimum any more)", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-90]);
+    await runAll(market, trade({ profit: -90 }));
+    expect(lossCalls().map((p) => p.data.level)).toEqual(["80"]);
   });
 
-  it("does not fire with fewer than two losers", async () => {
-    day([-50, 10]);
-    await runAll(market, trade({ profit: -50 }));
-    expect(sentTypes()).not.toContain("daily_loss_warning");
+  it("counts wins: net P&L, not just the losses", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([200, -150, -100]); // net -50
+    await runAll(market, trade({ profit: -100 }));
+    expect(lossCalls()).toHaveLength(0);
   });
 
-  it("does not fire on two winning trades or a winning current trade", async () => {
-    day([10, 10]);
+  it("does not fire on a winning trade or a trade without P&L", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 10 });
+    day([-500]);
     await runAll(market, trade({ profit: 10 }));
-    expect(sentTypes()).not.toContain("daily_loss_warning");
+    await runAll(market, trade({ profit: null }));
+    expect(lossCalls()).toHaveLength(0);
   });
 
-  it("does not read the other market's trades", async () => {
+  it("re-uses the same key for the same level so notifyUser dedupes it", async () => {
+    setLimits(market.marketType, { dailyLossLimit: 100 });
+    day([-85]);
+    await runAll(market, trade({ profit: -85, _id: "64b000000000000000000002" }));
+    day([-85, -5]);
+    await runAll(market, trade({ profit: -5, _id: "64b000000000000000000003" }));
+    const keys = lossCalls().map((p) => p.dedupeKey);
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it("ignores the other market's limit and trades", async () => {
+    const otherType = market === MARKETS.forex ? "Indian_Market" : "Forex";
+    setLimits(otherType, { dailyLossLimit: 1 });
     const other = market === MARKETS.forex ? IndianTrade : Trade;
     other.find.mockImplementation(() => chainable([{ profit: -100 }, { profit: -100 }]));
-    await runAll(market, trade({ profit: -1 }));
-    expect(sentTypes()).not.toContain("daily_loss_warning");
+    day([-50]);
+    await runAll(market, trade({ profit: -50 }));
+    expect(lossCalls()).toHaveLength(0);
+  });
+
+  it("ignores garbage stored as a limit", async () => {
+    for (const bad of [0, -100, "abc", NaN]) {
+      setLimits(market.marketType, { dailyLossLimit: bad });
+      day([-1000]);
+      await runAll(market, trade({ profit: -1000 }));
+    }
+    expect(lossCalls()).toHaveLength(0);
+  });
+
+  it("a failed limits read skips the check without failing the other checks", async () => {
+    Users.findById.mockImplementation(() => { throw new Error("mongo down"); });
+    day([-1000]);
+    await expect(runAsyncChecks({ userId: USER, trade: trade({ profit: -1000 }), marketType: market.marketType, collection: market.collection, timezone: TZ }))
+      .resolves.toEqual(expect.objectContaining({ dailyLossWarning: "fulfilled" }));
+    expect(lossCalls()).toHaveLength(0);
+  });
+});
+
+describe.each(Object.entries(MARKETS))("rule 5b · max trades per day set by the user (%s)", (_name, market) => {
+  const tradeCalls = () => notificationService.notifyUser.mock.calls.filter(([, p]) => p.type === "overtrading").map(([, p]) => p);
+
+  it("is silent below the limit", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 5 });
+    market.Model().countDocuments.mockResolvedValue(4);
+    await runAll(market, trade());
+    expect(tradeCalls()).toHaveLength(0);
+  });
+
+  it("says 'limit reached' on the trade that reaches it", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 5 });
+    market.Model().countDocuments.mockResolvedValue(5);
+    await runAll(market, trade());
+    const [p] = tradeCalls();
+    expect(p.title).toBe("Trade limit reached.");
+    expect(p.body).toContain("5 of your 5 trades");
+    expect(p.dedupeKey).toBe(`trade-limit:reached:${USER}:${market.marketType}:2026-09-21`);
+    expect(p.data.limitSource).toBe("user");
+  });
+
+  it("says 'over your limit' past it, once per day", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 5 });
+    market.Model().countDocuments.mockResolvedValue(6);
+    await runAll(market, trade({ _id: "64b000000000000000000006" }));
+    market.Model().countDocuments.mockResolvedValue(7);
+    await runAll(market, trade({ _id: "64b000000000000000000007" }));
+    const keys = tradeCalls().map((p) => p.dedupeKey);
+    expect(new Set(keys)).toEqual(new Set([`trade-limit:over:${USER}:${market.marketType}:2026-09-21`]));
+  });
+
+  it("counts every trade, including ones without P&L (no profit filter)", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 2 });
+    market.Model().countDocuments.mockResolvedValue(2);
+    await runAll(market, trade({ profit: null }));
+    const query = market.Model().countDocuments.mock.calls.map(([q]) => q).find((q) => q.tradeDate && !q.mistakeTag && !q.setupScore && !q.profit);
+    expect(query).toBeDefined();
+    expect(tradeCalls()).toHaveLength(1);
+  });
+
+  it("skips the average-based guess when a limit is set", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 20 });
+    market.Model().aggregate.mockResolvedValue([{ count: 2 }, { count: 2 }, { count: 2 }]);
+    market.Model().countDocuments.mockResolvedValue(10);
+    await runAll(market, trade());
+    expect(tradeCalls()).toHaveLength(0);
+  });
+
+  it("rejects a non-integer limit and falls back to the average check", async () => {
+    setLimits(market.marketType, { maxTradesPerDay: 2.5 });
+    market.Model().aggregate.mockResolvedValue([{ count: 2 }, { count: 2 }, { count: 2 }]);
+    market.Model().countDocuments.mockResolvedValue(3);
+    await runAll(market, trade());
+    expect(tradeCalls()).toHaveLength(0);
   });
 });
 
@@ -376,5 +514,37 @@ describe.each(Object.entries(MARKETS))("rule 8 · confidence_reminder (%s)", (_n
     await runAll(market, trade({ profit: 10, setupScore: 69 }));
     await runAll(market, trade({ profit: -10, setupScore: 90 }));
     expect(sentTypes()).not.toContain("confidence_reminder");
+  });
+});
+
+describe("present-tense alerts only for recent trades", () => {
+  it("editing a trade from last month fires nothing and enqueues nothing", async () => {
+    const old = trade({ stopLoss: null, profit: -50, tradeDate: new Date(NOW.getTime() - 30 * 24 * 3600e3) });
+    await evaluateSmartNotifications({ userId: USER, trade: old, marketType: "Forex", collection: "forex", timezone: TZ });
+    expect(notificationService.notifyUser).not.toHaveBeenCalled();
+    expect(enqueueSmartNotificationChecks).not.toHaveBeenCalled();
+  });
+
+  it("the worker skips a trade that was edited into the past", async () => {
+    const old = trade({ profit: -50, tradeDate: new Date(NOW.getTime() - 3 * 24 * 3600e3) });
+    await expect(runAsyncChecks({ userId: USER, trade: old, marketType: "Forex", collection: "forex", timezone: TZ }))
+      .resolves.toEqual({ skipped: "old_trade" });
+  });
+
+  it("a trade from earlier today still counts", async () => {
+    await evaluateSmartNotifications({ userId: USER, trade: trade({ stopLoss: null, tradeDate: new Date(NOW.getTime() - 6 * 3600e3) }), marketType: "Forex", collection: "forex", timezone: TZ });
+    expect(sentTypes()).toContain("no_stop_loss");
+  });
+
+  it("uses the user's own timezone when the caller passes none", async () => {
+    await evaluateSmartNotifications({ userId: USER, trade: trade(), marketType: "Forex", collection: "forex" });
+    expect(enqueueSmartNotificationChecks).toHaveBeenCalledWith(expect.objectContaining({ timezone: "Europe/London" }));
+  });
+});
+
+describe("money in alert copy", () => {
+  it("shows the market's currency on loss amounts", () => {
+    expect(formatMoney(-1523.5, "indian")).toBe("−₹1,523.50");
+    expect(formatMoney(-12.3, "forex")).toBe("−$12.30");
   });
 });

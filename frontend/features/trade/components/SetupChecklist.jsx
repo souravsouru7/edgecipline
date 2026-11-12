@@ -19,11 +19,11 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
 
   const quality = (() => {
     if (score === null) return null;
-    if (score >= 100) return { label: "A+", color: "#0D9E6E", bg: "#ECFDF5" };
-    if (score >= 80)  return { label: "A",  color: "#10B981", bg: "#F0FDF4" };
-    if (score >= 60)  return { label: "B",  color: "#B8860B", bg: "#FFFBEB" };
-    if (score >= 40)  return { label: "C",  color: "#F59E0B", bg: "#FFF7ED" };
-    return { label: "D", color: "#D63B3B", bg: "#FEF2F2" };
+    if (score >= 100) return { label: "A+", color: "var(--lg-green, #0D9E6E)", bg: "var(--lg-green-soft, #ECFDF5)" };
+    if (score >= 80)  return { label: "A",  color: "var(--lg-green, #10B981)", bg: "var(--lg-green-soft, #F0FDF4)" };
+    if (score >= 60)  return { label: "B",  color: "var(--lg-gold, #B8860B)", bg: "var(--lg-gold-soft, #FFFBEB)" };
+    if (score >= 40)  return { label: "C",  color: "var(--lg-gold, #F59E0B)", bg: "var(--lg-gold-soft, #FFF7ED)" };
+    return { label: "D", color: "var(--lg-red, #D63B3B)", bg: "var(--lg-red-soft, #FEF2F2)" };
   })();
 
   return (
@@ -32,16 +32,16 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {quality && (
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: quality.bg, border: `1.5px solid ${quality.color}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: quality.color, fontFamily: "'JetBrains Mono',monospace" }}>{quality.label}</span>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: quality.bg, border: `1.5px solid color-mix(in srgb, ${quality.color} 20%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: quality.color, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>{quality.label}</span>
             </div>
           )}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#0F1923", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--lg-ink, #0F1923)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)" }}>
               {score !== null ? `${followedCount}/${activeRules.length} Rules Followed` : "No rules defined"}
             </div>
             {score !== null && (
-              <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>Setup score: {score}%</div>
+              <div style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>Setup score: {score}%</div>
             )}
           </div>
         </div>
@@ -49,19 +49,19 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
           <button
             type="button"
             onClick={onClear}
-            style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", background: "none", border: "1px solid #E2E8F0", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
+            style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-muted, #94A3B8)", background: "none", border: "1px solid var(--lg-line, #E2E8F0)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.08em" }}
           >CLEAR</button>
           <button
             type="button"
             onClick={onAdd}
-            style={{ fontSize: "var(--fs-2xs)", color: "#0D9E6E", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.25)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em" }}
+            style={{ fontSize: "var(--fs-2xs)", color: "var(--lg-green, #0D9E6E)", background: "rgba(13,158,110,0.08)", border: "1px solid rgba(13,158,110,0.25)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.08em" }}
           >+ RULE</button>
         </div>
       </div>
 
       {/* Rules list */}
       {rules.length === 0 ? (
-        <div style={{ padding: "16px", textAlign: "center", color: "#94A3B8", fontSize: 11, fontFamily: "'Plus Jakarta Sans',sans-serif", background: "#F8FAFC", borderRadius: 8, border: "1px dashed #E2E8F0" }}>
+        <div style={{ padding: "16px", textAlign: "center", color: "var(--lg-muted, #94A3B8)", fontSize: 11, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", background: "var(--lg-soft, #F8FAFC)", borderRadius: 8, border: "1px dashed var(--lg-line, #E2E8F0)" }}>
           Select a strategy above to load its rules, or click + RULE to add manually.
         </div>
       ) : (
@@ -69,12 +69,12 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
           {rules.map(rule => (
             <div
               key={rule.id}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: rule.followed ? "#ECFDF5" : "#F8FAFC", border: `1px solid ${rule.followed ? "#A7F3D0" : "#E2E8F0"}`, transition: "all 0.2s" }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: rule.followed ? "var(--lg-green-soft, #ECFDF5)" : "var(--lg-soft, #F8FAFC)", border: `1px solid ${rule.followed ? "var(--lg-green-line, #A7F3D0)" : "var(--lg-line, #E2E8F0)"}`, transition: "all 0.2s" }}
             >
               {/* Checkbox */}
               <div
                 onClick={() => { void tapLight(); onToggle(rule.id); }}
-                style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${rule.followed ? "#0D9E6E" : "#CBD5E1"}`, background: rule.followed ? "#0D9E6E" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "all 0.2s" }}
+                style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${rule.followed ? "var(--lg-green, #0D9E6E)" : "var(--lg-line-strong, #CBD5E1)"}`, background: rule.followed ? "var(--lg-green, #0D9E6E)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "all 0.2s" }}
               >
                 {rule.followed && (
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5">
@@ -88,12 +88,12 @@ export default function SetupChecklist({ rules, onToggle, onUpdateLabel, onAdd, 
                 value={rule.label}
                 onChange={e => onUpdateLabel(rule.id, e.target.value)}
                 placeholder="Describe this rule..."
-                style={{ flex: 1, fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 12, color: "#0F1923", background: "transparent", border: "none", outline: "none", textDecoration: rule.followed ? "line-through" : "none", opacity: rule.followed ? 0.6 : 1 }}
+                style={{ flex: 1, fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", fontSize: 12, color: "var(--lg-ink, #0F1923)", background: "transparent", border: "none", outline: "none", textDecoration: rule.followed ? "line-through" : "none", opacity: rule.followed ? 0.6 : 1 }}
               />
 
               {/* Status badge */}
               {rule.label && rule.label.trim() && (
-                <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.1em", color: rule.followed ? "#0D9E6E" : "#94A3B8", fontFamily: "'JetBrains Mono',monospace" }}>
+                <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 700, letterSpacing: "0.1em", color: rule.followed ? "var(--lg-green, #0D9E6E)" : "var(--lg-muted, #94A3B8)", fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                   {rule.followed ? "✓ FOLLOWED" : "PENDING"}
                 </span>
               )}

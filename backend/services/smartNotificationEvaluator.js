@@ -35,6 +35,68 @@ function getTradeTimestamp(trade) {
   return asDate(trade.tradeDate || trade.createdAt);
 }
 
+// These alerts talk in the present tense ("Step away now"). Editing or
+// back-logging a trade from weeks ago used to fire them today. 36h rather
+// than "same local day" because some imports store tradeDate as UTC midnight,
+// which is the previous evening for users west of UTC.
+const RECENT_TRADE_WINDOW_MS = 36 * 60 * 60 * 1000;
+
+function isRecentTrade(trade, now = Date.now()) {
+  const ts = getTradeTimestamp(trade).getTime();
+  return Number.isFinite(ts) && now - ts <= RECENT_TRADE_WINDOW_MS;
+}
+
+// "−$123.45" / "−₹1,523.50". Loss amounts used to be bare numbers.
+function formatMoney(amount, collection) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "";
+  const indian = collection === "indian";
+  const body = Math.abs(n).toLocaleString(indian ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? "−" : ""}${indian ? "₹" : "$"}${body}`;
+}
+
+// Trade-save callers never pass a timezone, so every user was evaluated on
+// IST. Fall back to the user's own (set from the device on push registration).
+async function lookupUserTimezone(userId) {
+  try {
+    const User = require("../models/Users");
+    const user = await User.findById(userId).select("streaks.timezone").lean();
+    return user?.streaks?.timezone || null;
+  } catch {
+    return null;
+  }
+}
+
+// The user's own limits for this trade's market ({ dailyLossLimit,
+// maxTradesPerDay }, each null when unset), or null if they can't be read.
+function riskLimitsMarket(collection) {
+  return collection === "indian" ? "Indian_Market" : "Forex";
+}
+
+function sanitizeLimits(block) {
+  const loss = Number(block?.dailyLossLimit);
+  const trades = Number(block?.maxTradesPerDay);
+  return {
+    dailyLossLimit: block?.dailyLossLimit != null && Number.isFinite(loss) && loss > 0 ? loss : null,
+    maxTradesPerDay: block?.maxTradesPerDay != null && Number.isInteger(trades) && trades > 0 ? trades : null,
+  };
+}
+
+async function lookupRiskLimits(userId, collection) {
+  if (!userId) return null;
+  try {
+    const User = require("../models/Users");
+    const user = await User.findById(userId).select("riskLimits").lean();
+    return sanitizeLimits(user?.riskLimits?.[riskLimitsMarket(collection)]);
+  } catch (error) {
+    logger.warn("[RiskLimits] lookup failed; limit checks fall back", {
+      userId: userId?.toString?.(),
+      error: error.message,
+    });
+    return null;
+  }
+}
+
 function logDedupeKey({ userId, type, timezone, timestamp, dateKey, dedupeKey, windowKey }) {
   logger.info("[TimezoneDedup] dedupe key generated", {
     userId: userId?.toString?.(),
@@ -112,11 +174,21 @@ async function safeNotify(userId, payload) {
 // this directly from request handlers; always enqueue so failures survive
 // restart and get retried with exponential backoff.
 async function runAsyncChecks(payload) {
+  // The trade is re-read by the worker; an edit may have moved it into the past.
+  if (payload?.trade && !isRecentTrade(payload.trade)) {
+    return { skipped: "old_trade" };
+  }
+  // Loaded once for both limit checks. A failed read leaves riskLimits null:
+  // the loss check then stays silent and overtrading falls back to averages.
+  const riskLimits = payload?.riskLimits !== undefined
+    ? payload.riskLimits
+    : await lookupRiskLimits(payload?.userId, payload?.collection);
+  const withLimits = { ...payload, riskLimits };
   const results = await Promise.allSettled([
     checkRevengeTrading(payload),
-    checkOvertrading(payload),
+    checkOvertrading(withLimits),
     checkRepeatedMistake(payload),
-    checkDailyLossWarning(payload),
+    checkDailyLossWarning(withLimits),
     checkConfidenceReminder(payload),
   ]);
 
@@ -248,7 +320,7 @@ async function checkSetupDisciplineDrop({ userId, trade, collection, marketType,
   const notification = await safeNotify(userId, {
     type:       "setup_discipline",
     title:      "Your edge is slipping.",
-    body:       `Checklist score ${score}% — below your minimum. You're entering without confirmation. Wait for your A+ setup.`,
+    body:       `Checklist score ${Math.round(score)}% — below your minimum. You're entering without confirmation. Wait for your A+ setup.`,
     sourceType: "trade",
     sourceId:   trade._id,
     dedupeKey,
@@ -394,6 +466,7 @@ async function checkRevengeTrading({ userId, trade, collection, marketType, time
   const dateKey = getLocalDateKey(timestamp, timezone);
   const links   = getDeepLinks(trade, collection);
   const totalLoss = recentTrades.reduce((sum, t) => sum + Number(t.profit), 0).toFixed(2);
+  const totalLossLabel = formatMoney(totalLoss, collection);
   const dedupeKey = `revenge-warning:${userId}:${marketType}:${dateKey}`;
 
   logDedupeKey({ userId, type: "revenge_trading", timezone, timestamp, dateKey, dedupeKey });
@@ -401,7 +474,7 @@ async function checkRevengeTrading({ userId, trade, collection, marketType, time
   await safeNotify(userId, {
     type:       "revenge_trading",
     title:      "Stop. Breathe. Think.",
-    body:       `3 consecutive losses (${totalLoss}). The market will still be here tomorrow. Your capital might not be. Step away now.`,
+    body:       `3 losses in a row (${totalLossLabel}). The market will still be here tomorrow. Step away and reset before the next trade.`,
     sourceType: "trade",
     sourceId:   trade._id,
     dedupeKey,
@@ -416,12 +489,52 @@ async function checkRevengeTrading({ userId, trade, collection, marketType, time
   });
 }
 
-// ─── 5. Overtrading Alert ─────────────────────────────────────────────────────
-async function checkOvertrading({ userId, trade, collection, marketType, timezone }) {
+// ─── 5. Overtrading / Max Trades Per Day ──────────────────────────────────────
+// With a user-set max trades per day: alert when today's count reaches it and
+// again when it goes over (once each per day). Without one: the older check
+// against the user's own 30-day average.
+async function checkOvertrading({ userId, trade, collection, marketType, timezone, riskLimits }) {
   const Model = getTradeModel(collection);
   const now   = getTradeTimestamp(trade);
-  const since = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const { start, end } = getDayRange(now, timezone);
+  const dateKey = getLocalDateKey(now, timezone);
+  const links   = getDeepLinks(trade, collection);
+  const maxTrades = riskLimits?.maxTradesPerDay || null;
 
+  if (maxTrades) {
+    // Every trade counts toward the limit, including ones without a P&L yet.
+    const todayCount = await Model.countDocuments({ ...baseTradeQuery(userId, collection, marketType), tradeDate: { $gte: start, $lt: end } });
+    if (todayCount < maxTrades) return;
+
+    const over  = todayCount > maxTrades;
+    const level = over ? "over" : "reached";
+    const dedupeKey = `trade-limit:${level}:${userId}:${marketType}:${dateKey}`;
+    logDedupeKey({ userId, type: "overtrading", timezone, timestamp: now, dateKey, dedupeKey });
+
+    await safeNotify(userId, {
+      type:       "overtrading",
+      title:      over ? "Over your trade limit." : "Trade limit reached.",
+      body:       over
+        ? `${todayCount} trades today. Your limit is ${maxTrades} per day. Close the platform and review instead.`
+        : `That's ${todayCount} of your ${maxTrades} trades for today. Your rule says you're done.`,
+      sourceType: "trade",
+      sourceId:   trade._id,
+      dedupeKey,
+      deepLink:   links.listToday,
+      priority:   "high",
+      data: {
+        screen:      collection === "indian" ? "indian-trades" : "trades",
+        filter:      "today",
+        todayCount:  String(todayCount),
+        threshold:   String(maxTrades),
+        limitSource: "user",
+        marketType,
+      },
+    });
+    return;
+  }
+
+  const since = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
   const dailyCounts = await Model.aggregate([
     { $match: { ...baseTradeQuery(userId, collection, marketType), tradeDate: { $gte: since, $lt: now } } },
     { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$tradeDate", timezone } }, count: { $sum: 1 } } },
@@ -433,13 +546,10 @@ async function checkOvertrading({ userId, trade, collection, marketType, timezon
 
   const average   = dailyCounts.reduce((sum, item) => sum + item.count, 0) / dailyCounts.length;
   const threshold = Math.max(Math.ceil(average * 1.5), Math.ceil(average + 2), 5);
-  const { start, end } = getDayRange(now, timezone);
   const todayCount = await Model.countDocuments({ ...baseTradeQuery(userId, collection, marketType), tradeDate: { $gte: start, $lt: end } });
 
   if (todayCount <= threshold) return;
 
-  const dateKey = getLocalDateKey(now, timezone);
-  const links   = getDeepLinks(trade, collection);
   const dedupeKey = `overtrading:${userId}:${marketType}:${dateKey}`;
 
   logDedupeKey({ userId, type: "overtrading", timezone, timestamp: now, dateKey, dedupeKey });
@@ -492,7 +602,7 @@ async function checkRepeatedMistake({ userId, trade, collection, marketType, tim
   await safeNotify(userId, {
     type:       "repeated_mistake",
     title:      "Pattern detected. Time to break it.",
-    body:       `"${mistakeLabel}" has appeared ${count}× this week. Top traders eliminate one error pattern per week. This is yours.`,
+    body:       `"${mistakeLabel}" has appeared ${count}× this week. Pick one rule that stops it and apply it on your next trade.`,
     sourceType: "trade",
     sourceId:   trade._id,
     dedupeKey,
@@ -507,9 +617,17 @@ async function checkRepeatedMistake({ userId, trade, collection, marketType, tim
   });
 }
 
-// ─── 7. Daily Loss / Risk Management Warning ──────────────────────────────────
-async function checkDailyLossWarning({ userId, trade, collection, marketType, timezone }) {
-  if (Number(trade.profit) >= 0) return;
+// ─── 7. Daily Loss Limit ──────────────────────────────────────────────────────
+// Only against the limit the user set. The old version compared today's loss
+// with the average of today's own losing trades, so any two losses fired it.
+// No limit set → no alert; the trade screens ask the user to set one.
+const DAILY_LOSS_WARN_RATIO = 0.8;
+
+async function checkDailyLossWarning({ userId, trade, collection, marketType, timezone, riskLimits }) {
+  // A win or a trade without P&L can only keep the day where it was.
+  if (!(Number(trade.profit) < 0)) return;
+  const limit = riskLimits?.dailyLossLimit || null;
+  if (!limit) return;
 
   const Model = getTradeModel(collection);
   const timestamp = getTradeTimestamp(trade);
@@ -521,28 +639,32 @@ async function checkDailyLossWarning({ userId, trade, collection, marketType, ti
     profit:    { $ne: null },
   }).select("profit").lean();
 
-  if (dayTrades.length < 2) return;
+  // Net P&L: wins earlier in the day count toward the limit.
+  const net = dayTrades.reduce((sum, t) => {
+    const p = Number(t.profit);
+    return Number.isFinite(p) ? sum + p : sum;
+  }, 0);
+  if (!(net < 0)) return;
 
-  const totalLoss  = dayTrades.reduce((sum, t) => sum + Number(t.profit), 0);
-  if (totalLoss >= 0) return;
+  const used = -net / limit;
+  if (used < DAILY_LOSS_WARN_RATIO) return;
 
-  // Warn when today's drawdown exceeds 2× the average single-trade loss
-  const losses     = dayTrades.map((t) => Number(t.profit)).filter((p) => p < 0);
-  if (losses.length < 2) return;
-  const avgLoss    = losses.reduce((s, v) => s + v, 0) / losses.length;
-  const threshold  = avgLoss * 2; // threshold is negative
-  if (totalLoss > threshold) return; // not bad enough yet
-
-  const dateKey = getLocalDateKey(timestamp, timezone);
-  const links   = getDeepLinks(trade, collection);
-  const dedupeKey = `daily-loss:${userId}:${marketType}:${dateKey}`;
+  const hit       = used >= 1;
+  const level     = hit ? "100" : "80";
+  const dateKey   = getLocalDateKey(timestamp, timezone);
+  const links     = getDeepLinks(trade, collection);
+  const dedupeKey = `daily-loss:${level}:${userId}:${marketType}:${dateKey}`;
+  const netLabel   = formatMoney(net, collection);
+  const limitLabel = formatMoney(limit, collection);
 
   logDedupeKey({ userId, type: "daily_loss_warning", timezone, timestamp, dateKey, dedupeKey });
 
   await safeNotify(userId, {
     type:       "daily_loss_warning",
-    title:      "Capital protection mode.",
-    body:       `Today's drawdown: ${totalLoss.toFixed(2)}. You're approaching your daily limit. One more bad trade could set back a week of gains. Consider stopping here.`,
+    title:      hit ? "Daily loss limit hit." : "Close to your daily loss limit.",
+    body:       hit
+      ? `You're at ${netLabel} today. Your limit is ${limitLabel}. Your rule says stop trading for today.`
+      : `You're at ${netLabel} today, ${Math.floor(used * 100)}% of your ${limitLabel} limit. Slow down before the next trade.`,
     sourceType: "trade",
     sourceId:   trade._id,
     dedupeKey,
@@ -551,7 +673,9 @@ async function checkDailyLossWarning({ userId, trade, collection, marketType, ti
     data: {
       screen:     collection === "indian" ? "indian-trades" : "trades",
       filter:     "today",
-      totalLoss:  String(totalLoss.toFixed(2)),
+      totalLoss:  String(net.toFixed(2)),
+      limit:      String(limit),
+      level,
       marketType,
     },
   });
@@ -605,7 +729,15 @@ async function checkConfidenceReminder({ userId, trade, collection, marketType, 
 async function evaluateSmartNotifications({ userId, trade, marketType = "Forex", collection = "forex", timezone }) {
   if (!userId || !trade || !trade._id) return;
   const plainTrade = typeof trade.toObject === "function" ? trade.toObject() : trade;
-  const notificationTimezone = getNotificationTimezone(timezone);
+  if (!isRecentTrade(plainTrade)) {
+    logger.info("SMART_NOTIFICATION_SKIPPED_OLD_TRADE", {
+      userId: userId?.toString?.(),
+      tradeId: plainTrade._id?.toString?.(),
+      tradeTimestamp: getTradeTimestamp(plainTrade).toISOString(),
+    });
+    return;
+  }
+  const notificationTimezone = getNotificationTimezone(timezone || (await lookupUserTimezone(userId)));
   const payload = { userId, trade: plainTrade, collection, marketType, timezone: notificationTimezone };
 
   // Synchronous checks — fast, no DB-heavy aggregations; run before responding.
@@ -671,6 +803,8 @@ async function notifyWeeklyInsight({ userId, report, marketType = "Forex" }) {
 }
 
 module.exports = {
+  formatMoney,
+  isRecentTrade,
   evaluateSmartNotifications,
   runAsyncChecks,
   notifyWeeklyInsight,

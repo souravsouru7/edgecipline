@@ -34,7 +34,7 @@ function milestoneCopy(days) {
     case 30:  return { title: "🔥 30-day milestone", body: "A full month of consistency. You're operating at a different level now." };
     case 60:  return { title: "🔥 60 days",          body: "Two months. You're not journaling — you're building an edge." };
     case 100: return { title: "🔥 100 days",         body: "Triple digits. Less than 1% of traders ever protect their discipline this long." };
-    case 180: return { title: "🔥 6 months",         body: "Half a year of disciplined execution. The market rewards this." };
+    case 180: return { title: "🔥 6 months",         body: "Half a year of disciplined execution. That's a habit now." };
     case 365: return { title: "🔥 One full year",    body: "365 days. You've outlasted entire trading careers. Keep going." };
     default:  return { title: `🔥 ${pluralizeDays(days)}`, body: "You've protected your streak. Keep showing up." };
   }

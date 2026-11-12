@@ -266,9 +266,9 @@ function Page() {
         <div style={{
           padding: "14px",
           borderRadius: 12,
-          background: "rgba(34,199,142,0.08)",
-          border: "1px solid rgba(34,199,142,0.22)",
-          color: "#CBD5E1",
+          background: "color-mix(in srgb, var(--ec-accent) 8%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--ec-accent) 22%, transparent)",
+          color: "var(--ec-text-2)",
           fontSize: 12,
           lineHeight: 1.6,
         }}>
@@ -291,7 +291,7 @@ function ShellLoading({ label = "Getting your setup ready" }) {
     width,
     height,
     borderRadius: 999,
-    background: "rgba(255,255,255,0.07)",
+    background: "color-mix(in srgb, var(--ec-text) 7%, transparent)",
     animation: "onboardingPulse 1.4s ease-in-out infinite",
     ...extra,
   });
@@ -302,8 +302,8 @@ function ShellLoading({ label = "Getting your setup ready" }) {
       aria-label={label}
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg, #0F1923 0%, #182333 100%)",
-        color: "#F1F5F9",
+        background: "var(--ec-bg)",
+        color: "var(--ec-text)",
         fontFamily: "var(--font-plus-jakarta-sans)",
         display: "flex",
         flexDirection: "column",
@@ -323,7 +323,7 @@ function ShellLoading({ label = "Getting your setup ready" }) {
         {/* Topmost element of the full-screen skeleton, so it owns the top inset.
             max() keeps the existing 20px rhythm off iOS. */}
         <header style={{ padding: "max(20px, env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) 0 calc(24px + env(safe-area-inset-left, 0px))", display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 10, background: "rgba(34,199,142,0.18)" }} />
+          <span style={{ width: 30, height: 30, borderRadius: 10, background: "color-mix(in srgb, var(--ec-accent) 18%, transparent)" }} />
           <div style={{ display: "grid", gap: 6 }}>
             <div style={bar(72, 9)} />
             <div style={bar(96, 12)} />
@@ -341,8 +341,8 @@ function ShellLoading({ label = "Getting your setup ready" }) {
           <section style={{
             width: "100%",
             maxWidth: 520,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "color-mix(in srgb, var(--ec-text) 2%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--ec-text) 8%, transparent)",
             borderRadius: 18,
             padding: "26px 24px 24px",
             display: "grid",

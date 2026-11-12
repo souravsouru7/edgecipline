@@ -127,7 +127,7 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
           onClick={(event) => event.stopPropagation()}
           className="last-free-trade-sheet"
           style={{
-            background: "#FFFFFF",
+            background: "var(--lg-card, #FFFFFF)",
             borderRadius: "22px 22px 0 0",
             padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))",
             width: "100%",
@@ -135,30 +135,30 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
             maxHeight: "88vh",
             overflowY: "auto",
             boxShadow: "0 -20px 60px -20px rgba(0,0,0,0.35)",
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
           }}
         >
-          <div aria-hidden="true" style={{ width: 40, height: 4, borderRadius: 999, background: "#E2E8F0", margin: "0 auto 16px" }} />
+          <div aria-hidden="true" style={{ width: 40, height: 4, borderRadius: 999, background: "var(--lg-line, #E2E8F0)", margin: "0 auto 16px" }} />
 
           <div style={{
             display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em",
-            color: "#0D9E6E", background: "rgba(13,158,110,0.12)",
+            color: "var(--lg-green, #0D9E6E)", background: "rgba(13,158,110,0.12)",
             borderRadius: 999, padding: "4px 10px", marginBottom: 12,
           }}>
             TRADE SAVED
           </div>
 
-          <h2 id="last-free-trade-title" style={{ fontSize: 20, fontWeight: 800, color: "#0F1923", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
+          <h2 id="last-free-trade-title" style={{ fontSize: 20, fontWeight: 800, color: "var(--lg-ink, #0F1923)", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
             You&apos;ve used your free trades
           </h2>
-          <p id="last-free-trade-desc" style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
+          <p id="last-free-trade-desc" style={{ fontSize: 13, color: "var(--lg-sub, #475569)", lineHeight: 1.6, margin: "0 0 16px" }}>
             That was your last of {limit} free {label} trades. Everything you&apos;ve logged stays here to read any time.
           </p>
 
           {loading ? (
             <div aria-busy="true" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
               {[0, 1].map((i) => (
-                <div key={i} style={{ height: 68, borderRadius: 14, background: "linear-gradient(90deg,#F1F5F9,#E2E8F0,#F1F5F9)" }} />
+                <div key={i} style={{ height: 68, borderRadius: 14, background: "linear-gradient(90deg,var(--lg-line, #F1F5F9),var(--lg-line, #E2E8F0),var(--lg-line, #F1F5F9))" }} />
               ))}
             </div>
           ) : trades.length > 0 ? (
@@ -177,8 +177,8 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
               onClick={handleUnlock}
               style={{
                 width: "100%", padding: 14,
-                background: "linear-gradient(135deg, #0F1923 0%, #1e293b 100%)",
-                color: "#FFFFFF", border: "none", borderRadius: 12,
+                background: "linear-gradient(135deg, var(--lg-ink, #0F1923) 0%, var(--lg-ink, #1e293b) 100%)",
+                color: "var(--lg-card, #FFFFFF)", border: "none", borderRadius: 12,
                 fontSize: 14, fontWeight: 800, cursor: "pointer",
                 fontFamily: "inherit",
               }}
@@ -186,7 +186,7 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
               Unlock Premium
             </button>
           ) : (
-            <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, margin: "0 0 4px", textAlign: "center" }}>
+            <p style={{ fontSize: 12, color: "var(--lg-sub, #64748B)", lineHeight: 1.6, margin: "0 0 4px", textAlign: "center" }}>
               {/* No in-app purchase here, so no pointer to buying elsewhere (App Store 3.1.1). */}
               Upgrades aren&apos;t available right now.
             </p>
@@ -197,7 +197,7 @@ export default function LastFreeTradeSheet({ open, quota, onClose, onUpgraded })
             onClick={handleLater}
             style={{
               width: "100%", padding: 12, marginTop: 8,
-              background: "transparent", color: "#64748B",
+              background: "transparent", color: "var(--lg-sub, #64748B)",
               border: "none", borderRadius: 12,
               fontSize: 13, fontWeight: 700, cursor: "pointer",
               fontFamily: "inherit",

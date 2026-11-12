@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { success as hapticSuccess } from "@/utils/haptics";
 import Link from "next/link";
+import { Flame, Sparkles, CheckCircle2, Plus, Moon } from "lucide-react";
 import PageHeader from "@/features/shared/components/PageHeader";
+import { Button, Card, CardHeader, EmptyState, ErrorState, Input, Placeholder } from "@/features/shared/components/ui";
 import { useStreaks, useMarkNoTradeToday } from "@/features/streaks/hooks/useStreaks";
 import StreakCalendar from "@/features/streaks/components/StreakCalendar";
 import StreakMilestones from "@/features/streaks/components/StreakMilestones";
@@ -10,228 +13,176 @@ import { MARKETS, useMarket } from "@/context/MarketContext";
 
 export default function StreaksPage() {
   const { currentMarket } = useMarket();
-  const tradeEntryHref = currentMarket === MARKETS.INDIAN_MARKET
-    ? "/indian-market/add-trade"
-    : "/add-trade";
-  const { data, isLoading, error } = useStreaks(90);
+  const tradeEntryHref = currentMarket === MARKETS.INDIAN_MARKET ? "/indian-market/add-trade" : "/add-trade";
+  const { data, isLoading, error, refetch } = useStreaks(90);
   const markNoTrade = useMarkNoTradeToday();
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
 
-  if (isLoading) return <PageShell><LoadingState /></PageShell>;
-  if (error)     return <PageShell><ErrorState /></PageShell>;
-  if (!data)     return <PageShell><EmptyState /></PageShell>;
+  let body;
+  if (isLoading) {
+    body = (
+      <div className="ec-disc__stack" aria-busy="true">
+        <Placeholder height={170} radius={16} />
+        <Placeholder height={110} radius={16} />
+        <Placeholder height={190} radius={16} />
+      </div>
+    );
+  } else if (error) {
+    body = <Card><ErrorState title="Couldn't load streaks" onRetry={() => refetch?.()} /></Card>;
+  } else if (!data) {
+    body = (
+      <Card>
+        <EmptyState
+          icon={<Flame size={22} />}
+          title="No streaks yet"
+          body="Log your first trade to start one."
+          action={<Button as={Link} href={tradeEntryHref} icon={<Plus size={16} />}>Log a trade</Button>}
+        />
+      </Card>
+    );
+  } else {
+    const journal = data.journal || { current: 0, longest: 0, atRisk: false, recoveryAvailable: true };
+    const checklist = data.checklist || { current: 0, longest: 0 };
+    const rule = data.rule || { current: 0, longest: 0, threshold: 70 };
+    const calendar = data.calendar || [];
+    const milestones = data.milestones || [];
+    const todayCell = calendar.find((c) => c.day === data.todayKey);
+    const alreadyLoggedToday = !!todayCell && todayCell.qualifiesJournal;
+    const live = journal.current > 0;
 
-  const journal = data.journal || { current: 0, longest: 0, atRisk: false, recoveryAvailable: true };
-  const checklist = data.checklist || { current: 0, longest: 0 };
-  const rule = data.rule || { current: 0, longest: 0, threshold: 70 };
-  const calendar = data.calendar || [];
-  const milestones = data.milestones || [];
-  const todayKey = data.todayKey;
-  const todayCell = calendar.find((c) => c.day === todayKey);
-  const alreadyLoggedToday = !!todayCell && todayCell.qualifiesJournal;
+    const saveSatOut = () =>
+      markNoTrade.mutate(
+        { note, market: currentMarket },
+        { onSuccess: () => { void hapticSuccess(); setNoteOpen(false); setNote(""); } }
+      );
 
-  return (
-    <PageShell>
-      {/* ── Hero block ─────────────────────────────────────────────── */}
-      <section style={heroCard}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-          <div style={{
-            fontSize: 64, fontWeight: 800, lineHeight: 1,
-            color: journal.current > 0 ? "#F59E0B" : "#94A3B8",
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
-            {journal.current > 0 ? "🔥" : "✨"}
-            <span style={{ marginLeft: 12 }}>{journal.current}</span>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 0.15, color: "#7A3E0B", textTransform: "uppercase" }}>
-              Discipline Streak
+    body = (
+      <div className="ec-disc__stack">
+        <Card>
+          <div className="ec-streak__hero">
+            <div className={`ec-streak__count${live ? " is-live" : ""}`} aria-label={`${journal.current} day streak`}>
+              {live ? <Flame size={34} aria-hidden="true" /> : <Sparkles size={30} aria-hidden="true" />}
+              <span>{journal.current}</span>
             </div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0F1923", margin: "6px 0 4px" }}>
-              {headlineFor(journal)}
-            </h1>
-            <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 520 }}>
-              {subFor(journal, alreadyLoggedToday)}
-            </p>
+            <div style={{ minWidth: 0 }}>
+              <div className="ec-disc__eyebrow" style={{ marginBottom: 4 }}>Discipline streak</div>
+              <h2 className="ec-streak__headline">{headlineFor(journal)}</h2>
+              <p className="ec-streak__sub">{subFor(journal, alreadyLoggedToday)}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Action row — never punitive. Two clear options. */}
-        {!alreadyLoggedToday && (
-          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-            <Link href={tradeEntryHref} style={primaryButton}>
-              Log a trade — 30 sec
-            </Link>
-            <button onClick={() => setNoteOpen(!noteOpen)} style={secondaryButton} type="button">
-              I sat out today
-            </button>
-          </div>
-        )}
+          {/* Never punitive: two clear ways to keep today. */}
+          {!alreadyLoggedToday && !noteOpen && (
+            <div className="ec-streak__actions">
+              <Button as={Link} href={tradeEntryHref} icon={<Plus size={16} />}>Log a trade</Button>
+              <Button variant="secondary" icon={<Moon size={16} />} onClick={() => setNoteOpen(true)}>
+                I sat out today
+              </Button>
+            </div>
+          )}
 
-        {noteOpen && !alreadyLoggedToday && (
-          <div style={{ marginTop: 14, padding: 14, background: "#FEF3C7", borderRadius: 10, border: "1px solid #FBBF24" }}>
-            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#7A3E0B", fontWeight: 700 }}>
-              {"Mark today as \"Sat Out\" — keeps your streak alive without trading."}
-            </p>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, 280))}
-              placeholder="Optional: why you sat out (e.g. no setup, high impact news)"
-              style={{ width: "100%", padding: "8px 10px", border: "1px solid #FBBF24", borderRadius: 8, fontSize: 13, marginBottom: 10 }}
+          {noteOpen && !alreadyLoggedToday && (
+            <div className="ec-streak__satout">
+              <p className="ec-streak__satout-title">Mark today as “Sat out”. It keeps your streak without trading.</p>
+              <Input
+                aria-label="Why you sat out (optional)"
+                value={note}
+                maxLength={280}
+                onChange={(e) => setNote(e.target.value.slice(0, 280))}
+                placeholder="Optional: why (no setup, high-impact news…)"
+              />
+              {markNoTrade.isError && (
+                <p className="ec-streak__err" role="alert">{"Couldn't save. Try again."}</p>
+              )}
+              <div className="ec-streak__actions" style={{ marginTop: 10 }}>
+                <Button onClick={saveSatOut} loading={markNoTrade.isPending}>Mark sat out</Button>
+                <Button variant="ghost" onClick={() => setNoteOpen(false)} disabled={markNoTrade.isPending}>Cancel</Button>
+              </div>
+            </div>
+          )}
+
+          {alreadyLoggedToday && (
+            <div className="ec-streak__done" role="status">
+              <CheckCircle2 size={16} aria-hidden="true" /> Today is locked in. See you tomorrow.
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Milestones" subtitle="Lit cells are streaks you have already protected" />
+          <StreakMilestones milestones={milestones} current={journal.current} longest={journal.longest} />
+        </Card>
+
+        <Card>
+          <CardHeader title="Last 12 weeks" subtitle="Every cell is a day you showed up, or didn't" />
+          <StreakCalendar calendar={calendar} />
+        </Card>
+
+        <Card>
+          <CardHeader title="Other discipline measures" />
+          <div className="ec-disc__grid">
+            <Metric
+              label="Checklist streak"
+              value={checklist.current}
+              sub={`Best ${checklist.longest}`}
+              hint="Trading days where you ran the pre-trade checklist."
             />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => markNoTrade.mutate({ note, market: currentMarket }, { onSuccess: () => { setNoteOpen(false); setNote(""); } })}
-                disabled={markNoTrade.isPending}
-                style={primaryButton}
-                type="button"
-              >
-                {markNoTrade.isPending ? "Saving…" : "Mark Sat Out"}
-              </button>
-              <button onClick={() => setNoteOpen(false)} style={secondaryButton} type="button">Cancel</button>
-            </div>
+            <Metric
+              label="Rule discipline streak"
+              value={rule.current}
+              sub={`Best ${rule.longest} · threshold ${rule.threshold}%`}
+              hint="Trades in a row where your setup score met your threshold."
+            />
           </div>
-        )}
-
-        {alreadyLoggedToday && (
-          <div style={{ marginTop: 18, padding: 12, background: "#ECFDF5", borderRadius: 10, border: "1px solid #A7F3D0", color: "#065F46", fontSize: 13, fontWeight: 700 }}>
-            ✅ Today is locked in. See you tomorrow.
-          </div>
-        )}
-      </section>
-
-      {/* ── Milestones strip ──────────────────────────────────────── */}
-      <section style={card}>
-        <SectionTitle title="Milestones" subtitle="Lit cells are streaks you have already protected" />
-        <StreakMilestones milestones={milestones} current={journal.current} longest={journal.longest} />
-      </section>
-
-      {/* ── Calendar ──────────────────────────────────────────────── */}
-      <section style={card}>
-        <SectionTitle title="Last 12 weeks" subtitle="Every cell is a day you showed up — or did not" />
-        <StreakCalendar calendar={calendar} />
-      </section>
-
-      {/* ── Other streaks ─────────────────────────────────────────── */}
-      <section style={card}>
-        <SectionTitle title="Other discipline measures" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 8 }}>
-          <MetricBlock
-            label="Checklist Streak"
-            value={checklist.current}
-            sub={`Best ${checklist.longest}`}
-            hint="Trading days where you ran the pre-trade checklist."
-          />
-          <MetricBlock
-            label="Rule Discipline Streak"
-            value={rule.current}
-            sub={`Best ${rule.longest} • threshold ${rule.threshold}%`}
-            hint="Consecutive trades where your setup score met your threshold."
-          />
-        </div>
-      </section>
-    </PageShell>
-  );
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function headlineFor(j) {
-  if (j.current >= 30) return "A full month of discipline.";
-  if (j.current >= 14) return "Two weeks of consistency.";
-  if (j.current >= 7)  return "A full week protected.";
-  if (j.current >= 3)  return "Momentum is building.";
-  if (j.current >= 1)  return "You're on day one.";
-  return "Start a new streak today.";
-}
-
-function subFor(j, alreadyLogged) {
-  if (alreadyLogged && j.current >= 1) {
-    return "You showed up today. The streak rolls on tomorrow.";
+        </Card>
+      </div>
+    );
   }
-  if (j.atRisk && j.current >= 1) {
-    return j.recoveryAvailable
-      ? "Your streak is safe if you log today — even a 'Sat Out' counts."
-      : "Log today to keep it alive.";
-  }
-  if (j.current === 0 && j.longest > 0) {
-    return `Your best run was ${j.longest} days. Today is day one of the next one.`;
-  }
-  return "One trade or one Sat Out is all today needs.";
-}
 
-// ── Layout primitives ───────────────────────────────────────────────────────
-
-function PageShell({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#0F1923" }}>
-      <PageHeader />
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
-        {children}
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Streaks" />
+      <main className="ec-page ec-disc">
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Streaks</h1>
+            <p className="ec-log__sub">Show up every trading day. A trade or a “Sat out” both count.</p>
+          </div>
+        </div>
+        {body}
       </main>
     </div>
   );
 }
 
-function SectionTitle({ title, subtitle }) {
+function headlineFor(j) {
+  if (j.current >= 30) return "A full month of discipline.";
+  if (j.current >= 14) return "Two weeks of consistency.";
+  if (j.current >= 7) return "A full week protected.";
+  if (j.current >= 3) return "Momentum is building.";
+  if (j.current >= 1) return "You're on day one.";
+  return "Start a new streak today.";
+}
+
+function subFor(j, alreadyLogged) {
+  if (alreadyLogged && j.current >= 1) return "You showed up today. The streak rolls on tomorrow.";
+  if (j.atRisk && j.current >= 1) {
+    return j.recoveryAvailable
+      ? "Your streak is safe if you log today. Even a “Sat out” counts."
+      : "Log today to keep it alive.";
+  }
+  if (j.current === 0 && j.longest > 0) return `Your best run was ${j.longest} days. Today is day one of the next one.`;
+  return "One trade or one “Sat out” is all today needs.";
+}
+
+function Metric({ label, value, sub, hint }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: "#0F1923" }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 3 }}>{subtitle}</div>}
+    <div className="ec-disc__tile">
+      <div className="ec-disc__tile-label">{label}</div>
+      <div className="ec-streak__metric">{value}</div>
+      <div className="ec-disc__row-meta">{sub}</div>
+      {hint && <div className="ec-disc__tile-text" style={{ marginTop: 6 }}>{hint}</div>}
     </div>
   );
 }
-
-function MetricBlock({ label, value, sub, hint }) {
-  return (
-    <div style={{ padding: "14px 16px", borderRadius: 12, background: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: 0.1, textTransform: "uppercase", fontWeight: 800 }}>{label}</div>
-      <div style={{ fontSize: 28, color: "#0F1923", fontWeight: 800, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{value}</div>
-      <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{sub}</div>
-      {hint && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 8, lineHeight: 1.5 }}>{hint}</div>}
-    </div>
-  );
-}
-
-function LoadingState() {
-  return <div style={{ ...card, padding: 30, textAlign: "center", color: "#94A3B8" }}>Loading streaks…</div>;
-}
-function ErrorState() {
-  return <div style={{ ...card, padding: 30, textAlign: "center", color: "#D63B3B" }}>{"Couldn't load streaks. Pull to refresh."}</div>;
-}
-function EmptyState() {
-  return (
-    <div style={{ ...card, padding: 30, textAlign: "center", color: "#64748B" }}>
-      No streaks yet. <Link href="/add-trade" style={{ color: "#0D9E6E", fontWeight: 700 }}>Log your first trade</Link> to begin.
-    </div>
-  );
-}
-
-// ── Styles ──────────────────────────────────────────────────────────────────
-
-const card = {
-  background: "#FFFFFF",
-  borderRadius: 14,
-  border: "1px solid #E2E8F0",
-  padding: 20,
-  boxShadow: "0 2px 12px rgba(15,25,35,0.04)",
-};
-
-const heroCard = {
-  ...card,
-  background: "linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 60%)",
-  borderColor: "#FCD34D",
-  padding: 24,
-};
-
-const primaryButton = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-  padding: "10px 16px", borderRadius: 10, background: "#0F1923", color: "#FFFFFF",
-  border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", textDecoration: "none",
-};
-const secondaryButton = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-  padding: "10px 16px", borderRadius: 10, background: "#FFFFFF", color: "#0F1923",
-  border: "1px solid #CBD5E1", fontWeight: 800, fontSize: 13, cursor: "pointer",
-};

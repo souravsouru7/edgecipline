@@ -7,10 +7,10 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { generateWeeklyFeedbackNow, listWeeklyReports } from "@/services/reportsApi";
 import { useMarket } from "@/context/MarketContext";
 import PageHeader from "@/features/shared/components/PageHeader";
-import IndianMarketHeader from "@/components/IndianMarketHeader";
+import { Button } from "@/features/shared/components/ui";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 
-const C = { bull: "#0D9E6E", bear: "#D63B3B", gold: "#B8860B", blue: "#3B82F6", purple: "#8B5CF6", primary: "#0F1923", muted: "#94A3B8" };
+const C = { bull: "var(--lg-green, #0D9E6E)", bear: "var(--lg-red, #D63B3B)", gold: "var(--lg-gold, #B8860B)", blue: "#3B82F6", purple: "#8B5CF6", primary: "var(--lg-ink, #0F1923)", muted: "var(--lg-muted, #94A3B8)" };
 
 // aiModel is set to one of these placeholder values whenever the shown
 // feedback isn't genuine model output (Gemini failed, the response didn't
@@ -272,9 +272,9 @@ function normalizeAiFeedback(raw) {
 
 function KpiCard({ label, value, color }) {
   return (
-    <div style={{ background: "#FAFAFA", borderRadius: 12, border: "1px solid #E8EDF2", padding: "14px 16px", minWidth: 0 }}>
+    <div style={{ background: "var(--lg-soft, #FAFAFA)", borderRadius: 12, border: "1px solid var(--lg-line, #E8EDF2)", padding: "14px 16px", minWidth: 0 }}>
       <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8 }}>{label.toUpperCase()}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: color || C.primary, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color || C.primary, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", lineHeight: 1 }}>{value}</div>
     </div>
   );
 }
@@ -286,8 +286,8 @@ function SummaryParagraph({ text }) {
   const body = isLabeled ? m[2] : text;
 
   return (
-    <div style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#F8FAFC", border: "1px solid #E8EDF2" }}>
-      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "#2D3748" }}>
+    <div style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "var(--lg-soft, #F8FAFC)", border: "1px solid var(--lg-line, #E8EDF2)" }}>
+      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "var(--lg-ink, #2D3748)" }}>
         {label ? <span style={{ fontWeight: 900, color: C.primary, marginRight: 6 }}>{label}</span> : null}
         {body}
       </p>
@@ -297,17 +297,17 @@ function SummaryParagraph({ text }) {
 
 function MistakeCard({ mistake, index }) {
   return (
-    <div style={{ borderRadius: 12, border: "1px solid #FED7D7", background: "#FFF8F8", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #FED7D7", background: "#FFF5F5" }}>
-        <div style={{ width: 22, height: 22, borderRadius: 6, background: "#FED7D7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+    <div style={{ borderRadius: 12, border: "1px solid var(--lg-red-soft, #FED7D7)", background: "var(--lg-red-soft, #FFF8F8)", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid var(--lg-red-soft, #FED7D7)", background: "var(--lg-red-soft, #FFF5F5)" }}>
+        <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--lg-red-soft, #FED7D7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <span style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, color: C.bear }}>{index + 1}</span>
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{mistake.title}</div>
       </div>
       {mistake.evidence && (
-        <div style={{ padding: "10px 14px", borderBottom: mistake.fix ? "1px solid #FED7D7" : "none" }}>
+        <div style={{ padding: "10px 14px", borderBottom: mistake.fix ? "1px solid var(--lg-red-soft, #FED7D7)" : "none" }}>
           <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>EVIDENCE</div>
-          <p style={{ margin: 0, fontSize: 12, color: "#4A5568", lineHeight: 1.65 }}>{mistake.evidence}</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--lg-sub, #4A5568)", lineHeight: 1.65 }}>{mistake.evidence}</p>
         </div>
       )}
       {mistake.fix && (
@@ -325,21 +325,21 @@ function ImprovementCard({ item }) {
   const why   = typeof item === "object" ? item?.why : null;
   const how   = typeof item === "object" ? item?.how : null;
   return (
-    <div style={{ borderRadius: 12, border: "1px solid #BFDBFE", background: "#F0F7FF", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderBottom: (why || how) ? "1px solid #BFDBFE" : "none", background: "#EBF4FF" }}>
+    <div style={{ borderRadius: 12, border: "1px solid var(--lg-line, #BFDBFE)", background: "var(--lg-soft, #F0F7FF)", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderBottom: (why || how) ? "1px solid var(--lg-line, #BFDBFE)" : "none", background: "var(--lg-soft, #EBF4FF)" }}>
         <Target size={13} color={C.blue} />
         <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{title}</div>
       </div>
       {why && (
-        <div style={{ padding: "10px 14px", borderBottom: how ? "1px solid #BFDBFE" : "none" }}>
+        <div style={{ padding: "10px 14px", borderBottom: how ? "1px solid var(--lg-line, #BFDBFE)" : "none" }}>
           <div style={{ fontSize: "var(--fs-2xs)", color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>WHY</div>
-          <p style={{ margin: 0, fontSize: 12, color: "#374151", lineHeight: 1.65 }}>{why}</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--lg-sub, #374151)", lineHeight: 1.65 }}>{why}</p>
         </div>
       )}
       {how && (
         <div style={{ padding: "10px 14px" }}>
           <div style={{ fontSize: "var(--fs-2xs)", color: C.blue, fontWeight: 700, letterSpacing: "0.07em", marginBottom: 5 }}>HOW</div>
-          <p style={{ margin: 0, fontSize: 12, color: "#374151", lineHeight: 1.65 }}>{how}</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--lg-sub, #374151)", lineHeight: 1.65 }}>{how}</p>
         </div>
       )}
     </div>
@@ -354,7 +354,7 @@ function SkeletonBlock({ width = "100%", height = 12, radius = 8, style = {} }) 
         width,
         height,
         borderRadius: radius,
-        background: "#E8EDF2",
+        background: "var(--lg-line, #E8EDF2)",
         overflow: "hidden",
         position: "relative",
         ...style,
@@ -371,7 +371,7 @@ function ReportHistorySkeleton() {
           key={item}
           style={{
             padding: item === 0 ? "0 0 14px" : "14px 0",
-            borderTop: item === 0 ? "none" : "1px solid #F1F5F9",
+            borderTop: item === 0 ? "none" : "1px solid var(--lg-line, #F1F5F9)",
           }}
         >
           <SkeletonBlock width="72%" height={12} radius={6} style={{ marginBottom: 9 }} />
@@ -388,7 +388,7 @@ function ReportHistorySkeleton() {
 function ReportDetailSkeleton() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+      <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 16 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <SkeletonBlock width="38%" height={16} radius={7} style={{ marginBottom: 8 }} />
@@ -398,7 +398,7 @@ function ReportDetailSkeleton() {
         </div>
         <div className="wr-kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
           {[0, 1, 2, 3, 4].map((item) => (
-            <div key={item} style={{ background: "#FAFAFA", borderRadius: 12, border: "1px solid #E8EDF2", padding: "14px 16px" }}>
+            <div key={item} style={{ background: "var(--lg-soft, #FAFAFA)", borderRadius: 12, border: "1px solid var(--lg-line, #E8EDF2)", padding: "14px 16px" }}>
               <SkeletonBlock width="46%" height={9} radius={6} style={{ marginBottom: 10 }} />
               <SkeletonBlock width="68%" height={21} radius={7} />
             </div>
@@ -406,7 +406,7 @@ function ReportDetailSkeleton() {
         </div>
       </div>
 
-      <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+      <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
         <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, transparent)` }} />
         <div style={{ padding: "18px 22px" }}>
           <SkeletonBlock width={130} height={10} radius={6} style={{ marginBottom: 16 }} />
@@ -417,7 +417,7 @@ function ReportDetailSkeleton() {
 
       <div className="wr-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
         {[C.bear, C.blue].map((accent, item) => (
-          <div key={item} style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+          <div key={item} style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
             <div style={{ height: 3, background: `linear-gradient(90deg, ${accent}, transparent)` }} />
             <div style={{ padding: "18px 22px" }}>
               <SkeletonBlock width="42%" height={10} radius={6} style={{ marginBottom: 16 }} />
@@ -454,7 +454,7 @@ function EmptyReportsState({ onGenerate, busy }) {
 
   return (
     <section style={{
-      background: "#FFFFFF", borderRadius: 16, border: "1px solid #E8EDF2",
+      background: "var(--lg-card, #FFFFFF)", borderRadius: 16, border: "1px solid var(--lg-line, #E8EDF2)",
       overflow: "hidden", boxShadow: "0 4px 20px rgba(15,25,35,0.05)",
     }}>
       <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bull}, ${C.blue} 60%, transparent)` }} />
@@ -471,7 +471,7 @@ function EmptyReportsState({ onGenerate, busy }) {
         <h2 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 800, color: C.primary, letterSpacing: "-0.01em" }}>
           Your first weekly report
         </h2>
-        <p style={{ margin: "0 auto 22px", maxWidth: 360, fontSize: 14, lineHeight: 1.65, color: "#5A6B7B" }}>
+        <p style={{ margin: "0 auto 22px", maxWidth: 360, fontSize: 14, lineHeight: 1.65, color: "var(--lg-sub, #5A6B7B)" }}>
           Edgecipline reviews the last 7 days of your journal and writes back what your
           own data says — the numbers, the psychology behind them, and what to change.
         </p>
@@ -482,8 +482,8 @@ function EmptyReportsState({ onGenerate, busy }) {
           style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             minHeight: 48, padding: "0 24px", width: "100%", maxWidth: 300,
-            background: busy ? "#E2E8F0" : C.bull,
-            color: busy ? C.muted : "#FFFFFF",
+            background: busy ? "var(--lg-line, #E2E8F0)" : C.bull,
+            color: busy ? C.muted : "var(--lg-card, #FFFFFF)",
             border: "none", borderRadius: 12,
             fontSize: 14.5, fontWeight: 700, fontFamily: "inherit",
             cursor: busy ? "not-allowed" : "pointer",
@@ -501,7 +501,7 @@ function EmptyReportsState({ onGenerate, busy }) {
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #EEF2F6", background: "#FBFCFD", padding: "18px 20px 20px" }}>
+      <div style={{ borderTop: "1px solid var(--lg-line, #EEF2F6)", background: "var(--lg-soft, #FBFCFD)", padding: "18px 20px 20px" }}>
         <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 800, letterSpacing: "0.09em", color: C.muted, marginBottom: 14 }}>
           WHAT YOU GET
         </div>
@@ -510,14 +510,14 @@ function EmptyReportsState({ onGenerate, busy }) {
             <div key={title} style={{ display: "flex", gap: 12, alignItems: "flex-start", textAlign: "left" }}>
               <div aria-hidden="true" style={{
                 width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-                background: `${tint}14`, border: `1px solid ${tint}2E`,
+                background: `color-mix(in srgb, ${tint} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${tint} 18%, transparent)`,
                 display: "grid", placeItems: "center",
               }}>
                 <Icon size={15} color={tint} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginBottom: 3 }}>{title}</div>
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: "#64748B" }}>{body}</p>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: "var(--lg-sub, #64748B)" }}>{body}</p>
               </div>
             </div>
           ))}
@@ -585,39 +585,26 @@ function WeeklyReportsContent() {
     : currentMarket === "Indian_Market";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary }}>
-      {isIndian ? <IndianMarketHeader /> : <PageHeader />}
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher={false} title="Reports" />
 
-      {/* -- Page toolbar -- */}
-      <div style={{
-        background: "#FFFFFF", borderBottom: "1px solid #E8EDF2",
-        padding: "10px 20px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", gap: 12,
-      }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: C.primary }}>Weekly AI Reports</span>
-        {/* Always keeps a visible text label. This button used to collapse to a
-            bare icon under 600px while the empty state told users to "click
-            Generate Report above" — a label that was not on screen. */}
-        <button
-          onClick={onGenerateNow}
-          disabled={busy}
-          className="wr-gen-btn"
-          aria-label={busy ? "Generating weekly report" : "Generate weekly report"}
-          style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
-            background: busy ? "#E2E8F0" : C.bull,
-            border: "none", borderRadius: 10, padding: "0 16px",
-            minHeight: 44, flexShrink: 0,
-            color: busy ? C.muted : "#FFFFFF",
-            fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-            cursor: busy ? "not-allowed" : "pointer",
-            transition: "background 0.2s ease, opacity 0.2s ease",
-            whiteSpace: "nowrap", touchAction: "manipulation",
-          }}
-        >
-          <RefreshCw size={14} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />
-          <span>{busy ? "Generating" : <>Generate<span className="wr-gen-long"> Report</span></>}</span>
-        </button>
+      <div className="ec-page ec-analytics" style={{ paddingBottom: 0 }}>
+        <div className="ec-log__head" style={{ marginBottom: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Weekly reports</h1>
+            <p className="ec-log__sub">{isIndian ? "Indian market" : "Forex"} · an AI review of each week's discipline, mistakes and what to work on next</p>
+          </div>
+          {/* Always keeps a visible text label: the empty state points at it. */}
+          <Button
+            onClick={onGenerateNow}
+            disabled={busy}
+            className="wr-gen-btn"
+            aria-label={busy ? "Generating weekly report" : "Generate weekly report"}
+            icon={<RefreshCw size={15} style={{ animation: busy ? "spin 1s linear infinite" : "none" }} />}
+          >
+            {busy ? "Generating…" : "Generate report"}
+          </Button>
+        </div>
       </div>
 
       {/* Alerts sit above both layouts so they are visible in the empty state too */}
@@ -644,8 +631,8 @@ function WeeklyReportsContent() {
       <div className="wr-body" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px", display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
 
         {/* Sidebar */}
-        <aside style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)", position: "sticky", top: 110 }}>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid #E8EDF2" }}>
+        <aside style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)", position: "sticky", top: 110 }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--lg-line, #E8EDF2)" }}>
             <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>REPORT HISTORY</div>
           </div>
 
@@ -660,7 +647,7 @@ function WeeklyReportsContent() {
                 return (
                   <button key={r._id} onClick={() => setSelected(r)} style={{
                     textAlign: "left", padding: "12px 16px",
-                    border: "none", borderBottom: "1px solid #F4F2EE",
+                    border: "none", borderBottom: "1px solid var(--lg-soft, #F4F2EE)",
                     background: active ? "rgba(13,158,110,0.07)" : "transparent",
                     cursor: "pointer", transition: "background 0.15s",
                     borderLeft: active ? `3px solid ${C.bull}` : "3px solid transparent",
@@ -669,10 +656,10 @@ function WeeklyReportsContent() {
                       {label.replace(" (Last 7 days)", "")}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
+                      <span style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" }}>
                         {r?.snapshot?.counts?.totalTrades ?? 0} trades
                       </span>
-                      <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: rNet >= 0 ? C.bull : C.bear }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: rNet >= 0 ? C.bull : C.bear }}>
                         {rNet >= 0 ? "+" : ""}{currency}{Math.abs(rNet).toFixed(2)}
                       </span>
                     </div>
@@ -690,7 +677,7 @@ function WeeklyReportsContent() {
           ) : !selected ? (
             /* Copy stays layout-neutral: the history list sits to the left on
                desktop but scrolls horizontally above this panel on mobile. */
-            <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", padding: "48px 24px", textAlign: "center" }}>
               <Lightbulb size={20} color={C.muted} style={{ marginBottom: 10 }} />
               <div style={{ fontSize: 13.5, fontWeight: 700, color: C.primary, marginBottom: 4 }}>Choose a week</div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Pick a week from your report history to read its full breakdown.</div>
@@ -699,7 +686,7 @@ function WeeklyReportsContent() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
               {/* -- Week header ------------------------------------ */}
-              <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+              <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", padding: "16px 18px", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.primary, lineHeight: 1.4, wordBreak: "break-word" }}>
@@ -711,14 +698,14 @@ function WeeklyReportsContent() {
                           <AlertTriangle size={10} /> AI unavailable
                         </span>
                       )}
-                      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
+                      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", letterSpacing: "0.04em" }}>
                         {selected.aiModel ? `AI: ${selected.aiModel}` : "No AI model"} * {snap?.counts?.totalTrades ?? 0} trades
                       </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: net >= 0 ? "rgba(13,158,110,0.08)" : "rgba(214,59,59,0.08)", border: `1px solid ${net >= 0 ? "rgba(13,158,110,0.2)" : "rgba(214,59,59,0.2)"}`, flexShrink: 0 }}>
                     {net >= 0 ? <TrendingUp size={14} color={C.bull} /> : <TrendingDown size={14} color={C.bear} />}
-                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: net >= 0 ? C.bull : C.bear }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)", color: net >= 0 ? C.bull : C.bear }}>
                       {net >= 0 ? "+" : ""}{currency}{Math.abs(net).toFixed(2)}
                     </span>
                   </div>
@@ -738,7 +725,7 @@ function WeeklyReportsContent() {
 
               {/* -- AI Overview ------------------------------------- */}
               {ai && (
-                <div style={{ background: "#FFFFFF", borderRadius: 14, border: `1px solid ${isGenuineAiModel(selected.aiModel) ? "#E8EDF2" : "rgba(184,134,11,0.35)"}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: `1px solid ${isGenuineAiModel(selected.aiModel) ? "var(--lg-line, #E8EDF2)" : "rgba(184,134,11,0.35)"}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: isGenuineAiModel(selected.aiModel) ? `linear-gradient(90deg, ${C.bull}, transparent)` : `linear-gradient(90deg, ${C.gold}, transparent)` }} />
                   <div style={{ padding: "18px 22px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -764,7 +751,7 @@ function WeeklyReportsContent() {
 
               {/* -- Psychology feedback (if provided) -------------- */}
               {ai?.psychologyFeedback && (
-                <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.purple}, transparent)` }} />
                   <div style={{ padding: "18px 22px" }}>
                     <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10 }}>
@@ -772,7 +759,7 @@ function WeeklyReportsContent() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {ai.psychologyFeedback.split(/\n{2,}/).map((block, idx) => (
-                        <p key={idx} style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "#2D3748" }}>
+                        <p key={idx} style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "var(--lg-ink, #2D3748)" }}>
                           {block.trim()}
                         </p>
                       ))}
@@ -783,7 +770,7 @@ function WeeklyReportsContent() {
 
               {/* -- Mistakes ---------------------------------------- */}
               {ai?.mistakes?.length > 0 && (
-                <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${C.bear}, transparent)` }} />
                   <div style={{ padding: "18px 22px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -801,7 +788,7 @@ function WeeklyReportsContent() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }} className="wr-grid">
 
                 {ai?.improvements?.length > 0 && (
-                  <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                  <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                     <div style={{ height: 3, background: `linear-gradient(90deg, ${C.blue}, transparent)` }} />
                     <div style={{ padding: "18px 22px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -816,7 +803,7 @@ function WeeklyReportsContent() {
                 )}
 
                 {ai?.nextWeekChecklist?.length > 0 && (
-                  <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
+                  <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", overflow: "hidden", boxShadow: "0 2px 12px rgba(15,25,35,0.04)" }}>
                     <div style={{ height: 3, background: `linear-gradient(90deg, ${C.gold}, transparent)` }} />
                     <div style={{ padding: "18px 22px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -826,7 +813,7 @@ function WeeklyReportsContent() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {ai.nextWeekChecklist.slice(0, 10).map((item, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <div style={{ width: 20, height: 20, borderRadius: 6, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#92400E", flexShrink: 0, marginTop: 1 }}>
+                            <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--lg-gold-soft, #FFFBEB)", border: "1px solid var(--lg-gold-soft, #FDE68A)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-2xs)", fontWeight: 800, color: "var(--lg-gold, #92400E)", flexShrink: 0, marginTop: 1 }}>
                               {i + 1}
                             </div>
                             <p style={{ margin: 0, fontSize: 12, color: C.primary, lineHeight: 1.65 }}>{item}</p>
@@ -840,9 +827,9 @@ function WeeklyReportsContent() {
 
               {/* No AI feedback yet */}
               {ai && !ai.summaryParagraphs.length && !ai.mistakes.length && !ai.improvements.length && !ai.nextWeekChecklist.length && (
-                <div style={{ background: "#FFFFFF", borderRadius: 14, border: "1px solid #E8EDF2", padding: "40px 24px", textAlign: "center" }}>
+                <div style={{ background: "var(--lg-card, #FFFFFF)", borderRadius: 14, border: "1px solid var(--lg-line, #E8EDF2)", padding: "40px 24px", textAlign: "center" }}>
                   <p style={{ margin: 0, fontSize: 13, color: C.muted }}>No AI feedback generated yet for this week.</p>
-                  <button onClick={onGenerateNow} disabled={busy} style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, background: C.bull, border: "none", borderRadius: 8, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  <button onClick={onGenerateNow} disabled={busy} style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, background: C.bull, border: "none", borderRadius: 8, padding: "10px 20px", color: "var(--lg-card, #fff)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                     <RefreshCw size={13} /> Generate Now
                   </button>
                 </div>
@@ -894,7 +881,7 @@ function WeeklyReportsContent() {
           .wr-sidebar-list > button {
             min-width: 160px !important;
             border-bottom: none !important;
-            border-right: 1px solid #F4F2EE !important;
+            border-right: 1px solid var(--lg-soft, #F4F2EE) !important;
             flex-shrink: 0 !important;
           }
 

@@ -463,7 +463,7 @@ export default function MessageComposer({
           padding: 0 4px;
           border-radius: 9px;
           background: var(--color-primary);
-          color: #fff;
+          color: var(--sup-on-accent, #fff);
           font-size: var(--fs-2xs);
           font-weight: 800;
         }
@@ -492,8 +492,8 @@ export default function MessageComposer({
           padding: 0 22px;
           border: none;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13px;
           font-weight: 700;
           cursor: pointer;

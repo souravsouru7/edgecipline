@@ -48,34 +48,34 @@ export default function TradeLimitDialog({ open, onClose, quota, requested = nul
       <div
         onClick={(event) => event.stopPropagation()}
         style={{
-          background: "#FFFFFF", borderRadius: 20, padding: 28,
+          background: "var(--lg-card, #FFFFFF)", borderRadius: 20, padding: 28,
           width: "100%", maxWidth: 460,
           border: "1px solid rgba(226,232,240,0.8)",
           boxShadow: "0 40px 100px -20px rgba(0,0,0,0.35)",
-          fontFamily: "'Plus Jakarta Sans',sans-serif",
+          fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)",
         }}
       >
         <div style={{
           display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em",
-          color: "#B8860B", background: "rgba(184,134,11,0.12)",
+          color: "var(--lg-gold, #B8860B)", background: "rgba(184,134,11,0.12)",
           borderRadius: 999, padding: "4px 10px", marginBottom: 12,
         }}>
           FREE PLAN LIMIT
         </div>
 
-        <h2 id="trade-limit-title" style={{ fontSize: 19, fontWeight: 800, color: "#0F1923", margin: "0 0 8px" }}>
+        <h2 id="trade-limit-title" style={{ fontSize: 19, fontWeight: 800, color: "var(--lg-ink, #0F1923)", margin: "0 0 8px" }}>
           {overAsk
             ? `That import needs ${requested} entries`
             : `You've used your ${limit} free ${label} trades`}
         </h2>
 
-        <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, margin: "0 0 8px" }}>
+        <p style={{ fontSize: 13, color: "var(--lg-sub, #475569)", lineHeight: 1.65, margin: "0 0 8px" }}>
           {overAsk
             ? `Only ${remaining} free ${label} ${remaining === 1 ? "entry" : "entries"} remain, so none of them were saved — nothing is half-imported.`
             : `Free accounts can log ${limit} ${label} trades. Your existing trades and analytics stay fully available to read.`}
         </p>
 
-        <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.65, margin: "0 0 20px" }}>
+        <p style={{ fontSize: 13, color: "var(--lg-sub, #475569)", lineHeight: 1.65, margin: "0 0 20px" }}>
           {/* Shown only where no in-app purchase exists — i.e. inside a store
               build — so it must not point at buying elsewhere (App Store 3.1.1). */}
           Upgrades aren&apos;t available right now. Contact support if you think this is wrong.
@@ -86,8 +86,8 @@ export default function TradeLimitDialog({ open, onClose, quota, requested = nul
           onClick={onClose}
           style={{
             width: "100%", padding: 14,
-            background: "linear-gradient(135deg, #0F1923 0%, #1e293b 100%)",
-            color: "#FFFFFF", border: "none", borderRadius: 12,
+            background: "linear-gradient(135deg, var(--lg-ink, #0F1923) 0%, var(--lg-ink, #1e293b) 100%)",
+            color: "var(--lg-card, #FFFFFF)", border: "none", borderRadius: 12,
             fontSize: 14, fontWeight: 800, cursor: "pointer",
             fontFamily: "inherit",
           }}

@@ -1,60 +1,65 @@
-
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { TrendingUp, TrendingDown, ArrowRight, Sparkles, LineChart as LineIcon, Brain, Search, Trophy, AlertTriangle, Target, Pin } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
-import PageHeader            from "@/features/shared/components/PageHeader";
-import { useQuery }          from "@tanstack/react-query";
+import PageHeader from "@/features/shared/components/PageHeader";
+import { Button, Card, CardHeader, EmptyState, ErrorState, Placeholder, SegmentedControl, Select } from "@/features/shared/components/ui";
+import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
 import { getPsychologyTimeline } from "@/services/analyticsApi";
 import { hasValidAuthToken } from "@/utils/auth";
 import { TRADE_QUERY_FRESHNESS_OPTIONS } from "@/utils/queryInvalidation";
-import { useRouter }         from "next/navigation";
-import { useMarket } from "@/context/MarketContext";
-import LazyRecharts from "@/features/shared/components/charts/LazyRecharts";
+import { MARKETS, useMarket } from "@/context/MarketContext";
 
-// ── Colour palette ─────────────────────────────────────────────────────────────
-
+// Series colours stay distinct in both themes; neutrals follow the theme.
 const C = {
-  psych:    "#7C3AED",
-  aware:    "#2563EB",
-  disc:     "#0D9E6E",
-  pnlPos:   "#0D9E6E",
-  pnlNeg:   "#DC2626",
-  muted:    "#94A3B8",
-  primary:  "#0F172A",
-  bg:       "#F8FAFC",
+  psych: "#8B6CF6",
+  aware: "#4C8DF6",
+  disc: "var(--ec-profit, #0D9E6E)",
+  pos: "var(--ec-profit, #0D9E6E)",
+  neg: "var(--ec-loss, #DC2626)",
+  warn: "var(--ec-warning, #D97706)",
+  mood: "#E0A030",
+  muted: "var(--ec-text-3, #94A3B8)",
+  grid: "var(--ec-border, #F1F5F9)",
+  ref: "var(--ec-border-strong, #CBD5E1)",
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const PERIODS = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+const DAYS_OPTIONS = [
+  { value: "", label: "All time" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+  { value: "180", label: "Last 6 months" },
+  { value: "365", label: "Last year" },
+];
 
-function trendIcon(t) {
-  if (t === "improving") return { icon: "↑", color: "#059669" };
-  if (t === "declining") return { icon: "↓", color: "#DC2626" };
-  return { icon: "→", color: "#94A3B8" };
-}
+const TREND = {
+  improving: { icon: <TrendingUp size={18} />, tone: "good", text: "Improving" },
+  declining: { icon: <TrendingDown size={18} />, tone: "bad", text: "Declining" },
+  stable: { icon: <ArrowRight size={18} />, tone: "muted", text: "Stable" },
+};
 
-function scoreColor(n) {
-  if (n === null || n === undefined) return C.muted;
-  if (n >= 70) return "#059669";
-  if (n >= 45) return "#D97706";
-  return "#DC2626";
-}
+const MILESTONE = {
+  psychology_threshold: { icon: Brain, tone: "info" },
+  self_awareness_threshold: { icon: Search, tone: "info" },
+  best_psychology: { icon: Trophy, tone: "good" },
+  worst_psychology: { icon: AlertTriangle, tone: "bad" },
+  revenge_free_streak: { icon: Target, tone: "warn" },
+};
 
-function InterpretationGrid({ items, accent = C.psych }) {
-  const visible = (items || []).filter(Boolean);
-  if (!visible.length) return null;
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
-      {visible.map((item) => (
-        <div key={item.label} style={{ borderRadius: 10, border: `1px solid ${accent}24`, background: `${accent}08`, padding: "12px 14px" }}>
-          <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
-          <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.65 }}>{item.text}</div>
-        </div>
-      ))}
-    </div>
-  );
+function scoreTone(n) {
+  if (n === null || n === undefined) return "muted";
+  if (n >= 70) return "good";
+  if (n >= 45) return "warn";
+  return "bad";
 }
 
 function buildTimelineInterpretation({ buckets, trends, stats }) {
@@ -74,605 +79,348 @@ function buildTimelineInterpretation({ buckets, trends, stats }) {
 
   return [
     {
-      label: "Growth Summary",
+      label: "Growth summary",
       text: delta == null
-        ? `Your timeline now contains ${buckets.length} ${buckets.length === 1 ? "period" : "periods"}. Edgecipline is building a longitudinal view of your trading psychology.`
-        // Name both periods. The coach summary above quotes an average of the
-        // last three, so an unlabelled "latest period" number next to it reads
-        // as a contradiction rather than a different measurement.
+        ? `Your timeline has ${buckets.length} ${buckets.length === 1 ? "period" : "periods"} so far. It gets clearer with every week you log.`
+        // Name both periods. The coach summary quotes an average of the last
+        // three, so an unlabelled "latest period" number reads as a contradiction.
         : `In ${latest?.key ?? "the latest period"} your psychology score is ${latestPsych}/100, ${improving ? "up" : declining ? "down" : "flat"} ${Math.abs(delta)} points from ${first?.key ?? "the first tracked period"}.`,
     },
     {
-      label: "Positive Changes",
+      label: "What's improving",
       text: trends?.psychology === "improving" || trends?.selfAwareness === "improving" || trends?.discipline === "improving"
-        ? `The improving signals are: ${[
+        ? `Improving: ${[
             trends?.psychology === "improving" ? "psychology" : null,
             trends?.selfAwareness === "improving" ? "self-awareness" : null,
             trends?.discipline === "improving" ? "discipline" : null,
           ].filter(Boolean).join(", ")}. These are the habits to keep repeating.`
-        : "No major upward trend is confirmed yet. Keep logging emotions, trade quality, and rule adherence so the timeline can separate noise from real growth.",
+        : "No clear upward trend yet. Keep logging emotions, trade quality and rule adherence so real growth stands out from noise.",
     },
     {
-      label: "Areas Still Improving",
+      label: "Still to work on",
       text: trends?.psychology === "declining" || trends?.selfAwareness === "declining" || trends?.discipline === "declining"
-        ? `The current weak signal is ${focus}. Treat this as the next behavior to review before adding more strategy complexity.`
-        : "The main opportunity is consistency: keep the same review inputs on every trade so progress becomes easier to measure.",
+        ? `The weak signal right now is ${focus}. Work on that before adding strategy complexity.`
+        : "The main opportunity is consistency: fill in the same review fields on every trade so progress is easy to measure.",
     },
     {
-      label: "Current Focus",
+      label: "Current focus",
       text: (() => {
         const n = stats?.totalBuckets || buckets.length;
-        return `For the next review cycle, focus on ${focus}. The expected outcome is a cleaner emotional baseline and fewer preventable mistakes across ${n} tracked ${n === 1 ? "period" : "periods"}.`;
+        return `Next review cycle, focus on ${focus}. Expect a calmer baseline and fewer preventable mistakes across ${n} tracked ${n === 1 ? "period" : "periods"}.`;
       })(),
     },
   ];
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────────
-
-function Skel({ w = "100%", h = 14, r = 6 }) {
-  return (
-    <div style={{
-      width: w, height: h, borderRadius: r,
-      background: "linear-gradient(90deg, #E2E8F0 0%, #F1F5F9 50%, #E2E8F0 100%)",
-      backgroundSize: "200% 100%",
-      animation: "shimmer 1.4s infinite",
-    }} />
-  );
-}
-
-// ── Trend badge ────────────────────────────────────────────────────────────────
-
-function TrendBadge({ trend, label }) {
-  const { icon, color } = trendIcon(trend);
-  return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 4,
-      padding: "10px 16px",
-      background: "#FFFFFF",
-      borderRadius: 12,
-      border: "1px solid #E2E8F0",
-      minWidth: 90,
-    }}>
-      <div style={{ fontSize: 22, color, fontWeight: 900, lineHeight: 1 }}>{icon}</div>
-      <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, textAlign: "center", letterSpacing: "0.04em" }}>{label}</div>
-      <div style={{ fontSize: "var(--fs-2xs)", color, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{trend || "stable"}</div>
-    </div>
-  );
-}
-
-// ── Custom chart tooltip ───────────────────────────────────────────────────────
-
-function ChartTooltip({ active, payload, label }) {
+function ChartTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: "#0F172A",
-      border: "none",
-      borderRadius: 10,
-      padding: "10px 14px",
-      color: "#E2E8F0",
-      fontSize: 11,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    }}>
-      <div style={{ fontWeight: 800, marginBottom: 6, color: "#FFFFFF" }}>{label}</div>
+    <div className="ec-chart-tip">
+      <div className="ec-chart-tip__title">{label}</div>
       {payload.map((p, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
-          <span style={{ color: p.color || "#94A3B8" }}>{p.name}</span>
-          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{p.value !== null && p.value !== undefined ? p.value : "—"}</span>
+        <div key={i} className="ec-chart-tip__row">
+          <span style={{ color: p.color }}>{p.name}</span>
+          <strong>{p.value !== null && p.value !== undefined ? p.value : "—"}</strong>
         </div>
       ))}
     </div>
   );
 }
 
-// ── Milestone item ─────────────────────────────────────────────────────────────
-
-function MilestoneItem({ milestone }) {
-  const typeColors = {
-    psychology_threshold:   { bg: "#F5F3FF", border: "#7C3AED33", icon: "🧠" },
-    self_awareness_threshold: { bg: "#EFF6FF", border: "#2563EB33", icon: "🔍" },
-    best_psychology:        { bg: "#F0FDF4", border: "#059669 33", icon: "🏆" },
-    worst_psychology:       { bg: "#FEF2F2", border: "#DC262633", icon: "⚠️" },
-    revenge_free_streak:    { bg: "#FFFBEB", border: "#D9770633", icon: "🎯" },
-  };
-  const style = typeColors[milestone.type] || { bg: "#F8FAFC", border: "#E2E8F033", icon: "📌" };
+function ChartCard({ title, subtitle, height, loading, children, footer }) {
   return (
-    <div style={{
-      padding: "12px 14px",
-      borderRadius: 10,
-      background: style.bg,
-      border: `1px solid ${style.border}`,
-      display: "flex",
-      gap: 10,
-    }}>
-      <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>{milestone.icon || style.icon}</span>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: C.primary, marginBottom: 3 }}>{milestone.title}</div>
-        {milestone.key && (
-          <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 600, marginBottom: 4 }}>{milestone.key}</div>
-        )}
-        <div style={{ fontSize: 11, color: "#334155", lineHeight: 1.5 }}>{milestone.description}</div>
-      </div>
-    </div>
+    <Card>
+      <CardHeader title={title} subtitle={subtitle} />
+      {loading ? <Placeholder height={height} radius={10} /> : <div style={{ height }}>{children}</div>}
+      {!loading && footer}
+    </Card>
   );
 }
 
-// ── Main content ───────────────────────────────────────────────────────────────
+const axis = { tick: { fontSize: 11, fill: C.muted }, axisLine: false, tickLine: false };
 
 function PsychologyTimelineContent() {
-  const router  = useRouter();
+  const router = useRouter();
   const { currentMarket } = useMarket();
-  const mounted = true;
-  const [period, setPeriod]   = useState("weekly");
-  const [days,   setDays]     = useState("");
+  const [period, setPeriod] = useState("weekly");
+  const [days, setDays] = useState("");
+  const addTradeHref = currentMarket === MARKETS.INDIAN_MARKET ? "/indian-market/add-trade" : "/add-trade";
 
   useEffect(() => {
     if (!hasValidAuthToken()) router.replace("/login");
   }, [router]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["psychologyTimeline", currentMarket, period, days],
-    queryFn:  ({ signal }) => getPsychologyTimeline(currentMarket, period, days, signal),
+    queryFn: ({ signal }) => getPsychologyTimeline(currentMarket, period, days, signal),
     ...TRADE_QUERY_FRESHNESS_OPTIONS,
-    enabled: mounted,
   });
 
-  const loading   = isLoading || !mounted;
+  const loading = isLoading;
   const insufficient = data?.insufficient;
-  const buckets   = data?.buckets || [];
-  const trends    = data?.trends  || {};
+  const buckets = data?.buckets || [];
+  const trends = data?.trends || {};
   const milestones = data?.milestones || [];
-  const stats     = data?.stats   || {};
-  const timelineInterpretation = buildTimelineInterpretation({ buckets, trends, stats });
+  const stats = data?.stats || {};
+  const interpretation = buildTimelineInterpretation({ buckets, trends, stats }) || [];
 
-  // Prepare chart data
-  const chartData = buckets.map(b => {
-    const topTag  = Object.entries(b.emotions?.tagCosts || {})
-      .filter(([, v]) => v.isNeg)
-      .sort(([, a], [, b2]) => a.netPnL - b2.netPnL)[0];
-    return {
-      key:      b.key,
-      psych:    b.psychologyScore,
-      aware:    b.selfAwarenessScore,
-      disc:     b.disciplineScore,
-      net:      b.net,
-      trades:   b.tradeCount,
-      avgMood:  b.emotions?.avgMood ?? null,
-      topTag:   topTag?.[0] ?? null,
-    };
-  });
+  const chartData = buckets.map((b) => ({
+    key: b.key,
+    psych: b.psychologyScore,
+    aware: b.selfAwarenessScore,
+    disc: b.disciplineScore,
+    net: b.net,
+    trades: b.tradeCount,
+    avgMood: b.emotions?.avgMood ?? null,
+  }));
 
-  const PERIODS = [
-    { value: "daily",   label: "Daily" },
-    { value: "weekly",  label: "Weekly" },
-    { value: "monthly", label: "Monthly" },
-  ];
-  const DAYS_OPTIONS = [
-    { value: "",    label: "All time" },
-    { value: "30",  label: "30 days" },
-    { value: "90",  label: "90 days" },
-    { value: "180", label: "6 months" },
-    { value: "365", label: "1 year" },
-  ];
-
-  if (!mounted) return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F4F2EE" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ width: 18, height: 18, border: "2.5px solid #E2E8F0", borderTopColor: C.psych, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto" }} />
-      </div>
-    </main>
-  );
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary, position: "relative" }}>
-      <CandlestickBackground canvasId="timeline-bg-canvas" />
-
-      <div style={{ position: "relative", zIndex: 10 }}>
-        <PageHeader />
-
-        <main style={{ maxWidth: 1100, width: "100%", margin: "0 auto", padding: "28px 20px", boxSizing: "border-box" }}>
-
-          {/* ── Header ─────────────────────────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <Link href="/dashboard" style={{ fontSize: 11, color: C.muted, textDecoration: "none", fontWeight: 600 }}>← Dashboard</Link>
-              </div>
-              <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0, letterSpacing: "-0.02em" }}>Psychology Timeline</h1>
-              <p style={{ fontSize: 11, color: C.muted, margin: "4px 0 0", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em" }}>
-                How your mindset, discipline, and self-awareness evolve over time
-              </p>
-            </div>
-
-            {/* ── Filters ─────────────────────────────────── */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              {/* Period */}
-              <div style={{ display: "flex", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, overflow: "hidden" }}>
-                {PERIODS.map(p => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => setPeriod(p.value)}
-                    style={{
-                      padding: "6px 12px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      border: "none",
-                      borderRight: "1px solid #E2E8F0",
-                      cursor: "pointer",
-                      background: period === p.value ? C.psych : "transparent",
-                      color: period === p.value ? "#FFFFFF" : C.muted,
-                      fontFamily: "inherit",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Days */}
-              <select
-                value={days}
-                onChange={e => setDays(e.target.value)}
-                style={{
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 8,
-                  background: "#FFFFFF",
-                  color: C.primary,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {DAYS_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Insufficient state ──────────────────────────────────── */}
-          {!loading && insufficient && (
-            <div style={{
-              background: "#FFFFFF",
-              borderRadius: 16,
-              border: "1px solid #E2E8F0",
-              padding: "48px 32px",
-              textAlign: "center",
-            }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: C.primary, marginBottom: 8 }}>
-                {data?.reason === "no_trades" ? "No Trading History Yet" : "Not Enough Data"}
-              </div>
-              <div style={{ fontSize: 13, color: C.muted, maxWidth: 340, margin: "0 auto", lineHeight: 1.6 }}>
-                {data?.message || "Start logging trades with emotional tags and trade quality ratings to build your psychology timeline."}
-              </div>
-              <Link href="/add-trade" style={{
-                display: "inline-block",
-                marginTop: 20,
-                padding: "10px 20px",
-                background: C.psych,
-                color: "#FFFFFF",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 700,
-                textDecoration: "none",
-              }}>
-                Log a Trade
-              </Link>
-            </div>
-          )}
-
-          {(loading || (!insufficient && buckets.length > 0)) && (
+  let body;
+  if (!loading && error) {
+    body = <Card><ErrorState title="Couldn't load your timeline" onRetry={() => refetch()} /></Card>;
+  } else if (!loading && (insufficient || buckets.length === 0)) {
+    body = (
+      <Card>
+        <EmptyState
+          icon={<LineIcon size={22} />}
+          title={data?.reason === "no_trades" ? "No trading history yet" : "Not enough data yet"}
+          body={data?.message || "Log trades with emotion tags and quality ratings to build your psychology timeline."}
+          action={<Button as={Link} href={addTradeHref}>Log a trade</Button>}
+        />
+      </Card>
+    );
+  } else {
+    body = (
+      <div className="ec-disc__stack">
+        <div className="ec-ptl__trends">
+          {loading ? (
+            [1, 2, 3, 4].map((i) => <Placeholder key={i} height={92} radius={14} />)
+          ) : (
             <>
-              {/* ── Trend indicators row ─────────────────────────────── */}
-              <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-                {loading ? (
-                  [1, 2, 3].map(i => <div key={i} style={{ width: 100, height: 80, background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0" }} />)
-                ) : (
-                  <>
-                    <TrendBadge trend={trends.psychology}    label="Psychology" />
-                    <TrendBadge trend={trends.selfAwareness} label="Self-Awareness" />
-                    <TrendBadge trend={trends.discipline}    label="Discipline" />
-
-                    {/* Stats summary */}
-                    {stats.avgPsychologyScore !== null && (
-                      <div style={{ flex: 1, minWidth: 200, background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: "10px 16px", display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
-                        {[
-                          { label: "Avg Psychology",  value: stats.avgPsychologyScore,    suffix: "/100", color: scoreColor(stats.avgPsychologyScore) },
-                          { label: "Best Score",      value: stats.bestPsychologyScore,   suffix: "",     color: "#059669" },
-                          { label: "Worst Score",     value: stats.worstPsychologyScore,  suffix: "",     color: "#DC2626" },
-                          { label: "Periods",         value: stats.totalBuckets,          suffix: "",     color: C.psych },
-                        ].map((s, i) => (
-                          <div key={i} style={{ textAlign: "center" }}>
-                            <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>
-                              {s.value ?? "—"}{s.suffix}
-                            </div>
-                            <div style={{ fontSize: "var(--fs-2xs)", color: C.muted, fontWeight: 700, marginTop: 3, letterSpacing: "0.04em" }}>{s.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* ── AI Summary ───────────────────────────────────────── */}
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "16px 20px", marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 16 }}>🤖</span>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: C.primary }}>Psychology Coach Summary</div>
-                  <div style={{ background: "#EFF6FF", color: "#2563EB", fontSize: "var(--fs-2xs)", fontWeight: 800, padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em" }}>AI</div>
+              {[["Psychology", trends.psychology], ["Self-awareness", trends.selfAwareness], ["Discipline", trends.discipline]].map(([label, t]) => {
+                const tr = TREND[t] || TREND.stable;
+                return (
+                  <div key={label} className="ec-ptl__trend">
+                    <span className={`ec-tone--${tr.tone}`}>{tr.icon}</span>
+                    <span className="ec-ptl__trend-label">{label}</span>
+                    <strong className={`ec-tone--${tr.tone}`}>{tr.text}</strong>
+                  </div>
+                );
+              })}
+              {stats.avgPsychologyScore != null && (
+                <div className="ec-ptl__stats">
+                  {[
+                    { label: "Average", value: stats.avgPsychologyScore, tone: scoreTone(stats.avgPsychologyScore), suffix: "/100" },
+                    { label: "Best", value: stats.bestPsychologyScore, tone: "good" },
+                    { label: "Worst", value: stats.worstPsychologyScore, tone: "bad" },
+                    { label: "Periods", value: stats.totalBuckets, tone: "muted" },
+                  ].map((s) => (
+                    <div key={s.label}>
+                      <strong className={`ec-tone--${s.tone}`}>{s.value ?? "—"}{s.value != null ? s.suffix || "" : ""}</strong>
+                      <span>{s.label}</span>
+                    </div>
+                  ))}
                 </div>
-                {loading ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <Skel h={12} w="100%" />
-                    <Skel h={12} w="85%" />
-                    <Skel h={12} w="92%" />
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.7, borderLeft: `3px solid ${C.psych}`, paddingLeft: 12 }}>
-                    {data?.aiSummary}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "18px 20px", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Timeline Interpretation</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>What your psychology trend means and what to focus on next</div>
-                {loading ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
-                    {[1, 2, 3, 4].map(i => <Skel key={i} h={86} r={10} />)}
-                  </div>
-                ) : (
-                  <InterpretationGrid items={timelineInterpretation} accent={C.psych} />
-                )}
-              </div>
-
-              {/* ── Psychology Score Chart ────────────────────────────── */}
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Psychology Score Over Time</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Emotional health per {period} period — healthy emotional state = higher score</div>
-                {loading ? (
-                  <Skel h={200} r={8} />
-                ) : (
-                  <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height={220}>
-                    <R.ComposedChart data={chartData}>
-                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                      {/* The score line and the P&L bars are different units, so they
-                          need separate axes. Sharing one axis let the bars (thousands
-                          of rupees) widen the 0-100 domain — Recharts extends a
-                          specified domain unless allowDataOverflow is set — which
-                          printed P&L values up the score axis and flattened the
-                          score line to a straight bar. */}
-                      <R.YAxis
-                        yAxisId="score"
-                        domain={[0, 100]}
-                        allowDataOverflow
-                        tick={{ fontSize: 11, fill: C.muted }}
-                        width={28}
-                      />
-                      <R.YAxis yAxisId="pnl" hide domain={["dataMin", "dataMax"]} />
-                      <R.Tooltip content={<ChartTooltip />} />
-                      <R.ReferenceLine yAxisId="score" y={70} stroke="#059669" strokeDasharray="4 4" strokeOpacity={0.5} />
-                      <R.ReferenceLine yAxisId="score" y={45} stroke="#D97706" strokeDasharray="4 4" strokeOpacity={0.4} />
-                      <R.Bar yAxisId="pnl" dataKey="net" name="Net P&L" fill="#E2E8F0" opacity={0.5} radius={[2, 2, 0, 0]}
-                        stroke="none"
-                      />
-                      <R.Line
-                        yAxisId="score"
-                        type="monotone"
-                        dataKey="psych"
-                        name="Psychology"
-                        stroke={C.psych}
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: C.psych }}
-                        activeDot={{ r: 5 }}
-                        connectNulls
-                      />
-                    </R.ComposedChart>
-                  </R.ResponsiveContainer>
-)}</LazyRecharts>
-                )}
-                {!loading && (
-                  <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: "var(--fs-2xs)", color: C.muted }}>
-                    <span style={{ color: "#059669" }}>— ≥70 Healthy</span>
-                    <span style={{ color: "#D97706" }}>— ≥45 Average</span>
-                    <span style={{ color: "#DC2626" }}>— &lt;45 Costly</span>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Multi-metric Chart ────────────────────────────────── */}
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Self-Awareness & Discipline</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Track how accurately you rate yourself (self-awareness) and follow your rules (discipline)</div>
-                {loading ? (
-                  <Skel h={200} r={8} />
-                ) : (
-                  <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height={200}>
-                    <R.LineChart data={chartData}>
-                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                      <R.YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: C.muted }} width={28} />
-                      <R.Tooltip content={<ChartTooltip />} />
-                      <R.Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                      <R.Line
-                        type="monotone"
-                        dataKey="aware"
-                        name="Self-Awareness"
-                        stroke={C.aware}
-                        strokeWidth={2}
-                        dot={{ r: 3, fill: C.aware }}
-                        connectNulls
-                      />
-                      <R.Line
-                        type="monotone"
-                        dataKey="disc"
-                        name="Discipline"
-                        stroke={C.disc}
-                        strokeWidth={2}
-                        dot={{ r: 3, fill: C.disc }}
-                        connectNulls
-                      />
-                    </R.LineChart>
-                  </R.ResponsiveContainer>
-)}</LazyRecharts>
-                )}
-              </div>
-
-              {/* ── P&L Bar Chart ─────────────────────────────────────── */}
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>P&L Per Period</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Net profit/loss per {period} with trade count</div>
-                {loading ? (
-                  <Skel h={180} r={8} />
-                ) : (
-                  <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height={180}>
-                    <R.ComposedChart data={chartData}>
-                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                      <R.YAxis tick={{ fontSize: 11, fill: C.muted }} width={36} />
-                      <R.Tooltip content={<ChartTooltip />} />
-                      <R.ReferenceLine y={0} stroke="#E2E8F0" />
-                      <R.Bar
-                        dataKey="net"
-                        name="Net P&L"
-                        radius={[3, 3, 0, 0]}
-                        fill={C.pnlPos}
-                        label={false}
-                      >
-                        {chartData.map((entry, i) => (
-                          <rect
-                            key={i}
-                            fill={entry.net >= 0 ? C.pnlPos : C.pnlNeg}
-                          />
-                        ))}
-                      </R.Bar>
-                    </R.ComposedChart>
-                  </R.ResponsiveContainer>
-)}</LazyRecharts>
-                )}
-              </div>
-
-              {/* ── Two-column: Milestones + Mood ─────────────────────── */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 20 }}>
-
-                {/* Milestones */}
-                <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Milestones</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>Key moments in your psychology journey</div>
-                  {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {[1, 2].map(i => <Skel key={i} h={64} r={10} />)}
-                    </div>
-                  ) : milestones.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "24px 0", color: C.muted, fontSize: 12 }}>
-                      <div style={{ fontSize: 28, marginBottom: 8 }}>🎯</div>
-                      Keep trading consistently — milestones will appear as you build your history.
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
-                      {milestones.map((m, i) => <MilestoneItem key={i} milestone={m} />)}
-                    </div>
-                  )}
-                </div>
-
-                {/* Average Mood Chart */}
-                <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Average Mood</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>Mood score (1=Stressed → 5=Peak) per period</div>
-                  {loading ? (
-                    <Skel h={200} r={8} />
-                  ) : chartData.some(d => d.avgMood !== null) ? (
-                    <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height={200}>
-                      <R.LineChart data={chartData}>
-                        <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                        <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                        <R.YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 11, fill: C.muted }} width={20} />
-                        <R.Tooltip content={<ChartTooltip />} />
-                        <R.ReferenceLine y={3} stroke="#94A3B8" strokeDasharray="4 4" strokeOpacity={0.5} />
-                        <R.Line
-                          type="monotone"
-                          dataKey="avgMood"
-                          name="Avg Mood"
-                          stroke="#F59E0B"
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: "#F59E0B" }}
-                          connectNulls
-                        />
-                      </R.LineChart>
-                    </R.ResponsiveContainer>
-)}</LazyRecharts>
-                  ) : (
-                    <div style={{ textAlign: "center", padding: "32px 0", color: C.muted, fontSize: 12 }}>
-                      Log trades with mood ratings to see this chart.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Trade count per period ─────────────────────────────── */}
-              <div style={{ background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.primary, marginBottom: 4 }}>Trade Activity</div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Number of trades per {period}</div>
-                {loading ? <Skel h={120} r={8} /> : (
-                  <LazyRecharts>{(R) => (
-<R.ResponsiveContainer width="100%" height={120}>
-                    <R.ComposedChart data={chartData}>
-                      <R.CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                      <R.XAxis dataKey="key" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                      <R.YAxis tick={{ fontSize: 11, fill: C.muted }} width={24} allowDecimals={false} />
-                      <R.Tooltip content={<ChartTooltip />} />
-                      <R.Bar dataKey="trades" name="Trades" fill={`${C.psych}44`} stroke={C.psych} strokeWidth={1} radius={[2, 2, 0, 0]} />
-                    </R.ComposedChart>
-                  </R.ResponsiveContainer>
-)}</LazyRecharts>
-                )}
-              </div>
+              )}
             </>
           )}
+        </div>
 
-        </main>
-      </div>
+        <Card>
+          <div className="ec-ptl__ai-head">
+            <Sparkles size={16} aria-hidden="true" />
+            <h2 className="ec-card__title">Coach summary</h2>
+          </div>
+          {loading ? (
+            <div className="ec-disc__stack" style={{ gap: 6 }}>
+              <Placeholder height={12} /><Placeholder height={12} width="85%" /><Placeholder height={12} width="92%" />
+            </div>
+          ) : (
+            <p className="ec-ptl__ai">{data?.aiSummary || "Your coach summary appears once a few periods are logged."}</p>
+          )}
+        </Card>
 
-      <style jsx global>{`
-        @keyframes shimmer {
-          0%   { background-position: -200% 0; }
-          100% { background-position:  200% 0; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @media (max-width: 768px) {
-          main { padding: 16px !important; }
-        }
-        @media (max-width: 640px) {
-          div[style*="grid-template-columns: 1fr 1fr"] {
-            grid-template-columns: 1fr !important;
+        <Card>
+          <CardHeader title="What it means" subtitle="Your psychology trend in plain words" />
+          {loading ? (
+            <div className="ec-disc__grid">{[1, 2, 3, 4].map((i) => <Placeholder key={i} height={86} radius={10} />)}</div>
+          ) : (
+            <div className="ec-disc__grid">
+              {interpretation.map((item) => (
+                <div key={item.label} className="ec-disc__tile">
+                  <div className="ec-disc__tile-label">{item.label}</div>
+                  <div className="ec-disc__tile-text">{item.text}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <ChartCard
+          title="Psychology score"
+          subtitle={`Emotional health per ${{ daily: "day", weekly: "week", monthly: "month" }[period] || "period"}. Higher is healthier.`}
+          height={220}
+          loading={loading}
+          footer={
+            <div className="ec-disc__legend">
+              <span><i style={{ background: C.psych }} />Psychology</span>
+              <span><i style={{ background: C.pos }} />70+ healthy</span>
+              <span><i style={{ background: C.warn }} />45+ average</span>
+              <span><i style={{ background: C.neg }} />Under 45 costly</span>
+            </div>
           }
-        }
-      `}</style>
+        >
+          <LazyRecharts>{(R) => (
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.ComposedChart data={chartData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                <R.XAxis dataKey="key" {...axis} interval="preserveStartEnd" />
+                {/* Score and P&L are different units, so they need separate
+                    axes. Sharing one let P&L widen the 0-100 domain and
+                    flattened the score line. */}
+                <R.YAxis yAxisId="score" domain={[0, 100]} allowDataOverflow {...axis} width={28} />
+                <R.YAxis yAxisId="pnl" hide domain={["dataMin", "dataMax"]} />
+                <R.Tooltip content={<ChartTip />} cursor={{ fill: "var(--ec-surface-2)" }} />
+                <R.ReferenceLine yAxisId="score" y={70} stroke={C.pos} strokeDasharray="4 4" strokeOpacity={0.5} />
+                <R.ReferenceLine yAxisId="score" y={45} stroke={C.warn} strokeDasharray="4 4" strokeOpacity={0.4} />
+                <R.Bar yAxisId="pnl" dataKey="net" name="Net P&L" fill={C.ref} opacity={0.35} radius={[2, 2, 0, 0]} />
+                <R.Line yAxisId="score" type="monotone" dataKey="psych" name="Psychology" stroke={C.psych} strokeWidth={2.5} dot={{ r: 3, fill: C.psych }} activeDot={{ r: 5 }} connectNulls />
+              </R.ComposedChart>
+            </R.ResponsiveContainer>
+          )}</LazyRecharts>
+        </ChartCard>
+
+        <ChartCard
+          title="Self-awareness and discipline"
+          subtitle="How accurately you rate yourself, and how well you follow your rules"
+          height={200}
+          loading={loading}
+          footer={
+            <div className="ec-disc__legend">
+              <span><i style={{ background: C.aware }} />Self-awareness</span>
+              <span><i style={{ background: C.disc }} />Discipline</span>
+            </div>
+          }
+        >
+          <LazyRecharts>{(R) => (
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.LineChart data={chartData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                <R.XAxis dataKey="key" {...axis} interval="preserveStartEnd" />
+                <R.YAxis domain={[0, 100]} {...axis} width={28} />
+                <R.Tooltip content={<ChartTip />} />
+                <R.Line type="monotone" dataKey="aware" name="Self-awareness" stroke={C.aware} strokeWidth={2} dot={{ r: 3, fill: C.aware }} connectNulls />
+                <R.Line type="monotone" dataKey="disc" name="Discipline" stroke={C.disc} strokeWidth={2} dot={{ r: 3, fill: C.disc }} connectNulls />
+              </R.LineChart>
+            </R.ResponsiveContainer>
+          )}</LazyRecharts>
+        </ChartCard>
+
+        <ChartCard title="P&L per period" subtitle="Net profit or loss for each period" height={180} loading={loading}>
+          <LazyRecharts>{(R) => (
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={chartData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                <R.XAxis dataKey="key" {...axis} interval="preserveStartEnd" />
+                <R.YAxis {...axis} width={44} />
+                <R.Tooltip content={<ChartTip />} cursor={{ fill: "var(--ec-surface-2)" }} />
+                <R.ReferenceLine y={0} stroke={C.ref} />
+                <R.Bar dataKey="net" name="Net P&L" radius={[3, 3, 0, 0]}>
+                  {chartData.map((entry, i) => <R.Cell key={i} fill={(entry.net ?? 0) >= 0 ? C.pos : C.neg} />)}
+                </R.Bar>
+              </R.BarChart>
+            </R.ResponsiveContainer>
+          )}</LazyRecharts>
+        </ChartCard>
+
+        <div className="ec-ptl__two">
+          <Card>
+            <CardHeader title="Milestones" subtitle="Key moments in your psychology journey" />
+            {loading ? (
+              <div className="ec-disc__stack" style={{ gap: 10 }}><Placeholder height={64} radius={10} /><Placeholder height={64} radius={10} /></div>
+            ) : milestones.length === 0 ? (
+              <p className="ec-disc__note" style={{ textAlign: "center", padding: "20px 0" }}>Keep trading consistently. Milestones appear as your history grows.</p>
+            ) : (
+              <div className="ec-ptl__milestones">
+                {milestones.map((m, i) => {
+                  const meta = MILESTONE[m.type] || { icon: Pin, tone: "muted" };
+                  const Icon = meta.icon;
+                  return (
+                    <div key={`${m.type}-${m.key}-${i}`} className={`ec-disc__take ec-disc__take--${meta.tone}`} style={{ display: "flex", gap: 10 }}>
+                      <span className={`ec-tone--${meta.tone}`} style={{ flexShrink: 0, marginTop: 1 }}><Icon size={16} aria-hidden="true" /></span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="ec-disc__row-title">{m.title}</div>
+                        {m.key && <div className="ec-disc__row-meta">{m.key}</div>}
+                        {m.description && <div className="ec-disc__tile-text" style={{ marginTop: 4 }}>{m.description}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <ChartCard title="Average mood" subtitle="1 = stressed, 5 = peak" height={200} loading={loading}>
+            {chartData.some((d) => d.avgMood !== null) ? (
+              <LazyRecharts>{(R) => (
+                <R.ResponsiveContainer width="100%" height="100%">
+                  <R.LineChart data={chartData}>
+                    <R.CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                    <R.XAxis dataKey="key" {...axis} interval="preserveStartEnd" />
+                    <R.YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} {...axis} width={20} />
+                    <R.Tooltip content={<ChartTip />} />
+                    <R.ReferenceLine y={3} stroke={C.ref} strokeDasharray="4 4" />
+                    <R.Line type="monotone" dataKey="avgMood" name="Avg mood" stroke={C.mood} strokeWidth={2} dot={{ r: 3, fill: C.mood }} connectNulls />
+                  </R.LineChart>
+                </R.ResponsiveContainer>
+              )}</LazyRecharts>
+            ) : (
+              <div className="ec-chart-empty" style={{ height: "100%" }}>Log trades with a mood rating to see this chart.</div>
+            )}
+          </ChartCard>
+        </div>
+
+        <ChartCard title="Trade activity" subtitle="Number of trades per period" height={130} loading={loading}>
+          <LazyRecharts>{(R) => (
+            <R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={chartData}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                <R.XAxis dataKey="key" {...axis} interval="preserveStartEnd" />
+                <R.YAxis {...axis} width={24} allowDecimals={false} />
+                <R.Tooltip content={<ChartTip />} cursor={{ fill: "var(--ec-surface-2)" }} />
+                <R.Bar dataKey="trades" name="Trades" fill={C.psych} fillOpacity={0.35} stroke={C.psych} strokeWidth={1} radius={[2, 2, 0, 0]} />
+              </R.BarChart>
+            </R.ResponsiveContainer>
+          )}</LazyRecharts>
+        </ChartCard>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher title="Psychology timeline" />
+      <main className="ec-page ec-disc">
+        <div className="ec-log__head">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Psychology timeline</h1>
+            <p className="ec-log__sub">How your mindset, discipline and self-awareness change over time.</p>
+          </div>
+        </div>
+        <div className="ec-disc__filters">
+          <SegmentedControl label="Group by" value={period} onChange={setPeriod} options={PERIODS} />
+          <Select aria-label="Date range" value={days} onChange={(e) => setDays(e.target.value)} style={{ width: "auto", minWidth: 150 }}>
+            {DAYS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </div>
+        {body}
+      </main>
     </div>
   );
 }
 
 export default function PsychologyTimelinePage() {
   return (
-    <ErrorBoundary fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Psychology Timeline failed to load. Please refresh.</div>}>
+    <ErrorBoundary fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Psychology timeline failed to load. Please refresh.</div>}>
       <Suspense><PsychologyTimelineContent /></Suspense>
     </ErrorBoundary>
   );

@@ -13,14 +13,14 @@ function weekdayOf(dayKey) {
 
 function colorFor({ qualifiesJournal, tradeCount, noTradeToday, isFuture, isToday }) {
   if (isFuture) return "transparent";
-  if (qualifiesJournal && tradeCount > 0) return "#F59E0B";  // traded — amber
-  if (qualifiesJournal && noTradeToday)   return "#FDE68A";  // sat out — soft amber
-  if (isToday)                            return "#E2E8F0";  // today, not yet logged
-  return "#F1F5F9";                                          // missed
+  if (qualifiesJournal && tradeCount > 0) return "var(--lg-gold, #F59E0B)";  // traded — amber
+  if (qualifiesJournal && noTradeToday)   return "color-mix(in srgb, var(--lg-gold, #F59E0B) 40%, transparent)";  // sat out — soft amber
+  if (isToday)                            return "var(--lg-line-strong, #E2E8F0)";  // today, not yet logged
+  return "var(--lg-soft-2, #F1F5F9)";  // missed
 }
 
 function borderFor(isToday) {
-  return isToday ? "1.5px solid #0F1923" : "1px solid transparent";
+  return isToday ? "1.5px solid var(--lg-ink, #0F1923)" : "1px solid transparent";
 }
 
 export default function StreakCalendar({ calendar = [] }) {
@@ -80,7 +80,8 @@ export default function StreakCalendar({ calendar = [] }) {
 }
 
 function tooltipFor(cell) {
-  const dateLabel = new Date(cell.day).toLocaleDateString("en-US", {
+  const [y, m, d] = String(cell.day).split("-").map(Number);
+  const dateLabel = new Date(y, m - 1, d).toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
   });
   if (cell.tradeCount > 0) return `${dateLabel} — ${cell.tradeCount} trade${cell.tradeCount === 1 ? "" : "s"}`;
@@ -90,15 +91,15 @@ function tooltipFor(cell) {
 
 function Legend() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10, fontSize: 11, color: "#64748B" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10, fontSize: 11, color: "var(--lg-sub, #64748B)", flexWrap: "wrap" }}>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-        <span style={{ width: 10, height: 10, background: "#F59E0B", borderRadius: 2 }} /> Traded
+        <span style={{ width: 10, height: 10, background: "var(--lg-gold, #F59E0B)", borderRadius: 2 }} /> Traded
       </span>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-        <span style={{ width: 10, height: 10, background: "#FDE68A", borderRadius: 2 }} /> Sat out
+        <span style={{ width: 10, height: 10, background: "color-mix(in srgb, var(--lg-gold, #F59E0B) 40%, transparent)", borderRadius: 2 }} /> Sat out
       </span>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-        <span style={{ width: 10, height: 10, background: "#F1F5F9", borderRadius: 2 }} /> No activity
+        <span style={{ width: 10, height: 10, background: "var(--lg-soft-2, #F1F5F9)", borderRadius: 2 }} /> No activity
       </span>
     </div>
   );

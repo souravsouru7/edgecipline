@@ -1,10 +1,10 @@
 "use client";
 
 const TYPE_COLORS = {
-  info:    { bg: "#EFF6FF", border: "#93C5FD", text: "#1D4ED8" },
-  success: { bg: "#ECFDF5", border: "#6EE7B7", text: "#059669" },
-  warning: { bg: "#FEF3C7", border: "#FCD34D", text: "#D97706" },
-  danger:  { bg: "#FEE2E2", border: "#FCA5A5", text: "#DC2626" },
+  info:    { bg: "var(--lg-soft, #EFF6FF)", border: "var(--lg-line, #93C5FD)", text: "var(--lg-ink, #1D4ED8)" },
+  success: { bg: "var(--lg-green-soft, #ECFDF5)", border: "var(--lg-green, #6EE7B7)", text: "var(--lg-green, #059669)" },
+  warning: { bg: "var(--lg-gold-soft, #FEF3C7)", border: "var(--lg-gold, #FCD34D)", text: "#D97706" },
+  danger:  { bg: "var(--lg-red-soft, #FEE2E2)", border: "var(--lg-red-soft, #FCA5A5)", text: "var(--lg-red, #DC2626)" },
 };
 
 /**

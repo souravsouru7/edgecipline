@@ -473,6 +473,11 @@ async function onWeeklyReportSaved(userId, weekKey) {
 
 // ─── Day-based evaluation (called by cron for no_revenge_trade, daily_loss_limit, etc.) ──
 
+function isWeekendDayKey(dayKey) {
+  const day = new Date(`${dayKey}T12:00:00.000Z`).getUTCDay();
+  return day === 0 || day === 6;
+}
+
 async function evaluateDayBasedMissions(userId, dayKey, dayData) {
   // dayData: { hasRevengeTrade, hasFomoTrade, dailyPnl, dailyLossLimit, tradeCount }
   if (!userId) return;
@@ -488,9 +493,15 @@ async function evaluateDayBasedMissions(userId, dayKey, dayData) {
     ]},
   });
 
+  const weekendDay = isWeekendDayKey(dayKey);
+
   for (const assignment of missions) {
     let completed = false;
-    let dayPassed = false;
+    // Only a day THIS run actually graded and failed, on a consecutive-days
+    // mission that had progress to lose, is a "reset". Previously dayPassed
+    // stayed false whenever the day was already processed (re-run, second
+    // instance), and every such no-op sent "Mission Reset".
+    let resetHappened = false;
 
     await retryOnConflict(assignment, async (doc) => {
       // Re-check on every retry — a parallel cron run may have already marked the day
@@ -501,6 +512,14 @@ async function evaluateDayBasedMissions(userId, dayKey, dayData) {
       const mode = snap.progressMode;
       let passed = false;
       let reason = "";
+
+      // Markets are shut at the weekend: "log a trade today" can neither pass
+      // nor fail on Saturday/Sunday. Mark the day seen and move on.
+      if (vType === "trade_logged" && weekendDay) {
+        doc.processedDays.push(dayKey);
+        return;
+      }
+      const priorConsecutive = doc.consecutiveCount || 0;
 
       switch (vType) {
         case "no_revenge_trade":
@@ -516,6 +535,23 @@ async function evaluateDayBasedMissions(userId, dayKey, dayData) {
           reason = passed ? "Trade logged (or sat out)" : "No trade logged today";
           break;
         case "daily_loss_limit": {
+          // Per market with the user's own limit: $ and ₹ are never summed.
+          // Markets without a limit, or without trades that day, are ignored.
+          if (Array.isArray(dayData.marketChecks)) {
+            const checked = dayData.marketChecks.filter(
+              (m) => Number(m.limit) > 0 && (m.tradeCount || 0) > 0
+            );
+            if (!checked.length) {
+              passed = true;
+              reason = dayData.marketChecks.some((m) => Number(m.limit) > 0)
+                ? "No trades — daily limit respected"
+                : "No daily loss limit set";
+            } else {
+              passed = checked.every((m) => (Number(m.pnl) || 0) >= -Math.abs(Number(m.limit)));
+              reason = passed ? "Daily loss limit respected" : "Daily loss limit exceeded";
+            }
+            break;
+          }
           const limit = dayData.dailyLossLimit;
           if (limit == null || dayData.tradeCount === 0) {
             passed = true;
@@ -552,14 +588,14 @@ async function evaluateDayBasedMissions(userId, dayKey, dayData) {
       });
 
       completed = isMissionComplete(doc);
-      dayPassed = passed;
+      resetHappened = !passed && mode === "consecutive_days" && priorConsecutive > 0;
     });
 
     if (completed) {
       await completeMission(String(userId), String(assignment._id));
       sendMissionNotification(userId, assignment, "completed").catch(() => {});
-    } else if (!dayPassed) {
-      sendMissionNotification(userId, assignment, "streak_broken").catch(() => {});
+    } else if (resetHappened) {
+      sendMissionNotification(userId, assignment, "streak_broken", { dayKey }).catch(() => {});
     }
   }
 }

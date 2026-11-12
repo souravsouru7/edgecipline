@@ -1,9 +1,18 @@
+// notifyUser checks the account is reachable (not disabled / mid-deletion).
+jest.mock("../../models/Users", () => ({
+  findById: jest.fn(() => ({
+    select: () => ({ lean: async () => ({ accountStatus: "active", pendingDeletion: false }) }),
+  })),
+}));
 jest.mock("../../models/DeviceToken", () => ({
   find: jest.fn(),
   updateMany: jest.fn(),
 }));
 
 jest.mock("../../models/NotificationHistory", () => ({
+  // Daily-cap lookups in notifyUser: no prior row, nothing sent yet today.
+  exists: jest.fn().mockResolvedValue(null),
+  countDocuments: jest.fn().mockResolvedValue(0),
   create: jest.fn(),
   find: jest.fn(),
   findByIdAndUpdate: jest.fn(),

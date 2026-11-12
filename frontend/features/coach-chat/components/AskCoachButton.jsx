@@ -65,7 +65,7 @@ function stylesFor(variant, size) {
     lg: { padding: "10px 16px", borderRadius: 12, fontSize: 13 },
   };
   const variantMap = {
-    primary: { background: "#7C3AED", color: "#FFFFFF" },
+    primary: { background: "#7C3AED", color: "var(--lg-card, #FFFFFF)" },
     ghost:   { background: "transparent", color: "#7C3AED", border: "1px solid rgba(139,92,246,0.35)" },
     link:    { background: "transparent", color: "#7C3AED", padding: 0, border: "none" },
   };

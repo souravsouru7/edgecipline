@@ -1,641 +1,156 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { getTrade } from "@/services/tradeApi";
-import Link from "next/link";
+import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { getTrade } from "@/services/tradeApi";
 import PageHeader from "@/features/shared/components/PageHeader";
 import TradeEvidenceGallery from "@/features/trade/components/TradeEvidenceGallery";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
-import TickerTape from "@/features/shared/components/TickerTape";
+import { StatCard } from "@/features/shared/components/ui";
+import { useTheme } from "@/utils/theme";
+import { useSystemBars } from "@/features/shared/hooks/useSystemBars";
+import { getTradeMoment } from "@/features/journal/utils/groupByDay";
+import { tradeMistake } from "@/features/journal/utils/tradeDisplay";
+import {
+  DetailHero, DetailLoading, DetailNotFound, DetailRows, DetailSection, DetailTopBar,
+  MoodDots, PriceLadder, Quote, RuleResults, ScoreMeter, TagList,
+} from "@/features/trade/components/TradeDetailParts";
 
-/* ─────────────────────────────────────────
-   MINI SPARKLINE for entry→exit
-───────────────────────────────────────── */
-function TradeSparkline({ bull }) {
-  const bullPts = "0,30 12,26 24,28 36,18 48,20 60,10 72,14 84,4 96,8";
-  const bearPts = "0,8  12,12 24,10 36,20 48,16 60,26 72,22 84,30 96,28";
-  const points = bull ? bullPts : bearPts;
-  const color = bull ? "#0D9E6E" : "#D63B3B";
-  const gradId = bull ? "bullGradLight" : "bearGradLight";
-  return (
-    <svg width="100%" height="60" viewBox="0 0 96 38" preserveAspectRatio="none" fill="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2"/>
-          <stop offset="100%" stopColor={color} stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      <polygon
-        points={`0,30 ${points} 96,38 0,38`}
-        fill={`url(#${gradId})`}
-      />
-      <polyline
-        points={points}
-        stroke={color} strokeWidth="2"
-        fill="none" strokeLinejoin="round" strokeLinecap="round"
-      />
-    </svg>
-  );
+function formatMoment(trade) {
+  const m = getTradeMoment(trade);
+  if (!m) return null;
+  const date = m.hasTime
+    ? m.date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : m.date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return m.hasTime ? `${date}, ${m.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : date;
 }
 
-/* ─────────────────────────────────────────
-   STAT CARD
-───────────────────────────────────────── */
-function StatCard({ label, value, sub, accent, delay = 0 }) {
-  return (
-    <div style={{
-      background: "#FFFFFF",
-      border: "1px solid #E2E8F0",
-      borderRadius: 12,
-      padding: "16px",
-      flex: "1 1 140px",
-      animation: `fadeUp 0.5s ease ${delay}s both`,
-      overflow: "hidden",
-      position: "relative",
-      boxShadow: "0 2px 12px rgba(15,25,35,0.06), 0 1px 3px rgba(15,25,35,0.04)",
-    }}>
-      {accent && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg,${accent},${accent}22)` }}/>}
-      <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.12em", marginBottom: 6, fontFamily: "'JetBrains Mono',monospace", fontWeight: 500, marginTop: accent ? 6 : 0 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: accent || "#0F1923", lineHeight: 1.2 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", marginTop: 4, letterSpacing: "0.08em" }}>{sub}</div>}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   INFO ROW
-───────────────────────────────────────── */
-function InfoRow({ label, value, valueColor, icon, delay = 0 }) {
-  return (
-    <div style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "14px 0",
-      borderBottom: "1px solid #E2E8F0",
-      animation: `fadeUp 0.4s ease ${delay}s both`,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {icon && <span style={{ color: "#94A3B8" }}>{icon}</span>}
-        <span style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#4A5568", fontFamily: "'JetBrains Mono',monospace" }}>
-          {label}
-        </span>
-      </div>
-      <span style={{
-        fontSize: 12,
-        fontFamily: "'JetBrains Mono',monospace",
-        color: valueColor || "#0F1923",
-        fontWeight: 600,
-        maxWidth: "55%",
-        textAlign: "right",
-        wordBreak: "break-word",
-      }}>
-        {value || "—"}
-      </span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   LOADING STATE
-───────────────────────────────────────── */
-function LoadingState() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E" strokeWidth="2" style={{ animation: "spin 0.8s linear infinite", marginBottom: 14 }}>
-        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-      </svg>
-      <div style={{ fontSize: 11, color: "#94A3B8", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace" }}>
-        LOADING TRADE DATA...
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   NOT FOUND STATE
-───────────────────────────────────────── */
-function NotFoundState({ status }) {
-  const message = status === 404
-    ? "This trade no longer exists. It may have been deleted."
-    : "This trade couldn't be loaded.";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", textAlign: "center", padding: 24 }}>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" style={{ marginBottom: 16 }}>
-        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923", marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-        Trade not found
-      </div>
-      <div style={{ fontSize: 12, color: "#4A5568", marginBottom: 24, maxWidth: 320, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-        {message}
-      </div>
-      <Link href="/trades" style={{
-        fontSize: 11, letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace",
-        color: "#FFFFFF", background: "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
-        borderRadius: 10, padding: "12px 20px", textDecoration: "none", fontWeight: 600,
-      }}>
-        BACK TO TRADE LOG
-      </Link>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   ICONS
-───────────────────────────────────────── */
-const icons = {
-  pair: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
-  type: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
-  lot: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
-  entry: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
-  exit: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
-  sl: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>,
-  tp: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
-  strategy: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-  session: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  notes: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-};
-
-/* ─────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────── */
 function TradeDetailContent() {
   const searchParams = useSearchParams();
-  const resolvedParams = useMemo(() => ({ id: searchParams.get('id') }), [searchParams]);
+  const id = searchParams.get("id");
+  const { theme } = useTheme();
+  useSystemBars(theme);
   const [trade, setTrade] = useState(null);
   const [error, setError] = useState(null);
-  const [mounted, setMounted] = useState(false);
 
   const fetchTrade = useCallback(async () => {
-    if (resolvedParams?.id) {
-      try {
-        const data = await getTrade(resolvedParams.id);
-        setTrade(data);
-      } catch (err) {
-        setError(err);
-      }
+    if (!id) { setError({ status: 404 }); return; }
+    try {
+      setTrade(await getTrade(id));
+    } catch (err) {
+      setError(err);
     }
-  }, [resolvedParams]);
+  }, [id]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchTrade();
-      setMounted(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchTrade]);
+  useEffect(() => { fetchTrade(); }, [fetchTrade]);
 
-  // Direction is stored as BUY/SELL — map to LONG/SHORT the same way the trade
-  // list does, so the detail badge and the list never disagree.
-  const isLong = ["BUY", "LONG"].includes(trade?.type?.toUpperCase());
-  const hasProfit = trade != null && trade.profit != null && Number.isFinite(parseFloat(trade.profit));
-  const bull = hasProfit ? parseFloat(trade.profit) >= 0 : true;
-  const profitCol = bull ? "#0D9E6E" : "#D63B3B";
-  const profitDisplay = hasProfit ? `${bull ? "+" : ""}${trade.profit}` : "—";
-  const rr = trade?.stopLoss && trade?.entryPrice && trade?.takeProfit
-    ? Math.abs((parseFloat(trade.takeProfit) - parseFloat(trade.entryPrice)) /
-               (parseFloat(trade.entryPrice) - parseFloat(trade.stopLoss))).toFixed(2)
-    : null;
+  let body;
+  if (error) body = <DetailNotFound status={error.status} backHref="/trades" />;
+  else if (!trade) body = <DetailLoading />;
+  else {
+    // Stored as BUY/SELL; shown as Long/Short like the journal list.
+    const long = ["BUY", "LONG"].includes(String(trade.type || "").toUpperCase());
+    const profit = trade.profit != null && Number.isFinite(parseFloat(trade.profit)) ? parseFloat(trade.profit) : null;
+    const entry = parseFloat(trade.entryPrice), sl = parseFloat(trade.stopLoss), tp = parseFloat(trade.takeProfit);
+    const rr = Number.isFinite(entry) && Number.isFinite(sl) && Number.isFinite(tp) && entry !== sl
+      ? Math.abs((tp - entry) / (entry - sl)).toFixed(2)
+      : null;
+    const plannedRR = trade.riskRewardRatio === "custom" ? trade.riskRewardCustom : trade.riskRewardRatio;
+    const mistake = tradeMistake(trade);
+    const score = trade.setupScore != null && Number.isFinite(Number(trade.setupScore)) ? Number(trade.setupScore) : null;
+    const entryBasis = trade.entryBasis === "Custom" ? (trade.entryBasisCustom || "Custom") : trade.entryBasis;
+    const hasReview = trade.mood || trade.confidence || entryBasis || trade.wouldRetake || trade.emotionalTags?.length || mistake || trade.lesson;
+    const hasEvidence = trade.screenshot || trade.tradeImages?.length > 0;
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F0EEE9",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      {/* Fonts */}
+    body = (
+      <>
+        <DetailHero
+          symbol={trade.pair || "—"}
+          long={long}
+          sideLabel={long ? "Long" : "Short"}
+          dateText={formatMoment(trade)}
+          meta={[trade.session ? `${trade.session} session` : null]}
+          profit={profit}
+          currency="USD"
+          badges={mistake ? <span className="ec-badge ec-badge--warning">{mistake}</span> : null}
+        />
 
-      {/* Background */}
-      <CandlestickBackground canvasId="detail-bg-canvas" />
-      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "linear-gradient(135deg, rgba(240,238,233,0.82) 0%, rgba(240,238,233,0.75) 100%)" }}/>
+        <div className="ec-detail__kpis">
+          <StatCard label="Lot size" value={trade.lotSize ?? "—"} />
+          <StatCard label="Risk : reward" value={rr ? `1 : ${rr}` : plannedRR || "—"} hint={rr ? "From stop and target" : plannedRR ? "Planned" : undefined} />
+          <StatCard label="Checklist" value={score != null ? `${Math.round(score)}%` : "—"} hint={score != null ? (score >= 80 ? "A+ setup" : score >= 50 ? "Partly followed" : "Rules skipped") : "Not scored"} />
+          <StatCard label="Strategy" value={trade.setup || trade.strategy || "—"} />
+        </div>
 
-      <PageHeader />
+        <div className="ec-detail__grid">
+          <div className="ec-detail__col">
+            <DetailSection title="Prices">
+              <PriceLadder entry={trade.entryPrice} exit={trade.exitPrice} stopLoss={trade.stopLoss} takeProfit={trade.takeProfit} long={long} />
+              <DetailRows rows={[
+                { label: "Planned R:R", value: plannedRR, mono: true },
+                { label: "Session", value: trade.session },
+              ]} />
+            </DetailSection>
 
-      <TickerTape />
-
-      {/* Main */}
-      <main style={{
-        position: "relative",
-        zIndex: 5,
-        padding: "16px",
-        maxWidth: 860,
-        margin: "0 auto",
-        opacity: mounted ? 1 : 0,
-        transform: mounted ? "translateY(0)" : "translateY(16px)",
-        transition: "all 0.5s cubic-bezier(0.22,1,0.36,1)",
-      }}>
-
-        {error ? <NotFoundState status={error.status}/> : !trade ? <LoadingState/> : (
-          <>
-            {/* Page title */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10 }}>
-              <div>
-                <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: "-0.01em", color: "#0F1923", lineHeight: 1.1 }}>
-                  Trade <span style={{ color: profitCol }}>Detail</span>
-                </div>
-                <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.06em", marginTop: 3, fontFamily: "'JetBrains Mono',monospace" }}>
-                  FULL BREAKDOWN — AI COACHING ANALYSIS
-                </div>
-              </div>
-              <span style={{
-                fontSize: 11, letterSpacing: "0.1em", flexShrink: 0,
-                color: isLong ? "#0D9E6E" : "#D63B3B",
-                background: isLong ? "rgba(13,158,110,0.1)" : "rgba(214,59,59,0.1)",
-                border: `1px solid ${isLong ? "rgba(13,158,110,0.3)" : "rgba(214,59,59,0.3)"}`,
-                borderRadius: 20, padding: "5px 14px",
-                fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
-              }}>
-                {isLong ? "▲ LONG" : "▼ SHORT"}
-              </span>
-            </div>
-
-            {/* Hero stat cards — 2 per row on mobile, 4 on desktop */}
-            <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>
-              <StatCard
-                label="PAIR"
-                value={trade.pair}
-                accent={profitCol}
-                delay={0}
-              />
-              <StatCard
-                label="PROFIT / LOSS"
-                value={profitDisplay}
-                accent={profitCol}
-                delay={0.05}
-              />
-              {rr && (
-                <StatCard
-                  label="RISK : REWARD"
-                  value={`1 : ${rr}`}
-                  sub="CALCULATED FROM SL/TP"
-                  accent={parseFloat(rr) >= 2 ? "#0D9E6E" : "#B8860B"}
-                  delay={0.1}
-                />
-              )}
-              <StatCard
-                label="SESSION"
-                value={trade.session || "—"}
-                delay={0.15}
-              />
-            </div>
-
-            {/* Sparkline banner */}
-            <div style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2E8F0",
-              borderRadius: 14,
-              overflow: "hidden",
-              marginBottom: 12,
-              marginTop: 10,
-              position: "relative",
-              animation: "fadeUp 0.5s ease 0.1s both",
-              boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-            }}>
-              <div style={{ height: 3, background: `linear-gradient(90deg,${profitCol},${profitCol}22)` }}/>
-              <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono',monospace" }}>
-                  TRADE TRAJECTORY
-                </span>
-                <span style={{ fontSize: "var(--fs-2xs)", color: hasProfit ? profitCol : "#94A3B8", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>
-                  {!hasProfit ? "— P&L N/A" : bull ? "▲ PROFITABLE" : "▼ LOSS"}
-                </span>
-              </div>
-              <TradeSparkline bull={bull}/>
-              {/* Entry / Exit overlaid labels */}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "0 20px 14px" }}>
-                <div>
-                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace" }}>ENTRY</div>
-                  <div style={{ fontSize: 12, color: "#4A5568", fontFamily: "'JetBrains Mono',monospace" }}>{trade.entryPrice || "—"}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "var(--fs-2xs)", color: "#94A3B8", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono',monospace" }}>EXIT</div>
-                  <div style={{ fontSize: 12, color: profitCol, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{trade.exitPrice || "—"}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Two column layout on desktop, single on mobile */}
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-
-              {/* Left — Trade Metrics */}
-              <div style={{
-                flex: "1 1 300px",
-                background: "#FFFFFF",
-                border: "1px solid #E2E8F0",
-                borderRadius: 14,
-                overflow: "hidden",
-                boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-                animation: "fadeUp 0.5s ease 0.15s both",
-              }}>
-                <div style={{ height: 3, background: "linear-gradient(90deg,#0D9E6E,#0D9E6E22)" }}/>
-                <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0" }}>
-                  <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ TRADE METRICS</div>
-                </div>
-                <div style={{ padding: "6px 20px 18px" }}>
-                  <InfoRow label="PAIR" value={trade.pair} icon={icons.pair} valueColor="#0F1923" delay={0.15}/>
-                  <InfoRow label="TYPE" value={isLong ? "LONG" : "SHORT"} icon={icons.type} valueColor={isLong ? "#0D9E6E" : "#D63B3B"} delay={0.18}/>
-                  <InfoRow label="LOT SIZE" value={trade.lotSize} icon={icons.lot} delay={0.21}/>
-                  <InfoRow label="ENTRY PRICE" value={trade.entryPrice} icon={icons.entry} delay={0.24}/>
-                  <InfoRow label="EXIT PRICE" value={trade.exitPrice} icon={icons.exit} valueColor={profitCol} delay={0.27}/>
-                  <InfoRow label="STOP LOSS" value={trade.stopLoss} icon={icons.sl} valueColor="#D63B3B" delay={0.30}/>
-                  <InfoRow label="TAKE PROFIT" value={trade.takeProfit} icon={icons.tp} valueColor="#0D9E6E" delay={0.33}/>
-                  <InfoRow label="PROFIT / LOSS" value={profitDisplay} icon={icons.pair} valueColor={profitCol} delay={0.36}/>
-                </div>
-              </div>
-
-              {/* Right — Strategy & Notes */}
-              <div style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 16 }}>
-
-                {/* Strategy card */}
-                <div style={{
-                  background: "#FFFFFF",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-                  animation: "fadeUp 0.5s ease 0.2s both",
-                }}>
-                  <div style={{ height: 3, background: "linear-gradient(90deg,#D63B3B,#D63B3B22)" }}/>
-                  <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0" }}>
-                    <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ STRATEGY & SESSION</div>
-                  </div>
-                  <div style={{ padding: "6px 20px 18px" }}>
-                  <InfoRow label="STRATEGY" value={trade.strategy} icon={icons.strategy} valueColor="#0F1923" delay={0.22}/>
-                    <InfoRow label="SESSION" value={trade.session} icon={icons.session} valueColor="#B8860B" delay={0.25}/>
-                    <InfoRow label="RISK : REWARD" value={trade.riskRewardRatio === "custom" ? trade.riskRewardCustom : trade.riskRewardRatio} icon={icons.strategy} valueColor={trade.riskRewardRatio ? "#0D9E6E" : "#94A3B8"} delay={0.28}/>
-                  </div>
-                </div>
-
-                {/* Notes card */}
-                <div style={{
-                  background: "#FFFFFF",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-                  flex: 1,
-                  animation: "fadeUp 0.5s ease 0.25s both",
-                }}>
-                  <div style={{ height: 3, background: "linear-gradient(90deg,#B8860B,#B8860B22)" }}/>
-                  <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: "#94A3B8" }}>{icons.notes}</span>
-                    <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ TRADER NOTES</div>
-                  </div>
-                  <div style={{ padding: "18px 20px" }}>
-                    {trade.notes ? (
-                      <p style={{
-                        fontSize: 13,
-                        color: "#4A5568",
-                        fontFamily: "'Plus Jakarta Sans',sans-serif",
-                        lineHeight: 1.8,
-                        margin: 0,
-                        borderLeft: "3px solid #B8860B",
-                        paddingLeft: 14,
-                      }}>
-                        {trade.notes}
-                      </p>
-                    ) : (
-                      <p style={{ fontSize: 11, color: "#94A3B8", letterSpacing: "0.08em", fontStyle: "italic", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                        NO NOTES RECORDED FOR THIS TRADE.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* AI Insight placeholder card */}
-                <div style={{
-                  background: "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
-                  borderRadius: 14,
-                  padding: "18px 20px",
-                  boxShadow: "0 4px 16px rgba(15,25,35,0.15)",
-                  animation: "fadeUp 0.5s ease 0.3s both",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: "rgba(34,199,142,0.15)",
-                      border: "1px solid rgba(34,199,142,0.25)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C78E", animation: "blink 1.2s ease-in-out infinite" }}/>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#22C78E", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>AI ANALYSIS</div>
-                  </div>
-                  <p style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.7, letterSpacing: "0.04em", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                    AI INSIGHTS WILL APPEAR HERE BASED ON YOUR ENTRY, EXIT, STRATEGY, AND HISTORICAL PATTERN DATA.
-                  </p>
-                </div>
-
-                {/* Evidence Gallery (renders legacy screenshot + new tradeImages) */}
-                {(trade.screenshot || (trade.tradeImages && trade.tradeImages.length > 0)) && (
-                  <div style={{
-                    background: "#FFFFFF",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-                    animation: "fadeUp 0.5s ease 0.35s both",
-                  }}>
-                    <div style={{ height: 3, background: "linear-gradient(90deg,#6366F1,#6366F122)" }}/>
-                    <div style={{ padding: "18px 20px" }}>
-                      <TradeEvidenceGallery
-                        images={trade.tradeImages || []}
-                        legacyScreenshot={trade.screenshot}
-                        title="◆ TRADE EVIDENCE"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Psychology Section */}
-            {(trade.mood || trade.confidence || trade.entryBasis || (trade.emotionalTags?.length > 0) || trade.mistakeTag || trade.lesson || trade.setupScore != null) && (
-              <div style={{
-                background: "#FFFFFF",
-                border: "1px solid #E2E8F0",
-                borderRadius: 14,
-                overflow: "hidden",
-                boxShadow: "0 2px 12px rgba(15,25,35,0.06)",
-                marginTop: 16,
-                animation: "fadeUp 0.5s ease 0.3s both",
-              }}>
-                <div style={{ height: 3, background: "linear-gradient(90deg,#6366F1,#6366F122)" }}/>
-                <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>🧠</span>
-                  <div style={{ fontSize: 11, color: "#4A5568", letterSpacing: "0.14em", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>◆ PSYCHOLOGY & REVIEW</div>
-                </div>
-                <div style={{ padding: "6px 20px 18px" }}>
-                  {trade.entryBasis && (
-                    <InfoRow
-                      label="ENTRY BASIS"
-                      value={trade.entryBasis === "Custom" ? (trade.entryBasisCustom || trade.entryBasis) : trade.entryBasis}
-                      delay={0.32}
-                    />
-                  )}
-                  {trade.mood && (
-                    <InfoRow
-                      label="MOOD (1–5)"
-                      value={"★".repeat(trade.mood) + "☆".repeat(5 - trade.mood) + `  (${trade.mood}/5)`}
-                      valueColor="#6366F1"
-                      delay={0.34}
-                    />
-                  )}
-                  {trade.confidence && (
-                    <InfoRow
-                      label="CONFIDENCE"
-                      value={trade.confidence}
-                      valueColor={trade.confidence === "High" ? "#0D9E6E" : trade.confidence === "Overconfident" ? "#D63B3B" : trade.confidence === "Low" ? "#94A3B8" : "#B8860B"}
-                      delay={0.36}
-                    />
-                  )}
-                  {trade.wouldRetake && (
-                    <InfoRow
-                      label="WOULD RETAKE?"
-                      value={trade.wouldRetake}
-                      valueColor={trade.wouldRetake === "Yes" ? "#0D9E6E" : "#D63B3B"}
-                      delay={0.38}
-                    />
-                  )}
-                  {trade.emotionalTags?.length > 0 && (
-                    <div style={{ padding: "14px 0", borderBottom: "1px solid #E2E8F0" }}>
-                      <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#4A5568", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>EMOTIONAL TAGS</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {trade.emotionalTags.map((tag, i) => (
-                          <span key={i} style={{
-                            fontSize: "var(--fs-2xs)",
-                            fontFamily: "'JetBrains Mono',monospace",
-                            color: "#6366F1",
-                            background: "rgba(99,102,241,0.08)",
-                            border: "1px solid rgba(99,102,241,0.2)",
-                            borderRadius: 20,
-                            padding: "3px 10px",
-                          }}>{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {trade.mistakeTag && (
-                    <InfoRow label="MISTAKE TAG" value={trade.mistakeTag} valueColor="#D63B3B" delay={0.40}/>
-                  )}
-                  {trade.setupScore != null && (
-                    <InfoRow
-                      label="SETUP SCORE"
-                      value={`${trade.setupScore}%`}
-                      valueColor={trade.setupScore >= 70 ? "#0D9E6E" : trade.setupScore >= 40 ? "#B8860B" : "#D63B3B"}
-                      delay={0.42}
-                    />
-                  )}
-                  {trade.lesson && (
-                    <div style={{ paddingTop: 14 }}>
-                      <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.12em", color: "#4A5568", fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>LESSON LEARNED</div>
-                      <p style={{
-                        fontSize: 13,
-                        color: "#4A5568",
-                        fontFamily: "'Plus Jakarta Sans',sans-serif",
-                        lineHeight: 1.8,
-                        margin: 0,
-                        borderLeft: "3px solid #6366F1",
-                        paddingLeft: 14,
-                      }}>{trade.lesson}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+            {(score != null || trade.setupRules?.length > 0) && (
+              <DetailSection title="Checklist">
+                {score != null && <ScoreMeter score={score} />}
+                <RuleResults rules={trade.setupRules} />
+              </DetailSection>
             )}
 
-            {/* Bottom actions */}
-            <div style={{
-              display: "flex",
-              gap: 12,
-              marginTop: 20,
-              flexWrap: "wrap",
-              animation: "fadeUp 0.5s ease 0.35s both",
-            }}>
-              <Link href="/trades" style={{
-                flex: "1 1 140px",
-                textAlign: "center",
-                fontSize: 11,
-                letterSpacing: "0.14em",
-                fontFamily: "'JetBrains Mono',monospace",
-                color: "#4A5568",
-                border: "1px solid #E2E8F0",
-                background: "#FFFFFF",
-                borderRadius: 10,
-                padding: "14px",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(15,25,35,0.05)",
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
-                </svg>
-                BACK TO TRADE LOG
-              </Link>
-              <Link href={`/trades/edit?id=${resolvedParams?.id}`} style={{
-                flex: "1 1 140px",
-                textAlign: "center",
-                fontSize: 11,
-                letterSpacing: "0.14em",
-                fontFamily: "'JetBrains Mono',monospace",
-                color: "#FFFFFF",
-                border: "none",
-                background: "linear-gradient(135deg, #0F1923 0%, #1a2d3d 100%)",
-                borderRadius: 10,
-                padding: "14px",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                fontWeight: 600,
-                boxShadow: "0 4px 16px rgba(15,25,35,0.2)",
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-                EDIT TRADE
-              </Link>
-            </div>
-          </>
-        )}
-      </main>
+            {hasEvidence && (
+              <DetailSection title="Screenshots">
+                <TradeEvidenceGallery images={trade.tradeImages || []} legacyScreenshot={trade.screenshot} title="" />
+              </DetailSection>
+            )}
+          </div>
 
-      <style>{`
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        @media (min-width: 600px) {
-          .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
-          .main-pad { padding: 24px !important; }
-        }
-      `}</style>
+          <div className="ec-detail__col">
+            <DetailSection title="Review">
+              {hasReview ? (
+                <>
+                  <DetailRows rows={[
+                    { label: "Entry basis", value: entryBasis, tone: trade.entryBasis === "Plan" ? "up" : ["Emotion", "Impulsive"].includes(trade.entryBasis) ? "down" : null },
+                    { label: "Mood", value: trade.mood ? <MoodDots value={trade.mood} /> : null },
+                    { label: "Confidence", value: trade.confidence, tone: trade.confidence === "High" ? "up" : trade.confidence === "Overconfident" ? "down" : null },
+                    { label: "Would retake?", value: trade.wouldRetake, tone: trade.wouldRetake === "Yes" ? "up" : trade.wouldRetake ? "down" : null },
+                    { label: "Mistake", value: mistake, tone: "warn" },
+                  ]} />
+                  {trade.emotionalTags?.length > 0 && (
+                    <div className="ec-detail__block"><span className="ec-detail__label">Emotions</span><TagList tags={trade.emotionalTags} /></div>
+                  )}
+                  {trade.lesson && (
+                    <div className="ec-detail__block"><span className="ec-detail__label">Lesson</span><Quote>{trade.lesson}</Quote></div>
+                  )}
+                </>
+              ) : (
+                <p className="ec-detail__empty">No review yet. Edit the trade to add your mood, mistakes and the lesson.</p>
+              )}
+            </DetailSection>
+
+            <DetailSection title="Notes">
+              {trade.notes ? <Quote>{trade.notes}</Quote> : <p className="ec-detail__empty">No notes for this trade.</p>}
+            </DetailSection>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="ec-app ec-home">
+      <PageHeader themed showMarketSwitcher={false} title="Trade" />
+      <main className="ec-page ec-detail">
+        <DetailTopBar backHref="/trades" editHref={trade && id ? `/trades/edit?id=${id}` : null} />
+        {body}
+      </main>
     </div>
   );
 }
 
 export default function TradeDetail() {
   return (
-    <React.Suspense fallback={<LoadingState />}>
+    <React.Suspense fallback={null}>
       <TradeDetailContent />
     </React.Suspense>
   );

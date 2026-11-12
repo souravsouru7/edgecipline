@@ -58,5 +58,5 @@ export default function RootPage() {
   // while it does so the brand opener (AuthSessionBootstrap) is covering the
   // screen. The previous static logo here was a second, different splash that
   // flashed between the opener and the dashboard.
-  return <main style={{ minHeight: "100vh", background: "#F4F2EE" }} aria-busy="true" />;
+  return <main style={{ minHeight: "100vh", background: "var(--ec-bg, #0A0D12)" }} aria-busy="true" />;
 }

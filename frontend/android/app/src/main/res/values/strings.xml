@@ -5,4 +5,9 @@
     <string name="package_name">com.edgecipline</string>
     <string name="custom_url_scheme">com.edgecipline</string>
     <string name="server_client_id">466233608400-9j5m11998vtl33ctuhjkpsl4phlmamif.apps.googleusercontent.com</string>
+    <!-- App-icon shortcuts (res/xml/shortcuts.xml). Short label ≤ 10 chars. -->
+    <string name="shortcut_log_trade_short">Log trade</string>
+    <string name="shortcut_log_trade_long">Log a trade</string>
+    <string name="shortcut_checklist_short">Checklist</string>
+    <string name="shortcut_checklist_long">Pre-trade checklist</string>
 </resources>

@@ -20,6 +20,27 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if let userActivity = connectionOptions.userActivities.first {
             _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
         }
+        // Cold launch from a Home-screen quick action (long-press the icon).
+        if let shortcut = connectionOptions.shortcutItem {
+            _ = forwardShortcut(shortcut)
+        }
+    }
+
+    // Quick action while the app is already running.
+    func windowScene(_ windowScene: UIWindowScene, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(forwardShortcut(shortcutItem))
+    }
+
+    /// Info.plist UIApplicationShortcutItems → edgecipline://shortcut/<name>,
+    /// handed to Capacitor like any other link so the App plugin's
+    /// getLaunchUrl / appUrlOpen deliver it to components/AppShortcuts.jsx.
+    private func forwardShortcut(_ item: UIApplicationShortcutItem) -> Bool {
+        let prefix = "com.edgecipline.shortcut."
+        guard item.type.hasPrefix(prefix),
+              let url = URL(string: "edgecipline://shortcut/" + String(item.type.dropFirst(prefix.count))) else {
+            return false
+        }
+        return ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {

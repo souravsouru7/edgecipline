@@ -18,7 +18,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { validateEnvironment } from "@/config/environment";
-import { isIOSNative } from "@/utils/platform";
+import { isAndroidNative, isIOSNative, isNativeApp } from "@/utils/platform";
 
 // L12: Map config keys → env var names so the error message is actionable.
 const FIREBASE_ENV_MAP = {
@@ -116,8 +116,11 @@ const APPLE_PROVIDER_ID = "apple.com";
 const APPLE_WEB_ENABLED =
   String(process.env.NEXT_PUBLIC_APPLE_AUTH_WEB_ENABLED || "").trim() === "true";
 
-const isCapacitorApp = () => typeof window !== "undefined" && !!window.Capacitor;
-const isCapacitorAndroid = () => isCapacitorApp() && window.Capacitor?.getPlatform?.() === "android";
+// window.Capacitor also exists in a plain browser (platform "web") once
+// @capacitor/core is loaded, so its presence alone sent web users down the
+// native-plugin path, which fails with app/no-app. Only a real native shell counts.
+const isCapacitorApp = () => isNativeApp();
+const isCapacitorAndroid = () => isAndroidNative();
 
 const isMobileBrowser = () => {
   if (typeof window === "undefined" || isCapacitorApp()) return false;

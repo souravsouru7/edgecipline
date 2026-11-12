@@ -1,70 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import LegalShell, { Section, BulletList, Highlight } from "@/features/legal/LegalShell";
 
-function Section({ title, children, id }) {
-  return (
-    <section id={id} style={{ marginBottom: 48 }}>
-      <h2 style={{
-        fontSize: 20,
-        fontWeight: 800,
-        color: "#22C78E",
-        marginBottom: 16,
-        paddingBottom: 10,
-        borderBottom: "1px solid rgba(34,199,142,0.2)",
-        letterSpacing: "0.02em",
-      }}>
-        {title}
-      </h2>
-      <div style={{ color: "#CBD5E1", fontSize: 15, lineHeight: 1.8 }}>
-        {children}
-      </div>
-    </section>
-  );
-}
+// Public legal page: reachable with no session (store listings link here).
+// The legal text is unchanged; only the frame and colours follow the theme.
 
-function BulletList({ items }) {
-  return (
-    <ul style={{ paddingLeft: 0, listStyle: "none", marginTop: 12 }}>
-      {items.map((item) => (
-        <li key={item} style={{
-          display: "flex", alignItems: "flex-start", gap: 10,
-          marginBottom: 10, color: "#CBD5E1", fontSize: 15, lineHeight: 1.7
-        }}>
-          <span style={{
-            width: 6, height: 6, background: "#22C78E", borderRadius: "50%",
-            marginTop: 8, flexShrink: 0
-          }} />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function Highlight({ children }) {
-  return (
-    <div style={{
-      background: "rgba(184,134,11,0.08)",
-      border: "1px solid rgba(184,134,11,0.25)",
-      borderLeft: "3px solid #B8860B",
-      borderRadius: "0 10px 10px 0",
-      padding: "14px 18px",
-      margin: "16px 0",
-      color: "#FDE68A",
-      fontSize: 14,
-      lineHeight: 1.7,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-export default function PrivacyPolicyPage() {
-  const router = useRouter();
-
-  const toc = [
+const toc = [
     { id: "information-collected", label: "Information We Collect" },
     { id: "how-we-use", label: "How We Use Your Data" },
     { id: "data-storage", label: "Data Storage & Security" },
@@ -77,166 +18,45 @@ export default function PrivacyPolicyPage() {
     { id: "contact", label: "Contact Us" },
   ];
 
+export default function PrivacyPolicyPage() {
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#080D12",
-      fontFamily: "'Plus Jakarta Sans', Arial, sans-serif",
-      color: "#E2E8F0",
-    }}>
-
-      {/* ── HEADER ── */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 24px", height: 60,
-        background: "rgba(8,13,18,0.95)",
-        backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(34,199,142,0.1)",
-        position: "sticky", top: 0, zIndex: 100,
-        boxShadow: "0 1px 24px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={() => router.back()}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "#94A3B8", padding: 8, display: "flex", alignItems: "center",
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#F1F5F9", letterSpacing: "0.04em" }}>
-              PRIVACY POLICY
-            </div>
-            <div style={{
-              fontSize: "var(--fs-2xs)", color: "#22C78E", letterSpacing: "0.15em",
-              fontFamily: "'JetBrains Mono'", fontWeight: 700
-            }}>
-              EDGECIPLINE
-            </div>
-          </div>
-        </div>
-        <Link href="/dashboard" style={{
-          textDecoration: "none", fontSize: 11, fontWeight: 700,
-          color: "#B8860B", fontFamily: "'JetBrains Mono'", letterSpacing: "0.08em"
-        }}>
-          BACK TO APP
-        </Link>
-      </header>
-
-      {/* ── GRADIENT BAR ── */}
-      <div style={{ height: 2, background: "linear-gradient(90deg, #22C78E 0%, #B8860B 50%, #22C78E 100%)" }} />
-
-      {/* ── HERO ── */}
-      <div style={{
-        background: "linear-gradient(180deg, #0D1520 0%, #080D12 100%)",
-        borderBottom: "1px solid rgba(34,199,142,0.08)",
-        padding: "52px 24px 48px",
-        textAlign: "center",
-      }}>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          background: "rgba(34,199,142,0.08)", border: "1px solid rgba(34,199,142,0.2)",
-          borderRadius: 100, padding: "6px 16px", marginBottom: 20,
-        }}>
-          <span style={{ fontSize: "var(--fs-2xs)", color: "#22C78E", fontFamily: "'JetBrains Mono'", fontWeight: 700, letterSpacing: "0.12em" }}>
-            LEGAL DOCUMENT
-          </span>
-        </div>
-        <h1 style={{
-          fontSize: "clamp(28px, 6vw, 44px)",
-          fontWeight: 800,
-          color: "#F1F5F9",
-          lineHeight: 1.15,
-          marginBottom: 16,
-        }}>
-          Privacy Policy
-        </h1>
-        <p style={{ fontSize: 15, color: "#94A3B8", maxWidth: 540, margin: "0 auto 20px", lineHeight: 1.7 }}>
-          We respect your privacy and are committed to protecting your personal data. This policy explains how Edgecipline handles your information.
-        </p>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: "rgba(255,255,255,0.04)", borderRadius: 8,
-          padding: "8px 16px",
-          fontSize: 12, color: "#64748B", fontFamily: "'JetBrains Mono'"
-        }}>
-          Last Updated: August 6, 2026
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px 80px" }}>
-
-        {/* ── TABLE OF CONTENTS ── */}
-        <div style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(34,199,142,0.12)",
-          borderRadius: 16,
-          padding: "28px 32px",
-          marginBottom: 56,
-        }}>
-          <div style={{
-            fontSize: "var(--fs-2xs)", fontWeight: 800, color: "#22C78E",
-            letterSpacing: "0.15em", fontFamily: "'JetBrains Mono'", marginBottom: 16
-          }}>
-            TABLE OF CONTENTS
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px 24px" }}>
-            {toc.map((item, i) => (
-              <a key={item.id} href={`#${item.id}`} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                textDecoration: "none", color: "#94A3B8",
-                fontSize: 13, padding: "6px 0", transition: "color 0.2s",
-              }}
-                onMouseEnter={e => e.currentTarget.style.color = "#22C78E"}
-                onMouseLeave={e => e.currentTarget.style.color = "#94A3B8"}
-              >
-                <span style={{
-                  width: 20, height: 20, background: "rgba(34,199,142,0.1)",
-                  borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "var(--fs-2xs)", color: "#22C78E", fontFamily: "'JetBrains Mono'", flexShrink: 0
-                }}>
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                {item.label}
-              </a>
-            ))}
-          </div>
-        </div>
-
+    <LegalShell
+      title="Privacy Policy"
+      intro="We respect your privacy and are committed to protecting your personal data. This policy explains how Edgecipline handles your information."
+      updated="August 6, 2026"
+      toc={toc}
+      related={[{ href: "/terms", label: "Terms & Conditions" }, { href: "/delete-account", label: "Delete your account" }, { href: "/support", label: "Help" }]}
+    >
         {/* ── INTRO ── */}
-        <p style={{ fontSize: 15, color: "#94A3B8", lineHeight: 1.8, marginBottom: 48 }}>
-          This Privacy Policy describes how <strong style={{ color: "#F1F5F9" }}>Edgecipline</strong> {"(\"we,\" \"our,\" or \"us\") collects, uses, and protects your information when you use our mobile and web application. By using Edgecipline, you agree to the collection and use of information as outlined in this policy."}
+        <p style={{ fontSize: 15, color: "var(--ec-text-2)", lineHeight: 1.8, marginBottom: 48 }}>
+          This Privacy Policy describes how <strong style={{ color: "var(--ec-text)" }}>Edgecipline</strong> {"(\"we,\" \"our,\" or \"us\") collects, uses, and protects your information when you use our mobile and web application. By using Edgecipline, you agree to the collection and use of information as outlined in this policy."}
         </p>
 
         {/* ── SECTION 1 ── */}
         <Section title="1. Information We Collect" id="information-collected">
           <p style={{ marginBottom: 12 }}>We collect the following categories of information to provide and improve our services:</p>
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>Account Information</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", marginBottom: 8, marginTop: 20 }}>Account Information</h3>
           <BulletList items={[
             "Full name (provided during registration)",
             "Email address (used for authentication and communication)",
             "Password (stored securely via Firebase Authentication — we never see your plain-text password)",
           ]} />
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>Trading Data</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", marginBottom: 8, marginTop: 20 }}>Trading Data</h3>
           <BulletList items={[
             "Trade journal entries including notes, trade details, and performance records",
             "Pre-trade checklist responses",
             "Uploaded screenshots and images related to trades",
           ]} />
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>AI-Generated Content</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", marginBottom: 8, marginTop: 20 }}>AI-Generated Content</h3>
           <BulletList items={[
             "AI-generated feedback and insights based on your trade data",
             "Performance analysis and pattern observations",
           ]} />
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F1F5F9", marginBottom: 8, marginTop: 20 }}>What We Do NOT Collect</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", marginBottom: 8, marginTop: 20 }}>What We Do NOT Collect</h3>
           <BulletList items={[
             "Profile photos or profile pictures",
             "Financial account information, broker credentials, or banking details",
@@ -269,17 +89,17 @@ export default function PrivacyPolicyPage() {
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", marginBottom: 16 }}>
             {[
               { name: "Firebase (Google)", desc: "Used for user authentication and secure login management.", color: "#F97316" },
-              { name: "MongoDB Atlas", desc: "Used for storing trade journal entries, insights, checklists, and app data.", color: "#22C78E" },
+              { name: "MongoDB Atlas", desc: "Used for storing trade journal entries, insights, checklists, and app data.", color: "var(--ec-accent-text)" },
             ].map((s) => (
               <div key={s.name} style={{
-                background: "rgba(255,255,255,0.03)",
+                background: "color-mix(in srgb, var(--ec-text) 3%, transparent)",
                 border: `1px solid ${s.color}33`,
                 borderLeft: `3px solid ${s.color}`,
                 borderRadius: "0 12px 12px 0",
                 padding: "16px 18px",
               }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: s.color, marginBottom: 6 }}>{s.name}</div>
-                <div style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>{s.desc}</div>
+                <div style={{ fontSize: 13, color: "var(--ec-text-2)", lineHeight: 1.6 }}>{s.desc}</div>
               </div>
             ))}
           </div>
@@ -332,7 +152,7 @@ export default function PrivacyPolicyPage() {
           ]} />
           <p style={{ marginTop: 16 }}>
             To exercise any of these rights or for data-related requests, contact us at{" "}
-            <a href="mailto:dream@edgecipline.com" style={{ color: "#22C78E", textDecoration: "none" }}>
+            <a href="mailto:dream@edgecipline.com" style={{ color: "var(--ec-accent-text)", textDecoration: "none" }}>
               dream@edgecipline.com
             </a>.
           </p>
@@ -369,17 +189,17 @@ export default function PrivacyPolicyPage() {
             If you have any questions, concerns, or requests regarding this Privacy Policy or your personal data, please reach out to us:
           </p>
           <div style={{
-            background: "rgba(34,199,142,0.06)",
-            border: "1px solid rgba(34,199,142,0.2)",
+            background: "color-mix(in srgb, var(--ec-accent) 6%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--ec-accent) 20%, transparent)",
             borderRadius: 14,
             padding: "24px 28px",
             display: "inline-block",
           }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#F1F5F9", marginBottom: 4 }}>Edgecipline</div>
-            <div style={{ fontSize: 14, color: "#94A3B8", marginBottom: 12 }}>Privacy & Data Requests</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ec-text)", marginBottom: 4 }}>Edgecipline</div>
+            <div style={{ fontSize: 14, color: "var(--ec-text-2)", marginBottom: 12 }}>Privacy & Data Requests</div>
             <a href="mailto:dream@edgecipline.com" style={{
               display: "flex", alignItems: "center", gap: 8,
-              color: "#22C78E", textDecoration: "none", fontSize: 14, fontWeight: 700,
+              color: "var(--ec-accent-text)", textDecoration: "none", fontSize: 14, fontWeight: 700,
               marginBottom: 8,
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -390,7 +210,7 @@ export default function PrivacyPolicyPage() {
             </a>
             <a href="tel:+919061650463" style={{
               display: "flex", alignItems: "center", gap: 8,
-              color: "#22C78E", textDecoration: "none", fontSize: 14, fontWeight: 700,
+              color: "var(--ec-accent-text)", textDecoration: "none", fontSize: 14, fontWeight: 700,
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -399,38 +219,6 @@ export default function PrivacyPolicyPage() {
             </a>
           </div>
         </Section>
-
-        {/* ── FOOTER CTA ── */}
-        <div style={{
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          paddingTop: 40,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 16,
-        }}>
-          <div style={{ fontSize: 12, color: "#475569", fontFamily: "'JetBrains Mono'" }}>
-            © 2026 Edgecipline. All rights reserved.
-          </div>
-          <div style={{ display: "flex", gap: 20 }}>
-            <Link href="/terms" style={{ fontSize: 12, color: "#64748B", textDecoration: "none" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#22C78E"}
-              onMouseLeave={e => e.currentTarget.style.color = "#64748B"}
-            >
-              Terms &amp; Conditions
-            </Link>
-            <Link href="/support" style={{ fontSize: 12, color: "#64748B", textDecoration: "none" }}>
-              Support
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-      `}</style>
-    </div>
+    </LegalShell>
   );
 }

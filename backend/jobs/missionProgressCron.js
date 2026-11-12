@@ -23,6 +23,8 @@ const { sendMorningMissionReminders } = require("../services/missionNotification
 const { expireOldMissions, getActiveMissions } = require("../services/missionService");
 const { logger } = require("../utils/logger");
 const { appConfig } = require("../config");
+const { withCronLock } = require("../utils/distributedLock");
+const { getDayRange, zonedTimeToUtc } = require("../utils/timezone");
 
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
@@ -42,30 +44,41 @@ function previousDayKey(tz = DEFAULT_TIMEZONE) {
   return dayKeyInTz(yesterday, tz);
 }
 
-async function buildDayData(userId, dayKey) {
-  // Aggregate trade data for the given day key
-  const dayStart = new Date(`${dayKey}T00:00:00.000Z`);
-  const dayEnd   = new Date(`${dayKey}T23:59:59.999Z`);
+// The day key is an IST calendar date, so its bounds must be IST midnight to
+// midnight. They used to be UTC midnights, putting 00:00–05:30 IST trades on
+// the wrong day.
+function dayBoundsInTz(dayKey, tz = DEFAULT_TIMEZONE) {
+  const [year, month, day] = dayKey.split("-").map(Number);
+  return getDayRange(zonedTimeToUtc({ year, month, day, hour: 12, minute: 0, second: 0 }, tz), tz);
+}
 
-  const [forexTrades, indianTrades, disciplineEntries] = await Promise.all([
-    Trade.find({
-      user: userId,
-      deletedAt: null,
-      $or: [
-        { tradeDate: { $gte: dayStart, $lte: dayEnd } },
-        { createdAt: { $gte: dayStart, $lte: dayEnd } },
-      ],
-    }).select("profit notes stopLoss riskPercent").lean(),
-    IndianTrade.find({
-      user: userId,
-      deletedAt: null,
-      $or: [
-        { tradeDate: { $gte: dayStart, $lte: dayEnd } },
-        { createdAt: { $gte: dayStart, $lte: dayEnd } },
-      ],
-    }).select("profit notes stopLoss riskPercent").lean(),
+async function buildDayData(userId, dayKey) {
+  const { start, end } = dayBoundsInTz(dayKey);
+  const inRange = { $gte: start, $lt: end };
+  // When the trade happened; fall back to when it was saved only if no
+  // tradeDate (a back-dated trade saved yesterday belongs to its own day).
+  const dateFilter = { $or: [{ tradeDate: inRange }, { tradeDate: null, createdAt: inRange }] };
+
+  const [forexTrades, indianTrades, disciplineEntries, limitsDoc] = await Promise.all([
+    Trade.find({ user: userId, deletedAt: null, "parsedData.multiTradeGhost": { $ne: true }, ...dateFilter })
+      .select("profit notes stopLoss riskPercent tradeDate createdAt").lean(),
+    IndianTrade.find({ user: userId, deletedAt: null, ...dateFilter })
+      .select("profit notes stopLoss riskPercent tradeDate createdAt").lean(),
     DailyDisciplineEntry.find({ user: userId, day: dayKey }).lean(),
+    // A failed read must not fail the whole day's evaluation.
+    User.findById(userId).select("riskLimits").lean().catch(() => null),
   ]);
+
+  const sumPnl = (list) => list.reduce((s, t) => s + (Number.isFinite(t.profit) ? t.profit : 0), 0);
+  const limitOf = (market) => {
+    const n = Number(limitsDoc?.riskLimits?.[market]?.dailyLossLimit);
+    return limitsDoc?.riskLimits?.[market]?.dailyLossLimit != null && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  // Each market against its own limit, in its own currency.
+  const marketChecks = [
+    { market: "Forex", tradeCount: forexTrades.length, pnl: sumPnl(forexTrades), limit: limitOf("Forex") },
+    { market: "Indian_Market", tradeCount: indianTrades.length, pnl: sumPnl(indianTrades), limit: limitOf("Indian_Market") },
+  ];
 
   const trades = [...forexTrades, ...indianTrades];
   const tradeCount = trades.length;
@@ -93,7 +106,7 @@ async function buildDayData(userId, dayKey) {
   const hasFomoTrade = trades.some(t => t.notes && /\bfomo\b/i.test(t.notes));
   const dailyPnl = trades.reduce((s, t) => s + (Number.isFinite(t.profit) ? t.profit : 0), 0);
 
-  return { tradeCount, satOut, hasRevengeTrade, hasFomoTrade, dailyPnl, dailyLossLimit: null };
+  return { tradeCount, satOut, hasRevengeTrade, hasFomoTrade, dailyPnl, dailyLossLimit: null, marketChecks };
 }
 
 // ─── Daily evaluation sweep ───────────────────────────────────────────────────
@@ -153,14 +166,32 @@ async function sendMorningReminders() {
 let dailyJob = null;
 let morningJob = null;
 
+// One run per job per IST day across instances, held for the day: the mission
+// cron had no lock, and a duplicate evaluation run is exactly what produced
+// the false "Mission Reset" pushes.
+const MISSION_LOCK_TTL_SECONDS = 20 * 60 * 60;
+
+async function runLocked(name, fn) {
+  const lockSuffix = new Intl.DateTimeFormat("en-CA", { timeZone: DEFAULT_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const result = await withCronLock({ name, lockSuffix, ttlSeconds: MISSION_LOCK_TTL_SECONDS, holdUntilExpiry: true }, fn);
+  if (result.skipped) logger.info(`[MissionCron] ${name} already ran today; skipping`, { key: result.key });
+  return result;
+}
+
 function startMissionProgressCron() {
+  if (!appConfig.missions?.enabled) {
+    logger.info("[MissionCron] disabled by ENABLE_MISSION_CRON");
+    return { dailyJob: null, morningJob: null };
+  }
   // Daily evaluation at 21:30 IST (16:00 UTC)
   dailyJob = cron.schedule(
     "0 30 21 * * *",
     async () => {
       try {
-        await runDailyEvaluation();
-        await expireOldMissions();
+        await runLocked("mission-daily", async () => {
+          await runDailyEvaluation();
+          await expireOldMissions();
+        });
       } catch (err) {
         logger.error("[MissionCron] Daily job error", { error: err.message });
       }
@@ -173,7 +204,7 @@ function startMissionProgressCron() {
     "0 30 7 * * *",
     async () => {
       try {
-        await sendMorningReminders();
+        await runLocked("mission-morning", () => sendMorningReminders());
       } catch (err) {
         logger.error("[MissionCron] Morning reminder job error", { error: err.message });
       }
@@ -195,4 +226,5 @@ module.exports = {
   stopMissionProgressCron,
   runDailyEvaluation,
   sendMorningReminders,
+  buildDayData,
 };

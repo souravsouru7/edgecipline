@@ -44,8 +44,8 @@ export default function SignInRequired({ next = "/support/tickets", config, titl
           display: inline-block;
           padding: 12px 26px;
           border-radius: 10px;
-          background: var(--color-dark);
-          color: var(--color-primary-light);
+          background: var(--ec-accent);
+          color: var(--ec-on-accent);
           font-size: 13.5px;
           font-weight: 700;
           text-decoration: none;
@@ -55,11 +55,9 @@ export default function SignInRequired({ next = "/support/tickets", config, titl
           outline-offset: 3px;
         }
         .sr-h2 {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.09em;
-          text-transform: uppercase;
-          color: var(--color-text-muted);
+          font-size: 17px;
+          font-weight: 600;
+          color: var(--color-dark);
           margin: 0 0 13px;
         }
       `}</style>

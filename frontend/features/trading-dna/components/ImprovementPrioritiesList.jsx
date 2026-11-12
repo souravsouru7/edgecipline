@@ -1,87 +1,34 @@
 "use client";
 
-import { C, FONT, cardSurface } from "./tokens";
-import SectionTitle from "./SectionTitle";
+import { Target } from "lucide-react";
+import { Card, CardHeader } from "@/features/shared/components/ui";
 
 export default function ImprovementPrioritiesList({ items = [] }) {
   if (!items.length) return null;
 
   return (
-    <div style={cardSurface}>
-      <SectionTitle>IMPROVEMENT PRIORITIES</SectionTitle>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <Card>
+      <CardHeader
+        title={<span className="ec-dna__title-icon"><Target size={16} aria-hidden="true" className="ec-tone--good" /> What to work on</span>}
+        subtitle="In order: the first one should make the biggest difference"
+      />
+      <ol className="ec-dna__steps">
         {items.map((entry, i) => (
-          <div
-            key={`${entry.priority || "priority"}-${i}`}
-            style={{
-              padding: "16px 18px",
-              borderRadius: 12,
-              background: C.surfaceAlt,
-              border: `1px solid ${C.border}`,
-              display: "grid",
-              gridTemplateColumns: "auto 1fr",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                background: C.primary,
-                color: "#F8FAFC",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                fontWeight: 900,
-                fontFamily: FONT.mono,
-              }}
-            >
-              {i + 1}
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 800,
-                  color: C.primary,
-                  marginBottom: 6,
-                }}
-              >
-                {entry.priority}
-              </div>
-              {entry.action ? (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#374151",
-                    lineHeight: 1.6,
-                    marginBottom: entry.expectedImpact ? 6 : 0,
-                  }}
-                >
-                  <span style={{ color: C.muted, fontWeight: 700 }}>
-                    Action:
-                  </span>{" "}
-                  {entry.action}
-                </div>
-              ) : null}
+          <li key={`${entry.priority || "priority"}-${i}`} className="ec-dna__step">
+            <span className="ec-dna__step-num" aria-hidden="true">{i + 1}</span>
+            <div style={{ minWidth: 0 }}>
+              <p className="ec-dna__item-title">{entry.priority}</p>
+              {entry.action ? <p className="ec-dna__item-text">{entry.action}</p> : null}
               {entry.expectedImpact ? (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: C.bull,
-                    fontWeight: 600,
-                  }}
-                >
-                  Expected impact: {entry.expectedImpact}
-                </div>
+                <p className="ec-dna__item-text">
+                  <span className="ec-dna__label">Expected impact</span>{" "}
+                  <span className="ec-tone--good">{entry.expectedImpact}</span>
+                </p>
               ) : null}
             </div>
-          </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ol>
+    </Card>
   );
 }

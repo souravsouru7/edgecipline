@@ -1,30 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { forgotPassword } from "@/services/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { isValidEmail } from "@/features/auth/lib/passwordRules";
 import Link from "next/link";
-
-/* ─────────────────────────────────────────
-   Reuse styling logic from Login for consistency
-───────────────────────────────────────── */
-
-const card = {
-  width: "100%", maxWidth: 400,
-  background: "#FFFFFF", borderRadius: 16, overflow: "hidden",
-  border: "1px solid #E2E8F0",
-  boxShadow: "0 8px 40px rgba(15,25,35,0.1)",
-};
-
-const inputStyle = {
-  width: "100%", boxSizing: "border-box",
-  background: "#F8FAFC",
-  border: "1.5px solid #E2E8F0",
-  borderRadius: 8, padding: "12px",
-  fontSize: 13, fontFamily: "'JetBrains Mono',monospace",
-  outline: "none", transition: "all 0.2s",
-};
+import AuthShell, { AuthNotice } from "@/features/auth/components/AuthShell";
+import { Button, Field, Input } from "@/features/shared/components/ui";
 
 function getResetErrorCopy(err) {
   const code = err?.data?.errorCode || err?.code || "";
@@ -94,11 +76,14 @@ function getResetErrorCopy(err) {
   };
 }
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const search = useSearchParams();
+  // Prefilled from the sign-in screen, or from "Send a new code" on the
+  // code screen, so nobody retypes an address we already have.
+  const [email, setEmail] = useState(() => (search.get("email") || "").trim());
   const [loading, setLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const redirectTimer = useRef(null);
   const [error, setError] = useState("");
   const [errorHelp, setErrorHelp] = useState("");
   // Distinguishes "no such account" from a generic failure so the screen can
@@ -109,7 +94,7 @@ export default function ForgotPasswordPage() {
   const [notice, setNotice] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => () => clearTimeout(redirectTimer.current), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -136,9 +121,12 @@ export default function ForgotPasswordPage() {
       // Reached only on 2xx — the API confirmed the code went out.
       setNotice(data?.message || "OTP sent successfully. Please check your email.");
       setSubmittedEmail(trimmed);
-      setTimeout(() => {
+      // Cancelled by "Use a different email" and on leaving the page; it used
+      // to fire regardless, so changing the address was impossible.
+      clearTimeout(redirectTimer.current);
+      redirectTimer.current = setTimeout(() => {
         router.push(`/verify-otp?email=${encodeURIComponent(trimmed)}`);
-      }, 1200);
+      }, 2500);
     } catch (err) {
       const copy = getResetErrorCopy(err);
       setError(copy.message);
@@ -150,6 +138,7 @@ export default function ForgotPasswordPage() {
   };
 
   const startOver = () => {
+    clearTimeout(redirectTimer.current);
     setNotice("");
     setSubmittedEmail("");
     setError("");
@@ -157,151 +146,80 @@ export default function ForgotPasswordPage() {
     setErrorCode("");
   };
 
-  return (
-    <div style={{
-      minHeight: "100vh", background: "#F0EEE9",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Plus Jakarta Sans',sans-serif",
-      color: "#0F1923", padding: "20px",
-    }}>
-
-      <div style={{
-        ...card,
-        opacity: mounted ? 1 : 0,
-        transform: mounted ? "translateY(0)" : "translateY(20px)",
-        transition: "all 0.6s cubic-bezier(0.22,1,0.36,1)",
-      }}>
-        <div style={{ height: 3, background: "#0D9E6E" }} />
-
-        <div style={{ padding: "32px" }}>
-          {notice ? (
-            <>
-              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10 }}>Check your inbox</h2>
-
-              <div
-                role="status"
-                style={{ background: "#F0FDF4", color: "#0D6E52", padding: "12px 14px", borderRadius: 8, fontSize: 13, lineHeight: 1.55, marginBottom: 16, border: "1px solid #DCFCE7" }}
-              >
-                {notice}
-              </div>
-
-              <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, marginBottom: 20 }}>
-                Sent to <b style={{ color: "#0F1923" }}>{submittedEmail}</b>. The code expires in
-                10 minutes — check your spam folder if it isn&apos;t there in a minute.
-              </p>
-
-              <Link
-                href={`/verify-otp?email=${encodeURIComponent(submittedEmail)}`}
-                style={{
-                  display: "block", textAlign: "center", width: "100%", boxSizing: "border-box",
-                  padding: "13px", borderRadius: 8, textDecoration: "none",
-                  background: "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-                  color: "#FFFFFF", fontSize: 12, fontWeight: 700,
-                }}
-              >
-                ENTER CODE
-              </Link>
-
-              <button
-                type="button"
-                onClick={startOver}
-                style={{
-                  width: "100%", marginTop: 10, padding: "12px",
-                  background: "transparent", border: "1.5px solid #E2E8F0",
-                  borderRadius: 8, color: "#4A5568", fontSize: 12, fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Use a different email
-              </button>
-            </>
-          ) : (
-            <>
-              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10 }}>Forgot Password</h2>
-              <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 24, lineHeight: 1.5 }}>
-                Enter your email address. If it has an Edgecipline account with a password,
-                we&apos;ll send a 6-digit code to reset it.
-              </p>
-
-              <form onSubmit={handleSubmit} noValidate>
-                <div style={{ marginBottom: 20 }}>
-                  <label htmlFor="reset-email" style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 7, color: "#4A5568" }}>
-                    Email Address
-                  </label>
-                  <input
-                    id="reset-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (error) {
-                        setError("");
-                        setErrorHelp("");
-                      }
-                    }}
-                    disabled={loading}
-                    aria-invalid={Boolean(error)}
-                    style={{
-                      ...inputStyle,
-                      borderColor: error ? "#FCA5A5" : inputStyle.border.split(" ").at(-1),
-                      background: error ? "#FFFBFB" : inputStyle.background,
-                    }}
-                  />
-                </div>
-
-                {error && (
-                  <div
-                    role="alert"
-                    style={{ background: "#FEF2F2", color: "#D63B3B", padding: "10px", borderRadius: 6, fontSize: 12, lineHeight: 1.55, marginBottom: 16, border: "1px solid #FEE2E2" }}
-                  >
-                    <div style={{ fontWeight: 700, marginBottom: errorHelp ? 3 : 0 }}>{error}</div>
-                    {errorHelp && <div>{errorHelp}</div>}
-                    {errorCode === "ACCOUNT_NOT_FOUND" && (
-                      <>
-                        {" "}
-                        <Link href="/register" style={{ color: "#D63B3B", fontWeight: 700 }}>
-                          Create one
-                        </Link>
-                      </>
-                    )}
-                    {errorCode === "GOOGLE_ACCOUNT" && (
-                      <>
-                        {" "}
-                        <Link href="/login" style={{ color: "#D63B3B", fontWeight: 700 }}>
-                          Go to sign in
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: "100%", padding: "13px",
-                    background: loading ? "#F0FDF9" : "linear-gradient(135deg,#0D9E6E 0%,#22C78E 100%)",
-                    border: loading ? "1.5px solid #A7F3D0" : "none",
-                    borderRadius: 8, color: loading ? "#0D9E6E" : "#FFFFFF",
-                    fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {loading ? "SENDING CODE..." : "SEND CODE"}
-                </button>
-              </form>
-            </>
-          )}
-
-          <div style={{ textAlign: "center", marginTop: 20, fontSize: 12 }}>
-            <Link href="/login" style={{ color: "#94A3B8", textDecoration: "none" }}>
-              ← Back to Login
-            </Link>
-          </div>
+  if (notice) {
+    return (
+      <AuthShell aside={false} title="Check your inbox">
+        <AuthNotice tone="success">{notice}</AuthNotice>
+        <p className="ec-auth__text">
+          We sent a 6-digit code to <strong>{submittedEmail}</strong>. It expires in 10 minutes;
+          check your spam folder if it isn&apos;t there in a minute. Taking you to the code screen…
+        </p>
+        <div className="ec-auth__stack">
+          <Button as={Link} href={`/verify-otp?email=${encodeURIComponent(submittedEmail)}`} block size="lg">
+            Enter the code
+          </Button>
+          <Button variant="secondary" block onClick={startOver}>Use a different email</Button>
         </div>
-      </div>
-    </div>
+        <p className="ec-auth__switch"><Link href="/login" className="ec-auth__link">Back to sign in</Link></p>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell
+      aside={false}
+      title="Reset your password"
+      subtitle="Enter your account email. If it signs in with a password, we'll send a 6-digit code to reset it."
+    >
+      <form onSubmit={handleSubmit} noValidate className="ec-auth__form">
+        <Field label="Email" required error={error && !errorHelp ? error : undefined}>
+          <Input
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (error) {
+                setError("");
+                setErrorHelp("");
+              }
+            }}
+            disabled={loading}
+          />
+        </Field>
+
+        {error && errorHelp && (
+          <AuthNotice tone="error" title={error}>
+            {errorHelp}
+            {errorCode === "ACCOUNT_NOT_FOUND" && (
+              <> <Link href="/register" className="ec-auth__link">Create an account</Link></>
+            )}
+            {errorCode === "GOOGLE_ACCOUNT" && (
+              <> <Link href="/login" className="ec-auth__link">Go to sign in</Link></>
+            )}
+            {errorCode === "EMAIL_DELIVERY_UNAVAILABLE" && (
+              <> <Link href="/support" className="ec-auth__link">Contact support</Link></>
+            )}
+          </AuthNotice>
+        )}
+
+        <Button type="submit" block size="lg" loading={loading}>
+          {loading ? "Sending code…" : "Send code"}
+        </Button>
+      </form>
+      <p className="ec-auth__switch"><Link href="/login" className="ec-auth__link">Back to sign in</Link></p>
+    </AuthShell>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

@@ -62,6 +62,8 @@ const PUBLIC_PATH_PREFIXES = [
   "/support",
   "/admin",
   "/r",
+  // Shared Trading DNA links are opened by people who aren't signed in.
+  "/trading-dna/share",
 ];
 
 export default function AuthSessionBootstrap({ children }) {

@@ -106,5 +106,26 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.edgecipline.shortcut.log-trade</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Log a trade</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.edgecipline.shortcut.checklist</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Checklist</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Check your rules before entering</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeTaskCompleted</string>
+		</dict>
+	</array>
 </dict>
 </plist>

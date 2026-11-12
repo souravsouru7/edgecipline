@@ -36,9 +36,15 @@ public class ChecklistResetWorker extends Worker {
             }
 
             ChecklistNotificationManager.resetItems(ctx, market);
-            String error = ChecklistNotificationManager.showOrUpdate(ctx, market);
-            if (error != null) {
-                Log.w(TAG, "showOrUpdate after reset returned: " + error);
+            // Clear the ticks; only refresh a notification that is already on
+            // screen. Posting here ignored the repeat days and made the
+            // checklist pop up at midnight on weekends. The next scheduled
+            // reminder shows the fresh, unticked list.
+            if (ChecklistNotificationManager.isShowing(ctx, market)) {
+                String error = ChecklistNotificationManager.showOrUpdate(ctx, market);
+                if (error != null) {
+                    Log.w(TAG, "showOrUpdate after reset returned: " + error);
+                }
             }
         } catch (Throwable error) {
             Log.e(TAG, "Checklist reset failed", error);

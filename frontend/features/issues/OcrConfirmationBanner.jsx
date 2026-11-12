@@ -5,12 +5,12 @@ import { Info } from "lucide-react";
 import IssueReporterButton from "./IssueReporterButton";
 
 const theme = {
-  text: "#0F1923",
-  textMuted: "#64748B",
-  border: "#E2E8F0",
-  primary: "#0D9E6E",
-  gold: "#B8860B",
-  error: "#D63B3B",
+  text: "var(--lg-ink, #0F1923)",
+  textMuted: "var(--lg-sub, #64748B)",
+  border: "var(--lg-line, #E2E8F0)",
+  primary: "var(--lg-green, #0D9E6E)",
+  gold: "var(--lg-gold, #B8860B)",
+  error: "var(--lg-red, #D63B3B)",
 };
 
 /**
@@ -49,7 +49,7 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
   return (
     <div
       style={{
-        background: "#F8FAFC",
+        background: "var(--lg-soft, #F8FAFC)",
         border: `1px solid ${theme.border}`,
         borderRadius: 12,
         padding: "14px 16px",
@@ -87,7 +87,7 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
             <div
               key={label}
               style={{
-                background: "#FFFFFF",
+                background: "var(--lg-card, #FFFFFF)",
                 border: `1px solid ${theme.border}`,
                 borderRadius: 6,
                 padding: "4px 9px",
@@ -103,7 +103,7 @@ export default function OcrConfirmationBanner({ ocrData, insights, marketType, m
       )}
 
       {confidence && (
-        <div style={{ marginBottom: 12, padding: "9px 10px", borderRadius: 8, background: "#FFFFFF", border: `1px solid ${theme.border}`, color: theme.text, fontSize: 12 }}>
+        <div style={{ marginBottom: 12, padding: "9px 10px", borderRadius: 8, background: "var(--lg-card, #FFFFFF)", border: `1px solid ${theme.border}`, color: theme.text, fontSize: 12 }}>
           <strong>{confidence.score}/100 - {decisionLabel}</strong>
           {insights?.brokerType && <span> · Broker: {insights.brokerType}</span>}
           {insights?.imageQuality?.issues?.length > 0 && (

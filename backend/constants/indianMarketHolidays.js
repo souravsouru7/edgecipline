@@ -35,4 +35,16 @@ const INDIAN_MARKET_HOLIDAYS = [
   "2026-12-25", // Christmas
 ];
 
-module.exports = { INDIAN_MARKET_HOLIDAYS };
+// Fixed-date national holidays the exchanges close for every year. They apply
+// even in a year whose full circular has not been added yet, so a missing
+// list degrades to "lunar holidays not known" rather than "no holidays at all".
+// "MM-DD" in Asia/Kolkata.
+const INDIAN_MARKET_RECURRING_HOLIDAYS = [
+  "01-26", // Republic Day
+  "05-01", // Maharashtra Day
+  "08-15", // Independence Day
+  "10-02", // Mahatma Gandhi Jayanti
+  "12-25", // Christmas
+];
+
+module.exports = { INDIAN_MARKET_HOLIDAYS, INDIAN_MARKET_RECURRING_HOLIDAYS };

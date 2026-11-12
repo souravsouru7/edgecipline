@@ -4,22 +4,20 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import CandlestickBackground from "@/features/shared/components/CandlestickBackground";
 import PageHeader from "@/features/shared/components/PageHeader";
-import TickerTape from "@/features/shared/components/TickerTape";
 import { Skeleton } from "@/features/shared";
 import { useAnalytics } from "@/features/analytics/hooks/useAnalytics";
 import { MARKETS, useMarket } from "@/context/MarketContext";
 
 const C = {
-  bull: "#0D9E6E",
-  bear: "#D63B3B",
-  gold: "#B8860B",
+  bull: "var(--lg-green, #0D9E6E)",
+  bear: "var(--lg-red, #D63B3B)",
+  gold: "var(--lg-gold, #B8860B)",
   purple: "#8B5CF6",
   blue: "#2563EB",
-  primary: "#0F1923",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
+  primary: "var(--lg-ink, #0F1923)",
+  muted: "var(--lg-muted, #94A3B8)",
+  border: "var(--lg-line, #E2E8F0)",
 };
 
 function moneyText(value, currencySymbol = "$") {
@@ -34,7 +32,7 @@ function ModuleLink({ href, title, eyebrow, summary, action, accent }) {
       style={{
         display: "block",
         textDecoration: "none",
-        background: "#FFFFFF",
+        background: "var(--lg-card, #FFFFFF)",
         border: `1px solid ${C.border}`,
         borderLeft: `4px solid ${accent}`,
         borderRadius: 12,
@@ -44,7 +42,7 @@ function ModuleLink({ href, title, eyebrow, summary, action, accent }) {
     >
       <div style={{ fontSize: "var(--fs-2xs)", fontWeight: 900, color: accent, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>{eyebrow}</div>
       <div style={{ fontSize: 14, fontWeight: 900, color: C.primary, marginBottom: 5 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, marginBottom: 10 }}>{summary}</div>
+      <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.6, marginBottom: 10 }}>{summary}</div>
       <div style={{ fontSize: 11, fontWeight: 800, color: accent }}>{action}</div>
     </Link>
   );
@@ -66,9 +64,9 @@ function IntelligenceGroup({ title, subtitle, children }) {
 
 function UnlockPreview({ title, needed, unlocks, accent }) {
   return (
-    <div style={{ background: `${accent}08`, border: `1px dashed ${accent}55`, borderRadius: 12, padding: "14px 16px" }}>
+    <div style={{ background: `color-mix(in srgb, ${accent} 3%, transparent)`, border: `1px dashed color-mix(in srgb, ${accent} 33%, transparent)`, borderRadius: 12, padding: "14px 16px" }}>
       <div style={{ fontSize: 12, fontWeight: 900, color: C.primary, marginBottom: 5 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>{needed}</div>
+      <div style={{ fontSize: 12, color: "var(--lg-sub, #475569)", lineHeight: 1.6 }}>{needed}</div>
       <div style={{ fontSize: 11, color: accent, fontWeight: 800, marginTop: 8 }}>{unlocks}</div>
     </div>
   );
@@ -115,17 +113,17 @@ function IntelligenceContent() {
   const latestCoach = coachFeed?.insights?.[0];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F2EE", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.primary, position: "relative" }}>
-      <CandlestickBackground canvasId="intelligence-bg-canvas" />
-      <div style={{ position: "relative", zIndex: 10 }}>
-        <PageHeader showMarketSwitcher />
-        <TickerTape />
-        <main style={{ maxWidth: 1180, width: "100%", margin: "0 auto", padding: "28px 24px 44px", boxSizing: "border-box" }}>
-          <div style={{ marginBottom: 24 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: "-0.02em" }}>Intelligence Hub</h1>
-            <p style={{ fontSize: 12, color: C.muted, margin: "6px 0 0", maxWidth: 680, lineHeight: 1.6 }}>
-              A guide to the Edgecipline psychology operating system: what makes money, what costs money, what to improve, and how you are evolving.
+    <div className="ec-app ec-home">
+      <div>
+        <PageHeader themed showMarketSwitcher title="Insights" />
+        <main className="ec-page ec-analytics">
+          <div className="ec-log__head">
+            <div style={{ minWidth: 0 }}>
+            <h1 className="ec-log__title">Insights</h1>
+            <p className="ec-log__sub" style={{ maxWidth: 680 }}>
+              What makes you money, what costs you money, what to improve next, and how you are evolving as a trader.
             </p>
+            </div>
           </div>
 
           {loading && !summary ? (
@@ -134,11 +132,11 @@ function IntelligenceContent() {
             </div>
           ) : (
             <>
-              <div style={{ background: "#FFFFFF", border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", marginBottom: 22 }}>
+              <div style={{ background: "var(--lg-card, #FFFFFF)", border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", marginBottom: 22 }}>
                 <div style={{ fontSize: 11, fontWeight: 900, color: C.purple, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Data to action loop</div>
                 <div className="intel-loop" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                   {["Data", "Analytics", "Insight", "Action", "Improvement"].map((step, i) => (
-                    <div key={step} style={{ borderRadius: 10, background: i >= 2 ? "#F5F3FF" : "#F8FAFC", border: `1px solid ${i >= 2 ? "#8B5CF633" : C.border}`, padding: "10px 12px", textAlign: "center" }}>
+                    <div key={step} style={{ borderRadius: 10, background: i >= 2 ? "var(--lg-soft, #F5F3FF)" : "var(--lg-soft, #F8FAFC)", border: `1px solid ${i >= 2 ? "#8B5CF633" : C.border}`, padding: "10px 12px", textAlign: "center" }}>
                       <div style={{ fontSize: 11, fontWeight: 900, color: i >= 2 ? C.purple : C.primary }}>{step}</div>
                     </div>
                   ))}
@@ -249,7 +247,6 @@ function IntelligenceContent() {
       </div>
       <style jsx global>{`
         @media (max-width: 720px) {
-          main { padding: 18px 14px 36px !important; }
           .intel-loop { grid-template-columns: 1fr !important; }
         }
       `}</style>

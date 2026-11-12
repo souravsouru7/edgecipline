@@ -85,11 +85,11 @@ function addSpacer(amount = 8) {
 }
 
 // Cover page
-page.push({ text: "EDGEDISCIPLINE", size: 10, leading: 16, indent: 0 });
+page.push({ text: "EDGECIPLINE", size: 10, leading: 16, indent: 0 });
 page.push({ text: "Product Requirements Document", size: 26, leading: 36, indent: 0 });
-page.push({ text: "AI-powered trading journal and discipline coach", size: 13, leading: 22, indent: 0 });
+page.push({ text: "AI Discipline Coach for retail traders - v3 (App DNA)", size: 13, leading: 22, indent: 0 });
 page.push({ text: "Prepared from the Edgecipline codebase", size: 10, leading: 18, indent: 0 });
-page.push({ text: "Last updated: 2026-09-18", size: 10, leading: 18, indent: 0 });
+page.push({ text: "Last updated: 2026-11-08", size: 10, leading: 18, indent: 0 });
 pages.push(page);
 page = [];
 y = 742;
