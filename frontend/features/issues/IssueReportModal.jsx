@@ -326,6 +326,8 @@ export default function IssueReportModal({
           WebkitOverflowScrolling: "touch",
           background: theme.card,
           color: theme.text,
+          // Light modal: keep native fields light inside the dark app.
+          colorScheme: "light",
           borderRadius: 24,
           border: "1px solid rgba(226, 232, 240, 0.8)",
           boxShadow: "0 40px 100px -20px rgba(0,0,0,0.35)",

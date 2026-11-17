@@ -182,6 +182,8 @@ export default function DeleteAccountSection({ email, subscription = null, authP
               onClick={(e) => e.stopPropagation()}
               style={{
                 background: C.card,
+                // Light dialog: keep native fields light inside the dark app.
+                colorScheme: "light",
                 borderRadius: 16,
                 width: "100%",
                 maxWidth: 440,
@@ -345,6 +347,8 @@ export default function DeleteAccountSection({ email, subscription = null, authP
                   padding: "11px 12px",
                   borderRadius: 9,
                   border: `1.5px solid ${matches ? C.red : C.border}`,
+                  background: "#FFFFFF",
+                  color: C.navy,
                   fontSize: 13,
                   fontFamily: "'JetBrains Mono',monospace",
                   outline: "none",

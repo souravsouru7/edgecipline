@@ -1453,9 +1453,10 @@ function UploadTradeContent() {
         @keyframes fadeSlideUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         * { box-sizing:border-box; margin:0; padding:0; }
         textarea { resize:vertical; }
-        input::placeholder, textarea::placeholder { color:var(--lg-line-strong, #CBD5E1); font-size:12px; }
+        .ec-log input::placeholder, .ec-log textarea::placeholder { color:var(--lg-line-strong, #CBD5E1); font-size:12px; }
         @media (max-width:640px) {
-          main { padding:14px 12px !important; }
+          /* No tab bar on this route, so clear the phone's system nav bar here. */
+          main { padding:14px 12px calc(32px + env(safe-area-inset-bottom, 0px)) !important; }
           .form-2col  { grid-template-columns: 1fr !important; }
           .mood-grid  { grid-template-columns: repeat(5,1fr) !important; gap: 6px !important; }
         }

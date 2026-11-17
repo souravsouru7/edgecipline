@@ -18,7 +18,8 @@ export const inputBase = {
 export const onFocusGreen = e => {
   e.currentTarget.style.borderColor = "var(--lg-green, #0D9E6E)";
   e.currentTarget.style.boxShadow   = "0 0 0 3px rgba(13,158,110,0.10)";
-  e.currentTarget.style.background  = "#F0FDF9";
+  // Translucent tint so the light text stays readable in dark theme
+  e.currentTarget.style.background  = "rgba(13,158,110,0.08)";
 };
 
 export const onBlurReset = e => {

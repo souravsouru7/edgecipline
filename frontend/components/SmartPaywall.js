@@ -347,6 +347,9 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
           aria-label="Upgrade to Edgecipline Premium"
           style={{
             background: "#FFFFFF",
+            // The dialog is a light design; stop the dark app theme from
+            // turning its native fields dark (dark text on dark box).
+            colorScheme: "light",
             borderRadius: 28,
             width: "100%",
             maxWidth: 520,
@@ -558,7 +561,7 @@ export default function SmartPaywall({ isOpen, onClose, onSuccess, variant = "up
                 style={{
                   flex: 1, padding: "10px 12px", borderRadius: 10,
                   border: "1px solid #E2E8F0", fontSize: 13, fontWeight: 600,
-                  color: "#0F1923", outline: "none",
+                  background: "#F8FAFC", color: "#0F1923", outline: "none",
                 }}
               />
               <button

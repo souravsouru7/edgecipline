@@ -628,7 +628,7 @@ function IndianEditTradeContent() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 18, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, background: "#FCFBF8" }}>
+            <div style={{ marginBottom: 18, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, background: "var(--lg-soft, #FCFBF8)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: "var(--fs-2xs)", letterSpacing: "0.14em", color: "var(--lg-sub, #4A5568)", fontFamily: C.mono, fontWeight: 600 }}>

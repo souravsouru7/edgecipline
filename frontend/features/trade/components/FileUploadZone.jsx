@@ -47,7 +47,7 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
         transition: "all 0.25s ease",
         transform: isDragging ? "scale(1.01)" : "scale(1)",
       }}
-      onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.borderColor = "var(--lg-green, #0D9E6E)"; e.currentTarget.style.background = "#F0FDF9"; } }}
+      onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.borderColor = "var(--lg-green, #0D9E6E)"; e.currentTarget.style.background = "rgba(13,158,110,0.08)"; } }}
       onMouseLeave={e => { if (!isDragging) { e.currentTarget.style.borderColor = "var(--lg-line, #E2E8F0)"; e.currentTarget.style.background = "var(--lg-soft, #F8FAFC)"; } }}
     >
       <input

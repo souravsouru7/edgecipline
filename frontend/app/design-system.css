@@ -1081,8 +1081,10 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
   .ec-check-has-bar .ec-page { padding-bottom: 120px; }
 }
 @media (max-width: 768px) {
-  /* Sit on top of the bottom nav, and leave the Help bubble its corner. */
-  .ec-check__dock { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); padding: 10px 84px 10px 16px; }
+  /* Sit on top of the bottom nav, centred; the Help bubble is hidden while a
+     bottom action bar is on screen so it can't cover the button. */
+  .ec-check__dock { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); padding: 10px 16px; }
+  body:has(.ec-remind__savebar, .ec-check__dock) .sw-bubble { display: none; }
   html[data-keyboard-open] .ec-check__dock { bottom: 0; }
   .ec-check__title { font-size: var(--ec-fs-5); }
   .ec-check__head { margin-bottom: var(--ec-s-4); }
@@ -1181,7 +1183,7 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
   html[data-keyboard-open] .ec-remind__savebar { bottom: 0; }
 }
 @media (max-width: 600px) {
-  .ec-remind__savebar-inner { padding: 10px 80px 10px 16px; flex-direction: column; align-items: stretch; gap: 6px; }
+  .ec-remind__savebar-inner { padding: 10px 16px; flex-direction: column; align-items: stretch; gap: 6px; }
   .ec-remind__days .ec-remind__day { font-size: var(--ec-fs-1); }
 }
 
@@ -1553,8 +1555,13 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
 .ec-log__sub { margin: 4px 0 0; font-size: var(--ec-fs-2); color: var(--ec-text-3); line-height: 1.5; }
 .ec-log input, .ec-log select, .ec-log textarea { color: var(--ec-text); }
 .ec-log input::placeholder, .ec-log textarea::placeholder { color: var(--ec-text-3); }
-.ec-log select option { background: var(--ec-surface); color: var(--ec-text); }
+.ec-app select option { background: var(--ec-surface); color: var(--ec-text); }
 .ec-log input[type="date"], .ec-log input[type="time"] { color-scheme: var(--ec-scheme); }
+/* Log-trade routes hide the tab bar (and its spacer), so the page itself must
+   keep its last button above the phone's system navigation bar. */
+@media (max-width: 768px) {
+  .ec-page.ec-log { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)); }
+}
 @media (max-width: 640px) {
   .ec-log__head { flex-direction: column-reverse; gap: var(--ec-s-3); margin-bottom: var(--ec-s-4); }
   .ec-log__title { font-size: var(--ec-fs-5); }
