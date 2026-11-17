@@ -222,7 +222,7 @@ describe("tradeService.createTradesBatch", () => {
       { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") }
     )).rejects.toThrow("createTrades failed");
 
-    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-fail-1", "Forex");
+    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-fail-1", "Forex", 1);
     expect(releaseOcrJobClaim).toHaveBeenCalledWith("user-1", "ocr-fail-1");
     expect(markOcrJobConfirmed).not.toHaveBeenCalled();
   });
@@ -320,7 +320,8 @@ describe("tradeService.createTradesBatch", () => {
     expect(doc).not.toHaveProperty("createdAt");
     expect(doc).not.toHaveProperty("updatedAt");
     expect(doc).not.toHaveProperty("deletedAt");
-    expect(doc).not.toHaveProperty("ocrJobId");
+    // The server stamps the claimed job, never the per-trade client value.
+    expect(doc.ocrJobId).toBe("ocr-1");
     expect(doc).not.toHaveProperty("role");
     expect(doc).not.toHaveProperty("extractionConfidence");
   });

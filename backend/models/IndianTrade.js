@@ -192,6 +192,12 @@ const indianTradeSchema = new mongoose.Schema(
       default: ""
     },
 
+    // Screenshot (OCRJob) this trade was saved from, if any.
+    ocrJobId: {
+      type: String,
+      default: "",
+    },
+
     deletedAt: {
       type: Date,
       default: null,

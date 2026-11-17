@@ -1798,8 +1798,9 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
             .map(({ i, missingFields }) => `Trade #${i + 1}: ${missingFields.join(", ")}`)
             .join(" · ");
           addToast(`Cannot save — missing fields: ${tradeLabels}`, "error");
-          // Only block if ALL unsaved trades have errors; otherwise save the valid ones
-          if (validIndices.length === 0) return;
+          // Block the whole save: saving only the complete trades used to
+          // redirect away and silently leave the rest of the screenshot unsaved.
+          return;
         }
 
         const batchPayload = validIndices.map((i) => {

@@ -269,7 +269,40 @@ async function getOcrConfirmationTrades(userId, jobId, expectedMarketType) {
 // creates a duplicate Trade, instead of both silently succeeding and
 // leaving two Trade documents behind with the OCRJob only remembering
 // whichever one happened to write last.
-async function claimOcrJobForConfirmation(userId, jobId, expectedMarketType) {
+// How many trades extracted from this screenshot are still in the user's log.
+// A screenshot can hold several trades and each may be saved separately (or
+// deleted later), so "used up" is derived from live trades, not a one-shot
+// status flag. Trades saved before ocrJobId was stamped are found through the
+// job's confirmedTradeId instead.
+async function countLiveTradesForJob(userId, job) {
+  // Lazy: keeps model loading out of this module's import graph.
+  const Model = job.marketType === "Indian_Market"
+    ? require("../models/IndianTrade")
+    : require("../models/Trade");
+  const jobId = job._id.toString();
+  const stamped = await Model.countDocuments({ user: userId, ocrJobId: jobId, deletedAt: null });
+  let legacy = 0;
+  if (job.confirmedTradeId) {
+    legacy = await Model.countDocuments({
+      _id: job.confirmedTradeId,
+      user: userId,
+      deletedAt: null,
+      ocrJobId: { $in: [null, ""] },
+    });
+  }
+  return stamped + legacy;
+}
+
+function extractedTradeCount(job) {
+  return Math.max(1, extractConfirmationTrades(job).length);
+}
+
+// Whether a screenshot still has extracted trades that are not in the log.
+async function jobHasUnsavedTrades(userId, job) {
+  return (await countLiveTradesForJob(userId, job)) < extractedTradeCount(job);
+}
+
+async function claimOcrJobForConfirmation(userId, jobId, expectedMarketType, incomingCount = 1) {
   if (!jobId) return null;
   assertObjectId(jobId);
   const existing = await getOcrJobForUser(userId, jobId);
@@ -285,14 +318,21 @@ async function claimOcrJobForConfirmation(userId, jobId, expectedMarketType) {
     { $set: { status: "CONFIRMED", confirmedAt: new Date() } },
     { new: true }
   );
-  if (!claimed) {
-    throw new ApiError(
-      409,
-      "This screenshot has already been confirmed and saved as a trade.",
-      "OCR_JOB_ALREADY_CONFIRMED"
-    );
+  if (claimed) return claimed;
+
+  // Already confirmed: a multi-trade screenshot may still have trades left to
+  // save (saved one by one, or one was deleted). Allow it, but never more
+  // trades than the screenshot actually held.
+  const current = await getOcrJobForUser(userId, jobId);
+  const live = await countLiveTradesForJob(userId, current);
+  if (live + Math.max(1, incomingCount) <= extractedTradeCount(current)) {
+    return current;
   }
-  return claimed;
+  throw new ApiError(
+    409,
+    "All trades from this screenshot are already saved. Check your trade log.",
+    "OCR_JOB_ALREADY_CONFIRMED"
+  );
 }
 
 // If Trade creation fails after claimOcrJobForConfirmation() already
@@ -303,6 +343,9 @@ async function claimOcrJobForConfirmation(userId, jobId, expectedMarketType) {
 async function releaseOcrJobClaim(userId, jobId) {
   if (!jobId) return;
   try {
+    // Another trade from this screenshot is still saved: keep it confirmed.
+    const job = await OCRJob.findOne({ _id: jobId, user: userId });
+    if (!job || (await countLiveTradesForJob(userId, job)) > 0) return;
     await OCRJob.updateOne(
       { _id: jobId, user: userId, status: "CONFIRMED", confirmedTradeId: null },
       { $set: { status: "COMPLETED" }, $unset: { confirmedAt: "" } }
@@ -880,6 +923,7 @@ module.exports = {
   cancelOcrJob,
   claimOcrJobForConfirmation,
   releaseOcrJobClaim,
+  jobHasUnsavedTrades,
   extractConfirmationTrades,
   createOcrJob,
   deleteUploadedImageForJob,

@@ -233,12 +233,14 @@ describe("indianTradeController.createTradesBatch", () => {
       notes: "allowed",
     }));
     for (const field of [
-      "marketType", "createdAt", "updatedAt", "deletedAt", "ocrJobId",
+      "marketType", "createdAt", "updatedAt", "deletedAt",
       "subscriptionStatus", "paymentStatus", "tokenVersion", "role",
       "processedAt", "extractionConfidence",
     ]) {
       expect(doc).not.toHaveProperty(field);
     }
+    // The server stamps the claimed job, never the per-trade client value.
+    expect(doc.ocrJobId).toBe("ocr-ind-1");
   });
 
   it("releases the OCR job claim if batch trade insertion fails after a successful claim", async () => {
@@ -257,7 +259,7 @@ describe("indianTradeController.createTradesBatch", () => {
     await createTradesBatch(req, createRes(), next);
 
     expect(next).toHaveBeenCalledWith(insertError);
-    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-ind-fail", "Indian_Market");
+    expect(claimOcrJobForConfirmation).toHaveBeenCalledWith("user-1", "ocr-ind-fail", "Indian_Market", 1);
     expect(releaseOcrJobClaim).toHaveBeenCalledWith("user-1", "ocr-ind-fail");
     expect(markOcrJobConfirmed).not.toHaveBeenCalled();
   });

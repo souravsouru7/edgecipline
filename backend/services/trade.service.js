@@ -149,6 +149,9 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     ...tradePayload,
     type: normalizeTradeType(payload.type),
     tradeDate: normalizedTradeDate,
+    // Links the trade to its screenshot so the OCR job knows how many of its
+    // extracted trades are still saved (see countLiveTradesForJob).
+    ...(ocrJobId ? { ocrJobId: String(ocrJobId) } : {}),
   };
 
   if (!ocrJobId) {
@@ -220,7 +223,7 @@ async function updateStreaksForTrade(userId, trade) {
 function buildCreateTradeDocument(
   userId,
   payload,
-  { accountCreatedAt, extractedTrades = [], tradeIndex = 0, ocrConfirmed = false } = {}
+  { accountCreatedAt, extractedTrades = [], tradeIndex = 0, ocrConfirmed = false, ocrJobId = null } = {}
 ) {
   if (!payload.pair) {
     throw new ApiError(400, "Pair is required", "VALIDATION_ERROR");
@@ -257,6 +260,7 @@ function buildCreateTradeDocument(
     type: normalizeTradeType(payload.type),
     tradeDate: normalizedTradeDate,
     effectiveTradeDate: normalizedTradeDate,
+    ...(ocrJobId ? { ocrJobId: String(ocrJobId) } : {}),
     user: userId,
     status: "completed",
     error: null,
@@ -276,7 +280,7 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
   const ocrJobId = payload.ocrJobId || trades.find((trade) => trade?.ocrJobId)?.ocrJobId || null;
   let extractedTrades = [];
   if (ocrJobId) {
-    const claimedJob = await claimOcrJobForConfirmation(userId, ocrJobId, "Forex");
+    const claimedJob = await claimOcrJobForConfirmation(userId, ocrJobId, "Forex", trades.length);
     extractedTrades = extractConfirmationTrades(claimedJob);
   }
   const docs = trades.map((trade, tradeIndex) => buildCreateTradeDocument(userId, trade, {
@@ -284,6 +288,7 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
     extractedTrades,
     tradeIndex,
     ocrConfirmed: Boolean(ocrJobId),
+    ocrJobId,
   }));
   let createdTrades;
   try {

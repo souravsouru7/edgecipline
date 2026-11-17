@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary");
 const ApiError = require("../utils/ApiError");
-const { cancelOcrJob, createOcrJob, getOcrJobStatus } = require("./ocrJob.service");
+const { cancelOcrJob, createOcrJob, getOcrJobStatus, jobHasUnsavedTrades } = require("./ocrJob.service");
 const { OCRJob } = require("../models/OCRJob");
 const { ocrQueue } = require("../queues/ocrQueue");
 const { logger } = require("../utils/logger");
@@ -14,14 +14,24 @@ const ACTIVE_DUPLICATE_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CONFIR
 
 async function findDuplicateUploadJob(userId, imageHash) {
   if (!imageHash) return null;
-  return OCRJob.findOne({
+  const job = await OCRJob.findOne({
     user: userId,
     imageHash,
     status: { $in: ACTIVE_DUPLICATE_STATUSES },
   })
     .sort({ createdAt: -1 })
-    .select("status")
+    .select("status marketType extractedData confirmedTradeId")
     .lean();
+  // A confirmed screenshot that still has unsaved trades (one of several was
+  // saved, or a saved one was deleted) reopens like a completed one, so the
+  // user can save what is left instead of being blocked.
+  // The job is set back to COMPLETED because clients only render extracted
+  // trades for COMPLETED jobs (shipped app builds included).
+  if (job?.status === "CONFIRMED" && (await jobHasUnsavedTrades(userId, job))) {
+    await OCRJob.updateOne({ _id: job._id, user: userId, status: "CONFIRMED" }, { $set: { status: "COMPLETED" } });
+    return { ...job, status: "COMPLETED" };
+  }
+  return job;
 }
 
 // The job the caller is colliding with is the job they almost certainly want

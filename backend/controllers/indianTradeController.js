@@ -329,6 +329,7 @@ exports.createTrade = asyncHandler(async (req, res) => {
     accountCreatedAt: req.user.createdAt,
     extractedTrades,
   });
+  if (ocrJobId) tradeData.ocrJobId = String(ocrJobId);
   let trade;
   try {
     trade = await IndianTrade.create(tradeData);
@@ -394,14 +395,18 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
     // Claim the job (COMPLETED -> CONFIRMED) before creating any trades, so
     // a second concurrent confirm of the same screenshot is rejected here
     // instead of both requests inserting their own batch of trades.
-    const claimedJob = await claimOcrJobForConfirmation(req.user._id, ocrJobId, "Indian_Market");
+    const claimedJob = await claimOcrJobForConfirmation(req.user._id, ocrJobId, "Indian_Market", trades.length);
     extractedTrades = extractConfirmationTrades(claimedJob);
   }
-  const docs = trades.map((trade, tradeIndex) => buildIndianTradeDocument(req.user._id, trade, {
-    accountCreatedAt: req.user.createdAt,
-    extractedTrades,
-    tradeIndex,
-  }));
+  const docs = trades.map((trade, tradeIndex) => {
+    const doc = buildIndianTradeDocument(req.user._id, trade, {
+      accountCreatedAt: req.user.createdAt,
+      extractedTrades,
+      tradeIndex,
+    });
+    if (ocrJobId) doc.ocrJobId = String(ocrJobId);
+    return doc;
+  });
 
   // Atomic: insertMany + markOcrJobConfirmed in one transaction. If the OCR
   // confirm fails the trades roll back, preventing a half-written batch with
