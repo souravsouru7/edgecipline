@@ -8,6 +8,10 @@ jest.mock("../../models/Users", () => ({ findById: jest.fn() }));
 jest.mock("../../utils/logger", () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
 }));
+const mockLastPayment = jest.fn().mockResolvedValue(null);
+jest.mock("../../models/Payment", () => ({
+  findOne: jest.fn(() => ({ sort: () => ({ select: () => ({ lean: () => mockLastPayment() }) }) })),
+}));
 jest.mock("../../services/googlePlayBillingService", () => ({
   getPlaySubscriptionSummary: jest.fn().mockResolvedValue(null),
 }));
@@ -203,6 +207,25 @@ describe("Google Play detail on the resolved subscription object", () => {
       subscriptionExpiry: new Date(Date.now() + 10 * ONE_DAY),
     }));
     expect(body.subscription).toMatchObject({ provider: "razorpay", cancelAtPeriodEnd: false, state: null, planLabel: "Monthly Pro" });
+  });
+
+  test("a 6-month web (Razorpay) plan is labelled '6-month Pro', not 'Monthly Pro'", async () => {
+    mockLastPayment.mockResolvedValueOnce({ planType: "6_months" });
+    const body = await call(baseUser({
+      subscriptionStatus: "active", subscriptionPlan: "monthly",
+      subscriptionExpiry: new Date(Date.now() + 170 * ONE_DAY),
+    }));
+    expect(body.subscription).toMatchObject({ provider: "razorpay", planLabel: "6-month Pro" });
+  });
+
+  test("a failed payment lookup falls back to the stored label instead of a 500", async () => {
+    mockLastPayment.mockRejectedValueOnce(new Error("mongo down"));
+    const body = await call(baseUser({
+      subscriptionStatus: "active", subscriptionPlan: "monthly",
+      subscriptionExpiry: new Date(Date.now() + 10 * ONE_DAY),
+    }));
+    expect(body.subscription.planLabel).toBe("Monthly Pro");
+    expect(logger.warn).toHaveBeenCalledWith("GET_ME_RAZORPAY_LOOKUP_FAILED", expect.any(Object));
   });
 
   test("a failed Play lookup degrades to nulls instead of a 500", async () => {

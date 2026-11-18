@@ -25,10 +25,10 @@ function ProfileRedirect() {
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
-        background: "#F0EEE9",
+        background: "var(--ec-bg, #F0EEE9)",
         fontFamily: "'Plus Jakarta Sans',sans-serif",
         fontSize: 13,
-        color: "#64748B",
+        color: "var(--ec-text-3, #64748B)",
       }}
     >
       Taking you to Settings...

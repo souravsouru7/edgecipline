@@ -1,6 +1,7 @@
 
 const crypto = require("crypto");
 const User = require("../models/Users");
+const Payment = require("../models/Payment");
 const DeviceToken = require("../models/DeviceToken");
 const bcrypt = require("bcryptjs");
 const { sendOTPEmail } = require("../services/mailService");
@@ -798,6 +799,29 @@ exports.getMe = asyncHandler(async (req, res) => {
       });
     }
   }
+  // Razorpay stores 1-, 3- and 6-month plans all as subscriptionPlan
+  // "monthly"; the latest web payment names the real length for the label.
+  // Only "monthly" web accounts pay for this one indexed read.
+  let razorpaySummary = null;
+  if (req.user.subscriptionPlan === "monthly" && req.user.subscriptionExpiry) {
+    try {
+      const lastPayment = await Payment.findOne({
+        user: req.user._id,
+        status: { $in: ["completed", "partially_refunded"] },
+        provider: { $in: ["razorpay", "manual"] },
+      })
+        .sort({ createdAt: -1 })
+        .select("planType")
+        .lean();
+      if (lastPayment?.planType) razorpaySummary = { planType: lastPayment.planType };
+    } catch (error) {
+      logger.warn("GET_ME_RAZORPAY_LOOKUP_FAILED", {
+        userId: String(req.user._id),
+        error: error?.message,
+      });
+    }
+  }
+
   const provider = getBillingProvider(req.user);
   const appStoreGoverns = provider === "app_store";
 
@@ -820,7 +844,7 @@ exports.getMe = asyncHandler(async (req, res) => {
     subscription: {
       status: getEffectiveSubscriptionStatus(req.user),
       plan: req.user.subscriptionPlan || "free",
-      planLabel: getPlanLabel(req.user, playSummary, appStoreSummary),
+      planLabel: getPlanLabel(req.user, playSummary, appStoreSummary, razorpaySummary),
       provider,
       expiresAt: getEffectiveExpiry(req.user),
       // Store lifecycle detail. Null for Razorpay-only accounts; a Razorpay

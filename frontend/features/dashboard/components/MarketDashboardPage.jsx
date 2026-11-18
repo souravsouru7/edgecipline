@@ -2,7 +2,10 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, CheckSquare, Flame, Moon, Plus, Sparkles } from "lucide-react";
+import * as Sentry from "@sentry/nextjs";
+import {
+  ArrowRight, BookOpen, Brain, Check, CheckSquare, FileText, Flame, MessageCircle, Moon, Plus, Sparkles, Target,
+} from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageHeader from "@/features/shared/components/PageHeader";
 import MarketContentTransition from "@/features/shared/components/MarketContentTransition";
@@ -13,6 +16,7 @@ import ReflectionSheet from "@/features/reflections/components/ReflectionSheet";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import { buildTodaysIntelligence } from "@/features/dashboard/utils/todaysIntelligence";
 import { getNextAction } from "@/features/dashboard/utils/nextAction";
+import { buildTodayLoop } from "@/features/dashboard/utils/todayLoop";
 import { marketRoutes } from "@/features/shared/navigation";
 import { useLogTrade } from "@/features/trade/components/LogTradeChooser";
 import {
@@ -68,31 +72,34 @@ function DoNext({ next, loading, onLogTrade, onReflect }) {
   );
 }
 
-function TodayLoop({ reflection, routes, loading, onLogTrade, onReflect }) {
-  const today = reflection?.today;
-  const trades = Number(today?.tradeCount || 0);
-  const reflected = Boolean(today?.completed);
-  const steps = [
-    { key: "check", Icon: CheckSquare, title: "Run the checklist", sub: "Before each trade", href: routes.checklist, done: false },
-    {
-      key: "log", Icon: Plus, title: "Log your trades",
-      sub: trades > 0 ? `${trades} logged today` : "Screenshot or manual",
-      onClick: onLogTrade, done: trades > 0,
-    },
-    {
-      key: "reflect", Icon: Moon, title: "Reflect",
-      sub: reflected ? "Done for today" : today?.skipped ? "Skipped" : "2 minutes, end of day",
-      onClick: onReflect, done: reflected,
-    },
-  ];
+const LOOP_ICONS = {
+  check: CheckSquare, plus: Plus, moon: Moon, report: FileText, coach: MessageCircle,
+  target: Target, sparkles: Sparkles, brain: Brain, journal: BookOpen,
+};
+
+// Rows come from buildTodayLoop (features/dashboard/utils/todayLoop.js): each
+// one is a feature chosen from the trader's own numbers, with that number as
+// the reason.
+function TodayLoop({ loop, loading, onLogTrade, onReflect }) {
+  const title = loop?.mode === "review" ? "This week's review" : "Today's plan";
+  const total = loop?.steps?.length || 3;
   return (
     <Card className="ec-today">
-      <CardHeader title="Today's loop" subtitle="Plan · trade · review" />
-      {loading ? (
+      <CardHeader
+        title={title}
+        subtitle={loading ? " " : loop?.basis}
+        action={!loading && loop?.mode !== "review" && loop?.doneCount > 0
+          ? <Badge tone={loop.doneCount === total ? "accent" : undefined}>
+              {loop.doneCount === total ? "Day closed" : `${loop.doneCount} of ${total} done`}
+            </Badge>
+          : null}
+      />
+      {loading || !loop ? (
         <div style={{ display: "grid", gap: 8 }}><Placeholder height={52} /><Placeholder height={52} /><Placeholder height={52} /></div>
       ) : (
         <ol className="ec-today__list">
-          {steps.map((s, i) => {
+          {loop.steps.map((s, i) => {
+            const Icon = LOOP_ICONS[s.icon] || CheckSquare;
             const content = (
               <>
                 <span className={`ec-today__num${s.done ? " is-done" : ""}`} aria-hidden="true">
@@ -100,17 +107,30 @@ function TodayLoop({ reflection, routes, loading, onLogTrade, onReflect }) {
                 </span>
                 <span className="ec-today__text">
                   <span className="ec-today__title">{s.title}{s.done && <span className="ec-sr"> (done)</span>}</span>
-                  <span className="ec-today__sub">{s.sub}</span>
+                  <span className="ec-today__sub">
+                    {s.emph && (
+                      <strong className={s.tone ? `ec-today__emph ec-today__emph--${s.tone}` : "ec-today__emph"}>{s.emph}</strong>
+                    )}
+                    {s.emph && s.sub.trim() ? " · " : ""}
+                    {s.sub}
+                  </span>
                 </span>
-                <s.Icon size={17} className="ec-today__icon" aria-hidden="true" />
+                <Icon size={17} className="ec-today__icon" aria-hidden="true" />
               </>
             );
+            const { action } = s;
             return (
               <li key={s.key}>
-                {s.href ? (
-                  <Link href={s.href} className="ec-today__row ec-focusable">{content}</Link>
+                {action.kind === "link" ? (
+                  <Link href={action.href} className="ec-today__row ec-focusable">{content}</Link>
                 ) : (
-                  <button type="button" onClick={s.onClick} className="ec-today__row ec-focusable">{content}</button>
+                  <button
+                    type="button"
+                    onClick={action.kind === "reflect" ? onReflect : onLogTrade}
+                    className="ec-today__row ec-focusable"
+                  >
+                    {content}
+                  </button>
                 )}
               </li>
             );
@@ -119,6 +139,12 @@ function TodayLoop({ reflection, routes, loading, onLogTrade, onReflect }) {
       )}
     </Card>
   );
+}
+
+function reportLoopError(error) {
+  try {
+    Sentry.captureException(error, { tags: { feature: "today_loop" } });
+  } catch { /* never let reporting break Home */ }
 }
 
 // ── 2. How am I doing ───────────────────────────────────────────────────────
@@ -221,7 +247,7 @@ function DashboardContent() {
     stats, mounted, loading, fetching, loadFailed, retry, statsUnavailable,
     showFirstLogin, closeFirstLogin, onboarding,
     selfAwareness, psychologyCost, tradingDNA, timeline, profile,
-    streaks, reflection, currentMarket,
+    streaks, reflection, currentMarket, marketDay,
   } = useDashboard();
   const { theme } = useTheme();
   useSystemBars(theme);
@@ -253,6 +279,13 @@ function DashboardContent() {
   const next = getNextAction({
     streaks, reflection, now, checklistHref: routes.checklist,
     emptyMarketLabel: emptyMarket ? marketLabel : null,
+  });
+  // Built only from a settled snapshot; while loading the card shows skeletons.
+  const loop = busy ? null : buildTodayLoop({
+    market: currentMarket, routes, now, stats, psychologyCost, timeline, selfAwareness, tradingDNA,
+    streaks, reflection, onboarding, marketDay,
+    unreliable: loadFailed || statsUnavailable,
+    onError: reportLoopError,
   });
   const openReflect = () => setReflectOpen(true);
   const streak = streaks?.journal?.current ?? 0;
@@ -310,7 +343,7 @@ function DashboardContent() {
                     <div className="ec-area-perf"><Performance stats={stats} timeline={timeline} currency={currency} loading={busy} /></div>
                   )}
                   <div className="ec-area-today">
-                    <TodayLoop reflection={reflection} routes={routes} loading={busy} onLogTrade={openLogTrade} onReflect={openReflect} />
+                    <TodayLoop loop={loop} loading={busy} onLogTrade={openLogTrade} onReflect={openReflect} />
                   </div>
                   {!statsUnavailable && (
                     <div className="ec-area-kpis"><Kpis stats={stats} streaks={streaks} currency={currency} loading={busy} /></div>

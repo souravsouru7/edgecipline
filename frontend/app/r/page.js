@@ -49,7 +49,7 @@ function ReferralLanding() {
 
 function Waiting() {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F0EEE9", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#64748B" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ec-bg, #F0EEE9)", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "var(--ec-text-3, #64748B)" }}>
       Taking you to Edgecipline…
     </div>
   );

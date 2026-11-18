@@ -181,6 +181,45 @@ describe("dashboard snapshot controller", () => {
     }));
   });
 
+  it("reports whether this market is open today (marketDay), per market", async () => {
+    analyticsSnapshotService.getSnapshot.mockResolvedValue({});
+    for (const market of [undefined, "Indian_Market"]) {
+      const req = createReq();
+      req.query = market ? { market } : {};
+      const res = createRes();
+      await getDashboardSnapshot(req, res, jest.fn());
+      const body = res.json.mock.calls[0][0];
+      expect(typeof body.marketDay.open).toBe("boolean");
+      if (body.marketDay.open) expect(body.marketDay.reason).toBeNull();
+      else expect(["weekend", "holiday"]).toContain(body.marketDay.reason);
+    }
+  });
+
+  it("marks an NSE holiday closed on the Indian dashboard and a Saturday closed on Forex", async () => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+    try {
+      analyticsSnapshotService.getSnapshot.mockResolvedValue({});
+      // 2026-01-26 (Republic Day, Monday) 10:00 IST.
+      jest.setSystemTime(new Date("2026-01-26T04:30:00.000Z"));
+      let req = createReq();
+      req.query = { market: "Indian_Market" };
+      let res = createRes();
+      await getDashboardSnapshot(req, res, jest.fn());
+      expect(res.json.mock.calls[0][0].marketDay).toEqual({ open: false, reason: "holiday" });
+
+      // Saturday 2026-11-21 noon UTC.
+      jest.setSystemTime(new Date("2026-11-21T12:00:00.000Z"));
+      streakService.getStreakSnapshot.mockResolvedValue({ timezone: "UTC" });
+      req = createReq();
+      req.query = {};
+      res = createRes();
+      await getDashboardSnapshot(req, res, jest.fn());
+      expect(res.json.mock.calls[0][0].marketDay).toEqual({ open: false, reason: "weekend" });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("loads Indian market analytics when the dashboard snapshot requests Indian market", async () => {
     analyticsSnapshotService.getSnapshot.mockResolvedValue({
       sourceTradeCount: 2,

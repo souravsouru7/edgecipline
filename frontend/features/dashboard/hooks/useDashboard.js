@@ -239,5 +239,8 @@ export function useDashboard() {
     notificationsSummary: snapshot?.notificationsSummary || null,
     streaks: snapshot?.streaks || null,
     reflection: snapshot?.reflection || null,
+    // { open, reason } for this market today (exchange holidays included).
+    // Absent on servers that predate it; the Today card falls back to weekday.
+    marketDay: snapshot?.marketDay || null,
   };
 }

@@ -11,6 +11,25 @@ const { logger } = require("../utils/logger");
 const { needsTermsAcceptance } = require("../constants/terms");
 const { toNum, fixed } = require("../utils/numbers");
 const { getTrialState, getPlanSource, isPremium } = require("../utils/premium");
+const { getMarketDayStatus } = require("../utils/marketCalendar");
+
+// Is this market open today? Drives Home's "Today's plan" review mode on
+// weekends and exchange holidays (NSE/BSE list in constants/indianMarketHolidays).
+// Forex uses the trader's own timezone; NSE is always judged in IST inside
+// getMarketDayStatus. Additive and nullable: older apps ignore it, and a
+// failure here must never fail the dashboard.
+function loadMarketDay(market, timezone) {
+  try {
+    const status = timezone
+      ? getMarketDayStatus(market, new Date(), timezone)
+      : getMarketDayStatus(market, new Date());
+    if (!status || typeof status.open !== "boolean") return null;
+    return { open: status.open, reason: status.open ? null : String(status.reason || "").toLowerCase() || null };
+  } catch (error) {
+    logger.warn("Dashboard market day lookup failed", { market, error: error.message });
+    return null;
+  }
+}
 
 async function loadStreakSnapshot(userId) {
   try {
@@ -266,6 +285,7 @@ exports.getDashboardSnapshot = asyncHandler(async (req, res) => {
     timeline: analytics.timeline,
     streaks,
     reflection,
+    marketDay: loadMarketDay(resolveDashboardMarket(req.query?.market), streaks?.timezone || null),
     notificationsSummary,
     generatedAt,
     sourceTradeCount: analytics.sourceTradeCount,

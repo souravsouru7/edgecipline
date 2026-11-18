@@ -2,28 +2,28 @@ import Image from "next/image";
 
 const PALETTES = {
   default: {
-    bg: "#F4F2EE",
-    ink: "#0F1923",
+    bg: "var(--ec-bg, #F4F2EE)",
+    ink: "var(--ec-text, #0F1923)",
     accent: "#0D9E6E",
     accent2: "#B8860B",
     accent3: "#2563EB",
     danger: "#D63B3B",
-    card: "#FFFFFF",
-    border: "#E2E8F0",
-    muted: "#64748B",
-    soft: "#E8EDF2",
+    card: "var(--ec-surface, #FFFFFF)",
+    border: "var(--ec-border, #E2E8F0)",
+    muted: "var(--ec-text-3, #64748B)",
+    soft: "var(--ec-surface-2, #E8EDF2)",
   },
   indian: {
-    bg: "#F4F2EE",
-    ink: "#0F1923",
+    bg: "var(--ec-bg, #F4F2EE)",
+    ink: "var(--ec-text, #0F1923)",
     accent: "#0D9E6E",
     accent2: "#B8860B",
     accent3: "#2563EB",
     danger: "#D63B3B",
-    card: "#FFFFFF",
-    border: "#E2E8F0",
-    muted: "#64748B",
-    soft: "#E8EDF2",
+    card: "var(--ec-surface, #FFFFFF)",
+    border: "var(--ec-border, #E2E8F0)",
+    muted: "var(--ec-text-3, #64748B)",
+    soft: "var(--ec-surface-2, #E8EDF2)",
   },
 };
 
@@ -35,7 +35,7 @@ function Block({ width = "100%", height = 14, radius = 8, style = {} }) {
         width,
         height,
         borderRadius: radius,
-        background: "linear-gradient(90deg, #E8EDF2 0%, #F5F7FA 46%, #E8EDF2 100%)",
+        background: "linear-gradient(90deg, var(--ec-surface-2, #E8EDF2) 0%, var(--ec-surface-3, #F5F7FA) 46%, var(--ec-surface-2, #E8EDF2) 100%)",
         backgroundSize: "240% 100%",
         overflow: "hidden",
         ...style,
@@ -55,7 +55,7 @@ function Header({ colors, showMarketTape }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "rgba(244, 242, 238, 0.88)",
+          background: "color-mix(in srgb, var(--ec-bg, #F4F2EE) 88%, transparent)",
           borderBottom: `1px solid ${colors.border}`,
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
@@ -83,7 +83,7 @@ function Header({ colors, showMarketTape }) {
           className="app-loading-tape"
           style={{
             overflow: "hidden",
-            background: colors.ink,
+            background: "#0F1923", // always-dark ticker strip
             borderBottom: `3px solid ${colors.accent2}`,
             padding: "7px 0",
           }}
@@ -141,15 +141,15 @@ function Chart({ accent }) {
           style={{
             height: 194,
             borderRadius: 12,
-            border: "1px solid #EEF2F6",
-            background: "linear-gradient(180deg, #F8FAFC, #FFFFFF)",
+            border: "1px solid var(--ec-border, #EEF2F6)",
+            background: "linear-gradient(180deg, var(--ec-surface-2, #F8FAFC), var(--ec-surface, #FFFFFF))",
             position: "relative",
             overflow: "hidden",
           }}
         >
           <div style={{ position: "absolute", left: 16, right: 16, bottom: 31, height: 88, borderRadius: "80% 60% 0 0", borderTop: `3px solid ${accent}`, opacity: 0.35 }} />
-          <div style={{ position: "absolute", left: 16, right: 16, bottom: 72, borderTop: "1px dashed #DDE5EC" }} />
-          <div style={{ position: "absolute", left: 16, right: 16, bottom: 116, borderTop: "1px dashed #DDE5EC" }} />
+          <div style={{ position: "absolute", left: 16, right: 16, bottom: 72, borderTop: "1px dashed var(--ec-border-strong, #DDE5EC)" }} />
+          <div style={{ position: "absolute", left: 16, right: 16, bottom: 116, borderTop: "1px dashed var(--ec-border-strong, #DDE5EC)" }} />
         </div>
       </div>
     </section>
@@ -169,7 +169,7 @@ function ActivityList() {
             alignItems: "center",
             gap: 12,
             padding: item === 0 ? "0 0 14px" : "14px 0",
-            borderTop: item === 0 ? "none" : "1px solid #F1F5F9",
+            borderTop: item === 0 ? "none" : "1px solid var(--ec-border, #F1F5F9)",
           }}
         >
           <Block width={42} height={42} radius={11} />

@@ -279,7 +279,7 @@ function IssueDetailInner() {
 
 export default function IssueDetailPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#F0EEE9" }} />}>
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "var(--ec-bg, #F0EEE9)" }} />}>
       <IssueDetailInner />
     </Suspense>
   );

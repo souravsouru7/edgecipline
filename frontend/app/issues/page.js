@@ -13,5 +13,5 @@ export default function MyIssuesPage() {
     router.replace("/support/tickets");
   }, [router]);
 
-  return <div style={{ minHeight: "100vh", background: "#F0EEE9" }} />;
+  return <div style={{ minHeight: "100vh", background: "var(--ec-bg, #F0EEE9)" }} />;
 }

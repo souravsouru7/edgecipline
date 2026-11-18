@@ -561,7 +561,15 @@ select.ec-input {
 .ec-today__num.is-done { background: var(--ec-accent); border-color: var(--ec-accent); color: var(--ec-on-accent); }
 .ec-today__text { flex: 1; min-width: 0; }
 .ec-today__title { display: block; font-size: var(--ec-fs-3); font-weight: 600; }
-.ec-today__sub { display: block; margin-top: 1px; font-size: var(--ec-fs-2); color: var(--ec-text-3); }
+.ec-today__sub {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  margin-top: 1px; font-size: var(--ec-fs-2); color: var(--ec-text-3); overflow-wrap: anywhere;
+}
+.ec-today__title { overflow-wrap: anywhere; }
+.ec-today__emph { font-weight: 600; color: var(--ec-text-2); }
+.ec-today__emph--loss { color: var(--ec-loss); }
+.ec-today__emph--warning { color: var(--ec-warning); }
+.ec-today__emph--profit { color: var(--ec-profit); }
 .ec-today__icon { color: var(--ec-text-3); flex-shrink: 0; }
 
 /* KPIs */
@@ -837,6 +845,12 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
 .ec-journal__confirm { margin: 0 0 var(--ec-s-5); font-size: var(--ec-fs-3); line-height: 1.55; color: var(--ec-text-2); }
 .ec-journal__confirm strong { color: var(--ec-text); }
 .ec-journal__confirm-actions { display: flex; justify-content: flex-end; gap: var(--ec-s-2); flex-wrap: wrap; }
+/* Phones: the confirm opens as a bottom sheet, so the destructive action sits
+   on top, full width, with Cancel under it — native action-sheet layout. */
+@media (max-width: 768px) {
+  .ec-journal__confirm-actions { flex-direction: column-reverse; gap: 10px; }
+  .ec-journal__confirm-actions > * { width: 100%; min-height: 48px; justify-content: center; }
+}
 
 .ec-jlist { display: block; }
 .ec-jday {

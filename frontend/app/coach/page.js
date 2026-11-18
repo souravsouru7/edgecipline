@@ -1,11 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Plus, Trash2, MessageSquare } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { useToast } from "@/features/shared/components/ui/Toast";
+import { Button, ResponsiveModal } from "@/features/shared/components/ui";
 import { reportUserError } from "@/utils/userMessage";
 import { registerDismissable } from "@/utils/backNavigation";
 import CoachChat from "@/features/coach-chat/components/CoachChat";
@@ -118,6 +120,44 @@ function Page() {
     return conversations[0]?._id || null;
   }, [selectedId, conversations]);
 
+  // /coach?ask=<question>: Home's "Today's plan" rows link here with a
+  // question built from the trader's numbers. Start a fresh conversation and
+  // put the question in the composer: the user reviews it and taps send, so
+  // nothing spends coach quota on their behalf. The param is stripped straight
+  // away so a refresh or back press never opens a second conversation.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const askHandled = useRef(false);
+  const [askDraft, setAskDraft] = useState(null);
+  useEffect(() => {
+    if (askHandled.current) return;
+    const raw = searchParams?.get("ask");
+    if (raw === null || raw === undefined) return;
+    askHandled.current = true;
+    router.replace(pathname || "/coach");
+    const text = String(raw).trim().slice(0, 200);
+    if (!text) return;
+    (async () => {
+      try {
+        const result = await createConversation.mutateAsync({
+          anchor: { kind: "dashboard", label: "Today's plan" },
+          market: "any",
+        });
+        const id = result?.conversation?._id;
+        if (!id) return;
+        setAskDraft({ id, text });
+        setSelectedId(id);
+        setMobilePane("chat");
+      } catch (err) {
+        addToast(
+          reportUserError("coach_conversation_create_failed", err, "We couldn't start a conversation. Please try again."),
+          "error"
+        );
+      }
+    })();
+  }, [searchParams, router, pathname, createConversation, addToast]);
+
   const backToList = useCallback(() => setMobilePane("list"), []);
   const chatOpenOnMobile = isMobile && mobilePane === "chat" && Boolean(activeId);
   const viewport = useMobileChatLayer(chatOpenOnMobile, backToList);
@@ -142,16 +182,20 @@ function Page() {
     }
   };
 
-  const handleDelete = async (id, title) => {
-    // confirm() is kept deliberately. It is a destructive, irreversible action,
-    // and Capacitor renders this as a native UIAlertController / AlertDialog with
-    // no title and no origin shown — so it does not read as a web artifact. The
-    // app has no dialog component to replace it with, and inventing one here
-    // would risk weakening a confirmation that matters.
-    if (!confirm(`Delete "${title || "this conversation"}"? This cannot be undone.`)) return;
+  // Conversation awaiting delete confirmation: { id, title } or null.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const deleting = deleteConversation.isPending;
+  const closeDelete = useCallback(() => {
+    if (!deleting) setPendingDelete(null);
+  }, [deleting]);
+
+  const confirmDelete = async () => {
+    const id = pendingDelete?.id;
+    if (!id) return;
     try {
       await deleteConversation.mutateAsync(id);
     } catch (err) {
+      setPendingDelete(null);
       // Previously unhandled: a failed delete rejected into nothing, so the row
       // stayed and the user was told neither that it failed nor why.
       addToast(
@@ -160,6 +204,7 @@ function Page() {
       );
       return;
     }
+    setPendingDelete(null);
     if (selectedId === id) {
       setSelectedId(null);
       setMobilePane("list");
@@ -233,7 +278,7 @@ function Page() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(c._id, c.title)}
+                    onClick={() => setPendingDelete({ id: c._id, title: c.title })}
                     aria-label={`Delete conversation: ${c.title || "Coach session"}`}
                     className="coach-del"
                   >
@@ -252,9 +297,12 @@ function Page() {
         >
           {activeId ? (
             <CoachChat
+              // Remount when a ?ask= question lands so the composer picks it up.
+              key={askDraft?.id === activeId ? `${activeId}:ask` : activeId}
               mode="inline"
               open
               conversationId={activeId}
+              defaultPrompt={askDraft?.id === activeId ? askDraft.text : ""}
               anchor={{ kind: "dashboard" }}
               onBack={isMobile ? backToList : undefined}
             />
@@ -276,6 +324,16 @@ function Page() {
           )}
         </section>
       </main>
+
+      <ResponsiveModal open={Boolean(pendingDelete)} onClose={closeDelete} title="Delete conversation?" width={420}>
+        <p className="ec-journal__confirm">
+          <strong>{pendingDelete?.title || "This conversation"}</strong> and all its messages will be permanently deleted. This can&apos;t be undone.
+        </p>
+        <div className="ec-journal__confirm-actions">
+          <Button variant="secondary" onClick={closeDelete} disabled={deleting}>Cancel</Button>
+          <Button variant="danger" onClick={confirmDelete} loading={deleting}>Delete</Button>
+        </div>
+      </ResponsiveModal>
 
       <style jsx global>{`
         .coach-grid {

@@ -271,6 +271,19 @@ describe("plan label", () => {
     expect(getPlanLabel({ subscriptionPlan: "free", subscriptionStatus: "inactive" }, null)).toBe("Free");
     expect(getPlanLabel(null)).toBe("Free");
   });
+
+  it("names the real length of a 3/6-month web (Razorpay) plan stored as 'monthly'", () => {
+    const user = { subscriptionStatus: "active", subscriptionPlan: "monthly", subscriptionExpiry: future(180 * ONE_DAY) };
+    expect(getPlanLabel(user, null, null, { planType: "6_months" })).toBe("6-month Pro");
+    expect(getPlanLabel(user, null, null, { planType: "3_months" })).toBe("3-month Pro");
+    expect(getPlanLabel(user, null, null, { planType: "monthly" })).toBe("Monthly Pro");
+    expect(getPlanLabel(user, null, null, null)).toBe("Monthly Pro");
+    // Yearly/custom labels are already precise; a stray summary never overrides them.
+    expect(getPlanLabel({ ...user, subscriptionPlan: "yearly" }, null, null, { planType: "6_months" })).toBe("Annual Pro");
+    // A lapsed web plan keeps its real name for the "Expired" card.
+    const lapsed = { subscriptionStatus: "expired", subscriptionPlan: "monthly", subscriptionExpiry: past() };
+    expect(getPlanLabel(lapsed, null, null, { planType: "6_months" })).toBe("6-month Pro");
+  });
 });
 
 describe("effective status for a lapsed Play subscriber", () => {

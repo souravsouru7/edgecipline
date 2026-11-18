@@ -184,8 +184,15 @@ const PLAY_PLAN_LABELS = Object.freeze({
 });
 
 // App Store products carry the same planType vocabulary as Play base plans.
-function getPlanLabel(user, playSummary = null, appStoreSummary = null) {
+// Razorpay has the same problem: 1-, 3- and 6-month web plans are all stored as
+// subscriptionPlan "monthly", so the caller passes the latest Razorpay/manual
+// Payment's planType as `razorpaySummary` and that names the real length.
+function getPlanLabel(user, playSummary = null, appStoreSummary = null, razorpaySummary = null) {
   if (!user) return PLAN_LABELS.free;
+  const razorpayLabel = () =>
+    user.subscriptionPlan === "monthly" && PLAY_PLAN_LABELS[razorpaySummary?.planType]
+      ? PLAY_PLAN_LABELS[razorpaySummary.planType]
+      : PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
   const provider = getBillingProvider(user);
   if (provider === "google_play" && playSummary?.planType && PLAY_PLAN_LABELS[playSummary.planType]) {
     return PLAY_PLAN_LABELS[playSummary.planType];
@@ -203,11 +210,11 @@ function getPlanLabel(user, playSummary = null, appStoreSummary = null) {
       return PLAY_PLAN_LABELS[appStoreSummary.planType];
     }
     if (user.subscriptionStatus === "expired" || user.subscriptionStatus === "active") {
-      return PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
+      return razorpayLabel();
     }
     return PLAN_LABELS.free;
   }
-  return PLAN_LABELS[user.subscriptionPlan] || PLAN_LABELS.free;
+  return razorpayLabel();
 }
 
 // UI-facing trial snapshot. Returns null for users who never had a trial
