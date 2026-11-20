@@ -96,6 +96,7 @@ exports.enqueueGenerate = asyncHandler(async (req, res) => {
     marketType,
     periodType,
     force,
+    isAdmin: req.user?.role === "admin",
   });
   // 202 — request accepted; processing happens asynchronously on the worker.
   res.status(202).json(enqueued);
@@ -123,6 +124,7 @@ exports.generate = asyncHandler(async (req, res) => {
     marketType,
     periodType,
     force,
+    isAdmin: req.user?.role === "admin",
   });
   // The freshly generated report is by definition not stale — annotate it
   // with the same `meta` shape as the read endpoints so the frontend can

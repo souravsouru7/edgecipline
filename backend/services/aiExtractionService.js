@@ -2,12 +2,15 @@ const { withTimeout, TIMEOUT_CONFIG } = require("../middleware/timeout");
 const { logger } = require("../utils/logger");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
+const { guardedCall } = require("../utils/geminiCircuit");
+const { hedgedGenerate } = require("../utils/geminiHedge");
 
-// Cap the per-call Gemini Vision deadline so a slow Google response fails
-// fast and BullMQ can retry on a fresh connection instead of users waiting
-// 90s+ before seeing extracted data. AI_SERVICE_TIMEOUT_MS (default 45s)
-// is the single source of truth.
-const GEMINI_EXTRACTION_TIMEOUT_MS = TIMEOUT_CONFIG.aiTimeout || 45_000;
+// Healthy Gemini extraction calls answer in ~0.3-3s, but about 1 in 4 hangs.
+// Rather than wait 45s on a hang, every extraction call is hedged: a backup
+// request goes out after HEDGE_AFTER_MS and the whole call gives up at
+// GEMINI_EXTRACTION_TIMEOUT_MS (see utils/geminiHedge).
+const GEMINI_EXTRACTION_TIMEOUT_MS = appConfig.ai.extractionTimeoutMs || 25_000;
+const HEDGE_AFTER_MS = appConfig.ai.hedgeAfterMs || 8_000;
 
 function buildBrokerPrompt(basePrompt, brokerHint) {
   const broker = String(brokerHint || "").trim();
@@ -244,12 +247,21 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
 
     const basePrompt = isEquity ? INDIAN_EQUITY_VISION_PROMPT : isIndian ? INDIAN_VISION_PROMPT : FOREX_VISION_PROMPT;
     const prompt = buildBrokerPrompt(basePrompt, options.brokerHint);
-    const visionPromise = model.generateContent([
-      { inlineData: { data: base64, mimeType } },
-      { text: prompt },
-    ]);
-
-    const result = await withTimeout(visionPromise, "Gemini Vision call", timeoutMs);
+    // Behind the shared circuit: during an outage this throws immediately,
+    // the catch below returns null, and the caller falls back to OCR text.
+    const result = await guardedCall({
+      feature: "trade_vision",
+      userId: options.userId,
+      model: appConfig.ai.geminiTradeModel,
+      call: () => hedgedGenerate(
+        model,
+        [
+          { inlineData: { data: base64, mimeType } },
+          { text: prompt },
+        ],
+        { hedgeAfterMs: HEDGE_AFTER_MS, timeoutMs, label: "Gemini Vision call" }
+      ),
+    });
     const rawText = result?.response?.text?.()?.trim();
     if (!rawText) return null;
 
@@ -346,7 +358,7 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
   }
 }
 
-async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTimeout, { preferGemini = false } = {}) {
+async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTimeout, { preferGemini = false, userId = null } = {}) {
   const openaiKey = appConfig.ai.openaiApiKey;
   const geminiKey = appConfig.ai.geminiApiKey;
 
@@ -415,19 +427,25 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
     const genAI = new GoogleGenerativeAI(geminiKey);
     const modelName = appConfig.ai.geminiTradeModel;
     const model = genAI.getGenerativeModel({ model: modelName });
-    const geminiTimeout = Math.max(timeoutMs, GEMINI_EXTRACTION_TIMEOUT_MS);
+    const geminiTimeout = GEMINI_EXTRACTION_TIMEOUT_MS;
 
-    const runGemini = async (inputPrompt) => {
-      const geminiPromise = model.generateContent({
-        contents: [{ role: "user", parts: [{ text: inputPrompt }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 600,
-          thinkingConfig: { thinkingBudget: 0 },
+    const runGemini = (inputPrompt) => guardedCall({
+      feature: "trade_text",
+      userId,
+      model: modelName,
+      call: () => hedgedGenerate(
+        model,
+        {
+          contents: [{ role: "user", parts: [{ text: inputPrompt }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 600,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         },
-      });
-      return withTimeout(geminiPromise, "Gemini AI call", geminiTimeout);
-    };
+        { hedgeAfterMs: HEDGE_AFTER_MS, timeoutMs: geminiTimeout, label: "Gemini AI call" }
+      ),
+    });
 
     let result;
     try {
@@ -585,7 +603,7 @@ ${ocrSlice}
 JSON: {"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha","trades":[{"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha"}]}`;
 
   // Gemini preferred for Indian market — stronger knowledge of Indian broker formats
-  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true });
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, userId: options.userId });
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 
@@ -647,7 +665,7 @@ ${String(extractedText).slice(0, 5000)}
 
 Return the JSON object describing the trade in the OCR text above:`;
 
-  const data = await callAIForTradeExtraction(prompt);
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { userId: options.userId });
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 
@@ -754,7 +772,7 @@ ${ocrSlice}
 
 JSON: {"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox","trades":[{"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY"}]}`;
 
-  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true });
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, userId: options.userId });
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 

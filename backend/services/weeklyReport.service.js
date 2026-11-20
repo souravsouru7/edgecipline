@@ -377,7 +377,7 @@ async function generateRolling7dReportForUser({ userId, marketType }) {
   }
 
   try {
-    const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel });
+    const { model, feedback } = await generateWeeklyFeedback({ snapshot, weekLabel, userId });
     const updatedReport = await weeklyReportRepository.updateWeeklyReportById(report._id, {
       aiFeedback: feedback,
       aiModel: model,

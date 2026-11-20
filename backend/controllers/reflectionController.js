@@ -3,14 +3,15 @@ const reflectionService = require("../services/reflectionService");
 const reflectionInsightService = require("../services/reflectionInsightService");
 const { onReflectionSaved } = require("../services/missionProgressService");
 const { logger } = require("../utils/logger");
+const { isPremium } = require("../utils/premium");
 
 // Fire-and-forget AI insight generation. We never block the submit response on
 // Gemini latency — the frontend reads the insight on the next fetch of
 // /reflections/today or via the dashboard snapshot.
-function scheduleInsightGeneration({ reflection, context, day }) {
+function scheduleInsightGeneration({ reflection, context, day, userId, premium }) {
   setImmediate(() => {
     reflectionInsightService
-      .generateInsight({ reflection, context, day })
+      .generateInsight({ reflection, context, day, userId, premium })
       .then((result) =>
         reflectionService.attachAiInsight(reflection._id, result)
       
@@ -49,6 +50,8 @@ exports.submitReflection = asyncHandler(async (req, res) => {
       reflection: result.reflection,
       context: result.context,
       day: result.day,
+      userId: req.user._id,
+      premium: isPremium(req.user),
     });
   }
 

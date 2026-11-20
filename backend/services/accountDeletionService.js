@@ -79,6 +79,8 @@ const PLAY_MANAGE_SUBSCRIPTION_URL =
 // after the account has already been locked out — see accountDeletionModels
 // in the unit tests, which asserts every entry is a real model.
 const USER_OWNED_COLLECTIONS = [
+  // Per-call Gemini token metering.
+  ["user",   require("../models/AiUsage")],
   ["user",   require("../models/AnalyticsEvent")],
   ["user",   require("../models/AttributionTouch")],
   ["user",   require("../models/ChecklistNotificationSetting")],

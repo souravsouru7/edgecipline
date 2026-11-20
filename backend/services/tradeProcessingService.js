@@ -40,6 +40,7 @@ const {
 const PROCESSING_TIMEOUT_MS = appConfig.timeouts.processingTimeoutMs;
 const OCR_TIMEOUT_MS = appConfig.timeouts.ocrTimeout;
 const AI_TIMEOUT_MS = appConfig.timeouts.aiTimeout;
+const GEMINI_VISION_ATTEMPTS = 1;
 const CONFIDENCE_ZONES = {
   rejectMax: 9,
   reviewMax: 59,
@@ -394,7 +395,7 @@ async function runOcrWithRetry(imagePath, preloadedImage = null) {
   return { text: "", buffer: imageBuffer, mimeType: imageMimeType, ocrFailed: true };
 }
 
-async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, includeRawResponse = true, brokerHint = "", expectedMultiple = false }) {
+async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, includeRawResponse = true, brokerHint = "", expectedMultiple = false, userId = null }) {
   const isEquity = marketType === "Indian_Market" && tradeSubType === "EQUITY";
   let lastError = null;
 
@@ -406,17 +407,19 @@ async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, inclu
       });
       const result = await withTimeout(
         isEquity
-          ? extractEquityIntradayWithAI(text, { includeRawResponse, brokerHint })
+          ? extractEquityIntradayWithAI(text, { includeRawResponse, brokerHint, userId })
           : marketType === "Indian_Market"
           ? extractIndianTradeWithAI(text, {
               includeRawResponse,
               improvedPrompt: attempt === 2,
               brokerHint,
               expectedMultiple,
+              userId,
             })
           : extractTradeWithAI(text, {
               marketType,
               includeRawResponse,
+              userId,
             }),
         "AI extraction timeout",
         AI_TIMEOUT_MS
@@ -953,11 +956,13 @@ async function processTradeUpload({
     // ── Primary extraction: Gemini Vision reads the image directly ──────────
     // Runs on every upload regardless of OCR quality. Direct image → JSON is
     // more accurate than OCR text → AI because it avoids all OCR corruption.
-    // Retried once on failure — a single network blip should not drop us to Tesseract.
+    // One attempt: the call is hedged inside extractTradeWithGeminiVision (a
+    // backup request goes out if the first hangs), so a second full attempt
+    // here would only double the wait when Gemini is genuinely down.
     if (shouldAttemptGeminiVision) {
     try {
       let visionData = null;
-      for (let vAttempt = 1; vAttempt <= 2; vAttempt++) {
+      for (let vAttempt = 1; vAttempt <= GEMINI_VISION_ATTEMPTS; vAttempt++) {
         await runCancellationCheck(checkCancellation, "before-gemini-vision");
         try {
           visionData = await withTimeout(
@@ -967,6 +972,7 @@ async function processTradeUpload({
               imageBuffer: ocrImageBuffer,
               imageMimeType: ocrImageMimeType,
               brokerHint: broker,
+              userId: trade.user,
             }),
             "Gemini Vision timeout",
             AI_TIMEOUT_MS
@@ -977,7 +983,7 @@ async function processTradeUpload({
         } catch (vErr) {
           if (vErr.code === "WRONG_MARKET_TYPE") throw vErr;
           logger.warn(`Gemini Vision attempt ${vAttempt} failed | tradeId=${tradeId}`, { tradeId, vAttempt, error: vErr.message });
-          if (vAttempt === 2) visionData = null;
+          if (vAttempt === GEMINI_VISION_ATTEMPTS) visionData = null;
         }
       }
 
@@ -1201,6 +1207,7 @@ async function processTradeUpload({
           text: cleanedText,
           includeRawResponse: true,
           brokerHint: broker,
+          userId: trade.user,
           expectedMultiple: marketType === "Indian_Market" && (isEquityIntraday ? /INTRADAY|POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText) : ((parsedTrades && parsedTrades.length > 1) || /POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText))),
         });
         await runCancellationCheck(checkCancellation, "after-text-ai");

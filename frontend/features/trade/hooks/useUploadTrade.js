@@ -1130,7 +1130,10 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       if (["COMPLETED", "FAILED", "CANCELLED", "CONFIRMED", "completed", "failed"].includes(status)) return false;
       // Nothing is moving this job along — stop rather than poll forever.
       if (hasPassedPollDeadline()) return false;
-      return 4000;
+      // Most extractions finish within ~10s, so check briskly at first and
+      // back off once it's clearly a slow one.
+      const startedAt = pollStartedAtRef.current;
+      return startedAt && Date.now() - startedAt < 30_000 ? 2000 : 4000;
     },
   });
 

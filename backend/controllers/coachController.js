@@ -159,11 +159,11 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     const result = await coachChatService.enforceAndCountQuota(req.user);
     quotaSnapshot = result.quota;
   } catch (error) {
-    if (error?.errorCode === "COACH_QUOTA_EXHAUSTED") {
+    if (error?.errorCode === "COACH_QUOTA_EXHAUSTED" || error?.errorCode === "COACH_DAILY_LIMIT") {
       res.status(402).json({
         success: false,
         error: {
-          code: "COACH_QUOTA_EXHAUSTED",
+          code: error.errorCode,
           message: error.message,
           details: error.details,
         },

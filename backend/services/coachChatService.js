@@ -8,6 +8,8 @@ const { isPremium } = require("../utils/premium");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
+const geminiCircuit = require("../utils/geminiCircuit");
+const { isOverDailyBudget, recordAiUsage } = require("../utils/aiUsage");
 
 const HISTORY_TURNS = 10;
 const MAX_USER_QUESTION_CHARS = 1200;
@@ -140,6 +142,7 @@ async function refundTurn({ user, userMessageId }) {
   try {
     await CoachMessage.updateOne({ _id: userMessageId, user: user._id }, { $set: { billable: false } });
     await coachQuotaService.refundUsage(user);
+    if (isPremium(user)) await coachQuotaService.refundDailyUsage(user);
     return true;
   } catch (error) {
     // A failed refund must never mask the original failure the caller is
@@ -181,7 +184,7 @@ async function supersedeTurn({ user, conversationId, userMessageId }) {
 
 // One retry, and only when the failure happened before any token reached the
 // client — replaying a partially streamed reply would duplicate visible text.
-async function streamWithRetry({ model, request, onChunk, onRetry }) {
+async function streamWithRetry({ model, request, onChunk, onRetry, onComplete }) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_STREAM_ATTEMPTS; attempt += 1) {
     let text = "";
@@ -192,6 +195,11 @@ async function streamWithRetry({ model, request, onChunk, onRetry }) {
         if (!piece) continue;
         text += piece;
         if (onChunk) onChunk(piece);
+      }
+      // The aggregated response carries usageMetadata (token counts).
+      if (onComplete) {
+        const response = await Promise.resolve(result.response).catch(() => null);
+        onComplete(response);
       }
       return text;
     } catch (error) {
@@ -294,17 +302,35 @@ async function bumpConversation(conversation, lastMessagePreview) {
   );
 }
 
-// Quota check + atomic increment. Premium users skip the cap but still
-// increment so the dashboard can show "questions this week".
+const DAILY_LIMIT_MESSAGE =
+  "You've reached today's coaching limit. Coach will be ready again tomorrow.";
+
+function dailyLimitError(quota) {
+  // 402 with its own code: shipped apps (iOS 1.0 / Android 1.1.2) print the
+  // message as-is and show no upgrade banner to a premium user.
+  return new ApiError(402, DAILY_LIMIT_MESSAGE, "COACH_DAILY_LIMIT", { quota });
+}
+
+// Quota check + atomic increment. Free: weekly cap. Premium: fair-use daily
+// cap. Everyone also increments the weekly counter so the dashboard can show
+// "questions this week".
 async function enforceAndCountQuota(user) {
   const quota = await coachQuotaService.getQuota(user);
   if (!quota.premium && quota.remaining <= 0) {
     throw new ApiError(
       402,
-      "You've used your 5 free coach questions for this week. Upgrade for unlimited coaching.",
+      `You've used your ${coachQuotaService.FREE_WEEKLY_LIMIT} free coach questions for this week. Upgrade for unlimited coaching.`,
       "COACH_QUOTA_EXHAUSTED",
       { quota }
     );
+  }
+  if (quota.premium) {
+    if (quota.daily && quota.daily.remaining <= 0) throw dailyLimitError(quota);
+    const dailyCount = await coachQuotaService.incrementDailyUsage(user);
+    if (dailyCount > coachQuotaService.PREMIUM_DAILY_LIMIT) {
+      await coachQuotaService.refundDailyUsage(user);
+      throw dailyLimitError({ ...quota, daily: { ...quota.daily, used: dailyCount - 1, remaining: 0 } });
+    }
   }
   const newCount = await coachQuotaService.incrementUsage(user);
   // Defensive second check: if the increment took us past the limit because
@@ -364,14 +390,39 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
 
   const model = getGeminiModel();
   let fullText = "";
+  let geminiCalled = false;
 
   try {
+    // Fail fast instead of making the trader wait out retries and a 60s
+    // timeout when Gemini is known to be down. COACH_BUSY is refundable, so
+    // the question isn't charged.
+    if (await geminiCircuit.isOpen()) {
+      throw new ApiError(503, "Coach is busy right now. Try again in a minute.", "COACH_BUSY");
+    }
+    // Over the daily token budget, free-tier questions pause so the remaining
+    // headroom goes to paying traders.
+    if (!isPremium(user) && await isOverDailyBudget()) {
+      throw new ApiError(503, "Coach is taking a short break. Try again later.", "COACH_BUSY");
+    }
+
+    geminiCalled = true;
     fullText = await streamWithRetry({
       model,
       request: {
         systemInstruction: input.systemInstruction,
         contents: input.contents,
         generationConfig: buildGenerationConfig(appConfig.ai.geminiModel),
+      },
+      onComplete: (response) => {
+        geminiCircuit.recordSuccess().catch(() => {});
+        recordAiUsage({
+          userId: user._id,
+          feature: "coach",
+          model: appConfig.ai.geminiModel,
+          response,
+          ok: true,
+          latencyMs: Date.now() - started,
+        });
       },
       onChunk,
       onRetry: (error) => {
@@ -411,6 +462,23 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
     if (typeof error?.partialText === "string") fullText = error.partialText;
 
     const described = describeFailure(error);
+
+    // Only real upstream failures feed the circuit and the metering; a
+    // fast-fail from the open circuit or the budget guard is not a new signal.
+    if (geminiCalled && !(error instanceof ApiError)) {
+      geminiCircuit.recordFailure(error).catch(() => {});
+      recordAiUsage({
+        userId: user._id,
+        feature: "coach",
+        model: appConfig.ai.geminiModel,
+        ok: false,
+        errorCode: described.errorCode,
+        latencyMs: Date.now() - started,
+      });
+    }
+    if (described.errorCode === "COACH_BUSY" || described.errorCode === "COACH_STREAM_ERROR") {
+      geminiCircuit.noteUserFacingFailure(described.errorCode).catch(() => {});
+    }
     // The raw upstream text never reaches the client, so this log is the only
     // place the real cause ("[403] project denied", a retired model name) is
     // recorded. Config failures break every request until an operator acts, so

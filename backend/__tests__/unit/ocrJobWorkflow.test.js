@@ -23,6 +23,8 @@ describe("OCR job workflow", () => {
     jest.doMock("../../models/OCRJob", () => ({
       OCRJob: {
         create: jest.fn().mockResolvedValue(savedJob),
+        // Premium daily upload cap reads today's job count.
+        countDocuments: jest.fn().mockResolvedValue(0),
       },
     }));
     jest.doMock("../../queues/ocrQueue", () => ({

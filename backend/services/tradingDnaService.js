@@ -227,7 +227,7 @@ async function generateReport({
     };
   } else {
     try {
-      aiPayload = await generateTradingDna(bundle);
+      aiPayload = await generateTradingDna(bundle, { userId });
     } catch (err) {
       logger.warn(
         "[TradingDNA] generation failed, persisting deterministic fallback",
@@ -278,31 +278,51 @@ async function attachStaleness(report) {
   };
 }
 
+// 24h regenerate lockout. `force` from a trader only skips it when their
+// trades changed since the recent report (what the app's "Rebuild" buttons
+// promise); otherwise it was a free way to burn a Gemini call on every tap.
+// Admins can always force.
+async function assertNotLockedOut({ userId, market, periodType, force, isAdmin }) {
+  if (force && isAdmin) return;
+  const since = new Date(Date.now() - GENERATE_LOCKOUT_HOURS * 60 * 60 * 1000);
+  const recent = await tradingDnaReportRepository.findRecentlyGenerated(
+    userId,
+    market,
+    periodType,
+    since
+  );
+  if (!recent) return;
+  if (force) {
+    const current = String(await getTradeCacheVersion(userId) || "");
+    const reportVersion = String(recent.dataVersion || "");
+    // Unknown version on either side counts as changed: never strand a
+    // trader on a report we can't prove is current.
+    if (!current || !reportVersion || current !== reportVersion) return;
+  }
+  throw new ApiError(
+    409,
+    force
+      ? `Your trades haven't changed since this report was built. You can rebuild it ${GENERATE_LOCKOUT_HOURS} hours after the last one.`
+      : `Trading DNA was generated within the last ${GENERATE_LOCKOUT_HOURS} hours. Pass force=true to regenerate.`,
+    "CONFLICT",
+    { reportId: recent._id }
+  );
+}
+
 async function generateNowOnce({
   userId,
   marketType = "Forex",
   periodType = DEFAULT_PERIOD,
   force = false,
+  isAdmin = false,
 } = {}) {
-  if (!force) {
-    const since = new Date(
-      Date.now() - GENERATE_LOCKOUT_HOURS * 60 * 60 * 1000
-    );
-    const recent = await tradingDnaReportRepository.findRecentlyGenerated(
-      userId,
-      normalizeMarket(marketType),
-      periodType,
-      since
-    );
-    if (recent) {
-      throw new ApiError(
-        409,
-        `Trading DNA was generated within the last ${GENERATE_LOCKOUT_HOURS} hours. Pass force=true to regenerate.`,
-        "CONFLICT",
-        { reportId: recent._id }
-      );
-    }
-  }
+  await assertNotLockedOut({
+    userId,
+    market: normalizeMarket(marketType),
+    periodType,
+    force,
+    isAdmin,
+  });
   return generateReport({ userId, marketType, periodType });
 }
 
@@ -455,6 +475,7 @@ async function enqueueGeneration({
   marketType = "Forex",
   periodType = DEFAULT_PERIOD,
   force = false,
+  isAdmin = false,
 } = {}) {
   if (!userId) {
     throw new ApiError(400, "userId is required", "VALIDATION_ERROR");
@@ -468,23 +489,7 @@ async function enqueueGeneration({
   }
   const market = normalizeMarket(marketType);
 
-  if (!force) {
-    const since = new Date(Date.now() - GENERATE_LOCKOUT_HOURS * 60 * 60 * 1000);
-    const recent = await tradingDnaReportRepository.findRecentlyGenerated(
-      userId,
-      market,
-      periodType,
-      since
-    );
-    if (recent) {
-      throw new ApiError(
-        409,
-        `Trading DNA was generated within the last ${GENERATE_LOCKOUT_HOURS} hours. Pass force=true to regenerate.`,
-        "CONFLICT",
-        { reportId: recent._id }
-      );
-    }
-  }
+  await assertNotLockedOut({ userId, market, periodType, force, isAdmin });
 
   const enqueued = await enqueueTradingDnaJob({
     userId,

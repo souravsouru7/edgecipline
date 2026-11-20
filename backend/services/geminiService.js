@@ -2,6 +2,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { guardedCall } = require("../utils/geminiCircuit");
 
 const DEFAULT_MAX_SNAPSHOT_BYTES = 200_000;
 const configuredMaxSnapshotBytes = Number(process.env.GEMINI_MAX_SNAPSHOT_BYTES);
@@ -246,7 +247,7 @@ function buildFallbackFeedback(snapshot, weekLabel) {
   };
 }
 
-async function generateWeeklyFeedback({ snapshot, weekLabel }) {
+async function generateWeeklyFeedback({ snapshot, weekLabel, userId = null }) {
   const snapshotJson = JSON.stringify(snapshot);
   if (typeof snapshotJson !== "string") {
     throw new Error("[Gemini] Snapshot must be a JSON-serializable object");
@@ -326,13 +327,18 @@ ${snapshotJson}
 `;
 
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 4096,
-        responseMimeType: "application/json",
-      },
+    const result = await guardedCall({
+      feature: "weekly_report",
+      userId,
+      model: modelName,
+      call: () => model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+        },
+      }),
     });
 
     // Prefer candidates/parts if available, fallback to .text()

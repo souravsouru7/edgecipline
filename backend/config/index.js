@@ -108,7 +108,7 @@ const appConfig = {
     name: process.env.OCR_QUEUE_NAME || "ocrQueue",
     attempts: readNumber("OCR_JOB_ATTEMPTS", 3),
     backoffMs: readNumber("OCR_JOB_BACKOFF_MS", 5000),
-    initialDelayMs: readNumber("OCR_JOB_INITIAL_DELAY_MS", 2000),
+    initialDelayMs: readNumber("OCR_JOB_INITIAL_DELAY_MS", 0),
     completedRetentionAgeSeconds: readNumber("OCR_COMPLETED_RETENTION_AGE_SECONDS", 24 * 60 * 60),
     completedRetentionCount: readNumber("OCR_COMPLETED_RETENTION_COUNT", 10000),
     failedRetentionAgeSeconds: readNumber("OCR_FAILED_RETENTION_AGE_SECONDS", 7 * 24 * 60 * 60),
@@ -301,6 +301,23 @@ const appConfig = {
     // gemini-3.5-flash answered 5/5 at roughly half the latency.
     geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
     geminiTradeModel: process.env.GEMINI_TRADE_MODEL || process.env.GEMINI_MODEL || "gemini-3.5-flash",
+    // Cost controls. Every value has a safe default so a server .env that
+    // lags behind .env.example never crash-loops on a missing var.
+    coachFreeWeeklyLimit: readNumber("COACH_FREE_WEEKLY_LIMIT", 5),
+    // Premium fair use: no real trader asks 40 questions a day; a script does.
+    coachPremiumDailyLimit: readNumber("COACH_PREMIUM_DAILY_LIMIT", 40),
+    uploadPremiumDailyLimit: readNumber("UPLOAD_PREMIUM_DAILY_LIMIT", 50),
+    // 0 = off. Over budget, free-tier AI falls back to deterministic output.
+    dailyTokenBudget: readNumber("GEMINI_DAILY_TOKEN_BUDGET", 0),
+    // Screenshot extraction: ~1 in 4 Gemini calls hangs. Send a backup
+    // request after hedgeAfterMs; give up on both at extractionTimeoutMs.
+    hedgeAfterMs: readNumber("GEMINI_HEDGE_AFTER_MS", 8_000),
+    extractionTimeoutMs: readNumber("GEMINI_EXTRACTION_TIMEOUT_MS", 25_000),
+    circuit: {
+      failureThreshold: readNumber("GEMINI_CIRCUIT_FAILURE_THRESHOLD", 5),
+      windowMs: readNumber("GEMINI_CIRCUIT_WINDOW_MS", 60_000),
+      openMs: readNumber("GEMINI_CIRCUIT_OPEN_MS", 60_000),
+    },
   },
   trial: {
     // The 7-day free trial is retired: the free tier is now the 2-trades-per-

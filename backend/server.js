@@ -467,6 +467,7 @@ app.use("/api/admin/payments", require("./admin/routes/adminPaymentRoutes"));
 app.use("/api/admin/trades", require("./admin/routes/adminTradeRoutes"));
 app.use("/api/admin/notifications", require("./admin/routes/adminNotificationRoutes"));
 app.use("/api/admin/auth-cache-metrics", require("./admin/routes/adminCacheMetricsRoutes"));
+app.use("/api/admin/ai-usage", require("./admin/routes/adminAiUsageRoutes"));
 app.use("/api/admin/feedback", require("./admin/routes/adminFeedbackRoutes"));
 app.use("/api/admin/issues", require("./admin/routes/adminIssueRoutes"));
 app.use("/api/admin/missions", require("./admin/routes/adminMissionRoutes"));

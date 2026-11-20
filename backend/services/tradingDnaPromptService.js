@@ -3,6 +3,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { guardedCall } = require("../utils/geminiCircuit");
 const ApiError = require("../utils/ApiError");
 
 const PROMPT_VERSION = "v1";
@@ -261,7 +262,7 @@ function normalizeDna(parsed, bundle) {
   };
 }
 
-async function generateTradingDna(bundle) {
+async function generateTradingDna(bundle, { userId = null } = {}) {
   const bundleJson = JSON.stringify(bundle);
   if (Buffer.byteLength(bundleJson, "utf8") > MAX_BUNDLE_BYTES) {
     // VALIDATION_ERROR so the worker classifies it as UnrecoverableError —
@@ -286,16 +287,23 @@ async function generateTradingDna(bundle) {
     );
     const prompt = buildPrompt(bundle);
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        // Slightly warmer than weekly feedback (0.2) — the personality
-        // language benefits from a little expressiveness, but not so much
-        // that archetype assignment becomes unstable.
-        temperature: 0.4,
-        maxOutputTokens: 4096,
-        responseMimeType: "application/json",
-      },
+    // Circuit open → throws → the catch below returns the deterministic
+    // fallback, which is excluded from the 24h lockout.
+    const result = await guardedCall({
+      feature: "trading_dna",
+      userId,
+      model: modelName,
+      call: () => model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          // Slightly warmer than weekly feedback (0.2) — the personality
+          // language benefits from a little expressiveness, but not so much
+          // that archetype assignment becomes unstable.
+          temperature: 0.4,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+        },
+      }),
     });
 
     let text = "";
@@ -311,10 +319,13 @@ async function generateTradingDna(bundle) {
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/i, "")
       .trim();
-    const parsed = parseDnaFromRaw(cleaned) || buildFallbackDna(bundle);
+    const modelParsed = parseDnaFromRaw(cleaned);
+    const parsed = modelParsed || buildFallbackDna(bundle);
 
     return {
-      model: modelName,
+      // Unusable JSON means the trader is looking at our fallback; label it
+      // so, which also keeps it out of the 24h regenerate lockout.
+      model: modelParsed ? modelName : "fallback",
       promptVersion: PROMPT_VERSION,
       dna: normalizeDna(parsed, bundle),
       raw: cleaned,

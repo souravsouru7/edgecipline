@@ -1,6 +1,8 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
+const { guardedCall } = require("../utils/geminiCircuit");
+const { isOverDailyBudget } = require("../utils/aiUsage");
 
 const MAX_INSIGHT_CHARS = 200;
 
@@ -84,8 +86,10 @@ ${JSON.stringify(summary)}
 Return plain text only — no JSON, no quotes around the sentence.`;
 }
 
-async function generateInsight({ reflection, context, day }) {
-  if (!appConfig.ai.geminiApiKey) {
+async function generateInsight({ reflection, context, day, userId = null, premium = false }) {
+  // Over the daily token budget, free-tier insights use the static fallback
+  // so paid features keep the remaining headroom.
+  if (!appConfig.ai.geminiApiKey || (!premium && await isOverDailyBudget())) {
     return {
       insight: truncateInsight(buildFallbackInsight({ reflection, context })),
       model: "fallback-static",
@@ -96,12 +100,17 @@ async function generateInsight({ reflection, context, day }) {
   try {
     const genAI = getClient();
     const model = genAI.getGenerativeModel({ model: appConfig.ai.geminiModel });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: buildPrompt({ reflection, context, day }) }] }],
-      generationConfig: {
-        temperature: 0.35,
-        maxOutputTokens: 200,
-      },
+    const result = await guardedCall({
+      feature: "reflection",
+      userId,
+      model: appConfig.ai.geminiModel,
+      call: () => model.generateContent({
+        contents: [{ role: "user", parts: [{ text: buildPrompt({ reflection, context, day }) }] }],
+        generationConfig: {
+          temperature: 0.35,
+          maxOutputTokens: 200,
+        },
+      }),
     });
 
     let text = "";

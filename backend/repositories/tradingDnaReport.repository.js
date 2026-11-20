@@ -62,7 +62,7 @@ async function findRecentlyGenerated(userId, marketType, periodType, since) {
     createdAt: { $gte: since },
   })
     .sort({ createdAt: -1 })
-    .select("_id user marketType periodType aiModel createdAt");
+    .select("_id user marketType periodType aiModel dataVersion createdAt");
 }
 
 module.exports = {

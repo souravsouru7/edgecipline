@@ -8,6 +8,28 @@ const { logger } = require("../utils/logger");
 const { normalizeTradeDate } = require("../utils/dateUtils");
 const { isRedisReady } = require("../config/redis");
 const tradeQuotaService = require("./tradeQuotaService");
+const { isPremium } = require("../utils/premium");
+const { appConfig } = require("../config");
+
+// Premium uploads are otherwise unlimited (only 20/min), and each one is a
+// Gemini Vision call. Free users are already bounded by the trade quota.
+// Counted from OCRJob rows (24h TTL, so today's are all still present).
+async function assertPremiumDailyUploadCap(user) {
+  if (!isPremium(user)) return;
+  const limit = Number(appConfig.ai.uploadPremiumDailyLimit) || 0;
+  if (limit <= 0) return;
+  const dayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const used = await OCRJob.countDocuments({ user: user._id, createdAt: { $gte: dayStart } });
+  if (used >= limit) {
+    throw new ApiError(
+      429,
+      `You've reached today's limit of ${limit} screenshot uploads. You can still add trades manually, and uploads reset at 00:00 UTC.`,
+      "UPLOAD_DAILY_LIMIT",
+      { limit, used },
+      true
+    );
+  }
+}
 
 const BROKER_MAX_LENGTH = 50;
 const ACTIVE_DUPLICATE_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CONFIRMED"];
@@ -130,6 +152,7 @@ async function submitTradeUpload({ user, body, query, uploadedImage, file }) {
       market: marketType,
       count: 1,
     });
+    await assertPremiumDailyUploadCap(user);
 
     const tradeSubTypeRaw = String(body.tradeSubType || query.tradeSubType || "").trim().toUpperCase();
     const tradeSubType = marketType === "Indian_Market" && tradeSubTypeRaw === "EQUITY" ? "EQUITY" : "OPTION";

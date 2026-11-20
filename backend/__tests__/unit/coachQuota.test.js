@@ -120,3 +120,67 @@ describe("coachQuotaService.refundUsage", () => {
     await expect(coachQuotaService.refundUsage(user)).resolves.toBeNull();
   });
 });
+
+describe("premium daily fair-use cap", () => {
+  const { client: redis, isRedisReady } = require("../../config/redis");
+  const coachChatService = require("../../services/coachChatService");
+  const premiumUser = { _id: "user-p", subscriptionStatus: "active", subscriptionPlan: "yearly" };
+  const freeUser = { _id: "user-f", subscriptionStatus: "inactive", subscriptionPlan: "free" };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    isRedisReady.mockReturnValue(false);
+  });
+
+  it("reports a daily allowance for premium and keeps the weekly limit null for old apps", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(3);
+    const quota = await coachQuotaService.getQuota(premiumUser);
+    expect(quota.limit).toBeNull();
+    expect(quota.daily).toEqual(expect.objectContaining({
+      limit: coachQuotaService.PREMIUM_DAILY_LIMIT,
+      used: 3,
+      remaining: coachQuotaService.PREMIUM_DAILY_LIMIT - 3,
+    }));
+  });
+
+  it("does not add a daily block (or query) for free users", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(1);
+    const quota = await coachQuotaService.getQuota(freeUser);
+    expect(quota.daily).toBeUndefined();
+    expect(CoachMessage.countDocuments).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a premium user at the daily cap with COACH_DAILY_LIMIT, not the upgrade code", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(coachQuotaService.PREMIUM_DAILY_LIMIT);
+    await expect(coachChatService.enforceAndCountQuota(premiumUser)).rejects.toMatchObject({
+      statusCode: 402,
+      errorCode: "COACH_DAILY_LIMIT",
+    });
+  });
+
+  it("lets a premium user under the cap through", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(2);
+    await expect(coachChatService.enforceAndCountQuota(premiumUser)).resolves.toEqual(
+      expect.objectContaining({ newCount: 3 })
+    );
+  });
+
+  it("rejects and refunds when a parallel request pushes the Redis counter past the cap", async () => {
+    isRedisReady.mockReturnValue(true);
+    redis.get.mockResolvedValue(String(coachQuotaService.PREMIUM_DAILY_LIMIT - 1));
+    redis.incr.mockResolvedValue(coachQuotaService.PREMIUM_DAILY_LIMIT + 1);
+    redis.decr.mockResolvedValue(coachQuotaService.PREMIUM_DAILY_LIMIT);
+    await expect(coachChatService.enforceAndCountQuota(premiumUser)).rejects.toMatchObject({
+      errorCode: "COACH_DAILY_LIMIT",
+    });
+    expect(redis.decr).toHaveBeenCalledWith(expect.stringContaining("coach:quota:day:user-p:"));
+  });
+
+  it("keeps the free weekly message in sync with the configured limit", async () => {
+    CoachMessage.countDocuments.mockResolvedValue(coachQuotaService.FREE_WEEKLY_LIMIT);
+    await expect(coachChatService.enforceAndCountQuota(freeUser)).rejects.toMatchObject({
+      errorCode: "COACH_QUOTA_EXHAUSTED",
+      message: expect.stringContaining(`${coachQuotaService.FREE_WEEKLY_LIMIT} free coach questions`),
+    });
+  });
+});
