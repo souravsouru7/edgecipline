@@ -69,15 +69,19 @@ export default function MobileUserDrawer({
 
       {/* Sheet */}
       <div
+        className="ec-drawer"
         style={{
           position: "fixed",
           bottom: 0,
           left: 0,
           right: 0,
           zIndex: 9999,
-          background: "#FFFFFF",
+          background: "var(--ec-surface)",
+          borderTop: "1px solid var(--ec-border)",
           borderRadius: "20px 20px 0 0",
-          boxShadow: "0 -8px 40px rgba(15,25,35,0.18)",
+          boxShadow: "var(--ec-shadow-3)",
+          color: "var(--ec-text)",
+          fontFamily: "var(--ec-font-sans)",
           paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)",
           transform: animate ? "translateY(0)" : "translateY(100%)",
           transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
@@ -86,33 +90,31 @@ export default function MobileUserDrawer({
         }}
       >
         {/* Drag handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: "#E2E8F0", margin: "12px auto 0" }} />
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--ec-border-strong)", margin: "12px auto 0" }} />
 
         {/* User block */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 20px 16px" }}>
           <div style={{
             width: 44, height: 44, borderRadius: "50%",
-            background: "linear-gradient(135deg,#0D9E6E,#22C78E)",
+            background: "var(--ec-accent)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#FFFFFF", fontSize: 16, fontWeight: 800, flexShrink: 0,
-            fontFamily: "'Plus Jakarta Sans',sans-serif",
-            boxShadow: "0 4px 12px rgba(13,158,110,0.3)",
+            color: "var(--ec-on-accent)", fontSize: 16, fontWeight: 700, flexShrink: 0,
           }}>
             {initials}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#1A202C", fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {profile?.name || "Trader"}
             </div>
             {profile?.email && (
-              <div style={{ fontSize: 12, color: "#94A3B8", fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 12, color: "var(--ec-text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {profile.email}
               </div>
             )}
           </div>
         </div>
 
-        <div style={{ height: 1, background: "#F1F5F9", margin: "0 20px" }} />
+        <div style={{ height: 1, background: "var(--ec-border)", margin: "0 20px" }} />
 
         {/* Nav items */}
         <nav style={{ padding: "8px 12px" }}>
@@ -128,12 +130,11 @@ export default function MobileUserDrawer({
                   height: 48, padding: "0 8px", borderRadius: 10,
                   textDecoration: "none",
                   fontSize: 15, fontWeight: 500,
-                  color: active ? "var(--color-primary)" : "#2D3748",
-                  background: active ? "rgba(13,158,110,0.07)" : "transparent",
-                  fontFamily: "'Plus Jakarta Sans',sans-serif",
-                }}
+                  color: active ? "var(--ec-accent-text)" : "var(--ec-text-2)",
+                  background: active ? "var(--ec-accent-soft)" : "transparent",
+                    }}
               >
-                <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: active ? "var(--color-primary)" : "#94A3B8" }}>
+                <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: active ? "var(--ec-accent-text)" : "var(--ec-text-3)" }}>
                   {item.icon ?? (
                     <svg width="6" height="6" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" fill="currentColor" /></svg>
                   )}
@@ -158,12 +159,11 @@ export default function MobileUserDrawer({
               height: 48, padding: "0 8px", borderRadius: 10,
               textDecoration: "none",
               fontSize: 15, fontWeight: 500,
-              color: isActive("/support") ? "var(--color-primary)" : "#2D3748",
-              background: isActive("/support") ? "rgba(13,158,110,0.07)" : "transparent",
-              fontFamily: "'Plus Jakarta Sans',sans-serif",
+              color: isActive("/support") ? "var(--ec-accent-text)" : "var(--ec-text-2)",
+              background: isActive("/support") ? "var(--ec-accent-soft)" : "transparent",
             }}
           >
-            <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: isActive("/support") ? "var(--color-primary)" : "#94A3B8" }}>
+            <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: isActive("/support") ? "var(--ec-accent-text)" : "var(--ec-text-3)" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <circle cx="12" cy="12" r="4" />
@@ -179,7 +179,7 @@ export default function MobileUserDrawer({
 
         {extraSlot && (
           <div style={{ padding: "4px 20px 8px" }}>
-            <div style={{ height: 1, background: "#F1F5F9", marginBottom: 12 }} />
+            <div style={{ height: 1, background: "var(--ec-border)", marginBottom: 12 }} />
             {extraSlot}
           </div>
         )}
@@ -192,16 +192,15 @@ export default function MobileUserDrawer({
 
         {/* Logout */}
         <div style={{ padding: "8px 20px 20px" }}>
-          <div style={{ height: 1, background: "#F1F5F9", marginBottom: 12 }} />
+          <div style={{ height: 1, background: "var(--ec-border)", marginBottom: 12 }} />
           <button
             onClick={() => { onClose(); onLogout(); }}
             style={{
               width: "100%", height: 48,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              background: "#FFF5F5", border: "1px solid #FED7D7",
-              color: "#C53030", borderRadius: 12,
+              background: "var(--ec-loss-soft)", border: "1px solid color-mix(in srgb, var(--ec-loss) 30%, transparent)",
+              color: "var(--ec-loss)", borderRadius: 12,
               fontSize: 15, fontWeight: 600, cursor: "pointer",
-              fontFamily: "'Plus Jakarta Sans',sans-serif",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

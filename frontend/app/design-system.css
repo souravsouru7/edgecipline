@@ -379,6 +379,11 @@ select.ec-input {
 .ec-app.ec-app .market-switcher-pill { background: var(--ec-accent); box-shadow: none; }
 .ec-app.ec-app .market-tab { color: var(--ec-text-3); }
 .ec-app.ec-app .market-tab.is-selected { color: var(--ec-on-accent); }
+/* In the mobile menu sheet the switcher spans the sheet like the rows above
+   it, in the menu's font. Doubled class beats styled-jsx's scoped width. */
+.ec-drawer.ec-drawer .market-switcher-wrap,
+.ec-drawer.ec-drawer .market-switcher { width: 100%; }
+.ec-drawer.ec-drawer .market-tab { font-family: var(--ec-font-sans); font-size: 12px; letter-spacing: 0.02em; }
 
 /* ── Shared bits ────────────────────────────────────────────────────── */
 .ec-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
