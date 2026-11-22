@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import AuthShell, { AuthNotice } from "@/features/auth/components/AuthShell";
-import { AppleButton, GoogleButton, OrDivider } from "@/features/auth/components/SocialButtons";
+import { AppleButton, EmailButton, EmailReveal, GoogleButton, OrDivider } from "@/features/auth/components/SocialButtons";
 import { Button, Field, Input } from "@/features/shared/components/ui";
 import { firstPasswordProblem, isValidEmail, passwordRuleState } from "@/features/auth/lib/passwordRules";
 
@@ -52,6 +52,9 @@ export default function RegisterPage() {
   const termsRef = useRef(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError]       = useState("");
+  // The email form sits behind "Sign up with email", as on the sign-in page.
+  const [emailOpen, setEmailOpen]         = useState(false);
+  const [openedByTap, setOpenedByTap]     = useState(false);
 
   useEffect(() => {
 
@@ -234,74 +237,91 @@ export default function RegisterPage() {
   const rules = passwordRuleState(form.password);
   const anyLoading = loading || googleLoading || appleLoading;
   const googleConfigured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const hasProvider = googleConfigured || showAppleSignIn;
+  // Never hide a form that has something in it, or the only way to sign up.
+  const showEmailForm = emailOpen || !hasProvider || Boolean(formError)
+    || Boolean(form.name || form.email || form.password);
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Free to start. Set up your first strategy in about five minutes."
+      hero
+      title="Start trading with a plan."
+      subtitle="Free to start. Your first strategy takes about five minutes."
     >
       <div className="ec-auth__social">
-        {googleConfigured && (
-          <GoogleButton onClick={handleGoogleSignIn} disabled={anyLoading} loading={googleLoading} label="Sign up with Google" />
-        )}
         {showAppleSignIn && (
           <AppleButton onClick={handleAppleSignIn} disabled={anyLoading} loading={appleLoading} />
         )}
-      </div>
-      {(googleConfigured || showAppleSignIn) && <OrDivider label="or sign up with email" />}
-
-      <form onSubmit={handleSubmit} noValidate className="ec-auth__form">
-        <Field label="Name" required>
-          <Input name="name" type="text" autoComplete="name" placeholder="Your name" value={form.name} onChange={handleChange} suppressHydrationWarning />
-        </Field>
-        <Field label="Email" required>
-          <Input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" value={form.email} onChange={handleChange} suppressHydrationWarning />
-        </Field>
-        <div className="ec-auth__pw">
-          <Field label="Password" required>
-            <Input name="password" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Create a password" value={form.password} onChange={handleChange} suppressHydrationWarning />
-          </Field>
-          <button type="button" className="ec-auth__pw-toggle" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? "Hide password" : "Show password"} aria-pressed={showPass}>
-            {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
-          </button>
-        </div>
-        {form.password.length > 0 && (
-          <ul className="ec-auth__rules" aria-label="Password requirements">
-            {rules.map((rule) => (
-              <li key={rule.id} className={rule.met ? "is-met" : undefined}>
-                <span aria-hidden="true">{rule.met ? "✓" : "○"}</span> {rule.label}
-                <span className="ec-sr-only">{rule.met ? " (done)" : " (not yet)"}</span>
-              </li>
-            ))}
-          </ul>
+        {googleConfigured && (
+          <GoogleButton onClick={handleGoogleSignIn} disabled={anyLoading} loading={googleLoading} label="Sign up with Google" />
         )}
-
-        <label className={`ec-auth__check${termsError ? " is-invalid" : ""}`}>
-          <input
-            ref={termsRef}
-            type="checkbox"
-            checked={termsAccepted}
-            onChange={(e) => { setTermsAccepted(e.target.checked); setTermsError(""); }}
-            aria-invalid={termsError ? true : undefined}
-            aria-describedby={termsError ? "terms-error" : undefined}
+        {!showEmailForm && (
+          <EmailButton
+            label="Sign up with email"
+            onClick={() => { setOpenedByTap(true); setEmailOpen(true); }}
+            disabled={anyLoading}
           />
-          <span>
-            I agree to the <Link href="/terms" target="_blank" className="ec-auth__link">Terms</Link> and{" "}
-            <Link href="/privacy-policy" target="_blank" className="ec-auth__link">Privacy Policy</Link>.
-          </span>
-        </label>
-        {termsError && <p id="terms-error" className="ec-auth__field-error" role="alert">Tick the box to agree to the Terms and Privacy Policy first.</p>}
-
-        {formError && <AuthNotice tone="error">{formError}</AuthNotice>}
-
-        <Button type="submit" block size="lg" loading={loading} disabled={anyLoading} suppressHydrationWarning>
-          {loading ? "Creating account…" : "Create account"}
-        </Button>
-
-        {process.env.NODE_ENV !== "production" && (
-          <button type="button" onClick={testConnection} className="ec-auth__devlink">Test backend connection</button>
         )}
-      </form>
+      </div>
+
+      {showEmailForm && (
+        <EmailReveal focusOnOpen={openedByTap}>
+          {hasProvider && <OrDivider label="or sign up with email" />}
+
+          <form onSubmit={handleSubmit} noValidate className="ec-auth__form">
+            <Field label="Name" required>
+              <Input name="name" type="text" autoComplete="name" placeholder="Your name" value={form.name} onChange={handleChange} suppressHydrationWarning />
+            </Field>
+            <Field label="Email" required>
+              <Input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" value={form.email} onChange={handleChange} suppressHydrationWarning />
+            </Field>
+            <div className="ec-auth__pw">
+              <Field label="Password" required>
+                <Input name="password" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Create a password" value={form.password} onChange={handleChange} suppressHydrationWarning />
+              </Field>
+              <button type="button" className="ec-auth__pw-toggle" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? "Hide password" : "Show password"} aria-pressed={showPass}>
+                {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+            {form.password.length > 0 && (
+              <ul className="ec-auth__rules" aria-label="Password requirements">
+                {rules.map((rule) => (
+                  <li key={rule.id} className={rule.met ? "is-met" : undefined}>
+                    <span aria-hidden="true">{rule.met ? "✓" : "○"}</span> {rule.label}
+                    <span className="ec-sr-only">{rule.met ? " (done)" : " (not yet)"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <label className={`ec-auth__check${termsError ? " is-invalid" : ""}`}>
+              <input
+                ref={termsRef}
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => { setTermsAccepted(e.target.checked); setTermsError(""); }}
+                aria-invalid={termsError ? true : undefined}
+                aria-describedby={termsError ? "terms-error" : undefined}
+              />
+              <span>
+                I agree to the <Link href="/terms" target="_blank" className="ec-auth__link">Terms</Link> and{" "}
+                <Link href="/privacy-policy" target="_blank" className="ec-auth__link">Privacy Policy</Link>.
+              </span>
+            </label>
+            {termsError && <p id="terms-error" className="ec-auth__field-error" role="alert">Tick the box to agree to the Terms and Privacy Policy first.</p>}
+
+            {formError && <AuthNotice tone="error">{formError}</AuthNotice>}
+
+            <Button type="submit" block size="lg" loading={loading} disabled={anyLoading} suppressHydrationWarning>
+              {loading ? "Creating account…" : "Create account"}
+            </Button>
+
+            {process.env.NODE_ENV !== "production" && (
+              <button type="button" onClick={testConnection} className="ec-auth__devlink">Test backend connection</button>
+            )}
+          </form>
+        </EmailReveal>
+      )}
 
       <p className="ec-auth__switch">
         Already have an account? <Link href="/login" className="ec-auth__link">Sign in</Link>

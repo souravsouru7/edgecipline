@@ -16,10 +16,12 @@ const POINTS = [
  * form alone with the brand above it.
  *
  * `aside={false}` drops the product panel for focused one-task screens.
+ * `hero` is the sign-in / sign-up treatment: centred app-icon brand, glow
+ * background, larger headline.
  */
-export default function AuthShell({ title, subtitle, children, footer, aside = true, wide = false }) {
+export default function AuthShell({ title, subtitle, children, footer, aside = true, wide = false, hero = false }) {
   return (
-    <div className={`ec-app ec-auth${aside ? " ec-auth--split" : ""}`}>
+    <div className={`ec-app ec-auth${aside ? " ec-auth--split" : ""}${hero ? " ec-auth--hero" : ""}`}>
       {aside && (
         <aside className="ec-auth__aside" aria-label="About Edgecipline">
           <div className="ec-auth__brand">
@@ -47,7 +49,13 @@ export default function AuthShell({ title, subtitle, children, footer, aside = t
 
       <div className="ec-auth__col">
         <div className="ec-auth__brand ec-auth__brand--top">
-          <img src="/logo.png" alt="" width={28} height={28} />
+          {hero ? (
+            <span className="ec-auth__logo-tile" aria-hidden="true">
+              <img src="/logo.png" alt="" width={38} height={38} />
+            </span>
+          ) : (
+            <img src="/logo.png" alt="" width={28} height={28} />
+          )}
           <span>Edgecipline</span>
         </div>
 

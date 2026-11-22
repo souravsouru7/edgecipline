@@ -18,7 +18,7 @@ function LoginPageContent() {
   }, [mounted]);
 
   return (
-    <AuthShell title="Welcome back" subtitle="Sign in to your trading journal.">
+    <AuthShell hero title="Trade your plan, not your mood." subtitle="Welcome back. Sign in to your trading journal.">
       <LoginForm {...loginState} />
     </AuthShell>
   );

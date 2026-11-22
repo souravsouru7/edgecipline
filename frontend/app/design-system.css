@@ -1991,6 +1991,63 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
 @media (prefers-reduced-motion: reduce) { .ec-auth__shake { animation: none; } }
 @media (min-height: 760px) { .ec-auth__col { justify-content: center; } .ec-auth__legal { margin-top: 32px; padding-top: 0; } }
 
+/* Hero variant (sign in / sign up): centred app-icon brand, glow, bigger headline */
+.ec-auth--hero { position: relative; isolation: isolate; }
+.ec-auth--hero::before,
+.ec-auth--hero::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+.ec-auth--hero::before {
+  background:
+    radial-gradient(90% 45% at 50% -8%, color-mix(in srgb, var(--ec-accent) 18%, transparent), transparent 70%),
+    radial-gradient(60% 35% at 100% 0%, color-mix(in srgb, var(--ec-accent) 7%, transparent), transparent 70%);
+}
+.ec-auth--hero::after {
+  background-image: radial-gradient(color-mix(in srgb, var(--ec-text) 9%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 85% 45% at 50% 0%, #000 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 85% 45% at 50% 0%, #000 25%, transparent 80%);
+}
+/* Equal auto margins above the brand and above the legal links: content sits
+   centred, legal links sit at the bottom, no dead block in between. */
+.ec-auth--hero .ec-auth__col { justify-content: flex-start; }
+.ec-auth--hero .ec-auth__brand--top { margin-top: auto; }
+.ec-auth--hero .ec-auth__legal { margin-top: auto; padding-top: 32px; }
+.ec-auth--hero .ec-auth__brand--top { flex-direction: column; gap: 14px; margin-bottom: 26px; font-size: 15px; font-weight: 600; letter-spacing: 0.01em; color: var(--ec-text-2); }
+.ec-auth__logo-tile {
+  width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center;
+  background: linear-gradient(180deg, var(--ec-surface-3), var(--ec-surface));
+  border: 1px solid var(--ec-border-strong);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--ec-accent) 6%, transparent),
+    0 14px 40px color-mix(in srgb, var(--ec-accent) 26%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.ec-auth--hero .ec-auth__title { text-align: center; font-size: clamp(28px, 8vw, 34px); letter-spacing: -0.03em; line-height: 1.1; max-width: 16ch; margin-inline: auto; text-wrap: balance; }
+.ec-auth--hero .ec-auth__sub { text-align: center; margin-top: 10px; }
+.ec-auth--hero .ec-auth__social { margin-top: 32px; gap: 12px; }
+.ec-auth--hero .ec-auth__switch { margin-top: 24px; }
+:root:not([data-theme="light"]) .ec-auth--hero .ec-social--apple { box-shadow: 0 10px 30px rgba(255, 255, 255, 0.07); }
+.ec-auth--hero .ec-input { height: 52px; border-radius: 12px; transition: border-color var(--ec-dur-1), background var(--ec-dur-1), box-shadow var(--ec-dur-1); }
+.ec-auth--hero .ec-input:focus { box-shadow: 0 0 0 4px var(--ec-accent-soft); }
+.ec-auth--hero .ec-auth__pw-toggle { height: 52px; }
+.ec-auth--hero .ec-btn--primary {
+  border-radius: 14px;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ec-accent) 28%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.ec-auth__reveal { animation: ec-auth-rise .35s var(--ec-ease) both; }
+.ec-auth--hero .ec-auth__brand--top,
+.ec-auth--hero .ec-auth__title,
+.ec-auth--hero .ec-auth__sub,
+.ec-auth--hero .ec-auth__social,
+.ec-auth--hero .ec-auth__switch { animation: ec-auth-rise .55s var(--ec-ease) both; }
+.ec-auth--hero .ec-auth__title { animation-delay: 60ms; }
+.ec-auth--hero .ec-auth__sub { animation-delay: 110ms; }
+.ec-auth--hero .ec-auth__social { animation-delay: 170ms; }
+.ec-auth--hero .ec-auth__switch { animation-delay: 230ms; }
+/* Desktop split hides the top brand, so the card takes its centring margin. */
+@media (min-width: 960px) { .ec-auth--hero.ec-auth--split .ec-auth__card { margin-top: auto; } }
+@keyframes ec-auth-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ec-auth__reveal, .ec-auth--hero .ec-auth__brand--top, .ec-auth--hero .ec-auth__title, .ec-auth--hero .ec-auth__sub, .ec-auth--hero .ec-auth__social, .ec-auth--hero .ec-auth__switch { animation: none; } }
+
 /* Desktop split: product panel beside the form */
 @media (min-width: 960px) {
   .ec-auth--split .ec-auth__aside {
@@ -2017,17 +2074,21 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
 
 /* Google / Apple buttons */
 .ec-social {
-  width: 100%; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  border-radius: var(--ec-r-md); font: inherit; font-size: var(--ec-fs-3); font-weight: 600; cursor: pointer;
-  transition: background .15s var(--ec-ease), border-color .15s var(--ec-ease);
+  width: 100%; height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  border-radius: 14px; font: inherit; font-size: var(--ec-fs-3); font-weight: 600; letter-spacing: -0.005em; cursor: pointer;
+  transition: background .15s var(--ec-ease), border-color .15s var(--ec-ease), transform .12s var(--ec-ease);
 }
+.ec-social:active:not(:disabled) { transform: scale(0.98); }
 .ec-social:disabled { opacity: .6; cursor: not-allowed; }
+.ec-social--email { background: transparent; color: var(--ec-text); border: 1px solid var(--ec-border-strong); }
+.ec-social--email:hover:not(:disabled) { background: var(--ec-surface-2); }
+.ec-social--email svg { color: var(--ec-text-2); }
 .ec-social:focus-visible { outline: 2px solid var(--ec-focus); outline-offset: 2px; }
 .ec-social--google { background: #FFFFFF; color: #1F1F1F; border: 1px solid #747775; }
 .ec-social--google:hover:not(:disabled) { background: #F7F8F8; }
 .ec-social--apple { background: #000000; color: #FFFFFF; border: 1px solid #000000; }
-:root:not([data-theme="light"]) .ec-social--google { background: #131314; color: #E3E3E3; border-color: #8E918F; }
-:root:not([data-theme="light"]) .ec-social--google:hover:not(:disabled) { background: #1E1F20; }
+:root:not([data-theme="light"]) .ec-social--google { background: linear-gradient(180deg, #1A1F27, #13171D); color: #E8EDF2; border-color: rgba(255, 255, 255, 0.14); }
+:root:not([data-theme="light"]) .ec-social--google:hover:not(:disabled) { background: #1E242D; }
 :root:not([data-theme="light"]) .ec-social--apple { background: #FFFFFF; color: #000000; border-color: #FFFFFF; }
 
 /* Onboarding */

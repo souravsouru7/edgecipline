@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { Mail } from "lucide-react";
 import { Spinner } from "@/features/shared/components/ui/Spinner";
 
 function GoogleMark() {
@@ -45,6 +47,30 @@ export function AppleButton({ onClick, disabled, loading }) {
       <span>{loading ? "Signing in…" : "Sign in with Apple"}</span>
     </button>
   );
+}
+
+/** "Continue with email" — opens the email form, same size as the providers. */
+export function EmailButton({ onClick, disabled, label = "Continue with email" }) {
+  return (
+    <button type="button" className="ec-social ec-social--email" onClick={onClick} disabled={disabled} suppressHydrationWarning>
+      <Mail size={18} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Wrapper for the email form once EmailButton has opened it. Animates in, and
+ * when the user tapped to open it (`focusOnOpen`) puts the cursor in the first
+ * field. Not used for a form that starts open — that would pop the keyboard
+ * over the page on arrival.
+ */
+export function EmailReveal({ focusOnOpen = false, children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (focusOnOpen) ref.current?.querySelector("input")?.focus({ preventScroll: true });
+  }, [focusOnOpen]);
+  return <div ref={ref} className="ec-auth__reveal">{children}</div>;
 }
 
 export function OrDivider({ label = "or" }) {
