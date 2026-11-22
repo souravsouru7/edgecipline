@@ -165,11 +165,27 @@ const exchangeForFirebaseIdToken = async (credential) => {
   return firebaseResult.user.getIdToken();
 };
 
+// Long enough to pick an account and type a password, short enough that a
+// native call that never answers (e.g. a provider SDK missing from the iOS
+// build) ends in an error instead of "Signing in…" forever.
+const NATIVE_SIGN_IN_TIMEOUT_MS = 120000;
+
+const withNativeSignInTimeout = (promise, provider) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${provider} native sign-in timed out`)),
+      NATIVE_SIGN_IN_TIMEOUT_MS
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
 // Native Google Sign-In via @capacitor-firebase/authentication
 const signInWithNativeGoogle = async () => {
   const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
 
-  const result = await FirebaseAuthentication.signInWithGoogle();
+  const result = await withNativeSignInTimeout(FirebaseAuthentication.signInWithGoogle(), "Google");
   const idToken = result.credential?.idToken;
 
   if (!idToken) {
@@ -191,7 +207,7 @@ const signInWithNativeGoogle = async () => {
 const signInWithNativeApple = async () => {
   const { FirebaseAuthentication } = await loadNativeFirebaseAuth();
 
-  const result = await FirebaseAuthentication.signInWithApple();
+  const result = await withNativeSignInTimeout(FirebaseAuthentication.signInWithApple(), "Apple");
   const idToken = result.credential?.idToken;
   const rawNonce = result.credential?.nonce;
 

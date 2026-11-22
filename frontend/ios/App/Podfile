@@ -13,11 +13,14 @@ def capacitor_pods
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication'
   pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+  pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
+  pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
   pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
   pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
   pod 'CapacitorNetwork', :path => '../../node_modules/@capacitor/network'
   pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+  pod 'CapacitorShare', :path => '../../node_modules/@capacitor/share'
   pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
   pod 'SentryCapacitor', :path => '../../node_modules/@sentry/capacitor'
 end
@@ -28,6 +31,9 @@ target 'App' do
   # The backend sends through FCM, but @capacitor/push-notifications hands JS
   # the raw APNs token on iOS. AppDelegate swaps it for the FCM token.
   pod 'FirebaseMessaging'
+  # The plugin's default Lite subspec compiles signInWithGoogle() to a no-op on
+  # iOS (the call never answers). This subspec adds the GoogleSignIn SDK.
+  pod 'CapacitorFirebaseAuthentication/Google', :path => '../../node_modules/@capacitor-firebase/authentication'
 end
 
 post_install do |installer|

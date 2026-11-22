@@ -1,13 +1,27 @@
 PODS:
+  - AppAuth (1.7.6):
+    - AppAuth/Core (= 1.7.6)
+    - AppAuth/ExternalUserAgent (= 1.7.6)
+  - AppAuth/Core (1.7.6)
+  - AppAuth/ExternalUserAgent (1.7.6):
+    - AppAuth/Core
   - Capacitor (6.2.1):
     - CapacitorCordova
   - CapacitorApp (6.0.3):
     - Capacitor
+  - CapacitorBrowser (6.0.6):
+    - Capacitor
   - CapacitorCordova (6.2.1)
+  - CapacitorFilesystem (6.0.4):
+    - Capacitor
   - CapacitorFirebaseAuthentication (6.3.1):
     - Capacitor
     - CapacitorFirebaseAuthentication/Lite (= 6.3.1)
     - FirebaseAuth (~> 11.0)
+  - CapacitorFirebaseAuthentication/Google (6.3.1):
+    - Capacitor
+    - FirebaseAuth (~> 11.0)
+    - GoogleSignIn (= 7.1.0)
   - CapacitorFirebaseAuthentication/Lite (6.3.1):
     - Capacitor
     - FirebaseAuth (~> 11.0)
@@ -20,6 +34,8 @@ PODS:
   - CapacitorPreferences (6.0.4):
     - Capacitor
   - CapacitorPushNotifications (6.0.0):
+    - Capacitor
+  - CapacitorShare (6.0.4):
     - Capacitor
   - CapacitorStatusBar (6.0.3):
     - Capacitor
@@ -59,6 +75,10 @@ PODS:
   - GoogleDataTransport (10.1.1):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
+  - GoogleSignIn (7.1.0):
+    - AppAuth (< 2.0, >= 1.7.3)
+    - GTMAppAuth (< 5.0, >= 4.1.1)
+    - GTMSessionFetcher/Core (~> 3.3)
   - GoogleUtilities/AppDelegateSwizzler (8.1.5):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
@@ -83,7 +103,10 @@ PODS:
   - GoogleUtilities/UserDefaults (8.1.5):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
-  - GTMSessionFetcher/Core (4.5.0)
+  - GTMAppAuth (4.1.1):
+    - AppAuth/Core (~> 1.7)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3)
+  - GTMSessionFetcher/Core (3.5.0)
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -101,19 +124,24 @@ PODS:
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
+  - "CapacitorFirebaseAuthentication/Google (from `../../node_modules/@capacitor-firebase/authentication`)"
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorKeyboard (from `../../node_modules/@capacitor/keyboard`)"
   - "CapacitorNetwork (from `../../node_modules/@capacitor/network`)"
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
   - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
   - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
   - FirebaseMessaging
   - "SentryCapacitor (from `../../node_modules/@sentry/capacitor`)"
 
 SPEC REPOS:
   trunk:
+    - AppAuth
     - FirebaseAppCheckInterop
     - FirebaseAuth
     - FirebaseAuthInterop
@@ -123,7 +151,9 @@ SPEC REPOS:
     - FirebaseInstallations
     - FirebaseMessaging
     - GoogleDataTransport
+    - GoogleSignIn
     - GoogleUtilities
+    - GTMAppAuth
     - GTMSessionFetcher
     - nanopb
     - PromisesObjC
@@ -135,8 +165,12 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorApp:
     :path: "../../node_modules/@capacitor/app"
+  CapacitorBrowser:
+    :path: "../../node_modules/@capacitor/browser"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorFilesystem:
+    :path: "../../node_modules/@capacitor/filesystem"
   CapacitorFirebaseAuthentication:
     :path: "../../node_modules/@capacitor-firebase/authentication"
   CapacitorHaptics:
@@ -149,21 +183,27 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/preferences"
   CapacitorPushNotifications:
     :path: "../../node_modules/@capacitor/push-notifications"
+  CapacitorShare:
+    :path: "../../node_modules/@capacitor/share"
   CapacitorStatusBar:
     :path: "../../node_modules/@capacitor/status-bar"
   SentryCapacitor:
     :path: "../../node_modules/@sentry/capacitor"
 
 SPEC CHECKSUMS:
+  AppAuth: 58e37c546bb9bf2073c1392ccba8cef35ff283cb
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
   CapacitorApp: a19ccb4f5f32d2534be5c6f524d5a9b614a1e8a7
+  CapacitorBrowser: 825163a1d6adce944ac7b9e3cab101146b5a9df8
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
+  CapacitorFilesystem: 5b9aec35c0212bd0064e26d278c93e925864f212
   CapacitorFirebaseAuthentication: 2c43a65f88e30842dbf83f38dfb25d8076dce529
   CapacitorHaptics: 40f83026feeee9cfe36e89e9c98a3baaaf20c450
   CapacitorKeyboard: e8cd50fd5cbdd023a5947a5c0f5cca6e5aa5a253
   CapacitorNetwork: 093efa3664b692a971bdd01be70523291cd6a87f
   CapacitorPreferences: 5848e0691b36b4bb4acc98e481ab56d451578d30
   CapacitorPushNotifications: 8fd92b3f47e05646fbe78f6bf4d09d041e8ef91a
+  CapacitorShare: 77ff779e3b7c6ae9fb5461e52cf7ef805d429491
   CapacitorStatusBar: 149cde8f1328ec3aa6cbdd872a55137ae3f98b16
   FirebaseAppCheckInterop: 06fe5a3799278ae4667e6c432edd86b1030fa3df
   FirebaseAuth: a6575e5fbf46b046c58dc211a28a5fbdd8d4c83b
@@ -174,14 +214,16 @@ SPEC CHECKSUMS:
   FirebaseInstallations: 317270fec08a5d418fdbc8429282238cab3ac843
   FirebaseMessaging: 3b26e2cee503815e01c3701236b020aa9b576f09
   GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
+  GoogleSignIn: 4ac041cf807e78942e3c0863775a98ee8c8e0f7c
   GoogleUtilities: 7dc09b3fa9ecb5c2298b952313d14628b61b9da3
-  GTMSessionFetcher: fc75fc972958dceedee61cb662ae1da7a83a91cf
+  GTMAppAuth: 4a3fbbb34098b327feaa51cfbf98b0b12f6892e7
+  GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   Sentry: e5d82a3c1f2d951f75c04c57215a0abb1facbd51
   SentryCapacitor: 3034f9cfcbdcda9a2a002a9d88a1a08df01d5fc3
 
-PODFILE CHECKSUM: 59bc588bafbe1cc30effa7517118257db2841307
+PODFILE CHECKSUM: 9e15db04b7c99b823bdc37423058d141e44860e7
 
 COCOAPODS: 1.17.0
