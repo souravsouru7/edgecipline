@@ -22,6 +22,7 @@ const POINTS = [
 export default function AuthShell({ title, subtitle, children, footer, aside = true, wide = false, hero = false }) {
   return (
     <div className={`ec-app ec-auth${aside ? " ec-auth--split" : ""}${hero ? " ec-auth--hero" : ""}`}>
+      {hero && <HeroChart />}
       {aside && (
         <aside className="ec-auth__aside" aria-label="About Edgecipline">
           <div className="ec-auth__brand">
@@ -76,6 +77,24 @@ export default function AuthShell({ title, subtitle, children, footer, aside = t
         </nav>
       </div>
     </div>
+  );
+}
+
+// Equity curve behind the hero brand: a climb with two pullbacks, ending on a
+// "live price" dot. Hidden by default; the Android-only CSS in
+// design-system.css shows it and draws it in on a loop.
+// Uniformly scaled (slice), so the stroke stays even and the dash draw-in
+// (pathLength=1) maps cleanly onto the line.
+const CHART_LINE = "M0 196 L38 178 L68 186 L104 143 L138 154 L174 111 L208 126 L248 81 L280 93 L318 51 L352 61 L392 26";
+
+function HeroChart() {
+  return (
+    <svg className="ec-auth__chart" aria-hidden="true" focusable="false" viewBox="0 0 400 210" preserveAspectRatio="xMidYMid slice">
+      <path className="ec-auth__chart-area" d={`${CHART_LINE} L392 210 L0 210 Z`} />
+      <path className="ec-auth__chart-line" d={CHART_LINE} pathLength="1" />
+      <circle className="ec-auth__chart-ping" cx="392" cy="26" r="5" />
+      <circle className="ec-auth__chart-dot" cx="392" cy="26" r="5" />
+    </svg>
   );
 }
 

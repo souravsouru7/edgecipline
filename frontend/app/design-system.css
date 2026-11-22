@@ -2046,6 +2046,64 @@ html[data-platform="android"] .mobile-bottom-nav { background: var(--ec-surface)
 /* Desktop split hides the top brand, so the card takes its centring margin. */
 @media (min-width: 960px) { .ec-auth--hero.ec-auth--split .ec-auth__card { margin-top: auto; } }
 @keyframes ec-auth-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ── Android sign-in: live ambient motion ────────────────────────────────
+   Android only (data-platform from providers.tsx). Transform + opacity only,
+   so the WebView composites it without repainting. Off with reduced motion. */
+.ec-auth__chart { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-platform="android"] .ec-auth--hero::before {
+    transform-origin: 50% 0;
+    animation: ec-auth-breathe 9s ease-in-out infinite alternate;
+  }
+  html[data-platform="android"] .ec-auth__chart {
+    display: block; position: fixed; z-index: -1; pointer-events: none;
+    left: 0; top: 1vh; width: 100%; height: 22vh;
+    -webkit-mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+    animation: ec-auth-chart-fade 10s ease-in-out infinite;
+  }
+  html[data-platform="android"] .ec-auth__chart-line {
+    fill: none; stroke: var(--ec-accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+    opacity: 0.55; stroke-dasharray: 1; stroke-dashoffset: 1;
+    animation: ec-auth-chart-draw 10s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  }
+  html[data-platform="android"] .ec-auth__chart-area {
+    fill: var(--ec-accent); opacity: 0;
+    animation: ec-auth-chart-area 10s ease-in-out infinite;
+  }
+  html[data-platform="android"] .ec-auth__chart-dot,
+  html[data-platform="android"] .ec-auth__chart-ping {
+    fill: var(--ec-accent); transform-box: fill-box; transform-origin: center;
+  }
+  html[data-platform="android"] .ec-auth__chart-dot { animation: ec-auth-chart-dot 10s ease-in-out infinite; }
+  html[data-platform="android"] .ec-auth__chart-ping { opacity: 0; animation: ec-auth-ping 1.6s ease-out 3s infinite; }
+  html[data-platform="android"] .ec-auth--hero .ec-auth__logo-tile {
+    position: relative;
+    animation: ec-auth-float 5s ease-in-out infinite;
+  }
+  html[data-platform="android"] .ec-auth--hero .ec-auth__logo-tile::after {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+    border: 1.5px solid var(--ec-accent);
+    animation: ec-auth-ring 2.8s ease-out infinite;
+  }
+  html[data-platform="android"] .ec-auth--hero .ec-btn--primary { position: relative; overflow: hidden; isolation: isolate; }
+  html[data-platform="android"] .ec-auth--hero .ec-btn--primary::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+    transform: translateX(-100%);
+    animation: ec-auth-shine 4.2s ease-in-out 1.2s infinite;
+  }
+}
+@keyframes ec-auth-breathe { from { opacity: 0.75; transform: scale(1); } to { opacity: 1; transform: scale(1.1) translateY(-1.5%); } }
+@keyframes ec-auth-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes ec-auth-ring { 0% { opacity: 0.55; transform: scale(1); } 80%, 100% { opacity: 0; transform: scale(1.55); } }
+@keyframes ec-auth-chart-draw { 0% { stroke-dashoffset: 1; } 30%, 100% { stroke-dashoffset: 0; } }
+@keyframes ec-auth-chart-area { 0%, 18% { opacity: 0; } 34%, 80% { opacity: 0.07; } 100% { opacity: 0; } }
+@keyframes ec-auth-chart-fade { 0%, 82% { opacity: 1; } 96%, 100% { opacity: 0; } }
+@keyframes ec-auth-chart-dot { 0%, 26% { opacity: 0; transform: scale(0.4); } 32%, 100% { opacity: 1; transform: scale(1); } }
+@keyframes ec-auth-ping { 0% { opacity: 0.6; transform: scale(1); } 100% { opacity: 0; transform: scale(3); } }
+@keyframes ec-auth-shine { 0% { transform: translateX(-100%); } 35%, 100% { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .ec-auth__reveal, .ec-auth--hero .ec-auth__brand--top, .ec-auth--hero .ec-auth__title, .ec-auth--hero .ec-auth__sub, .ec-auth--hero .ec-auth__social, .ec-auth--hero .ec-auth__switch { animation: none; } }
 
 /* Desktop split: product panel beside the form */
