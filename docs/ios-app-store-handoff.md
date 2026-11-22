@@ -1,5 +1,21 @@
 # iOS / App Store launch — handoff
 
+> **✅ 1.0 APPROVED — 2026-11-13.** App 1.0 and all 3 subscriptions were accepted ("eligible for distribution").
+> - **2026-11-21:** pulled the latest `staging` (redesign, notifications, AI cost controls, multi-trade OCR). Built and uploaded **1.0.1 (build 10)** to TestFlight for owner testing. `MARKETING_VERSION = 1.0.1`, `CURRENT_PROJECT_VERSION = 10`.
+> - **Build 11 (1.0.1):** fixes "Cancel upload" hanging forever when tapped mid-upload. Cancel now bumps the upload session and aborts the request (`useUploadTrade.js`, `uploadApi.js`, `apiClient.js`). Uploaded to TestFlight.
+> - **Build 12 (1.0.1):** fixes Google login spinning forever on iPhone. The Podfile only had the plugin's `Lite` subspec, so `signInWithGoogle()` was a no-op on iOS. Added `CapacitorFirebaseAuthentication/Google` (GoogleSignIn 7.1.0; GTMSessionFetcher pinned down to 3.5.0) and a 2-minute timeout on native Google/Apple sign-in in `firebaseAuth.js`.
+> - **Build 13 (1.0.1):** premium redesign of sign-in and sign-up: centred app-icon brand, glow background, Apple → Google → "Continue with email" (the form opens on tap). `AuthShell` `hero` prop, `EmailButton`/`EmailReveal` in `SocialButtons.jsx`.
+> - **1.0 is LIVE** (Ready for Distribution).
+> - **2026-11-22 10:20:** 1.0.1 (build 13) submitted to App Review, set to release automatically. Submission ID `8a296f7c-f043-4389-97ae-d11307a1ac41`.
+> - Next: wait for review. If rejected, read the Resolution Center message, fix it, bump `CURRENT_PROJECT_VERSION`, upload and resubmit. Separately, 1.0 needs releasing to the public if it's still "Pending Developer Release".
+
+> **🔴 BUILD 7 REJECTED AT PROCESSING — 2026-11-01: ITMS-91055 (Invalid API reason declaration).**
+> - Cause: `PrivacyInfo.xcprivacy` gave SystemBootTime the reason `E174.1`, which is a DiskSpace code. DiskSpace had `85F4.1` ("show disk space to the user"), which doesn't match what the app does.
+> - Fixed (not yet committed): SystemBootTime → `35F9.1` (elapsed time inside the app), DiskSpace → `E174.1` (check space before writing files).
+> - `App.xcodeproj/` and `App.xcworkspace/` had been deleted from the working copy. They were restored from git.
+> - ✅ Build 8 (`CURRENT_PROJECT_VERSION = 8`) was archived and uploaded at 17:10 IST. Every bundled privacy manifest was checked: all reason codes are valid, and Sentry's own manifest also uses `35F9.1` for boot time.
+> - Next for the owner: once build 8 finishes processing, select it on version 1.0 in place of build 7 and resubmit.
+
 > **🚀 SUBMITTED TO APP REVIEW — 2026-11-01 ~16:40 IST.** iOS App 1.0 (build 7) + subscription group "Edgecipline Pro" + 3 subscriptions, in one submission.
 > - Age rating: 18+ (the Terms require 18+). Price: Free. 175 countries. Category: Finance / Productivity.
 > - App Privacy is published.

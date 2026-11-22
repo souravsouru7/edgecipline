@@ -10,9 +10,9 @@
               Capacitor core stores its bridge/preferences state there.
       C617.1  File timestamps for files inside the app container. Used by the
               WKWebView asset layer and Sentry's local envelope cache.
-      E174.1  System boot time, used to measure elapsed time within the app
+      35F9.1  System boot time, used to measure elapsed time within the app
               (Sentry uses this for session/startup timing).
-      85F4.1  Disk space, checked before writing local caches.
+      E174.1  Disk space, checked before writing local caches.
 
     NSPrivacyTracking is false: no data leaves the app for advertising or
     cross-app measurement. Sentry receives crash diagnostics only, and
@@ -141,7 +141,7 @@
 			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
-				<string>E174.1</string>
+				<string>35F9.1</string>
 			</array>
 		</dict>
 		<dict>
@@ -149,7 +149,7 @@
 			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
-				<string>85F4.1</string>
+				<string>E174.1</string>
 			</array>
 		</dict>
 	</array>
