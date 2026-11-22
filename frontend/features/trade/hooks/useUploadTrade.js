@@ -584,6 +584,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const savedRef                              = useRef(false);
   const uploadSessionRef                      = useRef(0);
   const pendingUploadCancelRef                = useRef(null);
+  // Aborts the in-flight upload request when the user cancels before a jobId exists.
+  const uploadAbortRef                        = useRef(null);
   // Used to compute OCR_DURATION — set when the upload returns a jobId
   // (server-side OCR starts now), read when the polling reaches COMPLETED.
   const ocrStartedAtRef                       = useRef(null);
@@ -721,12 +723,13 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   // 5. Initial Image Upload Mutation
   const uploadJobMutation = useMutation({
-    mutationFn: ({ fileObj }) => uploadTradeImage({
+    mutationFn: ({ fileObj, signal }) => uploadTradeImage({
       file: fileObj,
       marketType,
       broker: isInd ? broker : "",
       tradeSubType: isInd ? tradeSubType : undefined,
       tradeDate: preExtractDate,
+      signal,
     }),
     onSuccess: (res, variables) => {
       if (variables?.sessionId !== uploadSessionRef.current) {
@@ -775,6 +778,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         const pendingClear = pendingUploadCancelRef.current;
         pendingUploadCancelRef.current = null;
         setIsCancellingUpload(false);
+        addToast("Upload cancelled.", "success");
         clearOcrSession({ ...pendingClear, cancelJob: false });
         return;
       }
@@ -812,6 +816,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (cancelJob && !activeJobId && uploadJobMutation.isPending) {
       pendingUploadCancelRef.current = { nextFile, keepFile, clearError, resetDate };
       setIsCancellingUpload(true);
+      // Mark the in-flight request stale so onSuccess/onError finish this cancel
+      // instead of treating its result as current, and stop it now rather than
+      // waiting out the upload.
+      uploadSessionRef.current += 1;
+      uploadAbortRef.current?.abort();
       return false;
     }
 
@@ -1448,8 +1457,11 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     if (!cleared) return;
 
     setVisibleOcrStage("uploading");
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
     uploadJobMutation.mutate({
       fileObj: fileToUpload,
+      signal: abortController.signal,
       sessionId,
       uploadStartedAt: performance.now(),
     });

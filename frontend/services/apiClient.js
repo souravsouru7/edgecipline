@@ -459,6 +459,8 @@ apiClient.interceptors.response.use(
 
     if (!error.response) {
       if (error?.isOffline) return Promise.reject(error);
+      // A caller-aborted request (e.g. a cancelled upload) is not a failure.
+      if (axios.isCancel(error)) return Promise.reject(error);
       captureApiFailure(error);
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       if (!isTimeout && !isOnline()) return Promise.reject(createOfflineError());

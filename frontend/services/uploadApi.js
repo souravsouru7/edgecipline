@@ -2,7 +2,7 @@ import apiClient from "./apiClient";
 import { prepareImageForUpload } from "@/utils/imageUpload";
 import { compressImages } from "@/utils/imageCompression";
 
-export const uploadTradeImage = async ({ file, marketType, broker, tradeSubType, tradeDate }) => {
+export const uploadTradeImage = async ({ file, marketType, broker, tradeSubType, tradeDate, signal }) => {
   const uploadFile = await prepareImageForUpload(file);
   const formData = new FormData();
   formData.append("image", uploadFile);
@@ -11,7 +11,7 @@ export const uploadTradeImage = async ({ file, marketType, broker, tradeSubType,
   if (tradeSubType) formData.append("tradeSubType", tradeSubType);
   if (tradeDate) formData.append("tradeDate", tradeDate);
 
-  return await apiClient.post(`/upload?marketType=${marketType}`, formData, { timeout: 120000 });
+  return await apiClient.post(`/upload?marketType=${marketType}`, formData, { timeout: 120000, signal });
 };
 
 export const getUploadJobStatus = async (jobId) => {
