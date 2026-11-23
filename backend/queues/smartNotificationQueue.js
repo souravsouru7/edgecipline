@@ -2,6 +2,9 @@ const { Queue, QueueEvents } = require("bullmq");
 const { appConfig } = require("../config");
 const { bullmqConnection } = require("../config/redis");
 const { logger } = require("../utils/logger");
+const { withTimeout } = require("../utils/withTimeout");
+
+const SMART_ENQUEUE_TIMEOUT_MS = 3000;
 const { isPromotionalType, msUntilPromoWindow } = require("../utils/notificationPolicy");
 
 // ─── Identity ────────────────────────────────────────────────────────────────
@@ -54,33 +57,38 @@ async function enqueueSmartNotificationChecks(payload) {
   // BullMQ job rather than running the checks twice.
   const jobId = `sn-${tradeId}`;
 
-  const existing = await smartNotificationQueue.getJob(jobId);
-  if (existing) {
-    const state = await existing.getState();
-    // Still pending: a retried save — the queued run will read the latest
-    // trade anyway, so one job is enough.
-    if (!["completed", "failed"].includes(state)) {
-      logger.warn("SMART_QUEUE_DUPLICATE_BLOCKED", { jobId, state });
-      return existing;
+  // The connection runs with maxRetriesPerRequest: null, so while Redis is
+  // reconnecting every command below waits with no limit. Bound the whole
+  // sequence; the caller logs SMART_QUEUE_ENQUEUE_FAILED and moves on.
+  return withTimeout((async () => {
+    const existing = await smartNotificationQueue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      // Still pending: a retried save — the queued run will read the latest
+      // trade anyway, so one job is enough.
+      if (!["completed", "failed"].includes(state)) {
+        logger.warn("SMART_QUEUE_DUPLICATE_BLOCKED", { jobId, state });
+        return existing;
+      }
+      // Finished: this is a later edit (e.g. profit +50 → -50). Completed jobs
+      // are kept for an hour, which used to block the re-check entirely.
+      try {
+        await existing.remove();
+      } catch (error) {
+        logger.warn("SMART_QUEUE_RERUN_REMOVE_FAILED", { jobId, state, error: error.message });
+        return existing;
+      }
     }
-    // Finished: this is a later edit (e.g. profit +50 → -50). Completed jobs
-    // are kept for an hour, which used to block the re-check entirely.
-    try {
-      await existing.remove();
-    } catch (error) {
-      logger.warn("SMART_QUEUE_RERUN_REMOVE_FAILED", { jobId, state, error: error.message });
-      return existing;
-    }
-  }
 
-  const job = await smartNotificationQueue.add(
-    SMART_NOTIFICATION_JOB_NAME,
-    { userId, tradeId, collection, marketType, timezone },
-    { jobId }
-  );
+    const job = await smartNotificationQueue.add(
+      SMART_NOTIFICATION_JOB_NAME,
+      { userId, tradeId, collection, marketType, timezone },
+      { jobId }
+    );
 
-  logger.info("SMART_QUEUE_ENQUEUED", { jobId, userId, tradeId, marketType });
-  return job;
+    logger.info("SMART_QUEUE_ENQUEUED", { jobId, userId, tradeId, marketType });
+    return job;
+  })(), "enqueueSmartNotificationChecks", SMART_ENQUEUE_TIMEOUT_MS);
 }
 
 // Lazy require: the preference model is only needed for promotional pushes.

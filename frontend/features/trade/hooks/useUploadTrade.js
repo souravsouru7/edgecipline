@@ -8,6 +8,11 @@ import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/service
 import { compressImage } from "@/utils/imageCompression";
 import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
+import {
+  SAVE_UNCONFIRMED_MESSAGE,
+  isSaveUnconfirmedError,
+  submitWithConfirmation,
+} from "@/features/trade/lib/confirmedSave";
 import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { useSetups } from "./useSetups";
 import { useToast } from "@/features/shared/components/ui/Toast";
@@ -564,6 +569,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
   const [savedTrades, setSavedTrades]         = useState([]);
   const [saved, setSaved]                     = useState(false);
   const [isBatchSaving, setIsBatchSaving]     = useState(false);
+  // A save attempt went unanswered and is being re-sent to learn its outcome.
+  const [confirmingSave, setConfirmingSave]   = useState(false);
   const [isRedirecting, setIsRedirecting]     = useState(false);
   const [showCustomRR, setShowCustomRR]       = useState(false);
   const [setupRules, setSetupRules]           = useState(DEFAULT_SETUP_RULES);
@@ -1350,11 +1357,17 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       const selectedTradeDate = normalizeDateForInput(tradeDate ?? t?.tradeDate);
       const tradeData = buildTradePayload(t, isInd, rules, selectedTradeDate);
       const slot = t?._rowId ? `row:${t._rowId}` : idx !== null ? `idx:${idx}` : "single";
-      return createTrade({
-        ...tradeData,
-        ocrJobId: uploadedJobId || jobId || undefined,
-      }, marketType, { idempotencyKey: getSubmissionKey(slot) });
+      const idempotencyKey = getSubmissionKey(slot);
+      const payload = { ...tradeData, ocrJobId: uploadedJobId || jobId || undefined };
+      // An unanswered attempt (timeout, dropped connection) is re-sent with the
+      // same key until the server tells us what happened — see confirmedSave.
+      const { res } = await submitWithConfirmation(
+        () => createTrade(payload, marketType, { idempotencyKey }),
+        { onRetrying: () => setConfirmingSave(true) }
+      );
+      return res;
     },
+    onSettled: () => setConfirmingSave(false),
     onSuccess: (res, variables) => {
       const { idx, tradeSnapshot } = variables;
       // Retire the key: this submission is done, and any later save of this
@@ -1400,6 +1413,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     onError: (err) => {
       if (isTradeLimitError(err)) {
         setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+        return;
+      }
+      // Outcome unknown: the trade may be saved. Keep the key (not cleared on
+      // error), so a manual retry still dedupes against the first attempt.
+      if (isSaveUnconfirmedError(err)) {
+        addToast(SAVE_UNCONFIRMED_MESSAGE, "error", 9000);
         return;
       }
       addToast(err.message || "Failed to save trade", "error");
@@ -1690,6 +1709,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       if (dest) router.push(dest);
     },
     savingAll: saveTradeMutation.isPending || isBatchSaving,
+    confirmingSave,
     // Polling gave up on a job that never reached a terminal status. The screen
     // should offer recheckOcrStatus() instead of an indefinite spinner.
     ocrStalled,
@@ -1826,10 +1846,12 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         setIsBatchSaving(true);
         const toastId = addToast(`Saving ${batchPayload.length} trades...`, "loading", Infinity);
         try {
-          const batchRes = await createTradesBatch({
-            trades: batchPayload,
-            ocrJobId: uploadedJobId || jobId || undefined,
-          }, marketType, { idempotencyKey: getSubmissionKey("batch") });
+          const batchKey = getSubmissionKey("batch");
+          const batchBody = { trades: batchPayload, ocrJobId: uploadedJobId || jobId || undefined };
+          const { res: batchRes } = await submitWithConfirmation(
+            () => createTradesBatch(batchBody, marketType, { idempotencyKey: batchKey }),
+            { onRetrying: () => setConfirmingSave(true) }
+          );
 
           clearSubmissionKey("batch");
           setSavedTrades(prev => {
@@ -1858,11 +1880,14 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
             // The dialog states that explicitly — a bare toast would leave the
             // user unsure whether some of the import landed.
             setLimitBlock({ quota: tradeLimitQuota(err), requested: tradeLimitRequested(err) });
+          } else if (isSaveUnconfirmedError(err)) {
+            addToast(SAVE_UNCONFIRMED_MESSAGE, "error", 9000);
           } else {
             addToast(err?.message || "Batch import failed. Please review and try again.", "error");
           }
         } finally {
           setIsBatchSaving(false);
+          setConfirmingSave(false);
         }
       } finally {
         saveAllLockRef.current = false;

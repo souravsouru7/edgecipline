@@ -1,6 +1,6 @@
 const ApiError = require("../utils/ApiError");
 const { buildCacheKey, getCache, rememberCache } = require("../utils/cache");
-const { TRADE_CACHE_EVENTS, getTradeCacheVersion, invalidateTradeCaches } = require("../utils/cacheUtils");
+const { TRADE_CACHE_EVENTS, getTradeCacheVersion } = require("../utils/cacheUtils");
 const Trade = require("../models/Trade");
 const tradeRepository = require("../repositories/trade.repository");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
@@ -25,6 +25,7 @@ const {
   trustedOcrProfitForTrade,
 } = require("../utils/tradeProfit");
 const { buildPagination } = require("../utils/apiResponse");
+const { invalidateTradeCachesBounded, runAfterResponse } = require("../utils/postCommit");
 
 const TRADE_LIST_TTL_SECONDS = 45;
 const TRADE_STATUS_TTL_SECONDS = 10;
@@ -174,35 +175,35 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
     throw err;
   }
 
-  await invalidateTradeCaches({
-    userId,
-    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
-    market: "Forex",
-    tradeId: trade._id,
-    source: ocrJobId ? "ocr_confirm" : "manual_create",
-  });
-  await evaluateSmartNotifications({
-    userId,
-    trade,
-    marketType: "Forex",
-    collection: "forex",
-  });
-  await updateStreaksForTrade(userId, trade);
-  onTradeSaved(userId, trade).catch(err =>
-    logger.warn("MISSION_PROGRESS_TRADE_SAVE_FAILED", { error: err?.message })
-  );
-  // Onboarding activation: stamp first-trade timestamps and flip the
-  // tradeAdded flag. Fire-and-forget so a failed write never breaks the
-  // trade save — the dashboard derivation will catch up regardless.
-  onboardingService
-    .markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
-    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
+  // Part of the save: the job must point at its trade before we say "saved".
   if (ocrJobId) {
     await markOcrJobConfirmed(userId, ocrJobId, {
       tradeId: trade._id,
       collection: "forex",
     });
   }
+  await invalidateTradeCachesBounded({
+    userId,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
+    market: "Forex",
+    tradeId: trade._id,
+    source: ocrJobId ? "ocr_confirm" : "manual_create",
+  });
+  // Everything below is a side effect of the save, not part of it. None of it
+  // is in the response, so none of it may hold the response (see postCommit).
+  runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
+    userId,
+    trade,
+    marketType: "Forex",
+    collection: "forex",
+  }));
+  runAfterResponse("STREAK_UPDATE_FAILED", () => updateStreaksForTrade(userId, trade));
+  runAfterResponse("MISSION_PROGRESS_TRADE_SAVE_FAILED", () => onTradeSaved(userId, trade));
+  // Onboarding activation: stamp first-trade timestamps and flip the
+  // tradeAdded flag — the dashboard derivation will catch up regardless.
+  runAfterResponse("ONBOARDING_MARK_FAILED", () =>
+    onboardingService.markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
+  );
   return trade;
 }
 
@@ -298,7 +299,14 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
     throw wrapBatchInsertError(err, docs.length);
   }
 
-  await invalidateTradeCaches({
+  if (ocrJobId && createdTrades[0]) {
+    await markOcrJobConfirmed(userId, ocrJobId, {
+      tradeId: createdTrades[0]._id,
+      collection: "forex",
+    });
+  }
+
+  await invalidateTradeCachesBounded({
     userId,
     event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.BULK_IMPORT,
     market: "Forex",
@@ -309,38 +317,34 @@ async function createTradesBatch(userId, payload, { accountCreatedAt } = {}) {
 
   const representativeTrade = createdTrades[createdTrades.length - 1];
   if (representativeTrade) {
-    await evaluateSmartNotifications({
+    runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
       userId,
       trade: representativeTrade,
       marketType: "Forex",
       collection: "forex",
-    });
+    }));
   }
   // Index every trade individually for streak purposes — bulk imports may
   // span multiple days and we want each day's entry to reflect reality.
-  for (const t of createdTrades) {
-    try { await streakService.recordTradeEvent(userId, t); } catch (e) {
-      logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+  // Up to 100 sequential writes plus a full recompute: never in the response.
+  runAfterResponse("STREAK_BULK_UPDATE_FAILED", async () => {
+    for (const t of createdTrades) {
+      try { await streakService.recordTradeEvent(userId, t); } catch (e) {
+        logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+      }
     }
-  }
-  try {
-    const recompute = await streakService.recomputeStreaks(userId);
-    handleStreakEvents(userId, recompute.events).catch(() => {});
-  } catch (e) {
-    logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
-  }
-
-  if (ocrJobId && createdTrades[0]) {
-    await markOcrJobConfirmed(userId, ocrJobId, {
-      tradeId: createdTrades[0]._id,
-      collection: "forex",
-    });
-  }
+    try {
+      const recompute = await streakService.recomputeStreaks(userId);
+      handleStreakEvents(userId, recompute.events).catch(() => {});
+    } catch (e) {
+      logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
+    }
+  });
 
   if (createdTrades.length > 0) {
-    onboardingService
-      .markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
-      .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
+    runAfterResponse("ONBOARDING_MARK_FAILED", () =>
+      onboardingService.markTradeLogged({ userId, fromScreenshot: Boolean(ocrJobId) })
+    );
   }
 
   return {
@@ -611,25 +615,23 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
     });
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId,
     event: TRADE_CACHE_EVENTS.EDIT,
     market: "Forex",
     tradeId,
     source: "manual_edit",
   });
-  await evaluateSmartNotifications({
+  runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
     userId,
     trade,
     marketType: "Forex",
     collection: "forex",
-  });
+  }));
   // Edit may have added a setupScore or changed setupRules — refresh the
   // discipline index for the affected day and recompute. Idempotent.
-  await updateStreaksForTrade(userId, trade);
-  onTradeSaved(userId, trade).catch(err =>
-    logger.warn("MISSION_PROGRESS_TRADE_UPDATE_FAILED", { error: err?.message })
-  );
+  runAfterResponse("STREAK_UPDATE_FAILED", () => updateStreaksForTrade(userId, trade));
+  runAfterResponse("MISSION_PROGRESS_TRADE_UPDATE_FAILED", () => onTradeSaved(userId, trade));
   return trade;
 }
 
@@ -646,7 +648,7 @@ async function deleteTrade(userId, tradeId) {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId,
     event: TRADE_CACHE_EVENTS.DELETE,
     market: "Forex",
@@ -670,7 +672,7 @@ async function restoreTrade(userId, tradeId) {
     throw new ApiError(404, "Deleted trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId,
     event: TRADE_CACHE_EVENTS.RESTORE,
     market: "Forex",

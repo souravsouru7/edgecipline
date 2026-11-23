@@ -15,6 +15,43 @@ const TIMEOUT_CONFIG = {
 };
 
 /**
+ * Answer 408, then close the connection — in that order.
+ *
+ * The socket used to be destroyed on the same tick the 408 was written, which
+ * could drop the response before it left the server: the phone saw silence,
+ * sat out its own 20s timeout and showed "Request timed out" with no hint the
+ * server had answered. Now the socket closes once the 408 is flushed (or after
+ * a short grace period). Closing it still stops a slow handler's outstanding
+ * work from holding the connection.
+ *
+ * res.locals.requestTimedOut lets the idempotency middleware tell this 408
+ * apart from a handler failure: the handler may still be about to commit, so
+ * its claim must survive for a retry to replay the real result.
+ */
+const SOCKET_CLOSE_GRACE_MS = 1000;
+
+function respondTimedOut(req, res, timeoutMs) {
+  res.locals.requestTimedOut = true;
+  const destroySocket = () => {
+    try { req.socket?.destroy(); } catch { /* ignore */ }
+  };
+
+  if (res.headersSent) {
+    destroySocket();
+    return;
+  }
+
+  res.once("finish", destroySocket);
+  const fallback = setTimeout(destroySocket, SOCKET_CLOSE_GRACE_MS);
+  fallback.unref?.();
+  res.status(408).json({
+    message: "Request timeout, please try again",
+    error: "REQUEST_TIMEOUT",
+    timeout: `${timeoutMs}ms`,
+  });
+}
+
+/**
  * Global Timeout Middleware
  * Applies timeout to all incoming requests
  * Prevents hanging requests and ensures system responsiveness
@@ -39,19 +76,7 @@ function timeoutMiddleware(req, res, next) {
       userAgent: req.get('user-agent'),
     });
 
-    // Send timeout response if headers not already sent
-    if (!res.headersSent) {
-      res.status(408).json({
-        message: "Request timeout, please try again",
-        error: "REQUEST_TIMEOUT",
-        timeout: `${timeout}ms`,
-      });
-    }
-    // Tear down the underlying socket so the handler's outstanding DB queries
-    // and external calls actually stop consuming resources after the client
-    // has been told their request timed out. Without this, a slow handler
-    // keeps running to completion off-screen.
-    try { req.socket?.destroy(); } catch { /* ignore */ }
+    respondTimedOut(req, res, timeout);
   }, timeout);
 
   // Clean up timeout when response finishes
@@ -92,14 +117,7 @@ function timeoutMiddleware(req, res, next) {
         timedOut = true;
         const duration = Date.now() - startTime;
         logger.warn(`Request timeout (extended) | method=${req.method} | route=${req.originalUrl} | duration=${duration}ms`);
-        if (!res.headersSent) {
-          res.status(408).json({
-            message: "Request timeout, please try again",
-            error: "REQUEST_TIMEOUT",
-            timeout: `${newMs}ms`,
-          });
-        }
-        try { req.socket?.destroy(); } catch { /* ignore */ }
+        respondTimedOut(req, res, newMs);
       }, newMs);
     },
   };

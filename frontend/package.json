@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --import=./scripts/register-aliases.mjs scripts/test-notification-routes.mjs scripts/test-platform-gating.mjs scripts/test-user-message.mjs scripts/test-mobile-shell.mjs scripts/test-auth-storage.mjs features/trade/data/demoExtractionFixtures.test.mjs features/onboarding/utils/*.test.mjs features/premium/utils/*.test.mjs features/dashboard/utils/*.test.mjs features/settings/utils/*.test.mjs features/journal/utils/*.test.mjs utils/themeBoot.test.mjs features/export/*.test.mjs",
+    "test": "node --test --import=./scripts/register-aliases.mjs scripts/test-notification-routes.mjs scripts/test-platform-gating.mjs scripts/test-user-message.mjs scripts/test-mobile-shell.mjs scripts/test-auth-storage.mjs features/trade/data/demoExtractionFixtures.test.mjs features/trade/lib/confirmedSave.test.mjs features/onboarding/utils/*.test.mjs features/premium/utils/*.test.mjs features/dashboard/utils/*.test.mjs features/settings/utils/*.test.mjs features/journal/utils/*.test.mjs utils/themeBoot.test.mjs features/export/*.test.mjs",
     "test:notifications": "node --test scripts/test-notification-routes.mjs",
     "android": "npm run build:mobile:android && npx cap sync android && npx cap open android",
     "android:sync": "npm run build:mobile:android && npx cap sync android",

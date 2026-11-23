@@ -62,6 +62,40 @@ describe("tradeService.createTrade", () => {
     tradeRepository.createTrade.mockImplementation(async (doc) => ({ _id: "trade-1", ...doc }));
   });
 
+  it("answers as soon as the trade is committed, even if side effects or Redis hang", async () => {
+    const never = () => new Promise(() => {});
+    evaluateSmartNotifications.mockImplementation(never);
+    invalidateTradeCaches.mockImplementation(never);
+    claimOcrJobForConfirmation.mockResolvedValue({ extractedData: { parsedTrades: [] } });
+    markOcrJobConfirmed.mockResolvedValue({});
+    jest.useFakeTimers({ doNotFake: ["setImmediate", "nextTick"] });
+    try {
+      const pending = tradeService.createTrade("user-1", {
+        pair: "EURUSD",
+        type: "BUY",
+        tradeDate: "2026-06-01",
+        entryPrice: 1.1,
+        exitPrice: 1.101,
+        lotSize: 0.1,
+        ocrJobId: "507f1f77bcf86cd799439011",
+      }, { accountCreatedAt: new Date("2026-01-01T00:00:00.000Z") });
+      // Let the insert and confirm land, then pass the cache budget.
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(2000);
+      const trade = await pending;
+
+      expect(trade._id).toBe("trade-1");
+      // The job is confirmed before the response — that part is the save.
+      expect(markOcrJobConfirmed).toHaveBeenCalledWith("user-1", "507f1f77bcf86cd799439011", expect.objectContaining({ tradeId: "trade-1" }));
+      // Side effects were started, just not awaited.
+      expect(evaluateSmartNotifications).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+      evaluateSmartNotifications.mockReset();
+      invalidateTradeCaches.mockReset();
+    }
+  });
+
   it("saves a manual Forex trade only when P&L can be derived from positive price and size fields", async () => {
     const trade = await tradeService.createTrade("user-1", {
       pair: "EURUSD",

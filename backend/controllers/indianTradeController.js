@@ -1,6 +1,6 @@
 const IndianTrade = require("../models/IndianTrade");
 const mongoose = require("mongoose");
-const { TRADE_CACHE_EVENTS, invalidateTradeCaches } = require("../utils/cacheUtils");
+const { TRADE_CACHE_EVENTS } = require("../utils/cacheUtils");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { evaluateSmartNotifications } = require("../services/smartNotificationEvaluator");
@@ -11,6 +11,11 @@ const tradeLifecycleService = require("../services/tradeLifecycle.service");
 const tradeQuotaService = require("../services/tradeQuotaService");
 const freeTierFunnelService = require("../services/freeTierFunnelService");
 const { withQuota } = require("../utils/tradeQuotaResponse");
+const {
+  invalidateTradeCachesBounded,
+  recordFunnelBounded,
+  runAfterResponse,
+} = require("../utils/postCommit");
 
 // Official NSE lot sizes for the major indices, most-specific name first so
 // "BANKNIFTY"/"FINNIFTY"/"MIDCPNIFTY" don't get matched by the plain "NIFTY"
@@ -338,33 +343,34 @@ exports.createTrade = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  await invalidateTradeCaches({
-    userId: req.user._id,
-    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
-    market: "Indian_Market",
-    tradeId: trade._id,
-    source: ocrJobId ? "ocr_confirm" : "manual_create",
-  });
-  await evaluateSmartNotifications({
-    userId: req.user._id,
-    trade,
-    marketType: "Indian_Market",
-    collection: "indian",
-  });
-  await updateStreaksForIndianTrade(req.user._id, trade);
-  onboardingService
-    .markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
-    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
   if (ocrJobId) {
     await markOcrJobConfirmed(req.user._id, ocrJobId, {
       tradeId: trade._id,
       collection: "indian",
     });
   }
+  await invalidateTradeCachesBounded({
+    userId: req.user._id,
+    event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.CREATE,
+    market: "Indian_Market",
+    tradeId: trade._id,
+    source: ocrJobId ? "ocr_confirm" : "manual_create",
+  });
+  // Side effects of the save — not in the response, so they never hold it.
+  runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
+    userId: req.user._id,
+    trade,
+    marketType: "Indian_Market",
+    collection: "indian",
+  }));
+  runAfterResponse("STREAK_UPDATE_FAILED", () => updateStreaksForIndianTrade(req.user._id, trade));
+  runAfterResponse("ONBOARDING_MARK_FAILED", () =>
+    onboardingService.markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
+  );
 
   // Post-insert allowance snapshot for the client, and the funnel's T0 stamp
   // when this was the last free Indian trade.
-  const funnel = await freeTierFunnelService.recordTradesCreated({
+  const funnel = await recordFunnelBounded({
     user: req.user,
     market: tradeQuotaService.INDIAN,
   });
@@ -469,7 +475,7 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
     await session.endSession();
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId: req.user._id,
     event: ocrJobId ? TRADE_CACHE_EVENTS.OCR_SAVE : TRADE_CACHE_EVENTS.BULK_IMPORT,
     market: "Indian_Market",
@@ -480,27 +486,30 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
 
   const representativeTrade = createdTrades[createdTrades.length - 1];
   if (representativeTrade) {
-    await evaluateSmartNotifications({
+    runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
       userId: req.user._id,
       trade: representativeTrade,
       marketType: "Indian_Market",
       collection: "indian",
-    });
+    }));
   }
-  onboardingService
-    .markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
-    .catch((err) => logger.warn("ONBOARDING_MARK_FAILED", { error: err?.message }));
-  for (const t of createdTrades) {
-    try { await streakService.recordTradeEvent(req.user._id, t); } catch (e) {
-      logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+  runAfterResponse("ONBOARDING_MARK_FAILED", () =>
+    onboardingService.markTradeLogged({ userId: req.user._id, fromScreenshot: Boolean(ocrJobId) })
+  );
+  const userId = req.user._id;
+  runAfterResponse("STREAK_BULK_UPDATE_FAILED", async () => {
+    for (const t of createdTrades) {
+      try { await streakService.recordTradeEvent(userId, t); } catch (e) {
+        logger.warn("STREAK_BULK_RECORD_FAILED", { error: e?.message });
+      }
     }
-  }
-  try {
-    const recompute = await streakService.recomputeStreaks(req.user._id);
-    handleStreakEvents(req.user._id, recompute.events).catch(() => {});
-  } catch (e) {
-    logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
-  }
+    try {
+      const recompute = await streakService.recomputeStreaks(userId);
+      handleStreakEvents(userId, recompute.events).catch(() => {});
+    } catch (e) {
+      logger.warn("STREAK_BULK_RECOMPUTE_FAILED", { error: e?.message });
+    }
+  });
 
   res.status(201).json(withQuota({
     success: true,
@@ -778,20 +787,20 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     });
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId: req.user._id,
     event: TRADE_CACHE_EVENTS.EDIT,
     market: "Indian_Market",
     tradeId: req.params.id,
     source: "manual_edit",
   });
-  await evaluateSmartNotifications({
+  runAfterResponse("SMART_NOTIFICATION_EVALUATION_FAILED", () => evaluateSmartNotifications({
     userId: req.user._id,
     trade,
     marketType: "Indian_Market",
     collection: "indian",
-  });
-  await updateStreaksForIndianTrade(req.user._id, trade);
+  }));
+  runAfterResponse("STREAK_UPDATE_FAILED", () => updateStreaksForIndianTrade(req.user._id, trade));
 
   res.json(trade);
 });
@@ -810,7 +819,7 @@ exports.deleteTrade = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId: req.user._id,
     event: TRADE_CACHE_EVENTS.DELETE,
     market: "Indian_Market",
@@ -832,7 +841,7 @@ exports.restoreTrade = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Deleted trade not found or unauthorized", "NOT_FOUND");
   }
 
-  await invalidateTradeCaches({
+  await invalidateTradeCachesBounded({
     userId: req.user._id,
     event: TRADE_CACHE_EVENTS.RESTORE,
     market: "Indian_Market",

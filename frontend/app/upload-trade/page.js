@@ -1027,7 +1027,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
           {committingEvidence ? (
             <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>
           ) : state.savingAll ? (
-            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>
+            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>{state.confirmingSave ? "CONFIRMING SAVE..." : "SAVING..."}</>
           ) : !accuracyAcknowledged ? (
             "REVIEW DATA TO ENABLE SAVE"
           ) : (
@@ -1426,7 +1426,7 @@ function UploadTradeContent() {
                   onClick={handleSaveAll} disabled={savingAll || committingAllEvidence || !accuracyAcknowledged}
                   style={{ width: "100%", padding: "16px", background: savingAll || committingAllEvidence || !accuracyAcknowledged ? "var(--lg-line, #F1F5F9)" : "linear-gradient(135deg,var(--lg-ink, #0F1923),#1a2d3d)", color: savingAll || committingAllEvidence || !accuracyAcknowledged ? "var(--lg-muted, #94A3B8)" : "var(--lg-green, #22C78E)", border: "1px solid rgba(34,199,142,0.3)", borderRadius: 12, fontSize: 13, ...monoStyle, fontWeight: 700, letterSpacing: "0.1em", cursor: savingAll || committingAllEvidence || !accuracyAcknowledged ? "not-allowed" : "pointer", boxShadow: accuracyAcknowledged ? "0 4px 16px rgba(15,25,35,0.2)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
                 >
-                  {committingAllEvidence ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>) : savingAll ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>SAVING...</>) : !accuracyAcknowledged ? "REVIEW DATA TO ENABLE SAVE ALL" : "SAVE ALL TRADES"}
+                  {committingAllEvidence ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>UPLOADING EVIDENCE...</>) : savingAll ? (<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>{state.confirmingSave ? "CONFIRMING SAVE..." : "SAVING..."}</>) : !accuracyAcknowledged ? "REVIEW DATA TO ENABLE SAVE ALL" : "SAVE ALL TRADES"}
                 </button>
               )}
             </>

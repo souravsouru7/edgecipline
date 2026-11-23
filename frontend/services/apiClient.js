@@ -464,9 +464,14 @@ apiClient.interceptors.response.use(
       captureApiFailure(error);
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       if (!isTimeout && !isOnline()) return Promise.reject(createOfflineError());
-      return Promise.reject(
-        new Error(isTimeout ? 'Request timed out. Please try again.' : 'Network error. Please check your connection.')
+      // Typed so callers can tell "no answer" (the write may still have
+      // landed) apart from a real refusal without matching on message text.
+      const transportError = new Error(
+        isTimeout ? 'Request timed out. Please try again.' : 'Network error. Please check your connection.'
       );
+      transportError.code = isTimeout ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR';
+      transportError.isTransportError = true;
+      return Promise.reject(transportError);
     }
 
     const { status } = error.response;

@@ -237,4 +237,90 @@ describe("idempotency middleware", () => {
       expect.objectContaining({ statusCode: 400 })
     );
   });
+
+  describe("after the global timeout has already answered 408", () => {
+    function timedOutRes() {
+      const res = buildRes();
+      res.headersSent = false;
+      res.json = jest.fn(function (body) { this.body = body; this.headersSent = true; return this; });
+      return res;
+    }
+
+    test("keeps the claim when the timeout middleware sends its 408", async () => {
+      const { deleteOne, updateOne } = mockStore({ createImpl: () => Promise.resolve({}) });
+      const { idempotency } = require("../../middleware/idempotency");
+      const res = timedOutRes();
+      idempotency(buildReq(), res, jest.fn());
+      await flush();
+
+      res.locals.requestTimedOut = true;
+      res.status(408).json({ error: "REQUEST_TIMEOUT" });
+      res.emitFinish();
+      await flush();
+
+      expect(deleteOne).not.toHaveBeenCalled();
+      expect(updateOne).not.toHaveBeenCalled();
+      expect(res.body).toEqual({ error: "REQUEST_TIMEOUT" });
+    });
+
+    test("stores the late 2xx for replay without writing to the closed response", async () => {
+      const { updateOne } = mockStore({ createImpl: () => Promise.resolve({}) });
+      const { idempotency } = require("../../middleware/idempotency");
+      const res = timedOutRes();
+      const sendSpy = res.json;
+      idempotency(buildReq(), res, jest.fn());
+      await flush();
+
+      res.locals.requestTimedOut = true;
+      res.status(408).json({ error: "REQUEST_TIMEOUT" });
+      res.status(201).json({ success: true, data: { _id: "t1" } });
+      await flush();
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { user: userId, key: "key-1" },
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: "completed", responseStatus: 201 }),
+        })
+      );
+      // Only the 408 went out on the wire.
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(res.body).toEqual({ error: "REQUEST_TIMEOUT" });
+    });
+  });
+
+  test("takes over a stale in-progress claim instead of wedging the key", async () => {
+    let calls = 0;
+    const { deleteOne } = mockStore({
+      createImpl: () => (calls++ === 0 ? Promise.reject(duplicateKeyError()) : Promise.resolve({})),
+      findOneResult: {
+        _id: "rec1",
+        status: "in_progress",
+        requestHash: undefined,
+        createdAt: new Date(Date.now() - 10 * 60 * 1000),
+      },
+    });
+    deleteOne.mockResolvedValue({ deletedCount: 1 });
+    const { idempotency } = require("../../middleware/idempotency");
+    const next = jest.fn();
+
+    idempotency(buildReq(), buildRes(), next);
+    await flush(); await flush(); await flush();
+
+    expect(deleteOne).toHaveBeenCalledWith({ _id: "rec1", status: "in_progress" });
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  test("a fresh in-progress claim still answers 409", async () => {
+    mockStore({
+      createImpl: () => Promise.reject(duplicateKeyError()),
+      findOneResult: { _id: "rec1", status: "in_progress", createdAt: new Date() },
+    });
+    const { idempotency } = require("../../middleware/idempotency");
+    const next = jest.fn();
+
+    idempotency(buildReq(), buildRes(), next);
+    await flush(); await flush();
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 409 }));
+  });
 });

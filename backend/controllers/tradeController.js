@@ -4,6 +4,7 @@ const tradeQuotaService = require("../services/tradeQuotaService");
 const freeTierFunnelService = require("../services/freeTierFunnelService");
 const { paginated, success } = require("../utils/apiResponse");
 const { withQuota } = require("../utils/tradeQuotaResponse");
+const { recordFunnelBounded } = require("../utils/postCommit");
 
 exports.getTradeQuota = asyncHandler(async (req, res) => {
   const quota = await tradeQuotaService.getQuota({
@@ -33,7 +34,7 @@ exports.createTrade = asyncHandler(async (req, res) => {
   });
   // Re-count after the insert so the client can render "1 free trade left"
   // from this response alone, and stamp T0 if that was the last slot.
-  const funnel = await freeTierFunnelService.recordTradesCreated({
+  const funnel = await recordFunnelBounded({
     user: req.user,
     market: tradeQuotaService.FOREX,
   });
@@ -55,7 +56,7 @@ exports.createTradesBatch = asyncHandler(async (req, res) => {
   const result = await tradeService.createTradesBatch(req.user._id, req.body, {
     accountCreatedAt: req.user.createdAt,
   });
-  const funnel = await freeTierFunnelService.recordTradesCreated({
+  const funnel = await recordFunnelBounded({
     user: req.user,
     market: tradeQuotaService.FOREX,
   });
