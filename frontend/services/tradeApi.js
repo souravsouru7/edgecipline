@@ -62,7 +62,7 @@ export const getTrades = async (marketType = 'Forex', options = {}) => {
 // page (page number for Forex, cursor pair for Indian).
 export const getTradesPage = async (
   marketType = 'Forex',
-  { period, after = null, limit = 50, direction = null, search = "", signal } = {}
+  { period, after = null, limit = 50, direction = null, search = "", signal, forExport = false } = {}
 ) => {
   const path = getMarketPath(marketType);
   const params = new URLSearchParams();
@@ -73,6 +73,8 @@ export const getTradesPage = async (
   // old pair came back empty until the user scrolled to it.
   if (direction && direction !== "ALL") params.set("direction", direction);
   if (search) params.set("q", search);
+  // Full trade fields for the CSV export instead of the slim journal row.
+  if (forExport) params.set("export", "1");
   const opts = signal ? { signal } : {};
 
   if (marketType === 'Indian_Market') {

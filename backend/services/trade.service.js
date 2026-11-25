@@ -393,7 +393,8 @@ async function getTrades(userId, query) {
   const search = String(query.q || "").trim().slice(0, 64);
   const cursor = decodeCursor(query.cursor);
   const version = await getTradeCacheVersion(userId);
-  const filters = `period=${period}&dir=${direction || "ALL"}&q=${search.toLowerCase()}`;
+  const forExport = query.export === "1";
+  const filters = `period=${period}&dir=${direction || "ALL"}&q=${search.toLowerCase()}${forExport ? "&export=1" : ""}`;
   const startedAt = Date.now();
 
   // Cursor mode: keyset paging, and the totals ride along on the first page
@@ -407,7 +408,7 @@ async function getTrades(userId, query) {
     const { data: result } = await rememberCache(key, TRADE_LIST_TTL_SECONDS, async () => {
       const isFirstPage = !cursor;
       const [page, summary] = await Promise.all([
-        tradeRepository.findForexTradePage(userId, { limit, dateFrom: periodStart, direction, search, cursor }),
+        tradeRepository.findForexTradePage(userId, { limit, dateFrom: periodStart, direction, search, cursor, forExport }),
         isFirstPage
           ? tradeRepository.summarizeForexTradesByUser(userId, { dateFrom: periodStart, direction, search })
           : Promise.resolve(null),

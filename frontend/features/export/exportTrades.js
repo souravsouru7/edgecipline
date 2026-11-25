@@ -17,7 +17,7 @@ export async function fetchAllTrades(market, { onProgress, signal } = {}) {
   const all = [];
   let after = null;
   for (let i = 0; i < MAX_PAGES; i += 1) {
-    const page = await getTradesPage(market, { period: "all", after, limit, signal });
+    const page = await getTradesPage(market, { period: "all", after, limit, signal, forExport: true });
     all.push(...(page.items || []));
     onProgress?.(all.length);
     if (!page.pagination?.hasNextPage || !page.pagination?.next) break;

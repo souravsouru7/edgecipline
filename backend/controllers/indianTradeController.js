@@ -104,6 +104,24 @@ const INDIAN_TRADE_LIST_PROJECTION = [
   "strikePrice",
 ].join(" ");
 
+// Settings > "Download my trades": row fields plus everything the CSV writes.
+const INDIAN_TRADE_EXPORT_PROJECTION = [
+  INDIAN_TRADE_LIST_PROJECTION,
+  "stopLoss",
+  "takeProfit",
+  "riskRewardRatio",
+  "riskRewardCustom",
+  "mood",
+  "confidence",
+  "emotionalTags",
+  "lesson",
+  "wouldRetake",
+  "tradeQuality",
+  "notes",
+  "expiryDate",
+  "brokerage",
+].join(" ");
+
 function parseFiniteNumber(value) {
   if (value == null) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -639,7 +657,7 @@ exports.getTrades = asyncHandler(async (req, res) => {
     IndianTrade.find(query)
       .sort({ effectiveTradeDate: -1, _id: -1 })
       .limit(limit + 1)
-      .select(INDIAN_TRADE_LIST_PROJECTION)
+      .select(req.query.export === "1" ? INDIAN_TRADE_EXPORT_PROJECTION : INDIAN_TRADE_LIST_PROJECTION)
       .lean(),
     summaryPromise,
   ]);

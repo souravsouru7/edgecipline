@@ -33,6 +33,26 @@ const TRADE_LIST_PROJECTION = [
   "ocrAttempts",
 ].join(" ");
 
+// Settings > "Download my trades": the journal row fields plus everything the
+// CSV export writes. Kept separate so the journal list stays light.
+const TRADE_EXPORT_PROJECTION = [
+  TRADE_LIST_PROJECTION,
+  "stopLoss",
+  "takeProfit",
+  "riskRewardRatio",
+  "riskRewardCustom",
+  "mood",
+  "confidence",
+  "emotionalTags",
+  "lesson",
+  "wouldRetake",
+  "tradeQuality",
+  "notes",
+  "commission",
+  "swap",
+  "broker",
+].join(" ");
+
 const TRADE_STATUS_PROJECTION = [
   "pair",
   "type",
@@ -215,7 +235,7 @@ async function findForexTradesByUser(userId, { page, limit, dateFrom, direction,
  * The sort key is (effectiveTradeDate, _id). The date alone is not unique, so
  * _id breaks ties and keeps the cursor from stalling on same-day trades.
  */
-async function findForexTradePage(userId, { limit = 50, dateFrom, direction, search, cursor } = {}) {
+async function findForexTradePage(userId, { limit = 50, dateFrom, direction, search, cursor, forExport = false } = {}) {
   const query = buildForexListQuery(userId, { dateFrom, direction, search });
   const size = Math.max(1, Math.min(Number(limit) || 50, 200));
 
@@ -240,7 +260,7 @@ async function findForexTradePage(userId, { limit = 50, dateFrom, direction, sea
   const rows = await Trade.find(query)
     .sort({ effectiveTradeDate: -1, _id: -1 })
     .limit(size + 1)
-    .select(TRADE_LIST_PROJECTION)
+    .select(forExport ? TRADE_EXPORT_PROJECTION : TRADE_LIST_PROJECTION)
     .lean();
 
   const hasMore = rows.length > size;
@@ -362,6 +382,7 @@ async function findTradesForWeeklyWindow(userId, startDate, endDate) {
 }
 
 module.exports = {
+  TRADE_EXPORT_PROJECTION,
   countForexTradesByUser,
   countTradesDebug,
   createTrade,

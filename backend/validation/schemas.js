@@ -113,6 +113,8 @@ const tradeSchemas = {
       // Opaque keyset cursor. Present (even empty) opts into cursor paging;
       // absent keeps the old ?page=N behaviour for older clients.
       cursor: z.string().max(256).optional(),
+      // "1" = the CSV export: return every exported field, not the slim row.
+      export: z.enum(["1"]).optional(),
     }),
     params: emptyQuery,
   }),
