@@ -16,6 +16,7 @@ import EnvironmentGuard from "@/components/EnvironmentGuard";
 import PushNotificationBootstrap from "@/components/PushNotificationBootstrap";
 import PlayBillingBootstrap from "@/components/PlayBillingBootstrap";
 import AuthSessionBootstrap from "@/components/AuthSessionBootstrap";
+import SignOutOverlay from "@/components/SignOutOverlay";
 import RouteTransitionProgress from "@/components/RouteTransitionProgress";
 import AttributionCapture from "@/features/promotions/components/AttributionCapture";
 import NativeBackButton from "@/components/NativeBackButton";
@@ -102,6 +103,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 </Suspense>
                 <PageTransition>{children}</PageTransition>
               </AuthSessionBootstrap>
+              {/* Outside the bootstrap so its gating can never hide it. */}
+              <SignOutOverlay />
             </ToastProvider>
           </MarketProvider>
           </PersistQueryClientProvider>
@@ -124,6 +127,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 </Suspense>
                 <PageTransition>{children}</PageTransition>
               </AuthSessionBootstrap>
+              {/* Outside the bootstrap so its gating can never hide it. */}
+              <SignOutOverlay />
             </ToastProvider>
           </MarketProvider>
           </QueryClientProvider>
