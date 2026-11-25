@@ -243,7 +243,8 @@ export default function PageHeader({
         onClose={() => setDrawerOpen(false)}
         onLogout={handleLogout}
         profile={profile}
-        navItems={navLinks}
+        navItems={primaryNav(currentMarket).map(({ href, label, Icon }) => ({ href, label, icon: <Icon size={20} /> }))}
+        secondaryItems={secondaryNav(currentMarket).map(({ href, label, Icon }) => ({ href, label, icon: <Icon size={18} /> }))}
         extraSlot={showMarketSwitcher ? (
           // Let the pill finish gliding before the drawer slides away, so the
           // new market's dashboard is what the closing drawer reveals.

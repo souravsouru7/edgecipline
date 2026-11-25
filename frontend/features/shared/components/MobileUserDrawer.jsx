@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronRight, LifeBuoy, LogOut, X } from "lucide-react";
+import { isNavActive } from "@/features/shared/navigation";
+import { registerDismissable } from "@/utils/backNavigation";
+
+// Phone menu sheet opened from the header avatar.
+//
+// Layout: a header that never scrolls (profile + close), then the eight main
+// sections as a 4x2 tile grid, the market switcher, and a grouped list for
+// the account-level pages. Sized to fit a normal phone without scrolling; the
+// body scrolls on its own only on very short screens, so the header and the
+// sheet's rounded top edge always stay in view.
+//
+// Styles live in design-system.css (.ec-drawer__*) and use theme tokens, so
+// light and dark both work.
 
 function getInitials(name) {
   if (!name) return "T";
@@ -17,12 +31,17 @@ export default function MobileUserDrawer({
   onLogout,
   profile,
   navItems = [],
+  secondaryItems = [],
   extraSlot,
   paymentSlot,
 }) {
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [animate, setAnimate] = useState(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (open) {
@@ -31,183 +50,139 @@ export default function MobileUserDrawer({
         requestAnimationFrame(() => setAnimate(true));
       });
       return () => cancelAnimationFrame(raf);
-    } else {
-      const animateTimer = setTimeout(() => {
-        setAnimate(false);
-      }, 0);
-      const visibleTimer = setTimeout(() => setVisible(false), 320);
-      return () => {
-        clearTimeout(animateTimer);
-        clearTimeout(visibleTimer);
-      };
     }
+    const animateTimer = setTimeout(() => setAnimate(false), 0);
+    const visibleTimer = setTimeout(() => setVisible(false), 320);
+    return () => {
+      clearTimeout(animateTimer);
+      clearTimeout(visibleTimer);
+    };
+  }, [open]);
+
+  // While open: page behind does not scroll, Escape and the Android back
+  // gesture close the sheet instead of navigating (same as BottomSheet).
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return undefined;
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onCloseRef.current?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    const unregisterBack = registerDismissable(() => onCloseRef.current?.());
+    return () => {
+      body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      unregisterBack();
+    };
   }, [open]);
 
   if (!visible) return null;
 
-  const initials = getInitials(profile?.name);
-
-  const isActive = (href) => {
-    const base = href.split("?")[0];
-    return pathname === href || pathname?.startsWith(base);
-  };
+  const helpActive = isNavActive(pathname, "/support");
+  const accountItems = [
+    ...secondaryItems,
+    { href: "/support", label: "Help & Support", icon: <LifeBuoy size={18} />, active: helpActive },
+  ];
 
   return (
     <>
-      {/* Backdrop */}
       <div
+        className={`ec-drawer__backdrop${animate ? " is-open" : ""}`}
         onClick={onClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "rgba(15,25,35,0.55)",
-          opacity: animate ? 1 : 0,
-          transition: "opacity 0.32s cubic-bezier(0.32,0.72,0,1)",
-        }}
+        aria-hidden="true"
       />
 
-      {/* Sheet */}
       <div
-        className="ec-drawer"
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 9999,
-          background: "var(--ec-surface)",
-          borderTop: "1px solid var(--ec-border)",
-          borderRadius: "20px 20px 0 0",
-          boxShadow: "var(--ec-shadow-3)",
-          color: "var(--ec-text)",
-          fontFamily: "var(--ec-font-sans)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)",
-          transform: animate ? "translateY(0)" : "translateY(100%)",
-          transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-          maxHeight: "85vh",
-          overflowY: "auto",
-        }}
+        className={`ec-drawer${animate ? " is-open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
       >
-        {/* Drag handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--ec-border-strong)", margin: "12px auto 0" }} />
-
-        {/* User block */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 20px 16px" }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: "50%",
-            background: "var(--ec-accent)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "var(--ec-on-accent)", fontSize: 16, fontWeight: 700, flexShrink: 0,
-          }}>
-            {initials}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ec-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile?.name || "Trader"}
-            </div>
-            {profile?.email && (
-              <div style={{ fontSize: 12, color: "var(--ec-text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {profile.email}
+        <div className="ec-drawer__head">
+          <div className="ec-drawer__handle" aria-hidden="true" />
+          <div className="ec-drawer__profile">
+            <div className="ec-drawer__avatar" aria-hidden="true">{getInitials(profile?.name)}</div>
+            <div className="ec-drawer__who">
+              <div className="ec-drawer__name-row">
+                <span className="ec-drawer__name">{profile?.name || "Trader"}</span>
+                {profile && (
+                  <span className={`ec-drawer__plan${profile.isPremium ? " is-pro" : ""}`}>
+                    {profile.isPremium ? "Pro" : "Free"}
+                  </span>
+                )}
               </div>
-            )}
+              {profile?.email && <div className="ec-drawer__email">{profile.email}</div>}
+            </div>
+            <button type="button" className="ec-drawer__close" onClick={onClose} aria-label="Close menu">
+              <X size={18} />
+            </button>
           </div>
         </div>
 
-        <div style={{ height: 1, background: "var(--ec-border)", margin: "0 20px" }} />
+        <div className="ec-drawer__body">
+          <nav aria-label="Sections">
+            <ul className="ec-drawer__grid">
+              {navItems.map((item) => {
+                const active = isNavActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onClose}
+                      className={`ec-drawer__tile${active ? " is-active" : ""}`}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="ec-drawer__tile-icon">{item.icon}</span>
+                      <span className="ec-drawer__tile-label">{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
 
-        {/* Nav items */}
-        <nav style={{ padding: "8px 12px" }}>
-          {navItems.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  height: 48, padding: "0 8px", borderRadius: 10,
-                  textDecoration: "none",
-                  fontSize: 15, fontWeight: 500,
-                  color: active ? "var(--ec-accent-text)" : "var(--ec-text-2)",
-                  background: active ? "var(--ec-accent-soft)" : "transparent",
-                    }}
-              >
-                <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: active ? "var(--ec-accent-text)" : "var(--ec-text-3)" }}>
-                  {item.icon ?? (
-                    <svg width="6" height="6" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" fill="currentColor" /></svg>
-                  )}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+          {extraSlot && (
+            <section className="ec-drawer__section">
+              <div className="ec-drawer__label">Market</div>
+              {extraSlot}
+            </section>
+          )}
 
-        {/* Help & Support.
-            Rendered outside `navItems` on purpose: those are the two
-            market-specific nav sets, and support is neither — it is reachable
-            from every workspace and, unlike the rest of this drawer, works
-            without a session. */}
-        <div style={{ padding: "0 12px 4px" }}>
-          <Link
-            href="/support"
-            onClick={onClose}
-            style={{
-              display: "flex", alignItems: "center", gap: 12,
-              height: 48, padding: "0 8px", borderRadius: 10,
-              textDecoration: "none",
-              fontSize: 15, fontWeight: 500,
-              color: isActive("/support") ? "var(--ec-accent-text)" : "var(--ec-text-2)",
-              background: isActive("/support") ? "var(--ec-accent-soft)" : "transparent",
-            }}
-          >
-            <span style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: isActive("/support") ? "var(--ec-accent-text)" : "var(--ec-text-3)" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="4" />
-                <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
-                <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
-                <line x1="14.83" y1="9.17" x2="19.07" y2="4.93" />
-                <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
-              </svg>
-            </span>
-            Help &amp; Support
-          </Link>
-        </div>
+          {/* Help & Support is added here rather than in secondaryItems: it is
+              reachable from every workspace and works without a session. */}
+          <section className="ec-drawer__section">
+            <div className="ec-drawer__label">Account</div>
+            <ul className="ec-drawer__list">
+              {accountItems.map((item) => {
+                const active = item.active ?? isNavActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onClose}
+                      className={`ec-drawer__row${active ? " is-active" : ""}`}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="ec-drawer__row-icon">{item.icon}</span>
+                      <span className="ec-drawer__row-label">{item.label}</span>
+                      <ChevronRight size={16} className="ec-drawer__chev" aria-hidden="true" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
 
-        {extraSlot && (
-          <div style={{ padding: "4px 20px 8px" }}>
-            <div style={{ height: 1, background: "var(--ec-border)", marginBottom: 12 }} />
-            {extraSlot}
-          </div>
-        )}
+          {paymentSlot && <div className="ec-drawer__section">{paymentSlot}</div>}
 
-        {paymentSlot && (
-          <div style={{ padding: "8px 20px 4px" }}>
-            {paymentSlot}
-          </div>
-        )}
-
-        {/* Logout */}
-        <div style={{ padding: "8px 20px 20px" }}>
-          <div style={{ height: 1, background: "var(--ec-border)", marginBottom: 12 }} />
           <button
+            type="button"
+            className="ec-drawer__signout"
             onClick={() => { onClose(); onLogout(); }}
-            style={{
-              width: "100%", height: 48,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              background: "var(--ec-loss-soft)", border: "1px solid color-mix(in srgb, var(--ec-loss) 30%, transparent)",
-              color: "var(--ec-loss)", borderRadius: 12,
-              fontSize: 15, fontWeight: 600, cursor: "pointer",
-            }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
+            <LogOut size={16} />
             Sign out
           </button>
         </div>

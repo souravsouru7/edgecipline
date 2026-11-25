@@ -303,6 +303,9 @@ html[data-keyboard-open] .mobile-bottom-nav-spacer {
 .grid-3 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 
 /* Route change: subtle shared-axis entrance (components/PageTransition). */
+.page-transition {
+  overflow-x: clip;
+}
 .page-enter {
   animation: pageEnter 180ms cubic-bezier(0.2, 0, 0, 1);
 }

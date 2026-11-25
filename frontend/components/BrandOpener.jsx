@@ -8,7 +8,13 @@
 // the same logo at 230 CSS px centred on the same colour the moment the
 // WebView draws. CSS px and dp are the same unit on Android, so the mark does
 // not move, resize or re-animate across the hand-off — the user sees one
-// continuous screen instead of the logo appearing twice.
+// continuous screen instead of the logo appearing twice. That layer-list only
+// runs on Android 11 and older; Android 12+ shows a plain #0A0D12 splash with
+// no icon (values-v31/styles.xml), so there the logo first appears here.
+//
+// The mark is position: fixed, so anything that widens the document moves it
+// (Android grows the layout viewport). PageTransition's .page-transition box
+// clips horizontal overflow for that reason — keep it.
 //
 // That is why the mark has NO entrance animation. Only the progress sweep and
 // the label fade in, because those are genuinely new: they are the signal
