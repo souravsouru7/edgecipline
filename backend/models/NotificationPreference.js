@@ -26,6 +26,8 @@ const NotificationPreferenceSchema = new mongoose.Schema(
     morningMentor: { type: Boolean, default: true },
     streakProtection: { type: Boolean, default: true },
     eveningReflection: { type: Boolean, default: true },
+    // Mind Score level-ups, Mind Wins and weekly focus nudges.
+    mindProgress: { type: Boolean, default: true },
     // Ticket replies, status changes, resolutions. Defaults on and is gated
     // separately from smartCoach — switching off coaching nudges must not
     // silence the answer to a support request.

@@ -171,6 +171,7 @@ exports.updateNotificationPreferences = asyncHandler(async (req, res) => {
     "morningMentor",
     "streakProtection",
     "eveningReflection",
+    "mindProgress",
     "supportUpdates",
     "promotions",
   ];

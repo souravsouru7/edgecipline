@@ -406,5 +406,5 @@ ${snapshotJson}
   }
 }
 
-module.exports = { MAX_SNAPSHOT_BYTES, generateWeeklyFeedback };
+module.exports = { MAX_SNAPSHOT_BYTES, containsProhibitedFinancialAdvice, generateWeeklyFeedback };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
 import {
@@ -13,6 +13,9 @@ import FirstLoginWelcome from "@/features/dashboard/components/FirstLoginWelcome
 import GuidedHome from "@/features/dashboard/components/GuidedHome";
 import EquityChart from "@/features/dashboard/components/EquityChart";
 import ReflectionSheet from "@/features/reflections/components/ReflectionSheet";
+import MindScoreCard from "@/features/mind-progress/components/MindScoreCard";
+import AICoachFeedWidget from "@/features/ai-coach/components/AICoachFeedWidget";
+import { useCoachFeed } from "@/features/dashboard/hooks/useCoachFeed";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import { buildTodaysIntelligence } from "@/features/dashboard/utils/todaysIntelligence";
 import { getNextAction } from "@/features/dashboard/utils/nextAction";
@@ -160,7 +163,7 @@ function Performance({ stats, timeline, currency, loading }) {
           {loading ? (
             <Placeholder width={180} height={40} style={{ marginTop: 6 }} />
           ) : pnlReady ? (
-            <Money value={netPnl} currency={currency} signed className="ec-perf__value" />
+            <Money value={netPnl} currency={currency} signed animate className="ec-perf__value" />
           ) : (
             <span className="ec-perf__value ec-num" style={{ color: "var(--ec-text-3)" }}>—</span>
           )}
@@ -185,14 +188,14 @@ function Kpis({ stats, streaks, currency, loading }) {
   const show = Number(stats?.pnlReadyTrades ?? stats?.totalTrades ?? 0) > 0;
   const streak = streaks?.journal?.current ?? 0;
   return (
-    <div className="ec-kpis">
-      <StatCard label="Win rate" loading={loading} value={show ? stats?.winRate : "—"} kind={show ? "percent" : undefined}
+    <div className="ec-kpis ec-stagger">
+      <StatCard label="Win rate" loading={loading} animate value={show ? stats?.winRate : "—"} kind={show ? "percent" : undefined}
         hint={show ? `${stats?.winningTrades ?? 0} wins · ${stats?.losingTrades ?? 0} losses` : "Needs closed trades"} />
-      <StatCard label="Avg trade" loading={loading} value={show ? stats?.avgTrade : "—"} kind={show ? "money" : undefined}
+      <StatCard label="Avg trade" loading={loading} animate value={show ? stats?.avgTrade : "—"} kind={show ? "money" : undefined}
         currency={currency} signed hint="What a typical trade makes" />
       <StatCard label="Avg win / loss" loading={loading}
         value={show ? `${formatShort(stats?.avgWin)} / ${formatShort(stats?.avgLoss)}` : "—"} hint="Wins should be bigger" />
-      <StatCard label="Discipline streak" loading={loading} value={streak}
+      <StatCard label="Discipline streak" loading={loading} animate value={streak}
         hint={streak === 1 ? "day in a row" : "days in a row"} />
     </div>
   );
@@ -237,6 +240,32 @@ function Coach({ insight, routes, loading }) {
         Ask a follow-up
       </Button>
     </Card>
+  );
+}
+
+// Full AI Coach Feed, right on Home (it used to sit behind Intelligence → AI
+// Coach Feed, where traders couldn't find it). Waits for the snapshot so it
+// never competes with Home's first paint; any failure hides the section.
+function CoachFeedSection({ market, enabled }) {
+  const isIndian = market === MARKETS.INDIAN_MARKET;
+  const { data, isLoading, error } = useCoachFeed(market, { enabled });
+
+  // /dashboard#coach-feed (old AI Coach links and notifications land here).
+  useEffect(() => {
+    if (isLoading || typeof window === "undefined" || window.location.hash !== "#coach-feed") return;
+    const el = document.getElementById("coach-feed");
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [isLoading]);
+
+  if (!enabled || error) return null;
+  return (
+    <section id="coach-feed" aria-label="AI coach feed" style={{ scrollMarginTop: 80 }}>
+      {isLoading ? (
+        <Placeholder height={160} radius={20} />
+      ) : (
+        <AICoachFeedWidget feed={data} loading={false} currency={isIndian ? "₹" : "$"} market={isIndian ? "Indian_Market" : "Forex"} />
+      )}
+    </section>
   );
 }
 
@@ -325,10 +354,11 @@ function DashboardContent() {
                   />
                 </Card>
               ) : (
-                <div className="ec-home__grid">
+                <div className="ec-home__grid ec-stagger">
                   <div className="ec-area-next">
                     <DoNext next={next} loading={busy} onLogTrade={openLogTrade} onReflect={openReflect} />
                   </div>
+                  <div className="ec-area-mind"><MindScoreCard onLogTrade={openLogTrade} /></div>
                   {statsUnavailable ? (
                     <div className="ec-area-perf">
                       <Card>
@@ -350,6 +380,7 @@ function DashboardContent() {
                   )}
                   <div className="ec-area-insights"><Insights intel={intel} routes={routes} loading={busy} /></div>
                   <div className="ec-area-coach"><Coach insight={intel.coachInsight} routes={routes} loading={busy} /></div>
+                  <div className="ec-area-coachfeed"><CoachFeedSection market={currentMarket} enabled={settled} /></div>
                 </div>
               )}
             </>

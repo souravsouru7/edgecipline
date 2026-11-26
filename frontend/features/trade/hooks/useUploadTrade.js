@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMarket, MARKETS } from "@/context/MarketContext";
 import { cancelUploadJob, getUploadJobStatus, uploadTradeImage } from "@/services/uploadApi";
 import { compressImage } from "@/utils/imageCompression";
+import { readPickedImage } from "@/utils/imageUpload";
 import { createTrade, createTradesBatch } from "@/services/tradeApi";
 import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/features/trade/lib/tradeLimit";
 import {
@@ -19,6 +20,9 @@ import { useToast } from "@/features/shared/components/ui/Toast";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { sanitizeNumericField } from "@/features/trade/lib/numericInput";
+import { focusTradeField, riskRewardPayload, validateTradeRules } from "@/features/trade/lib/tradeValidation";
+import { announceJournalSaved } from "@/features/mind-progress/rewardBus";
 import { getUserMessage } from "@/utils/userMessage";
 import { newIdempotencyKey } from "@/utils/idempotency";
 import { markOnboardingStep } from "@/services/api";
@@ -361,6 +365,22 @@ function buildForexTradeTemplate(imageUrl, t = {}) {
   };
 }
 
+// Inputs the screenshot review actually renders (app/upload-trade/page.js),
+// per market. The shared rules only report fields in this list, so a
+// message never points at a box the trader can't see (e.g. commission, which
+// is read from the screenshot but has no input here).
+const COMMON_REVIEW_FIELDS = ["pair", "tradeDate", "entryPrice", "exitPrice", "profit", "riskRewardRatio",
+  "riskRewardCustom", "entryBasis", "entryBasisCustom", "notes"];
+const REVIEW_FIELDS = {
+  Forex: [...COMMON_REVIEW_FIELDS, "lotSize", "stopLoss", "takeProfit", "session"],
+  OPTION: [...COMMON_REVIEW_FIELDS, "quantity", "lotSize", "strikePrice", "expiryDate"],
+  EQUITY: [...COMMON_REVIEW_FIELDS, "stockSymbol", "sharesQty"],
+};
+function reviewFieldsFor(isInd, trade) {
+  if (!isInd) return REVIEW_FIELDS.Forex;
+  return String(trade?.instrumentType || "").toUpperCase() === "EQUITY" ? REVIEW_FIELDS.EQUITY : REVIEW_FIELDS.OPTION;
+}
+
 function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
   const tradeDate =
     normalizeDateForInput(tradeDateOverride ?? trade?.tradeDate) || undefined;
@@ -386,8 +406,8 @@ function buildTradePayload(trade, isInd, setupRules, tradeDateOverride) {
     emotionalTags: Array.isArray(trade.emotionalTags) ? trade.emotionalTags : undefined,
     wouldRetake: trade.wouldRetake || undefined,
     tradeQuality: trade.tradeQuality || undefined,
-    riskRewardRatio: trade.riskRewardRatio || undefined,
-    riskRewardCustom: trade.riskRewardCustom || undefined,
+    // Custom text only when "custom" is the selected ratio.
+    ...(trade.riskRewardRatio ? riskRewardPayload(trade.riskRewardRatio, trade.riskRewardCustom) : {}),
     setupRules: activeRules.map(({ label, followed }) => ({ label: String(label).trim(), followed })),
     setupScore,
   };
@@ -1377,6 +1397,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
       invalidateTradeDependentQueries(queryClient);
 
       addToast("Trade saved to your trade log!", "success");
+      announceJournalSaved("trade");
 
       if (idx !== null) {
         setSavedTrades(prev => {
@@ -1436,14 +1457,23 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
     // duplicate-image check, or leave a screenshot in cloud storage.
     if (isDemo) return runDemoExtraction();
 
+    // Make sure the bytes are actually readable. An unreadable Android
+    // content:// file would otherwise fail inside the request and show a
+    // misleading "Network error". readPickedImage returns an in-memory copy.
+    let fileToUpload;
+    try {
+      fileToUpload = await readPickedImage(file);
+    } catch (err) {
+      return setError(err.message);
+    }
+
     // Compress BEFORE upload. PDFs and small images pass through unchanged.
     // Failures degrade gracefully — the original file is uploaded.
-    let fileToUpload = file;
     try {
       const compressStart = performance.now();
       console.info("IMAGE_ORIGINAL_SIZE", { bytes: file.size, type: file.type, name: file.name });
 
-      const result = await compressImage(file);
+      const result = await compressImage(fileToUpload);
       const compressMs = Math.round(performance.now() - compressStart);
 
       if (result.skipped) {
@@ -1488,7 +1518,8 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   const handleChange = (e) => {
     userEditedFormRef.current = true;
-    const update = { [e.target.name]: e.target.value };
+    // Number boxes drop letters as they're typed or pasted.
+    const update = { [e.target.name]: sanitizeNumericField(e.target.name, e.target.value) };
     if (e.target.name === "tradeDate") update._dateAutoFilled = false;
     setTrade(prev => ({ ...prev, ...update }));
   };
@@ -1501,7 +1532,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
 
   const handleTradeChange = (idx, e) => {
     userEditedFormRef.current = true;
-    const fieldUpdate = { [e.target.name]: e.target.value };
+    const fieldUpdate = { [e.target.name]: sanitizeNumericField(e.target.name, e.target.value) };
     if (e.target.name === "tradeDate") fieldUpdate._dateAutoFilled = false;
     setTrades(prev => {
       const copy = [...prev];
@@ -1676,6 +1707,37 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
         addToast("Trade quality is required before saving", "info");
         return false;
       }
+      // The server requires a strike and an expiry on every option trade,
+      // including ones read from a screenshot.
+      if (String(tradeToSave?.instrumentType || "").toUpperCase() !== "EQUITY") {
+        if (!(Number(tradeToSave?.strikePrice) > 0)) {
+          addToast("Strike price is required for option trades", "info");
+          focusTradeField("strikePrice");
+          return false;
+        }
+        if (!tradeToSave?.expiryDate) {
+          addToast("Expiry date is required for option trades", "info");
+          focusTradeField("expiryDate");
+          return false;
+        }
+      }
+    }
+    // Rules shared by every trade form (R:R format, take-profit side, custom
+    // entry basis, expiry vs trade date, number sanity).
+    const ruleProblem = validateTradeRules(
+      { ...tradeToSave, type: tradeToSave?.action || tradeToSave?.type },
+      {
+        market: isInd ? "Indian_Market" : "Forex",
+        instrumentType: tradeToSave?.instrumentType,
+        // A screenshot import keeps the broker's P&L when the server can't price the symbol.
+        hasTrustedPnl: true,
+        fields: reviewFieldsFor(isInd, tradeToSave),
+      }
+    );
+    if (ruleProblem) {
+      addToast(ruleProblem.message, "info");
+      focusTradeField(ruleProblem.field);
+      return false;
     }
     return true;
   };
@@ -1820,7 +1882,22 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
             if (!hasValue(t?.confidence))                                                  missingFields.push("Confidence");
             if (!Array.isArray(t?.emotionalTags) || t.emotionalTags.length === 0)         missingFields.push("Emotional Tags");
             if (!hasValue(t?.wouldRetake))                                                 missingFields.push("Would Retake");
+            if (t?.riskRewardRatio === "custom" && !hasValue(t?.riskRewardCustom))         missingFields.push("Custom R:R");
+            if (!hasValue(t?.entryBasis))                                                  missingFields.push("Entry Basis");
+            if (t?.entryBasis === "Custom" && !hasValue(t?.entryBasisCustom))              missingFields.push("Custom Entry Basis");
           }
+          // Checks the single-trade save already had and this path skipped.
+          if (t?.tradeDate && accountCreatedDate && t.tradeDate < accountCreatedDate)      missingFields.push(`Trade Date (not before ${accountCreatedDate})`);
+          if (t?.tradeDate && t.tradeDate > getTodayInputValue())                           missingFields.push("Trade Date (not in the future)");
+          if (isInd && String(t?.instrumentType || "").toUpperCase() !== "EQUITY") {
+            if (!(Number(t?.strikePrice) > 0))                                             missingFields.push("Strike Price");
+            if (!t?.expiryDate)                                                            missingFields.push("Expiry Date");
+          }
+          const ruleProblem = validateTradeRules(
+            { ...t, type: t?.action || t?.type },
+            { market: isInd ? "Indian_Market" : "Forex", instrumentType: t?.instrumentType, hasTrustedPnl: true, fields: reviewFieldsFor(isInd, t) }
+          );
+          if (ruleProblem)                                                                 missingFields.push(ruleProblem.message);
           if (missingFields.length > 0) {
             failingIndices.push({ i, missingFields });
           } else {
@@ -1868,6 +1945,7 @@ export function useUploadTrade({ accountCreatedDate = "" } = {}) {
           invalidateTradeDependentQueries(queryClient);
           removeToast(toastId);
           addToast(`${batchPayload.length} trades imported successfully!`, "success");
+          announceJournalSaved("import");
           markOnboardingStep("tradeAdded", true).catch(() => {});
           const onboardingMode = searchParams?.get("onboarding") === "1";
           const journalRoute = isInd ? "/indian-market/trades" : "/trades";

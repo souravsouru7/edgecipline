@@ -56,7 +56,11 @@ const {
   markOcrJobConfirmed,
 } = require("../services/ocrJob.service");
 const { normalizeTradeDate, getPeriodStart } = require("../utils/dateUtils");
-const { wrapBatchInsertError, requireEntryBasisCustomText } = require("../utils/tradeValidation");
+const { wrapBatchInsertError, requireEntryBasisCustomText,
+  applyRiskRewardRules,
+  assertOptionContract,
+  assertPositiveIfChanged,
+  assertTradeLevels, } = require("../utils/tradeValidation");
 const { destroyImages } = require("../utils/cloudinaryHelpers");
 const { logger } = require("../utils/logger");
 const { pickIndianTradeFields } = require("../utils/tradeFieldAllowlist");
@@ -153,6 +157,17 @@ function normalizeOptionalNumber(target, field) {
   return parsed;
 }
 
+// Brokerage and STT are charges. Broker statements (and screenshots read
+// from them) print them with a minus sign; store the absolute value, the same
+// way Forex commission is treated (utils/tradeProfit, metricEngine).
+function assertNonNegativeCharges(target) {
+  for (const field of ["brokerage", "sttTaxes"]) {
+    if (!Object.prototype.hasOwnProperty.call(target, field)) continue;
+    const n = parseFiniteNumber(target[field]);
+    if (n !== null && n < 0) target[field] = Math.abs(n);
+  }
+}
+
 function buildIndianTradeDocument(
   userId,
   payload,
@@ -217,6 +232,7 @@ function buildIndianTradeDocument(
   }
 
   requireEntryBasisCustomText(editablePayload.entryBasis, editablePayload.entryBasisCustom);
+  applyRiskRewardRules(editablePayload);
 
   const tradeData = {
     ...editablePayload,
@@ -297,6 +313,9 @@ function buildIndianTradeDocument(
   normalizeOptionalNumber(tradeData, "stopLoss");
   normalizeOptionalNumber(tradeData, "takeProfit");
   normalizeOptionalNumber(tradeData, "strikePrice");
+  assertNonNegativeCharges(tradeData);
+  assertTradeLevels(tradeData);
+  assertOptionContract(tradeData);
 
   const submittedProfit = parseFiniteNumber(tradeData.profit);
   if (trustedOcrProfit !== null) {
@@ -724,8 +743,12 @@ exports.updateTrade = asyncHandler(async (req, res) => {
   );
 
   const touchesEntryBasis = update.entryBasis !== undefined || update.entryBasisCustom !== undefined;
+  const touchesRules = [
+    "riskRewardRatio", "riskRewardCustom", "stopLoss", "takeProfit", "entryPrice", "exitPrice",
+    "strikePrice", "expiryDate", "tradeDate", "type", "brokerage", "sttTaxes", "quantity", "sharesQty",
+  ].some((field) => Object.prototype.hasOwnProperty.call(update, field));
   let existing = null;
-  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis) {
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis || touchesRules) {
     existing = await IndianTrade.findOne({
       _id: req.params.id,
       user: req.user._id,
@@ -733,9 +756,22 @@ exports.updateTrade = asyncHandler(async (req, res) => {
     })
       .select(
         "type entryPrice exitPrice instrumentType sharesQty quantity lotSize " +
-        "brokerage sttTaxes tradeImages entryBasis entryBasisCustom"
+        "brokerage sttTaxes tradeImages entryBasis entryBasisCustom profit " +
+        "riskRewardRatio riskRewardCustom stopLoss takeProfit strikePrice expiryDate tradeDate"
       )
       .lean();
+  }
+
+  // Only fields whose value changed are held to the rules, so older app
+  // builds that resend the whole form can still edit legacy trades.
+  if (touchesRules && existing) {
+    applyRiskRewardRules(update, existing);
+    assertPositiveIfChanged(update, existing, [
+      ["entryPrice", "Entry price"], ["exitPrice", "Exit price"], ["quantity", "Quantity"], ["sharesQty", "Shares quantity"],
+    ]);
+    assertNonNegativeCharges(update);
+    assertTradeLevels(update, existing);
+    assertOptionContract(update, existing);
   }
 
   if (touchesEntryBasis) {
@@ -752,6 +788,13 @@ exports.updateTrade = asyncHandler(async (req, res) => {
       // A trusted P&L was submitted directly — don't force entry/exit price
       // validation for closed positions that never showed a per-unit price.
       update.profit = submittedProfit;
+    } else if (
+      existing && existing.profit != null &&
+      !(Number(candidate.entryPrice) > 0) && !(Number(candidate.exitPrice) > 0)
+    ) {
+      // A P&L-only position (broker screenshot with no per-unit prices) that
+      // still has no prices: keep its recorded P&L instead of demanding
+      // made-up entry/exit prices just to save a note or a tag.
     } else {
       const isEquity = String(candidate.instrumentType || "").toUpperCase() === "EQUITY";
       if (isEquity) {

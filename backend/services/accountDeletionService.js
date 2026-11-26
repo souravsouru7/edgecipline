@@ -100,6 +100,12 @@ const USER_OWNED_COLLECTIONS = [
   ["user",   require("../models/IdempotencyRecord")],
   ["user",   IndianTrade],
   ["user",   require("../models/IssueReport")],
+  // Mind Score: derived from the trader's journal, so it goes with it.
+  ["user",   require("../models/MindInsight")],
+  ["user",   require("../models/MindMilestone")],
+  ["user",   require("../models/MindProfile")],
+  ["user",   require("../models/MindScoreDaily")],
+  ["user",   require("../models/MindTarget")],
   ["user",   require("../models/MissionAssignment")],
   ["user",   require("../models/NotificationDebugLog")],
   ["user",   require("../models/NotificationHistory")],

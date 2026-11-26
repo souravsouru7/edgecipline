@@ -23,6 +23,7 @@ export function getNotificationTarget(data = {}) {
     "reflection":        "/reflection",
     "streaks":           "/streaks",
     "missions":          "/missions",
+    "mind-progress":     "/progress",
     "checklist":         "/checklist",
     "upload-trade":      indian ? "/indian-market/upload-trade" : "/upload-trade",
   };

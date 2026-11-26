@@ -10,7 +10,10 @@ const onboardingService = require("./onboardingService");
 const { handleStreakEvents } = require("./streakNotification.service");
 const tradeLifecycleService = require("./tradeLifecycle.service");
 const { normalizeTradeDate, getPeriodStart } = require("../utils/dateUtils");
-const { wrapBatchInsertError, requireEntryBasisCustomText } = require("../utils/tradeValidation");
+const { wrapBatchInsertError, requireEntryBasisCustomText,
+  applyRiskRewardRules,
+  assertTradeLevels,
+  assertPositiveIfChanged, } = require("../utils/tradeValidation");
 const {
   claimOcrJobForConfirmation,
   releaseOcrJobClaim,
@@ -121,6 +124,8 @@ async function createTrade(userId, payload, { accountCreatedAt } = {}) {
   const tradePayload = pickForexTradeFields(payload);
   enforcePositiveTradeSize(tradePayload);
   requireEntryBasisCustomText(tradePayload.entryBasis, tradePayload.entryBasisCustom);
+  applyRiskRewardRules(tradePayload);
+  assertTradeLevels({ ...tradePayload, type: normalizeTradeType(payload.type) });
   let trustedProfit = null;
   if (ocrJobId) {
     // Claim the job (COMPLETED -> CONFIRMED) before creating the trade, so a
@@ -239,6 +244,8 @@ function buildCreateTradeDocument(
   const tradePayload = pickForexTradeFields(payload);
   enforcePositiveTradeSize(tradePayload);
   requireEntryBasisCustomText(tradePayload.entryBasis, tradePayload.entryBasisCustom);
+  applyRiskRewardRules(tradePayload);
+  assertTradeLevels({ ...tradePayload, type: normalizeTradeType(payload.type) });
   const trustedProfit = trustedOcrProfitForTrade(payload, extractedTrades, tradeIndex);
   if (trustedProfit !== null) {
     tradePayload.profit = trustedProfit;
@@ -551,15 +558,27 @@ async function updateTrade(userId, tradeId, payload, { accountCreatedAt } = {}) 
   );
 
   const touchesEntryBasis = update.entryBasis !== undefined || update.entryBasisCustom !== undefined;
+  const touchesRules = ["riskRewardRatio", "riskRewardCustom", "stopLoss", "takeProfit", "entryPrice", "exitPrice", "lotSize", "quantity", "type"]
+    .some((field) => Object.prototype.hasOwnProperty.call(update, field));
 
   // Load the current calculation inputs when the P&L basis changes. The same
   // query also supplies tradeImages for cleanup when that array is replaced,
   // and entryBasis/entryBasisCustom for the custom-text cross-field check.
   let existing = null;
-  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis) {
+  if (shouldDeriveProfit || Array.isArray(update.tradeImages) || touchesEntryBasis || touchesRules) {
     existing = await Trade.findOne({ _id: tradeId, user: userId })
-      .select("pair type entryPrice exitPrice lotSize quantity commission swap tradeImages entryBasis entryBasisCustom")
+      .select("pair type entryPrice exitPrice lotSize quantity commission swap tradeImages entryBasis entryBasisCustom riskRewardRatio riskRewardCustom stopLoss takeProfit")
       .lean();
+  }
+
+  // Only fields whose value changed are held to the rules, so older app
+  // builds that resend the whole form can still edit legacy trades.
+  if (touchesRules && existing) {
+    applyRiskRewardRules(update, existing);
+    assertPositiveIfChanged(update, existing, [
+      ["entryPrice", "Entry price"], ["exitPrice", "Exit price"], ["lotSize", "Lot size"], ["quantity", "Quantity"],
+    ]);
+    assertTradeLevels(update, existing);
   }
 
   if (touchesEntryBasis) {

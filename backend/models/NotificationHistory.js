@@ -35,6 +35,12 @@ const NotificationHistorySchema = new mongoose.Schema(
         "evening_reflection",
         // Mission lifecycle (missionNotificationService).
         "mission_update",
+        // Mind Score (mindProgressCron): level-up, Mind Win, score unlocked,
+        // weekly focus nudges. At most one per user per local day.
+        "mind_report_ready",
+        "mind_level_up",
+        "mind_win",
+        "mind_target",
         "ocr_completed",
         "ocr_failed",
         "issue_fixed",
@@ -92,6 +98,7 @@ const NotificationHistorySchema = new mongoose.Schema(
         "streak",
         "support_ticket",
         "mission",
+        "mind",
       ],
       default: "system",
     },

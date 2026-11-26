@@ -264,6 +264,19 @@ const appConfig = {
     timezone: process.env.REFLECTION_REMINDER_TIMEZONE || "Asia/Kolkata",
     concurrency: readNumber("REFLECTION_REMINDER_CRON_CONCURRENCY", 0),
   },
+  // Mind Score (services/mindProgress.service.js). Every key has a safe
+  // default: a server .env that lags .env.example must never crash-loop PM2.
+  mindProgress: {
+    enabled: readBoolean("MIND_PROGRESS_ENABLED", true),
+    // Post-save recompute hooks. Off under Jest so suites that exercise the
+    // trade/reflection services don't start real Mongo work in the background.
+    hooksEnabled: readBoolean("MIND_PROGRESS_HOOKS", process.env.NODE_ENV !== "test"),
+    cronEnabled: readBoolean("ENABLE_MIND_PROGRESS_CRON", true),
+    // Daily finalise + at most one push, in each user's own timezone.
+    localTime: process.env.MIND_PROGRESS_LOCAL_TIME || "08:00",
+    concurrency: readNumber("MIND_PROGRESS_CRON_CONCURRENCY", 10),
+    aiEnabled: readBoolean("MIND_PROGRESS_AI_ENABLED", true),
+  },
   cron: {
     // Default 50; per-cron override via {CRON_NAME}_CONCURRENCY env vars.
     concurrency:              readNumber("CRON_CONCURRENCY", 50),
@@ -512,6 +525,11 @@ const appConfig = {
   rateLimit: {
     globalWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
     globalMaxRequests: readNumber("RATE_LIMIT_MAX_REQUESTS", 100),
+    // Signed-in users get their own, larger budget: one Home load is ~10
+    // requests, so 100 per 15 min locked real users out mid-session (seen
+    // as "Couldn't load your journal" right after saving a trade). Anonymous
+    // / per-IP traffic keeps the strict limit above.
+    globalUserMaxRequests: readNumber("RATE_LIMIT_USER_MAX_REQUESTS", 600),
     authWindowMs: readNumber("AUTH_RATE_LIMIT_WINDOW_MS", 60 * 1000),
     authMaxRequests: readNumber("AUTH_RATE_LIMIT_MAX_REQUESTS", 5),
     uploadWindowMs: readNumber("UPLOAD_RATE_LIMIT_WINDOW_MS", 60 * 1000),

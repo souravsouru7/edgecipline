@@ -16,14 +16,35 @@ import { getRescueBanner, recordRescueEvent } from "@/services/api";
 // tab focus so a user who paid in another tab sees the banner disappear.
 const POLL_MS = 5 * 60 * 1000;
 
+// PageHeader (and so this hook) remounts on every route change. Without a
+// shared copy each navigation and each tab focus refetched the banner, which
+// alone used ~17 requests in 9 minutes of the per-user API budget. One copy
+// for the whole app, refreshed when it's older than the poll interval.
+let sharedData = null;
+let sharedAt = 0;
+let sharedInflight = null;
+
+function loadBanner({ force = false } = {}) {
+  if (!force && sharedData && Date.now() - sharedAt < POLL_MS) return Promise.resolve(sharedData);
+  if (sharedInflight) return sharedInflight;
+  sharedInflight = getRescueBanner()
+    .then((data) => {
+      sharedData = data;
+      sharedAt = Date.now();
+      return data;
+    })
+    .finally(() => { sharedInflight = null; });
+  return sharedInflight;
+}
+
 export function useRescueBanner() {
-  const [state, setState] = useState({ loading: true, banner: null });
+  const [state, setState] = useState(() => ({ loading: !sharedData, banner: sharedData?.banner || null }));
   const mounted = useRef(true);
   const lastViewedTouchpoint = useRef(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ force = false } = {}) => {
     try {
-      const data = await getRescueBanner();
+      const data = await loadBanner({ force });
       if (!mounted.current) return data;
       const banner = data?.banner || null;
       setState({ loading: false, banner });
@@ -47,6 +68,7 @@ export function useRescueBanner() {
 
   useEffect(() => {
     mounted.current = true;
+    // Uses the shared copy when it's fresh; fetches only when stale.
     const initialTimer = setTimeout(() => {
       refresh();
     }, 0);
@@ -65,5 +87,7 @@ export function useRescueBanner() {
     };
   }, [refresh]);
 
-  return { ...state, refresh };
+  // Callers that change the banner's inputs (e.g. after a purchase) force it.
+  const forceRefresh = useCallback(() => refresh({ force: true }), [refresh]);
+  return { ...state, refresh: forceRefresh };
 }

@@ -4,6 +4,7 @@ export { default as TickerTape }            from "./components/TickerTape";
 export { default as PageHeader }            from "./components/PageHeader";
 export { default as PageBackNav }           from "./components/PageBackNav";
 export { useClock }                         from "./hooks/useClock";
+export { useCountUp }                       from "./hooks/useCountUp";
 
 // UI Primitives
 export * from "./components/ui/Skeleton";

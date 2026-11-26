@@ -14,6 +14,7 @@ import {
   DetailHero, DetailLoading, DetailNotFound, DetailRows, DetailSection, DetailTopBar,
   MoodDots, PriceLadder, Quote, RuleResults, ScoreMeter, TagList,
 } from "@/features/trade/components/TradeDetailParts";
+import { parseRiskReward } from "@/features/trade/lib/tradeValidation";
 
 function formatMoment(trade) {
   const m = getTradeMoment(trade);
@@ -54,7 +55,10 @@ function TradeDetailContent() {
     const rr = Number.isFinite(entry) && Number.isFinite(sl) && Number.isFinite(tp) && entry !== sl
       ? Math.abs((tp - entry) / (entry - sl)).toFixed(2)
       : null;
-    const plannedRR = trade.riskRewardRatio === "custom" ? trade.riskRewardCustom : trade.riskRewardRatio;
+    // A legacy custom value that isn't a ratio (e.g. "ssd") shows as —.
+    const plannedRR = trade.riskRewardRatio === "custom"
+      ? (parseRiskReward(trade.riskRewardCustom).value || null)
+      : trade.riskRewardRatio;
     const mistake = tradeMistake(trade);
     const score = trade.setupScore != null && Number.isFinite(Number(trade.setupScore)) ? Number(trade.setupScore) : null;
     const entryBasis = trade.entryBasis === "Custom" ? (trade.entryBasisCustom || "Custom") : trade.entryBasis;

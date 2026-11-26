@@ -12,11 +12,23 @@ const { logger } = require("./logger");
 
 const CACHE_INVALIDATION_BUDGET_MS = 1500;
 
+function scheduleJournalEvent(userId, event) {
+  try {
+    // Lazy so callers/tests that only need cache helpers don't load it.
+    require("../services/mindProgressHooks").scheduleMindRecompute(userId, `trade:${event || "mutation"}`);
+  } catch (error) {
+    logger.warn("MIND_SCORE_HOOK_FAILED", { error: error?.message });
+  }
+}
+
 /**
  * Bump the user's trade-cache version, but give up after a short budget.
  * Best-effort: cached lists expire on their own within TRADE_LIST_TTL_SECONDS.
  */
 async function invalidateTradeCachesBounded(args, budgetMs = CACHE_INVALIDATION_BUDGET_MS) {
+  // Every committed trade mutation passes through here, so this is where the
+  // Mind Score learns about it (debounced, detached, never awaited).
+  scheduleJournalEvent(args?.userId, args?.event);
   try {
     return await withTimeout(invalidateTradeCaches(args), "invalidateTradeCaches", budgetMs);
   } catch (error) {

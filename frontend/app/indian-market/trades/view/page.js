@@ -19,6 +19,7 @@ import {
   DetailHero, DetailLoading, DetailNotFound, DetailRows, DetailSection, DetailTopBar,
   MoodDots, PriceLadder, Quote, RuleResults, ScoreMeter, TagList,
 } from "@/features/trade/components/TradeDetailParts";
+import { parseRiskReward } from "@/features/trade/lib/tradeValidation";
 
 const num = (v) => (v != null && v !== "" && !isNaN(v) ? Number(v) : null);
 const LOT_SIZES = { NIFTY: 25, "BANK NIFTY": 15, BANKNIFTY: 15, "FIN NIFTY": 25, FINNIFTY: 25, MIDCPNIFTY: 75, SENSEX: 10, BANKEX: 15 };
@@ -93,7 +94,8 @@ function IndianTradeDetailContent() {
 
     let plannedRR = null;
     if (trade.riskRewardRatio && trade.riskRewardRatio !== "custom" && trade.riskRewardRatio.includes(":")) plannedRR = trade.riskRewardRatio;
-    else if (trade.riskRewardRatio === "custom" && trade.riskRewardCustom) plannedRR = trade.riskRewardCustom;
+    // A legacy custom value that isn't a ratio (e.g. "ssd") shows as —.
+    else if (trade.riskRewardRatio === "custom" && trade.riskRewardCustom) plannedRR = parseRiskReward(trade.riskRewardCustom).value || null;
     let actualRR = null;
     if (trade.entryPrice && trade.stopLoss && trade.exitPrice) {
       const risk = Math.abs(trade.entryPrice - trade.stopLoss);

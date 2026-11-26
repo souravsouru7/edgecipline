@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { validateSelectableImage } from "@/utils/imageUpload";
+import { validateSelectableImage, readPickedImage } from "@/utils/imageUpload";
 
 /**
  * FileUploadZone
@@ -14,16 +14,31 @@ import { validateSelectableImage } from "@/utils/imageUpload";
 export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) {
   const [isDragging, setIsDragging] = useState(false);
   const [sizeError, setSizeError] = useState(null);
+  const [reading, setReading] = useState(false);
   const fileInputRef = useRef(null);
+  const readingRef = useRef(false);
 
-  const validateAndSelect = (f) => {
+  const validateAndSelect = async (f) => {
+    if (!f || readingRef.current) return;
     const validationError = validateSelectableImage(f);
     if (validationError) {
       setSizeError(validationError);
       return;
     }
     setSizeError(null);
-    onFileSelect(f);
+    // Pull the bytes in now: on Android a picked cloud photo can be an
+    // unreadable reference, which used to surface later as "Network error".
+    readingRef.current = true;
+    setReading(true);
+    try {
+      const copy = await readPickedImage(f);
+      onFileSelect(copy);
+    } catch (err) {
+      setSizeError(err?.message || "Couldn't open this image. Please pick it again.");
+    } finally {
+      readingRef.current = false;
+      setReading(false);
+    }
   };
 
   const handleDragOver  = e => { e.preventDefault(); setIsDragging(true); };
@@ -54,7 +69,12 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        onChange={e => validateAndSelect(e.target.files[0])}
+        onChange={e => {
+          const picked = e.target.files?.[0];
+          // Reset so picking the same photo again still fires onChange.
+          e.target.value = "";
+          validateAndSelect(picked);
+        }}
         style={{ display: "none" }}
       />
 
@@ -64,7 +84,11 @@ export default function FileUploadZone({ onFileSelect, selectedFile, onClear }) 
         </div>
       )}
 
-      {selectedFile ? (
+      {reading ? (
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--lg-sub, #64748B)", fontFamily: "var(--lg-sans, 'Plus Jakarta Sans', sans-serif)", padding: "20px 0" }}>
+          Reading image…
+        </div>
+      ) : selectedFile ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <div style={{ width: 68, height: 68, borderRadius: 14, background: "var(--lg-green-soft, #ECFDF5)", border: "1.5px solid var(--lg-green-line, #A7F3D0)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--lg-green, #0D9E6E)" }}>
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

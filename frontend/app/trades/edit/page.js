@@ -18,7 +18,8 @@ import { reportUserError } from "@/utils/userMessage";
 import { useTheme } from "@/utils/theme";
 import { useSystemBars } from "@/features/shared/hooks/useSystemBars";
 import { getTodayInputValue, normalizeDateForInput } from "@/features/trade/lib/dateInput";
-import { parseNumericField } from "@/features/trade/lib/numericInput";
+import { parseNumericField, sanitizeNumericField } from "@/features/trade/lib/numericInput";
+import { focusTradeField, riskRewardPayload, validateTradeRules } from "@/features/trade/lib/tradeValidation";
 import {
   appendSetupRule,
   clearSetupRules as clearSetupRulesFollowed,
@@ -173,7 +174,8 @@ function EditTradePageContent() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "tradeDate") setDateError("");
-    setFormData({ ...formData, [name]: value });
+    // Number boxes drop letters as they're typed or pasted.
+    setFormData({ ...formData, [name]: sanitizeNumericField(name, value) });
   };
 
   const handleStrategyChange = (e) => {
@@ -222,6 +224,20 @@ function EditTradePageContent() {
       return;
     }
     setDateError("");
+    if (!String(formData.pair || "").trim()) {
+      addToast("Please enter a pair.", "info");
+      focusTradeField("pair");
+      return;
+    }
+    // Rules shared by every trade form (R:R format, take-profit side, custom
+    // entry basis, number sanity). The stored P&L is kept for instruments the
+    // server can't price, so that check doesn't apply on edit.
+    const ruleProblem = validateTradeRules(formData, { market: "Forex", hasTrustedPnl: true });
+    if (ruleProblem) {
+      addToast(ruleProblem.message, "info");
+      focusTradeField(ruleProblem.field);
+      return;
+    }
     setSaving(true);
     try {
       // Upload pending evidence images first so their URLs can be saved in
@@ -256,8 +272,9 @@ function EditTradePageContent() {
         strategy:          formData.strategy === "Custom" ? (formData.strategyCustom?.trim() || "Custom") : formData.strategy,
         session:           formData.session,
         notes:             formData.notes,
-        riskRewardRatio:   formData.riskRewardRatio,
-        riskRewardCustom:  formData.riskRewardCustom,
+        // Legacy trades store riskRewardRatio as null; send "" instead, and
+        // custom text only when "custom" is the selected ratio.
+        ...riskRewardPayload(formData.riskRewardRatio || "", formData.riskRewardCustom),
         screenshot:        formData.screenshot,
         imageUrl:          formData.imageUrl,
         tradeImages,

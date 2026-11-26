@@ -8,6 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTrade, updateTrade } from "@/services/tradeApi";
 import { MARKETS } from "@/context/MarketContext";
+import { sanitizeNumericField } from "@/features/trade/lib/numericInput";
+import { focusTradeField, riskRewardPayload, validateTradeRules } from "@/features/trade/lib/tradeValidation";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { ArrowLeft } from "lucide-react";
 import { Button, ErrorState, Placeholder } from "@/features/shared/components/ui";
@@ -156,7 +158,8 @@ function IndianEditTradeContent() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "tradeDate") setDateError("");
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Number boxes drop letters as they're typed or pasted.
+    setFormData((prev) => ({ ...prev, [name]: sanitizeNumericField(name, value) }));
   };
 
   const updateSetupRules = (update) =>
@@ -181,30 +184,49 @@ function IndianEditTradeContent() {
       return;
     }
     setDateError("");
-    if (!hasPositiveNumber(formData.entryPrice)) {
+    // A broker-screenshot trade can be P&L-only (no per-unit prices). Prices,
+    // and the size needed to price them, are only required once one is given.
+    const hasPrices = hasNumber(formData.entryPrice) || hasNumber(formData.exitPrice);
+    if (hasPrices && !hasPositiveNumber(formData.entryPrice)) {
       addToast("Entry price is required.", "error");
+      focusTradeField("entryPrice");
       return;
     }
-    if (!hasPositiveNumber(formData.exitPrice)) {
+    if (hasPrices && !hasPositiveNumber(formData.exitPrice)) {
       addToast("Exit price is required.", "error");
+      focusTradeField("exitPrice");
       return;
     }
-    if (!hasNumber(formData.profit)) {
-      addToast("P&L is required.", "error");
+    if (!hasPrices && !hasNumber(formData.profit)) {
+      addToast("Enter entry and exit prices (or keep the recorded P&L).", "error");
+      focusTradeField("entryPrice");
       return;
     }
     if (equityTrade) {
-      if (!hasPositiveNumber(formData.sharesQty)) {
+      if (hasPrices && !hasPositiveNumber(formData.sharesQty)) {
         addToast("Shares quantity is required.", "error");
+        focusTradeField("sharesQty");
         return;
       }
     } else {
-      if (!hasPositiveNumber(formData.quantity)) {
+      if (hasPrices && !hasPositiveNumber(formData.quantity)) {
         addToast("Quantity/lots is required.", "error");
+        focusTradeField("quantity");
         return;
       }
-      if (!hasPositiveNumber(formData.lotSize)) {
+      if (hasPrices && !hasPositiveNumber(formData.lotSize)) {
         addToast("Lot size is required.", "error");
+        focusTradeField("lotSize");
+        return;
+      }
+      if (!hasPositiveNumber(formData.strikePrice)) {
+        addToast("Strike price is required for option trades.", "error");
+        focusTradeField("strikePrice");
+        return;
+      }
+      if (!formData.expiryDate) {
+        addToast("Expiry date is required for option trades.", "error");
+        focusTradeField("expiryDate");
         return;
       }
     }
@@ -227,6 +249,17 @@ function IndianEditTradeContent() {
     }
     if (!formData.tradeQuality) {
       addToast("Select trade quality.", "error");
+      return;
+    }
+    // Rules shared by every trade form (R:R format, take-profit side, custom
+    // entry basis, expiry vs trade date, number sanity).
+    const ruleProblem = validateTradeRules(
+      { ...formData, expiryDate: normalizeDateForInput(formData.expiryDate) || formData.expiryDate },
+      { market: "Indian_Market", instrumentType: equityTrade ? "EQUITY" : "OPTION" }
+    );
+    if (ruleProblem) {
+      addToast(ruleProblem.message, "error");
+      focusTradeField(ruleProblem.field);
       return;
     }
 
@@ -284,6 +317,8 @@ function IndianEditTradeContent() {
           brokerage: toOptionalNumber(formData.brokerage),
           sttTaxes: toOptionalNumber(formData.sttTaxes),
           mood: toOptionalNumber(formData.mood),
+          ...riskRewardPayload(formData.riskRewardRatio || "", formData.riskRewardCustom),
+          entryBasisCustom: formData.entryBasis === "Custom" ? formData.entryBasisCustom : "",
           emotionalTags: String(formData.emotionalTags || "").split(",").map((tag) => tag.trim()).filter(Boolean),
           tradeQuality: formData.tradeQuality || "",
           setupRules: activeSetupRules,
@@ -425,13 +460,17 @@ function IndianEditTradeContent() {
             )}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
-              <InputField label="ENTRY BASIS CUSTOM" name="entryBasisCustom" value={formData.entryBasisCustom} onChange={handleChange} />
+              {formData.entryBasis === "Custom" && (
+                <InputField label="DESCRIBE YOUR ENTRY BASIS" name="entryBasisCustom" value={formData.entryBasisCustom} onChange={handleChange} />
+              )}
               <InputField label="TRADING SETUP" name="strategy" value={formData.strategy} onChange={handleChange} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
-              <InputField label="RISK : REWARD" name="riskRewardRatio" value={formData.riskRewardRatio} onChange={handleChange} options={[{ value: "", label: "Select…" }, { value: "1:1", label: "1:1" }, { value: "1:2", label: "1:2" }, { value: "1:3", label: "1:3" }, { value: "1:4", label: "1:4" }, { value: "1:5", label: "1:5" }, { value: "custom", label: "Custom" }]} required />
-              <InputField label="CUSTOM R:R" name="riskRewardCustom" value={formData.riskRewardCustom} onChange={handleChange} />
+              <InputField label="RISK : REWARD" name="riskRewardRatio" value={formData.riskRewardRatio} onChange={handleChange} options={[{ value: "", label: "Select…" }, { value: "1:1", label: "1:1" }, { value: "1:1.5", label: "1:1.5" }, { value: "1:2", label: "1:2" }, { value: "1:3", label: "1:3" }, { value: "1:4", label: "1:4" }, { value: "1:5", label: "1:5" }, { value: "custom", label: "Custom" }]} required />
+              {formData.riskRewardRatio === "custom" && (
+                <InputField label="CUSTOM R:R" name="riskRewardCustom" value={formData.riskRewardCustom} onChange={handleChange} placeholder="e.g. 1:2.5" />
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>

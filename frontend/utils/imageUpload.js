@@ -100,3 +100,36 @@ export function validateSelectableImage(file, { maxSourceBytes = 12 * 1024 * 102
   }
   return null;
 }
+
+export const UNREADABLE_IMAGE_MESSAGE =
+  "Couldn't open this image. If it's in Google Photos or the cloud, wait for it to download and pick it again, or choose a screenshot saved on your phone.";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Android's picker can hand back a File that is only a content:// reference
+ * (cloud photo still downloading, or the read grant lapsed). Its name/size
+ * look fine but the bytes can't be read, so the preview breaks and the
+ * upload fails as a fake "Network error". Read the bytes now, retry once,
+ * and return an in-memory copy so later steps never touch the URI again.
+ */
+export async function readPickedImage(file, { retryDelayMs = 400 } = {}) {
+  if (!file) throw new Error(UNREADABLE_IMAGE_MESSAGE);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const buf = await file.arrayBuffer();
+      if (buf && buf.byteLength > 0) {
+        return new File([buf], file.name || "screenshot.png", {
+          type: file.type || "image/jpeg",
+          lastModified: file.lastModified || Date.now(),
+        });
+      }
+    } catch {
+      // fall through to retry
+    }
+    if (attempt === 0) await sleep(retryDelayMs);
+  }
+  const err = new Error(UNREADABLE_IMAGE_MESSAGE);
+  err.code = "IMAGE_UNREADABLE";
+  throw err;
+}

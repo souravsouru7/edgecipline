@@ -1,5 +1,7 @@
 "use client";
 
+import { useCountUp } from "../../hooks/useCountUp";
+
 const cx = (...parts) => parts.filter(Boolean).join(" ");
 
 const CURRENCY = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
@@ -28,12 +30,14 @@ export function formatValue(value, { kind = "money", currency = "USD", decimals,
   return `${sign}${CURRENCY[currency] ?? ""}${body}`;
 }
 
-export default function Money({ value, kind = "money", currency, decimals, signed = false, compact = false, className, ...rest }) {
+/** animate: count up from 0 on first show (see useCountUp). */
+export default function Money({ value, kind = "money", currency, decimals, signed = false, compact = false, animate = false, className, ...rest }) {
   const n = Number(value);
   const tone = !signed || !Number.isFinite(n) ? null : n > 0 ? "up" : n < 0 ? "down" : "flat";
+  const counted = useCountUp(animate && value !== null && value !== "" && Number.isFinite(n) ? n : null);
   return (
     <span className={cx("ec-num", tone && `ec-pnl--${tone}`, className)} {...rest}>
-      {formatValue(value, { kind, currency, decimals, signed, compact })}
+      {formatValue(counted ?? value, { kind, currency, decimals, signed, compact })}
     </span>
   );
 }

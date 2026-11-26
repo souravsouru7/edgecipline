@@ -151,6 +151,31 @@ describe("indian trade controller", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ profit: 500 }));
   });
 
+  it("stores broker-printed negative charges as positive costs instead of rejecting", async () => {
+    IndianTrade.create.mockImplementation(async (doc) => ({ _id: "trade-2", ...doc }));
+    const req = createReq({
+      pair: "NIFTY 24100 PE",
+      type: "BUY",
+      optionType: "PE",
+      strikePrice: 24100,
+      expiryDate: "2026-07-31",
+      tradeDate: "2026-07-13",
+      quantity: 1,
+      lotSize: 25,
+      entryPrice: 100,
+      exitPrice: 120,
+      brokerage: -20,
+      sttTaxes: -3.5,
+    });
+    const res = createRes();
+    const next = jest.fn();
+
+    await createTrade(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(IndianTrade.create).toHaveBeenCalledWith(expect.objectContaining({ brokerage: 20, sttTaxes: 3.5 }));
+  });
+
   it("scopes Indian trade reads to the authenticated user", async () => {
     IndianTrade.findOne.mockResolvedValue(null);
     const req = createReq({}, { id: "trade-a" });

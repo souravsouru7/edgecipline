@@ -9,6 +9,8 @@ const FEATURES = [
   "weekly_report",
   "trading_dna",
   "reflection",
+  // One buddy-tone coaching line per user per day (mindProgress.service).
+  "mind_progress",
 ];
 
 const RETENTION_DAYS = 180;

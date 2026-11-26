@@ -1,7 +1,8 @@
 "use client";
 
-import { AnalyticsPageView } from "../page";
+import CoachFeedRedirect from "@/features/dashboard/components/CoachFeedRedirect";
 
+// The AI Coach Feed moved to Home (/dashboard#coach-feed).
 export default function AnalyticsAiCoachPage() {
-  return <AnalyticsPageView section="ai-coach" />;
+  return <CoachFeedRedirect />;
 }

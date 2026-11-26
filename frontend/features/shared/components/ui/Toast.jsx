@@ -2,7 +2,7 @@
 
 import React, { useState, createContext, useContext, useCallback, useMemo, memo } from "react";
 import * as haptics from "@/utils/haptics";
-import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-react";
+import { X, AlertCircle, Info, Loader2 } from "lucide-react";
 
 const ToastContext = createContext();
 
@@ -92,7 +92,13 @@ const ToastItem = memo(({ id, message, type, onRemove }) => {
   const handleRemove = useCallback(() => onRemove(id), [id, onRemove]);
 
   const icons = {
-    success: <CheckCircle size={18} color="#0D9E6E" />,
+    success: (
+      <svg className="ec-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D9E6E"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path className="ec-check__tick" d="m8 12.5 2.8 2.8 5.7-5.8" pathLength="1" />
+      </svg>
+    ),
     error: <AlertCircle size={18} color="#D63B3B" />,
     info: <Info size={18} color="#3182CE" />,
     loading: <Loader2 size={18} color="#718096" className="animate-spin" />,
@@ -115,7 +121,7 @@ const ToastItem = memo(({ id, message, type, onRemove }) => {
 
   return (
     <div 
-      className="toast-item visible"
+      className="toast-item visible ec-toast-in"
       style={{
         background: bgColors[type],
         border: `1px solid ${borderColors[type]}`,

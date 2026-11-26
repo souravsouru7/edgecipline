@@ -79,7 +79,7 @@ function IndianTradesContent() {
         </JournalToolbar>
 
         {j.error && !j.trades.length ? (
-          <JournalError onRetry={j.refetch} />
+          <JournalError error={j.error} onRetry={j.refetch} />
         ) : showEmpty ? (
           j.trades.length && !j.filter.match(/^(win|loss|CE|PE)$/) && !j.search.trim() ? (
             // Trades exist this period, just none of this instrument type.

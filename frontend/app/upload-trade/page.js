@@ -16,6 +16,7 @@ import SetupChecklist        from "@/features/trade/components/SetupChecklist";
 import TradeEvidenceSection  from "@/features/trade/components/TradeEvidenceSection";
 import SectionCard           from "@/features/trade/components/SectionCard";
 import { FormInput }         from "@/features/trade/components/FormInput";
+import { checkForexPnl }     from "@/features/trade/lib/tradeValidation";
 import { FormSelect }        from "@/features/trade/components/FormSelect";
 import { useUploadTrade }    from "@/features/trade/hooks/useUploadTrade";
 import { useUserProfile }   from "@/features/auth/hooks/useUserProfile";
@@ -82,9 +83,13 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
     [showConfirmModal, file]
   );
 
+  const [previewFailed, setPreviewFailed] = useState(false);
+
   useEffect(() => {
     if (showConfirmModal) confirmSubmitRef.current = false;
   }, [showConfirmModal]);
+
+  useEffect(() => { setPreviewFailed(false); }, [file]);
   const normalizedError = String(error || "").toLowerCase();
   // Driven off the 402 TRADE_LIMIT_REACHED envelope, not the copy, so this card
   // and TradeQuotaPill above are reading the same quota object.
@@ -504,13 +509,20 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 Please verify this is the correct {isInd ? "Indian" : "Forex"} trade image before extraction.
               </div>
 
-              {confirmImageUrl && (
+              {confirmImageUrl && !previewFailed && (
                 <div style={{ borderRadius: 10, border: "1px solid var(--lg-line, #E2E8F0)", overflow: "hidden", background: "var(--lg-soft, #F8FAFC)", marginBottom: 14 }}>
                   <img
                     src={confirmImageUrl}
                     alt="Upload confirmation preview"
+                    onError={() => setPreviewFailed(true)}
                     style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain", background: "var(--lg-soft, #F8FAFC)" }}
                   />
+                </div>
+              )}
+
+              {previewFailed && (
+                <div role="alert" style={{ borderRadius: 10, border: "1px solid var(--lg-red-soft, #FCA5A5)", background: "var(--lg-red-soft, #FEF2F2)", color: "var(--lg-red, #D63B3B)", fontSize: 12, fontWeight: 600, lineHeight: 1.5, padding: "12px 14px", marginBottom: 14 }}>
+                  This image couldn&apos;t be opened. If it&apos;s in Google Photos or the cloud, wait for it to download, then pick it again — or choose a screenshot saved on your phone.
                 </div>
               )}
 
@@ -531,6 +543,25 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 >
                   Cancel
                 </button>
+                {previewFailed ? (
+                <button
+                  type="button"
+                  onClick={() => { setShowConfirmModal(false); setFile(null); setError(null); }}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 9,
+                    border: "none",
+                    background: isInd ? "linear-gradient(135deg,#1B5E20,#2E7D32)" : "linear-gradient(135deg,var(--lg-gold, #B8860B),#D4A917)",
+                    color: "var(--lg-card, #FFFFFF)",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                  }}
+                >
+                  Choose again
+                </button>
+                ) : (
                 <button
                   type="button"
                   disabled={loading}
@@ -555,6 +586,7 @@ function UploadCard({ state, accountCreatedDate, todayInputMax }) {
                 >
                   Yes, Upload
                 </button>
+                )}
               </div>
             </div>
           </div>
@@ -622,6 +654,31 @@ function AccuracyDisclaimer({ isInd, checked, onChange }) {
           </span>
         </label>
       </div>
+    </div>
+  );
+}
+
+// Screenshot P&L vs the P&L the trade's own prices give. A screenshot reader
+// can misread one digit (71.60 for 77.60); entry, exit and lot size have to
+// agree with each other, so a mismatch is worth a second look. Never blocks.
+function PnlCheck({ trade, onChange }) {
+  const check = checkForexPnl(trade || {});
+  if (!check) return null;
+  const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
+  const base = { fontSize: "var(--fs-2xs)", marginTop: 5, fontFamily: "var(--lg-mono, 'JetBrains Mono', monospace)" };
+  if (!check.differs) {
+    return <div style={{ ...base, color: "var(--lg-muted, #94A3B8)" }}>Matches your prices ({money(check.calculated)} after commission)</div>;
+  }
+  return (
+    <div role="status" style={{ ...base, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 8px", background: "var(--lg-gold-soft, #FFFBEB)", border: "1px solid var(--lg-gold, #FCD34D)", borderRadius: 6, color: "var(--lg-gold, #B45309)", fontWeight: 700 }}>
+      <span>From your prices: {money(check.calculated)} after commission. The screenshot read {money(Number(trade.profit))}. Please check.</span>
+      <button
+        type="button"
+        onClick={() => onChange({ target: { name: "profit", value: String(check.calculated) } })}
+        style={{ border: 0, borderRadius: 6, padding: "4px 8px", background: "var(--lg-green, #0D9E6E)", color: "#fff", fontWeight: 800, cursor: "pointer", fontSize: "inherit", fontFamily: "inherit" }}
+      >
+        Use {money(check.calculated)}
+      </button>
     </div>
   );
 }
@@ -776,13 +833,18 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
               <FormInput label="LOT SIZE" name="lotSize" value={trade?.lotSize} onChange={onChange} placeholder="25" type="number" />
               <FormSelect label="OPTION TYPE" name="optionType" value={trade?.optionType} onChange={onChange} options={[{ value: "CE", label: "CE — Call" }, { value: "PE", label: "PE — Put" }]} />
             </div>
+            {/* The server requires a strike on every option trade. */}
+            <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
+              <FormInput label="STRIKE PRICE" name="strikePrice" value={trade?.strikePrice} onChange={onChange} placeholder="26100" type="number" />
+              <div />
+            </div>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
               <FormInput label="ENTRY PRICE (₹)" name="entryPrice" value={trade?.entryPrice} onChange={onChange} placeholder="0.00" type="number" />
               <FormInput label="EXIT PRICE (₹)"  name="exitPrice"  value={trade?.exitPrice}  onChange={onChange} placeholder="0.00" type="number" />
             </div>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
               <FormInput label="P&L (₹)" name="profit" value={trade?.profit} onChange={onChange} placeholder="0.00" type="number" />
-              <FormInput label="EXPIRY"  name="expiryDate" value={trade?.expiryDate} onChange={onChange} placeholder="2025-12-26" type="date" />
+              <FormInput label="EXPIRY"  name="expiryDate" value={trade?.expiryDate} onChange={onChange} placeholder="2025-12-26" type="date" required min={trade?.tradeDate || undefined} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <FormSelect
@@ -792,6 +854,7 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
                 onChange={onChange}
                 options={[
                   { value: "1:1", label: "1 : 1" },
+                  { value: "1:1.5", label: "1 : 1.5" },
                   { value: "1:2", label: "1 : 2" },
                   { value: "1:3", label: "1 : 3" },
                   { value: "1:4", label: "1 : 4" },
@@ -814,7 +877,10 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
             </div>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
               <FormInput label="LOT SIZE" name="lotSize" value={trade?.lotSize} onChange={onChange} placeholder="0.10" type="number" />
-              <FormInput label="P&L ($)"  name="profit"  value={trade?.profit}  onChange={onChange} placeholder="0.00" type="number" />
+              <div>
+                <FormInput label="P&L ($)"  name="profit"  value={trade?.profit}  onChange={onChange} placeholder="0.00" type="number" />
+                <PnlCheck trade={trade} onChange={onChange} />
+              </div>
             </div>
             <div className="form-2col" style={{ ...grid2, marginBottom: 14 }}>
               <FormInput label="STOP LOSS"   name="stopLoss"   value={trade?.stopLoss}   onChange={onChange} placeholder="1.08000" type="number" />
@@ -847,6 +913,12 @@ function TradeFormCard({ state, tradeIdx = null, psychologyRef = null, accountCr
         {/* Entry basis */}
         <div style={{ marginBottom: 16 }}>
           <FormSelect label="ENTRY BASIS" name="entryBasis" value={trade?.entryBasis} onChange={onChange} options={ENTRY_BASIS.map(v => ({ value: v, label: v }))} />
+          {/* Without this input, picking "Custom" made the trade impossible to save. */}
+          {trade?.entryBasis === "Custom" && (
+            <div style={{ marginTop: 12 }}>
+              <FormInput label="DESCRIBE YOUR ENTRY BASIS" name="entryBasisCustom" value={trade?.entryBasisCustom || ""} onChange={onChange} placeholder="e.g. News-driven breakout" />
+            </div>
+          )}
         </div>
 
         {/* Session (Forex only) */}

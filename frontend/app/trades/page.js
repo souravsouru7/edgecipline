@@ -78,7 +78,7 @@ function TradesContent() {
         />
 
         {error && !trades.length ? (
-          <JournalError onRetry={() => refetch()} />
+          <JournalError error={error} onRetry={refetch} />
         ) : showEmpty ? (
           <JournalEmpty reason={emptyReason} onClear={clearFilters} />
         ) : (

@@ -14,6 +14,7 @@ import { ToastProvider } from "@/features/shared/components/ui/Toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import EnvironmentGuard from "@/components/EnvironmentGuard";
 import PushNotificationBootstrap from "@/components/PushNotificationBootstrap";
+import MindRewardHost from "@/features/mind-progress/components/MindRewardHost";
 import PlayBillingBootstrap from "@/components/PlayBillingBootstrap";
 import AuthSessionBootstrap from "@/components/AuthSessionBootstrap";
 import SignOutOverlay from "@/components/SignOutOverlay";
@@ -60,7 +61,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             // Must be >= the persister's maxAge, otherwise restored entries are
             // garbage-collected before the screen that needs them mounts.
             gcTime: PERSISTED_CACHE_MAX_AGE_MS,
-            retry: 1,
+            // A 429 is never retried here: every retry spends more of the
+            // per-user budget and lengthens the lockout. Screens that care
+            // (the journal) wait out Retry-After and refetch once.
+            retry: (failureCount: number, error: unknown) =>
+              (error as { status?: number } | null)?.status !== 429 && failureCount < 1,
             refetchOnReconnect: false,
             refetchOnWindowFocus: false,
           },
@@ -93,6 +98,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                   <RouteTransitionProgress />
                 </Suspense>
                 <PushNotificationBootstrap />
+                <MindRewardHost />
                 <NativeBackButton />
                 <OfflineBanner />
                 {/* Reconciles Google Play purchases on launch/resume. Renders
@@ -117,6 +123,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                   <RouteTransitionProgress />
                 </Suspense>
                 <PushNotificationBootstrap />
+                <MindRewardHost />
                 <NativeBackButton />
                 <OfflineBanner />
                 {/* Reconciles Google Play purchases on launch/resume. Renders

@@ -21,6 +21,7 @@ const GROUPS = [
       { key: "morningMentor", label: "Morning mentor", hint: "A short note on your previous trading day, at 7:00" },
       { key: "eveningReflection", label: "Evening reflection", hint: "A nudge to close the day, at 19:30" },
       { key: "streakProtection", label: "Streak reminders", hint: "When your discipline streak is about to break, and milestones" },
+      { key: "mindProgress", label: "Mind Score", hint: "Level-ups, Mind Wins and your weekly focus. At most one a day, never for a bad day" },
       { key: "weeklyInsight", label: "Weekly review", hint: "When your weekly review is ready" },
     ],
   },

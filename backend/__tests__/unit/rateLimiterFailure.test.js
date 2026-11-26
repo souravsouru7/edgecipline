@@ -147,11 +147,12 @@ describe('Redis rate limiter failure behavior', () => {
     otherUserReq.originalUrl = '/api/reports/weekly';
     otherUserReq.headers.authorization = 'Bearer other-token';
 
-    for (let attempt = 1; attempt <= 100; attempt += 1) {
+    // Signed-in users get the app budget (600 / 15 min), not the anonymous 100.
+    for (let attempt = 1; attempt <= 600; attempt += 1) {
       const res = createRes();
       await globalRateLimiter(userReq, res, jest.fn());
       expect(res.statusCode).toBe(200);
-      expect(res.headers['RateLimit-Limit']).toBe('100');
+      expect(res.headers['RateLimit-Limit']).toBe('600');
     }
 
     const blockedRes = createRes();
@@ -166,6 +167,23 @@ describe('Redis rate limiter failure behavior', () => {
     expect(next).toHaveBeenCalledTimes(1);
 
     verifySpy.mockRestore();
+  });
+
+  test('anonymous (per-IP) global traffic keeps the strict 100 limit', async () => {
+    const anonReq = createReq('198.51.100.7');
+    anonReq.method = 'GET';
+    anonReq.originalUrl = '/api/support/config';
+
+    for (let attempt = 1; attempt <= 100; attempt += 1) {
+      const res = createRes();
+      await globalRateLimiter(anonReq, res, jest.fn());
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['RateLimit-Limit']).toBe('100');
+    }
+    const blockedRes = createRes();
+    await globalRateLimiter(anonReq, blockedRes, jest.fn());
+    expect(blockedRes.statusCode).toBe(429);
+    expect(blockedRes.headers['Retry-After']).toBeDefined();
   });
 
   test('global limiter lets OCR status polling use the dedicated status limiter', async () => {

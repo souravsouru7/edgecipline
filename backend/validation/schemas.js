@@ -58,8 +58,10 @@ const tradeBody = z.object({
   strategy: optionalText(100),
   session: optionalText(50),
   notes: optionalText(2000),
-  riskRewardRatio: optionalText(50),
-  riskRewardCustom: optionalText(50),
+  // Stored as null on legacy Forex trades; the edit form resends it as-is.
+  // Format of the custom value is checked in utils/tradeValidation.
+  riskRewardRatio: z.string().trim().max(50).nullable().optional(),
+  riskRewardCustom: z.string().trim().max(50).nullable().optional(),
   screenshot: optionalText(2000),
   imageUrl: optionalText(2000),
   tradeImages: z.array(imageSchema).max(20).optional(),

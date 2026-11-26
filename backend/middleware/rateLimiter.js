@@ -156,11 +156,17 @@ function pruneMemoryBuckets(now) {
   }
 }
 
+// `maxRequests` may be a number or a function of the key type ("user" / "ip"
+// / custom), so one limiter can give signed-in users a different budget.
+function resolveLimit(maxRequests, keyType) {
+  return typeof maxRequests === "function" ? maxRequests(keyType) : maxRequests;
+}
+
 function consumeMemoryFallback(req, scope, { windowMs, maxRequests, resolveKey = resolveRateLimitKey }) {
   const now = Date.now();
   const { key: rateLimitKey, keyType } = resolveKey(req, scope);
   const fallbackWindowMs = Number(windowMs) || DEFAULT_FALLBACK_WINDOW_MS;
-  const fallbackMaxRequests = Number(maxRequests) || DEFAULT_FALLBACK_MAX_REQUESTS;
+  const fallbackMaxRequests = Number(resolveLimit(maxRequests, keyType)) || DEFAULT_FALLBACK_MAX_REQUESTS;
   const key = `fallback:${rateLimitKey}`;
   let bucket = memoryBuckets.get(key);
 
@@ -272,17 +278,18 @@ function createRedisRateLimiter({
 
       const currentCount = Number(currentCountRaw);
       const ttlMs = Number(ttlMsRaw);
-      const remaining = Math.max(0, maxRequests - currentCount);
+      const limit = resolveLimit(maxRequests, keyType);
+      const remaining = Math.max(0, limit - currentCount);
       const resetSeconds = Math.max(1, Math.ceil((ttlMs > 0 ? ttlMs : windowMs) / 1000));
 
-      res.setHeader("RateLimit-Limit", String(maxRequests));
+      res.setHeader("RateLimit-Limit", String(limit));
       res.setHeader("RateLimit-Remaining", String(remaining));
       res.setHeader("RateLimit-Reset", String(resetSeconds));
 
-      if (currentCount > maxRequests) {
+      if (currentCount > limit) {
         return sendRateLimitResponse(req, res, {
           scope,
-          limit: maxRequests,
+          limit,
           ttlMs,
           message,
           keyType,
@@ -344,7 +351,13 @@ function skipGlobalForDedicatedStatusLimiter(req) {
 const globalRateLimiter = createRedisRateLimiter({
   scope: "global",
   windowMs: appConfig.rateLimit.globalWindowMs,
-  maxRequests: appConfig.rateLimit.globalMaxRequests,
+  // Signed-in users (keyed by user id) get the larger app budget; anonymous
+  // traffic (keyed by IP) keeps the strict one.
+  maxRequests: (keyType) => (
+    String(keyType).endsWith("user")
+      ? (appConfig.rateLimit.globalUserMaxRequests || appConfig.rateLimit.globalMaxRequests)
+      : appConfig.rateLimit.globalMaxRequests
+  ),
   message: "Too many requests. Please try again later.",
   skip: skipGlobalForDedicatedStatusLimiter,
 });

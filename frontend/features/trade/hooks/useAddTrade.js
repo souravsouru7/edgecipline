@@ -9,6 +9,7 @@ import { isTradeLimitError, tradeLimitQuota, tradeLimitRequested } from "@/featu
 import { applyQuotaFromResponse } from "@/features/trade/hooks/useTradeQuota";
 import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
+import { readPickedImage } from "@/utils/imageUpload";
 import { MARKETS } from "@/context/MarketContext";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import {
@@ -18,7 +19,10 @@ import {
 import { markOnboardingStep } from "@/services/api";
 import { getTodayInputValue } from "@/features/trade/lib/dateInput";
 import * as haptics from "@/utils/haptics";
+import { announceJournalSaved } from "@/features/mind-progress/rewardBus";
 import { sanitizeNumericField, parseNumericField } from "@/features/trade/lib/numericInput";
+import { focusTradeField, riskRewardPayload, validateTradeRules } from "@/features/trade/lib/tradeValidation";
+import { deriveForexProfit, isForexPricable } from "@/features/trade/lib/tradeProfit";
 import {
   appendSetupRule,
   clearSetupRules as clearSetupRulesFollowed,
@@ -167,6 +171,7 @@ export function useAddTrade(marketType, isIndianMarket) {
 
       addToast("Trade created and synced successfully!", "success");
       void haptics.success();
+      announceJournalSaved("trade");
 
       markOnboardingStep("tradeAdded", true).catch(() => {});
 
@@ -205,9 +210,19 @@ export function useAddTrade(marketType, isIndianMarket) {
     }
   }, [isIndianMarket]);
 
+  // Forex P&L is calculated by the server from these fields, so the form
+  // shows that same number as the trader types instead of a guess.
+  const PNL_INPUTS = ["pair", "type", "entryPrice", "exitPrice", "lotSize", "commission", "swap"];
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setTrade(prev => ({ ...prev, [name]: sanitizeNumericField(name, value) }));
+    setTrade(prev => {
+      const next = { ...prev, [name]: sanitizeNumericField(name, value) };
+      if (!isIndianMarket && PNL_INPUTS.includes(name)) {
+        const calculated = deriveForexProfit(next);
+        next.profit = calculated == null ? "" : String(calculated);
+      }
+      return next;
+    });
   };
 
   const handleStrategyChange = (e) => {
@@ -221,8 +236,17 @@ export function useAddTrade(marketType, isIndianMarket) {
     }
   };
 
-  const handleScreenshotChange = async (file) => {
-    if (!file) return;
+  const handleScreenshotChange = async (pickedFile) => {
+    if (!pickedFile) return;
+    // Android can hand back an unreadable cloud-photo reference; read the
+    // bytes now so we show a clear message instead of a fake network error.
+    let file;
+    try {
+      file = await readPickedImage(pickedFile);
+    } catch (err) {
+      addToast(err.message, "error");
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => setScreenshotPreview(reader.result);
     reader.readAsDataURL(file);
@@ -293,9 +317,23 @@ export function useAddTrade(marketType, isIndianMarket) {
       return;
     }
 
+    if (!isIndianMarket) {
+      const lot = parseNumericField(trade.lotSize);
+      if (!(lot > 0)) {
+        showValidation("Enter lot size.");
+        focusTradeField("lotSize");
+        return;
+      }
+      if (!isForexPricable(trade.pair)) {
+        showValidation(`Automatic P&L isn't supported for ${String(trade.pair).toUpperCase()} yet.`);
+        focusTradeField("pair");
+        return;
+      }
+    }
     const pnl = String(trade.profit).trim();
-    if (pnl === "" || isNaN(parseFloat(pnl))) {
-      showValidation("Enter profit or loss.");
+    if (pnl === "" || parseNumericField(pnl) === undefined) {
+      showValidation(isIndianMarket ? "Enter profit or loss." : "Fill in entry, exit and lot size to calculate P&L.");
+      focusTradeField(isIndianMarket ? "profit" : "entryPrice");
       return;
     }
     const ep = String(trade.entryPrice).trim();
@@ -326,6 +364,7 @@ export function useAddTrade(marketType, isIndianMarket) {
     }
     if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
       showValidation("Enter your custom risk : reward ratio.");
+      focusTradeField("riskRewardCustom");
       return;
     }
     if (!trade.mood) {
@@ -341,6 +380,18 @@ export function useAddTrade(marketType, isIndianMarket) {
       return;
     }
 
+    // Rules shared by every trade form (R:R format, take-profit side, custom
+    // entry basis, number sanity, Forex symbols the server can't price).
+    const ruleProblem = validateTradeRules(
+      { ...trade, pair: isIndianMarket ? undefined : trade.pair },
+      { market: isIndianMarket ? "Indian_Market" : "Forex", instrumentType: isEquity ? "EQUITY" : "OPTION" }
+    );
+    if (ruleProblem) {
+      showValidation(ruleProblem.message);
+      focusTradeField(ruleProblem.field);
+      return;
+    }
+
     const sharedFields = {
       type: trade.type.toUpperCase(),
       profit: parseNumericField(trade.profit),
@@ -351,8 +402,9 @@ export function useAddTrade(marketType, isIndianMarket) {
       strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
       setup: trade.setup || undefined,
       tradeDate: trade.tradeDate,
-      riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
-      riskRewardCustom: trade.riskRewardCustom?.trim() || "",
+      // Custom text only when "custom" is the selected ratio (stale text used
+      // to override a preset the trader picked afterwards).
+      ...riskRewardPayload(trade.riskRewardRatio, trade.riskRewardCustom),
       entryBasis: trade.entryBasis || "Plan",
       entryBasisCustom: trade.entryBasis === "Custom" ? trade.entryBasisCustom : "",
       notes: trade.notes || undefined,

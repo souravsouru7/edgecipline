@@ -25,6 +25,8 @@ const cases = [
   ["reflection", { screen: "reflection" }, "/reflection"],
   ["streaks", { screen: "streaks" }, "/streaks"],
   ["missions", { screen: "missions" }, "/missions"],
+  ["Mind Score (no deepLink on purpose)", { screen: "mind-progress" }, "/progress"],
+  ["Mind Score, Indian-market user", { screen: "mind-progress", marketType: "Indian_Market" }, "/progress"],
   ["checklist", { screen: "checklist" }, "/checklist"],
   ["OCR Forex", { screen: "upload-trade" }, "/upload-trade"],
   ["OCR Indian", { screen: "upload-trade", marketType: "Indian_Market" }, "/indian-market/upload-trade"],

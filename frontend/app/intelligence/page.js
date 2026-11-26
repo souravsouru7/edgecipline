@@ -89,7 +89,7 @@ function IntelligenceContent() {
     "/analytics/patterns": "/indian-market/intelligence/patterns",
     "/analytics/psychology-cost": "/indian-market/intelligence/psychology-cost",
     "/analytics/self-awareness": "/indian-market/intelligence/self-awareness",
-    "/analytics/ai-coach": "/indian-market/intelligence/ai-coach",
+    "/analytics/ai-coach": "/indian-market/dashboard#coach-feed",
   };
   const analyticsPath = (forexPath, indianTarget = indianIntelligenceTargets[forexPath]) =>
     isIndianMarket ? (indianTarget || "/indian-market/intelligence") : forexPath;
@@ -225,11 +225,11 @@ function IntelligenceContent() {
 
               <IntelligenceGroup title="What Should I Do Now?" subtitle="The latest coaching cue from your actual trading data.">
                 <ModuleLink
-                  href={analyticsPath("/analytics/ai-coach")}
+                  href={analyticsPath("/dashboard#coach-feed", "/indian-market/dashboard#coach-feed")}
                   eyebrow="AI Coach Feed"
                   title={latestCoach?.title || "Personalized Coach Feed"}
                   summary={latestCoach?.action || latestCoach?.insight || "Your coach feed will prioritize specific observations, evidence, actions, and expected outcomes once enough data is available."}
-                  action="Open AI Coach Feed ->"
+                  action="Open on Home ->"
                   accent={C.bull}
                 />
                 <ModuleLink

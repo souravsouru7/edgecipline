@@ -248,7 +248,7 @@ function AddTradeContent() {
                     </select>
                   </Field>
                   <Field label="Lot Size">
-                    <input name="lotSize" type="number" step="any" placeholder="0.01" value={trade.lotSize} onChange={handleChange} style={fieldInput} />
+                    <input name="lotSize" type="number" step="any" min="0" placeholder="0.01" value={trade.lotSize} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={fieldInput} />
                   </Field>
                 </div>
               </>
@@ -263,9 +263,14 @@ function AddTradeContent() {
               </Field>
             </div>
 
-            <Field label={`Net Profit (${getCurrencySymbol()})`} required>
+            <Field label={isIndianMarket ? `Net Profit (${getCurrencySymbol()})` : `Net P&L (${getCurrencySymbol()}) · calculated`} required>
               <input
-                name="profit" type="number" step="any" placeholder="e.g. 1500 or -500"
+                name="profit" type="number" step="any"
+                placeholder={isIndianMarket ? "e.g. 1500 or -500" : "Fills in from entry, exit and lot size"}
+                // Forex P&L is what the server will save: calculated, not typed.
+                readOnly={!isIndianMarket}
+                aria-readonly={!isIndianMarket}
+                title={!isIndianMarket ? "Calculated from pair, side, entry, exit, lot size, commission and swap" : undefined}
                 value={trade.profit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys}
                 style={{ ...fieldInput, color: bull ? theme.bull : theme.bear, fontSize: 18, fontWeight: 800, background: bull ? "rgba(13,158,110,0.05)" : "rgba(214,59,59,0.05)" }}
               />
@@ -379,7 +384,7 @@ function AddTradeContent() {
           {/* ── Visual Evidence ── */}
           <div>
             <label style={fieldLabel}>Screenshot</label>
-            <input type="file" ref={fileInputRef} accept="image/*" onChange={e => handleScreenshotChange(e.target.files[0])} style={{ display: "none" }} />
+            <input type="file" ref={fileInputRef} accept="image/*" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; handleScreenshotChange(f); }} style={{ display: "none" }} />
             <div
               onClick={() => !inProgress && fileInputRef.current.click()}
               style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: inProgress ? "not-allowed" : "pointer", background: "var(--lg-soft, #fafafa)", transition: "all 0.2s" }}

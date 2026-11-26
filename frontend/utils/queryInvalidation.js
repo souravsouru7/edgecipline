@@ -9,8 +9,11 @@ const TRADE_DEPENDENT_QUERY_KEYS = [
   ["patterns"],
   ["aiCoach"],
   ["coachFeed"],
+  ["indian-intelligence"],
   ["weeklyReports"],
   ["reports"],
+  // Mind Score card/page: every journal write can move it.
+  ["mindProgress"],
 ];
 
 const TRADE_QUERY_FRESHNESS_OPTIONS = Object.freeze({

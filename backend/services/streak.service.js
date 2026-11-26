@@ -565,6 +565,7 @@ module.exports = {
   dayKeyInTz,
   addDays,
   diffDays,
+  getUserTimezone,
   // Writes
   recordTradeEvent,
   markNoTradeToday,

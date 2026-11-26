@@ -18,6 +18,15 @@ import {
   markNotificationAsRead,
 } from "@/services/notificationApi";
 import { markOnboardingStep } from "@/services/api";
+import { getNotificationTarget } from "@/services/notificationRoutes";
+
+// deepLink wins; otherwise a `screen` in the payload resolves through the same
+// map push taps use. Mind Score notifications deliberately carry no deepLink
+// (older app builds have no /progress page), only screen: "mind-progress".
+function targetOf(n) {
+  if (n.deepLink) return n.deepLink;
+  return n.data?.screen ? getNotificationTarget(n.data) : null;
+}
 
 // type → label, icon and tone. Tones map to theme colours in design-system.css
 // so the inbox reads the same in light and dark.
@@ -39,6 +48,10 @@ const TYPE_META = {
   streak_broken: { label: "Streak", Icon: Flame, tone: "info" },
   evening_reflection: { label: "Reflection", Icon: Moon, tone: "info" },
   mission_update: { label: "Mission", Icon: Compass, tone: "info" },
+  mind_report_ready: { label: "Mind Score", Icon: Brain, tone: "good" },
+  mind_level_up: { label: "Mind Score", Icon: Brain, tone: "good" },
+  mind_win: { label: "Mind Win", Icon: Brain, tone: "good" },
+  mind_target: { label: "Weekly focus", Icon: Target, tone: "info" },
   ocr_completed: { label: "Screenshot", Icon: Camera, tone: "good" },
   ocr_failed: { label: "Screenshot", Icon: Camera, tone: "bad" },
   support_agent_reply: { label: "Support", Icon: LifeBuoy, tone: "info" },
@@ -117,7 +130,7 @@ function NotificationRow({ n, now, onOpen }) {
         </span>
         <span className="ec-notif__end" aria-hidden="true">
           {unread ? <span className="ec-notif__dot" /> : null}
-          {n.deepLink ? <ChevronRight size={16} className="ec-notif__chev" /> : null}
+          {targetOf(n) ? <ChevronRight size={16} className="ec-notif__chev" /> : null}
         </span>
       </button>
     </li>
@@ -192,7 +205,8 @@ function NotificationsContent() {
       setNotifications((prev) => prev.map((item) => (item._id === n._id ? { ...item, isRead: true } : item)));
       markNotificationAsRead(n._id).catch(() => {});
     }
-    if (n.deepLink) router.push(n.deepLink);
+    const target = targetOf(n);
+    if (target) router.push(target);
   };
 
   const handleMarkAll = async () => {

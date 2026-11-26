@@ -40,7 +40,8 @@ export function FormInput({ label, name, value, onChange, placeholder, type = "t
       <input
         type={type} name={name}
         placeholder={placeholder}
-        value={value || ""}
+        // `??`, not `||`: a breakeven P&L of 0 must show as 0, not blank.
+        value={value ?? ""}
         onChange={onChange}
         style={{ ...inputBase, ...style }}
         onFocus={onFocusGreen}

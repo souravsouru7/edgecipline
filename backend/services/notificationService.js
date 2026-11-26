@@ -47,6 +47,11 @@ const TYPE_CHANNEL = {
   streak_broken:          "edgecipline_coaching",
   evening_reflection:     "edgecipline_coaching",
   mission_update:         "edgecipline_coaching",
+  // Mind Score growth moments share the green "insights" channel.
+  mind_report_ready:      "edgecipline_insights",
+  mind_level_up:          "edgecipline_insights",
+  mind_win:               "edgecipline_insights",
+  mind_target:            "edgecipline_insights",
   // Free-tier funnel nudges are insight-flavoured ("there's a pattern in
   // your trades"), so they share the insights channel rather than coaching.
   free_tier_d_plus_1:     "edgecipline_insights",
@@ -102,6 +107,10 @@ const REMINDER_TYPE_TO_PREF = {
   streak_at_risk:         "streakProtection",
   streak_broken:          "streakProtection",
   evening_reflection:     "eveningReflection",
+  mind_report_ready:      "mindProgress",
+  mind_level_up:          "mindProgress",
+  mind_win:               "mindProgress",
+  mind_target:            "mindProgress",
 };
 
 // Support notifications are transactional, not coaching. They are kept OUT of

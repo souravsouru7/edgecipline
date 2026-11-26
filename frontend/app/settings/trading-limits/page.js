@@ -23,7 +23,7 @@ export default function TradingLimitsPage() {
   const load = useCallback(async () => {
     setLoadError(false);
     try {
-      setLimits(await getRiskLimits());
+      setLimits(await getRiskLimits({ fresh: true }));
     } catch {
       setLoadError(true);
     }

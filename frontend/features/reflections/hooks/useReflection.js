@@ -8,6 +8,7 @@ import {
   skipReflection,
   submitReflection,
 } from "@/features/reflections/api/reflectionApi";
+import { announceJournalSaved } from "@/features/mind-progress/rewardBus";
 
 const REFLECTION_KEY = ["reflection"];
 
@@ -50,7 +51,10 @@ export function useSubmitReflection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: submitReflection,
-    onSuccess: () => invalidateAll(qc),
+    onSuccess: () => {
+      invalidateAll(qc);
+      announceJournalSaved("reflection");
+    },
   });
 }
 

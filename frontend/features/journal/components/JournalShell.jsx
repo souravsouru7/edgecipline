@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Plus, Search, X, BookOpen, SearchX, PartyPopper } from "lucide-react";
 import {
   Button, EmptyState, ErrorState, ResponsiveModal, SegmentedControl, StatCard,
@@ -125,7 +126,37 @@ export function JournalEmpty({ reason = "none", onClear }) {
   );
 }
 
-export function JournalError({ onRetry }) {
+export function JournalError({ onRetry, error = null }) {
+  const limited = error?.status === 429;
+  const waitSeconds = limited ? Math.min(120, Math.max(5, Number(error?.retryAfterSeconds) || 30)) : 0;
+  const [left, setLeft] = useState(waitSeconds);
+
+  // Rate limited: wait out Retry-After, then refetch once by ourselves —
+  // hammering "Try again" would only extend the lockout.
+  useEffect(() => {
+    if (!limited) return undefined;
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, waitSeconds - Math.floor((Date.now() - started) / 1000));
+      setLeft(remaining);
+      if (remaining === 0) {
+        clearInterval(tick);
+        onRetry?.();
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [limited, waitSeconds, onRetry]);
+
+  if (limited) {
+    return (
+      <ErrorState
+        title="One moment, loading your journal"
+        body={left > 0
+          ? `Lots of requests just now, so we're pausing briefly. Retrying in ${left}s… Your trades are safe.`
+          : "Retrying now…"}
+      />
+    );
+  }
   return <ErrorState title="Couldn't load your journal" onRetry={onRetry} />;
 }
 

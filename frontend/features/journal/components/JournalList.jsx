@@ -33,6 +33,14 @@ export default function JournalList({ trades, indian = false, loading, onDelete,
   const items = useMemo(() => groupTradesByDay(trades), [trades]);
   const listRef = useRef(null);
   const [listTop, setListTop] = useState(0);
+  // Rows rise in once when the list first appears; switched off right after so
+  // rows the virtualizer mounts while scrolling don't animate.
+  const [intro, setIntro] = useState(true);
+  useEffect(() => {
+    if (loading) return undefined;
+    const t = setTimeout(() => setIntro(false), 900);
+    return () => clearTimeout(t);
+  }, [loading]);
   const scrolledRef = useRef(false);
 
   useIsoLayoutEffect(() => {
@@ -90,7 +98,7 @@ export default function JournalList({ trades, indian = false, loading, onDelete,
   const padBottom = virtualItems.length ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
-    <div className="ec-jlist" ref={listRef}>
+    <div className={`ec-jlist${intro ? " ec-stagger" : ""}`} ref={listRef}>
       {padTop > 0 && <div style={{ height: padTop }} aria-hidden="true" />}
       {virtualItems.map((v) => {
         const item = items[v.index];

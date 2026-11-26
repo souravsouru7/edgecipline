@@ -17,15 +17,19 @@ import { markOnboardingStep } from "@/services/api";
 import PageHeader from "@/features/shared/components/PageHeader";
 import { fetchSetups } from "@/services/setupApi";
 import { uploadTradeScreenshot } from "@/services/uploadApi";
+import { readPickedImage } from "@/utils/imageUpload";
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { useRequireAuth } from "@/features/auth/hooks/useRequireAuth";
 import { useToast } from "@/features/shared/components/ui/Toast";
 import { invalidateTradeDependentQueries } from "@/utils/queryInvalidation";
+import { announceJournalSaved } from "@/features/mind-progress/rewardBus";
 import TradeEvidenceSection from "@/features/trade/components/TradeEvidenceSection";
 import { Spinner } from "@/features/shared";
 import { UNDERLYINGS, LOT_SIZES } from "@/features/trade/hooks/useAddTrade";
 import { getTodayInputValue } from "@/features/trade/lib/dateInput";
-import { sanitizeNumericField, blockInvalidNumberKeys } from "@/features/trade/lib/numericInput";
+import { sanitizeNumericField, blockInvalidNumberKeys, parseNumericField } from "@/features/trade/lib/numericInput";
+import { focusTradeField, riskRewardPayload, validateTradeRules } from "@/features/trade/lib/tradeValidation";
+import { deriveIndianProfit, indianNetProfit } from "@/features/trade/lib/tradeProfit";
 import {
   appendSetupRule,
   clearSetupRules as clearSetupRulesFollowed,
@@ -157,17 +161,40 @@ function IndianOptionsAddTradeContent() {
     };
   }, []);
 
+  // The server calculates P&L from these fields (gross: price move × units),
+  // so the form shows that same number as the trader types.
+  const PNL_INPUTS = ["type", "entryPrice", "exitPrice", "quantity", "sharesQty", "underlying"];
   const handleChange = (e) => {
     const { name, value } = e.target;
     const nextValue = sanitizeNumericField(name, value);
-    setTrade((prev) => ({ ...prev, [name]: nextValue }));
+    setTrade((prev) => {
+      const next = { ...prev, [name]: nextValue };
+      if (PNL_INPUTS.includes(name)) {
+        const calculated = deriveIndianProfit({
+          ...next,
+          instrumentType: isEquity ? "EQUITY" : "OPTION",
+          lotSize: LOT_SIZES[next.underlying] || 1,
+        });
+        next.profit = calculated == null ? "" : String(calculated);
+      }
+      return next;
+    });
   };
 
   // Single primary screenshot — same upload flow as app/add-trade/page.js's
   // Screenshot dropzone, kept separate from the multi-image Trade Evidence
   // section below.
-  const handleScreenshotChange = async (file) => {
-    if (!file) return;
+  const handleScreenshotChange = async (pickedFile) => {
+    if (!pickedFile) return;
+    // Android can hand back an unreadable cloud-photo reference; read the
+    // bytes now so we show a clear message instead of a fake network error.
+    let file;
+    try {
+      file = await readPickedImage(pickedFile);
+    } catch (err) {
+      addToast(err.message, "error");
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => setScreenshotPreview(reader.result);
     reader.readAsDataURL(file);
@@ -243,9 +270,15 @@ function IndianOptionsAddTradeContent() {
       }
     }
 
+    if (!isEquity && !trade.expiryDate) {
+      showValidation("Select the option's expiry date.");
+      focusTradeField("expiryDate");
+      return;
+    }
     const pnl = String(trade.profit).trim();
-    if (pnl === "" || isNaN(parseFloat(pnl))) {
-      showValidation("Enter profit or loss.");
+    if (pnl === "" || parseNumericField(pnl) === undefined) {
+      showValidation("Fill in entry, exit and quantity to calculate P&L.");
+      focusTradeField("entryPrice");
       return;
     }
     const ep = String(trade.entryPrice).trim();
@@ -276,6 +309,7 @@ function IndianOptionsAddTradeContent() {
     }
     if (trade.riskRewardRatio === "custom" && !trade.riskRewardCustom?.trim()) {
       showValidation("Enter your custom risk : reward ratio.");
+      focusTradeField("riskRewardCustom");
       return;
     }
     if (!trade.mood) {
@@ -291,6 +325,18 @@ function IndianOptionsAddTradeContent() {
       return;
     }
 
+    // Rules shared by every trade form (R:R format, take-profit side, custom
+    // entry basis, expiry vs trade date, number sanity).
+    const ruleProblem = validateTradeRules(trade, {
+      market: "Indian_Market",
+      instrumentType: isEquity ? "EQUITY" : "OPTION",
+    });
+    if (ruleProblem) {
+      showValidation(ruleProblem.message);
+      focusTradeField(ruleProblem.field);
+      return;
+    }
+
     const sharedFields = {
       type: trade.type,
       profit: parseFloat(pnl),
@@ -301,8 +347,7 @@ function IndianOptionsAddTradeContent() {
       tradeType: trade.tradeType || "INTRADAY",
       strategy: trade.strategy === "Custom" ? (trade.strategyCustom?.trim() || "Custom") : (trade.strategy || undefined),
       tradeDate: trade.tradeDate,
-      riskRewardRatio: trade.riskRewardCustom?.trim() ? "custom" : (trade.riskRewardRatio || ""),
-      riskRewardCustom: trade.riskRewardCustom?.trim() || "",
+      ...riskRewardPayload(trade.riskRewardRatio, trade.riskRewardCustom),
       entryBasis: trade.entryBasis || "Plan",
       entryBasisCustom: trade.entryBasis === "Custom" ? trade.entryBasisCustom : "",
       notes: trade.notes || undefined,
@@ -382,6 +427,7 @@ function IndianOptionsAddTradeContent() {
         invalidateTradeDependentQueries(queryClient);
         const quota = applyQuotaFromResponse(queryClient, MARKETS.INDIAN_MARKET, result);
         addToast("Trade saved to your trade log!", "success");
+        announceJournalSaved("trade");
         markOnboardingStep("tradeAdded", true).catch(() => {});
         if (result.showLastFreeTradeSheet && quota) {
           setLastFreeTradeSheet({ quota });
@@ -554,8 +600,20 @@ function IndianOptionsAddTradeContent() {
             )}
 
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Profit / Loss (₹)</label>
-              <input name="profit" type="number" placeholder="e.g. 1500 or -500" value={trade.profit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontWeight: 600 }} />
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Gross P&amp;L (₹) · calculated</label>
+              <input
+                name="profit" type="number" placeholder="Fills in from entry, exit and quantity"
+                readOnly aria-readonly="true" title="Calculated from side, entry, exit and quantity (× lot size)"
+                value={trade.profit} onChange={handleChange} onKeyDown={blockInvalidNumberKeys}
+                style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14, fontWeight: 600 }}
+              />
+              {(() => {
+                const net = indianNetProfit({ ...trade, instrumentType: isEquity ? "EQUITY" : "OPTION", lotSize: getLotSize() });
+                const hasCharges = parseNumericField(trade.brokerage) > 0 || parseNumericField(trade.sttTaxes) > 0;
+                return net != null && hasCharges ? (
+                  <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>After brokerage + STT: ₹{net.toLocaleString("en-IN")}</div>
+                ) : null;
+              })()}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
@@ -707,7 +765,7 @@ function IndianOptionsAddTradeContent() {
             {!isEquity && (
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Expiry date</label>
-                <input name="expiryDate" type="date" value={trade.expiryDate} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
+                <input name="expiryDate" type="date" required min={trade.tradeDate || undefined} value={trade.expiryDate} onChange={handleChange} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${theme.border}`, background: theme.card, fontSize: 14 }} />
               </div>
             )}
 
@@ -794,7 +852,7 @@ function IndianOptionsAddTradeContent() {
 
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Screenshot</label>
-              <input type="file" ref={fileInputRef} accept="image/*" onChange={e => handleScreenshotChange(e.target.files[0])} style={{ display: "none" }} />
+              <input type="file" ref={fileInputRef} accept="image/*" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; handleScreenshotChange(f); }} style={{ display: "none" }} />
               <div
                 onClick={() => !(loading || uploadingScreenshot) && fileInputRef.current.click()}
                 style={{ border: `2px dashed ${theme.border}`, borderRadius: 16, padding: 32, textAlign: "center", cursor: (loading || uploadingScreenshot) ? "not-allowed" : "pointer", background: "var(--lg-soft, #fafafa)", transition: "all 0.2s" }}

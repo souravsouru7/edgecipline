@@ -7,6 +7,7 @@ const streakService = require("./streak.service");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
 const { invalidateTradeCaches } = require("../utils/cacheUtils");
+const { scheduleMindRecompute } = require("./mindProgressHooks");
 
 const WEEKLY_WINDOW_DAYS = 7;
 const HISTORY_HARD_CAP_DAYS = 90;
@@ -337,6 +338,7 @@ async function upsertReflection({ userId, payload = {} }) {
   // and gets the pre-reflection response back, so the card appears not to
   // update for up to a minute and a half.
   await invalidateTradeCaches({ userId, event: "reflection_submit", source: "reflection" });
+  scheduleMindRecompute(userId, "reflection_submit");
 
   return { reflection, context, day, timezone: tz };
 }
@@ -361,6 +363,7 @@ async function skipReflection({ userId, payload = {} }) {
   // Skipping still changes the weekly score and streak, so the cached snapshot
   // has to be dropped here too.
   await invalidateTradeCaches({ userId, event: "reflection_skip", source: "reflection" });
+  scheduleMindRecompute(userId, "reflection_skip");
 
   return { reflection, context, day, timezone: tz };
 }
