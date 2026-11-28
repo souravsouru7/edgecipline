@@ -4,6 +4,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { guardedCall } = require("../utils/geminiCircuit");
 const { hedgedGenerate } = require("../utils/geminiHedge");
+const { modelFor, withThinkingBudget } = require("../utils/geminiConfig");
+const { recordAiUsage, readOpenAiUsage } = require("../utils/aiUsage");
 
 // Healthy Gemini extraction calls answer in ~0.3-3s, but about 1 in 4 hangs.
 // Rather than wait 45s on a hang, every extraction call is hedged: a backup
@@ -11,6 +13,9 @@ const { hedgedGenerate } = require("../utils/geminiHedge");
 // GEMINI_EXTRACTION_TIMEOUT_MS (see utils/geminiHedge).
 const GEMINI_EXTRACTION_TIMEOUT_MS = appConfig.ai.extractionTimeoutMs || 25_000;
 const HEDGE_AFTER_MS = appConfig.ai.hedgeAfterMs || 8_000;
+// The compact-prompt retry only starts if at least this much of the caller's
+// deadline is left; a retry that can't finish is pure cost.
+const MIN_RETRY_WINDOW_MS = 8_000;
 
 function buildBrokerPrompt(basePrompt, brokerHint) {
   const broker = String(brokerHint || "").trim();
@@ -236,13 +241,13 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
     }
 
     const genAI = new GoogleGenerativeAI(geminiKey);
+    const visionModel = options.model || modelFor("trade_vision");
     const model = genAI.getGenerativeModel({
-      model: appConfig.ai.geminiTradeModel,
-      generationConfig: {
+      model: visionModel,
+      generationConfig: withThinkingBudget(visionModel, {
         temperature: 0,
         maxOutputTokens: 2048,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
+      }, 0),
     });
 
     const basePrompt = isEquity ? INDIAN_EQUITY_VISION_PROMPT : isIndian ? INDIAN_VISION_PROMPT : FOREX_VISION_PROMPT;
@@ -252,14 +257,15 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
     const result = await guardedCall({
       feature: "trade_vision",
       userId: options.userId,
-      model: appConfig.ai.geminiTradeModel,
-      call: () => hedgedGenerate(
+      model: visionModel,
+      operationId: options.operationId,
+      call: (meter) => hedgedGenerate(
         model,
         [
           { inlineData: { data: base64, mimeType } },
           { text: prompt },
         ],
-        { hedgeAfterMs: HEDGE_AFTER_MS, timeoutMs, label: "Gemini Vision call" }
+        { hedgeAfterMs: HEDGE_AFTER_MS, timeoutMs, label: "Gemini Vision call", signal: options.signal, onAttempts: meter.onAttempts }
       ),
     });
     const rawText = result?.response?.text?.()?.trim();
@@ -358,16 +364,21 @@ async function extractTradeWithGeminiVision(imageUrl, options = {}) {
   }
 }
 
-async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTimeout, { preferGemini = false, userId = null } = {}) {
+// `deadlineAt` (epoch ms) and `signal` come from the caller's overall budget
+// (runAiWithRetry). Nothing here starts a request after the deadline, and an
+// abort cancels whatever is still in flight.
+async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTimeout, { preferGemini = false, userId = null, operationId = null, deadlineAt = null, signal = null, model: modelOverride = null } = {}) {
   const openaiKey = appConfig.ai.openaiApiKey;
   const geminiKey = appConfig.ai.geminiApiKey;
 
   // For Indian market data, Gemini has stronger knowledge of Indian broker formats.
   // preferGemini=true skips OpenAI and goes straight to Gemini.
   if (openaiKey && !preferGemini) {
+    const openaiStarted = Date.now();
     try {
       const fetchPromise = fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
+        signal: signal || undefined,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${openaiKey}`,
@@ -397,10 +408,18 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
           status: res.status,
           bodySample: safeSample,
         });
+        recordAiUsage({
+          userId, feature: "trade_text_openai", model: appConfig.ai.openaiModel, operationId,
+          ok: false, errorCode: String(res.status), latencyMs: Date.now() - openaiStarted,
+        });
         return null;
       }
 
       const result = await withTimeout(res.json(), "OpenAI AI API response parsing", 5000);
+      recordAiUsage({
+        userId, feature: "trade_text_openai", model: appConfig.ai.openaiModel, operationId,
+        usage: readOpenAiUsage(result), ok: true, latencyMs: Date.now() - openaiStarted,
+      });
       return result;
     } catch (err) {
       if (err.name === "TimeoutError") {
@@ -425,40 +444,52 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
   // Gemini fallback (returns an OpenAI-like shape so downstream parsing works unchanged)
   try {
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const modelName = appConfig.ai.geminiTradeModel;
+    const modelName = modelOverride || modelFor("trade_text");
     const model = genAI.getGenerativeModel({ model: modelName });
-    const geminiTimeout = GEMINI_EXTRACTION_TIMEOUT_MS;
+    const remaining = () => (deadlineAt ? deadlineAt - Date.now() : Infinity);
+    const geminiTimeout = Math.max(1, Math.min(GEMINI_EXTRACTION_TIMEOUT_MS, remaining()));
 
-    const runGemini = (inputPrompt) => guardedCall({
+    const runGemini = (inputPrompt, { timeoutMs: runTimeoutMs, hedge }) => guardedCall({
       feature: "trade_text",
       userId,
       model: modelName,
-      call: () => hedgedGenerate(
+      operationId,
+      call: (meter) => hedgedGenerate(
         model,
         {
           contents: [{ role: "user", parts: [{ text: inputPrompt }] }],
-          generationConfig: {
+          generationConfig: withThinkingBudget(modelName, {
             temperature: 0,
             maxOutputTokens: 600,
-            thinkingConfig: { thinkingBudget: 0 },
-          },
+          }, 0),
         },
-        { hedgeAfterMs: HEDGE_AFTER_MS, timeoutMs: geminiTimeout, label: "Gemini AI call" }
+        {
+          // The retry is a single request (no backup): worst case is 2 hedged
+          // + 1 retry = 3 requests per text extraction.
+          hedgeAfterMs: hedge ? HEDGE_AFTER_MS : Infinity,
+          timeoutMs: runTimeoutMs,
+          label: "Gemini AI call",
+          signal: signal || undefined,
+          onAttempts: meter.onAttempts,
+        }
       ),
     });
 
     let result;
     try {
-      result = await runGemini(prompt);
+      result = await runGemini(prompt, { timeoutMs: geminiTimeout, hedge: true });
     } catch (err) {
-      if (err.name !== "TimeoutError") throw err;
+      if (err.name !== "TimeoutError" || err.aborted || signal?.aborted) throw err;
+      const left = Math.min(GEMINI_EXTRACTION_TIMEOUT_MS, remaining());
+      if (left < MIN_RETRY_WINDOW_MS) throw err;
 
       // Retry once with a shorter prompt to reduce model latency on large OCR text.
       logger.warn("Gemini AI extraction timed out on first attempt, retrying with compact prompt", {
         timeout: `${geminiTimeout}ms`,
+        retryWindowMs: left,
       });
       const compactPrompt = String(prompt).slice(0, 2600);
-      result = await runGemini(compactPrompt);
+      result = await runGemini(compactPrompt, { timeoutMs: left, hedge: false });
     }
 
     const text = result?.response?.text?.() || "";
@@ -476,6 +507,16 @@ async function callAIForTradeExtraction(prompt, timeoutMs = TIMEOUT_CONFIG.aiTim
     }
     return null;
   }
+}
+
+function budgetOptions(options = {}) {
+  return {
+    userId: options.userId || null,
+    operationId: options.operationId || null,
+    deadlineAt: options.deadlineAt || null,
+    signal: options.signal || null,
+    model: options.model || null,
+  };
 }
 
 function stripJsonEnvelope(content) {
@@ -603,7 +644,7 @@ ${ocrSlice}
 JSON: {"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha","trades":[{"pair":"NIFTY 26000 PE","optionType":"PE","strikePrice":26000,"underlying":"NIFTY","quantity":1,"entryPrice":150.00,"exitPrice":200.00,"profit":2500.00,"broker":"Zerodha"}]}`;
 
   // Gemini preferred for Indian market — stronger knowledge of Indian broker formats
-  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, userId: options.userId });
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, ...budgetOptions(options) });
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 
@@ -665,7 +706,7 @@ ${String(extractedText).slice(0, 5000)}
 
 Return the JSON object describing the trade in the OCR text above:`;
 
-  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { userId: options.userId });
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, budgetOptions(options));
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 
@@ -772,7 +813,7 @@ ${ocrSlice}
 
 JSON: {"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY","broker":"Upstox","trades":[{"stockSymbol":"POWERGRID","exchange":"NSE","sharesQty":null,"type":"BUY","entryPrice":null,"exitPrice":null,"profit":1554.60,"productType":"DELIVERY"}]}`;
 
-  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, userId: options.userId });
+  const data = await callAIForTradeExtraction(prompt, TIMEOUT_CONFIG.aiTimeout, { preferGemini: true, ...budgetOptions(options) });
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) return null;
 

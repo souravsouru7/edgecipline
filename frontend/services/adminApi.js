@@ -358,6 +358,16 @@ export const getAdminAllTrades = async (options) => request("/admin/trades", opt
 
 export const getAdminExtractionLogs = async (options) => request("/admin/trades/logs", options);
 
+// AI spend analytics. `params`: { from, to, feature } (dates as YYYY-MM-DD).
+export const getAdminAiCosts = async (params = {}, options) => {
+  const query = new URLSearchParams();
+  for (const key of ["from", "to", "feature"]) {
+    if (params[key]) query.set(key, String(params[key]));
+  }
+  const qs = query.toString();
+  return request(`/admin/ai-usage/costs${qs ? `?${qs}` : ""}`, options);
+};
+
 export const getAdminFeedback = async (options) => request("/admin/feedback", options);
 
 export const updateAdminFeedbackStatus = async (id, updateData, options) =>

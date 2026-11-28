@@ -98,8 +98,11 @@ async function extractTextWithVision(imageBuffer) {
       docResult?.fullTextAnnotation?.confidence ??
       0;
 
+    // Each detection call is one billed Vision unit; returned for metering.
+    let units = 1;
     let textResult = null;
     if (!docText || docConf < VISION_HIGH_CONFIDENCE) {
+      units += 1;
       [textResult] = await visionClient.textDetection({
         image: { content: processedBuffer },
       });
@@ -127,9 +130,9 @@ async function extractTextWithVision(imageBuffer) {
       ? { text: textText, confidence: textConf, mode: "textDetection" }
       : { text: docText, confidence: docConf, mode: "documentTextDetection" };
 
-    if (!picked.text) return { text: "", confidence: 0, mode: picked.mode };
+    if (!picked.text) return { text: "", confidence: 0, mode: picked.mode, units };
     console.log("[Vision OCR] Mode picked:", picked.mode, "| score:", (picked.mode === "textDetection" ? textScore : docScore).toFixed(1));
-    return { text: picked.text.trim(), confidence: picked.confidence, mode: picked.mode };
+    return { text: picked.text.trim(), confidence: picked.confidence, mode: picked.mode, units };
   } catch (err) {
     console.error("[Vision OCR] Error:", err.message);
     return null;

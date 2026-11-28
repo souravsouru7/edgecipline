@@ -97,3 +97,49 @@ describe("geminiCircuit (in-memory, Redis down)", () => {
     expect(captureOperationalError).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("guardedCall with a hedged call", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    circuit.reset();
+  });
+
+  it("records one row per request sent, estimating the aborted loser from the winner", async () => {
+    const response = { usageMetadata: { promptTokenCount: 2284, candidatesTokenCount: 200, totalTokenCount: 2484 } };
+    await circuit.guardedCall({
+      feature: "trade_vision",
+      userId: "u1",
+      model: "m",
+      operationId: "job1",
+      call: async (meter) => {
+        meter.onAttempts([
+          { attempt: 1, outcome: "aborted", latencyMs: 8000 },
+          { attempt: 2, outcome: "won", latencyMs: 1200 },
+        ]);
+        return { response };
+      },
+    });
+    expect(recordAiUsage).toHaveBeenCalledTimes(2);
+    expect(recordAiUsage).toHaveBeenCalledWith(expect.objectContaining({
+      attempt: 1, aborted: true, hedged: true, ok: false, operationId: "job1",
+      estimatedTokens: { inputTokens: 2284 },
+    }));
+    expect(recordAiUsage).toHaveBeenCalledWith(expect.objectContaining({ attempt: 2, ok: true, hedged: true, response }));
+  });
+
+  it("records every failed request when all of them fail", async () => {
+    await expect(circuit.guardedCall({
+      feature: "trade_text",
+      model: "m",
+      call: async (meter) => {
+        meter.onAttempts([
+          { attempt: 1, outcome: "failed", error: transient() },
+          { attempt: 2, outcome: "failed", error: transient() },
+        ]);
+        throw transient();
+      },
+    })).rejects.toThrow("overloaded");
+    expect(recordAiUsage).toHaveBeenCalledTimes(2);
+    expect(recordAiUsage).toHaveBeenCalledWith(expect.objectContaining({ attempt: 2, ok: false, errorCode: "503" }));
+  });
+});

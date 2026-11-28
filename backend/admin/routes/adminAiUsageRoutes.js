@@ -5,6 +5,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const AiUsage = require("../../models/AiUsage");
 const { getTodayTokens } = require("../../utils/aiUsage");
 const { appConfig } = require("../../config");
+const { getCostAnalytics } = require("../../services/aiCostAnalyticsService");
 
 // GET /api/admin/ai-usage?days=7
 // Gemini token spend per day + feature, failure counts, and the heaviest users.
@@ -68,6 +69,26 @@ router.get(
       byDayFeature: byDayFeature.map((row) => ({ day: row._id.day, feature: row._id.feature, ...row, _id: undefined })),
       topUsers,
     });
+  })
+);
+
+// GET /api/admin/ai-usage/costs?from=YYYY-MM-DD&to=YYYY-MM-DD&feature=coach
+// Spend (USD/INR) by feature, model, day and month, plus per-user, per-payer,
+// per-upload and per-Coach-reply averages. Calculated from metered tokens x
+// the price table; see services/aiCostAnalyticsService for what that means.
+router.get(
+  "/costs",
+  adminAuth,
+  asyncHandler(async (req, res) => {
+    const feature = typeof req.query.feature === "string" && AiUsage.FEATURES.includes(req.query.feature)
+      ? req.query.feature
+      : null;
+    const data = await getCostAnalytics({
+      from: typeof req.query.from === "string" ? req.query.from : undefined,
+      to: typeof req.query.to === "string" ? req.query.to : undefined,
+      feature,
+    });
+    res.json({ ...data, features: AiUsage.FEATURES });
   })
 );
 

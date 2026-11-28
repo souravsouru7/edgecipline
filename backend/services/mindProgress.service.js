@@ -775,14 +775,18 @@ async function ensureInsight(userId, { now = new Date(), premium = false } = {})
       const { GoogleGenerativeAI } = require("@google/generative-ai");
       const { guardedCall } = require("../utils/geminiCircuit");
       const { containsProhibitedFinancialAdvice } = require("./geminiService");
-      const genModel = new GoogleGenerativeAI(appConfig.ai.geminiApiKey).getGenerativeModel({ model: appConfig.ai.geminiModel });
+      const { modelFor, withThinkingBudget } = require("../utils/geminiConfig");
+      const mindModel = modelFor("mind_progress");
+      const genModel = new GoogleGenerativeAI(appConfig.ai.geminiApiKey).getGenerativeModel({ model: mindModel });
       const result = await guardedCall({
         feature: "mind_progress",
         userId: uid,
-        model: appConfig.ai.geminiModel,
+        model: mindModel,
         call: () => genModel.generateContent({
           contents: [{ role: "user", parts: [{ text: buildInsightPrompt(facts) }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 160 },
+          // No thinking: measured 2026-11-28, thinking took ~154 of the 160
+          // tokens and the reply was 2-3 tokens long.
+          generationConfig: withThinkingBudget(mindModel, { temperature: 0.6, maxOutputTokens: 160 }, 0),
         }),
       });
       const cand = result?.response?.candidates?.[0];
@@ -790,7 +794,7 @@ async function ensureInsight(userId, { now = new Date(), premium = false } = {})
       const cleaned = trimInsight(raw);
       if (cleaned && !containsProhibitedFinancialAdvice(cleaned)) {
         text = cleaned;
-        model = appConfig.ai.geminiModel;
+        model = mindModel;
         fallback = false;
       } else if (cleaned) {
         logger.warn("MIND_INSIGHT_ADVICE_FILTERED", { userId: uid });

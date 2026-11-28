@@ -3,6 +3,7 @@ const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 const { guardedCall } = require("../utils/geminiCircuit");
 const { isOverDailyBudget } = require("../utils/aiUsage");
+const { modelFor, withThinkingBudget } = require("../utils/geminiConfig");
 
 const MAX_INSIGHT_CHARS = 200;
 
@@ -99,17 +100,20 @@ async function generateInsight({ reflection, context, day, userId = null, premiu
 
   try {
     const genAI = getClient();
-    const model = genAI.getGenerativeModel({ model: appConfig.ai.geminiModel });
+    const modelName = modelFor("reflection");
+    const model = genAI.getGenerativeModel({ model: modelName });
     const result = await guardedCall({
       feature: "reflection",
       userId,
-      model: appConfig.ai.geminiModel,
+      model: modelName,
       call: () => model.generateContent({
         contents: [{ role: "user", parts: [{ text: buildPrompt({ reflection, context, day }) }] }],
-        generationConfig: {
+        // One short sentence: no thinking. Uncapped, thinking spent most of
+        // the 200-token budget and cut the line off mid-sentence.
+        generationConfig: withThinkingBudget(modelName, {
           temperature: 0.35,
           maxOutputTokens: 200,
-        },
+        }, 0),
       }),
     });
 
@@ -132,7 +136,7 @@ async function generateInsight({ reflection, context, day, userId = null, premiu
 
     return {
       insight: truncateInsight(cleaned),
-      model: appConfig.ai.geminiModel,
+      model: modelName,
       fallback: false,
     };
   } catch (error) {

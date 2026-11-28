@@ -4,6 +4,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 const { guardedCall } = require("../utils/geminiCircuit");
+const { applyFeatureThinking, modelFor } = require("../utils/geminiConfig");
 const ApiError = require("../utils/ApiError");
 
 const PROMPT_VERSION = "v1";
@@ -275,7 +276,7 @@ async function generateTradingDna(bundle, { userId = null } = {}) {
     );
   }
 
-  const modelName = appConfig.ai.geminiModel;
+  const modelName = modelFor("trading_dna");
 
   try {
     const genAI = getGeminiClient();
@@ -295,14 +296,14 @@ async function generateTradingDna(bundle, { userId = null } = {}) {
       model: modelName,
       call: () => model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
+        generationConfig: applyFeatureThinking("trading_dna", modelName, {
           // Slightly warmer than weekly feedback (0.2) — the personality
           // language benefits from a little expressiveness, but not so much
           // that archetype assignment becomes unstable.
           temperature: 0.4,
           maxOutputTokens: 4096,
           responseMimeType: "application/json",
-        },
+        }),
       }),
     });
 

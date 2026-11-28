@@ -4,12 +4,14 @@ const CoachMessage = require("../models/CoachMessage");
 const coachContextService = require("./coachContextService");
 const coachPromptService = require("./coachPromptService");
 const coachQuotaService = require("./coachQuotaService");
+const coachSummaryService = require("./coachSummaryService");
 const { isPremium } = require("../utils/premium");
 const { appConfig } = require("../config");
 const ApiError = require("../utils/ApiError");
 const { logger } = require("../utils/logger");
 const geminiCircuit = require("../utils/geminiCircuit");
 const { isOverDailyBudget, recordAiUsage } = require("../utils/aiUsage");
+const { modelFor, supportsThinkingConfig, withThinkingBudget } = require("../utils/geminiConfig");
 
 const HISTORY_TURNS = 10;
 const MAX_USER_QUESTION_CHARS = 1200;
@@ -25,27 +27,14 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// `thinkingConfig` is a 2.5+ parameter. Older models reject the field with a
-// 400, so a rollback of GEMINI_MODEL would otherwise take the whole feature
-// down rather than just losing the thinking cap.
-function supportsThinkingConfig(modelName) {
-  const match = /gemini-(\d+)(?:\.(\d+))?/.exec(String(modelName || ""));
-  if (!match) return false;
-  const major = Number(match[1]);
-  const minor = Number(match[2] || 0);
-  return major > 2 || (major === 2 && minor >= 5);
-}
-
 // gemini-2.5-* charges its internal "thinking" tokens against maxOutputTokens.
 // At 700 the model routinely spent ~670 of them thinking and returned a reply
 // truncated mid-sentence (finishReason MAX_TOKENS), so bound the thinking and
 // leave real room for the answer.
-function buildGenerationConfig(modelName) {
-  const config = { temperature: 0.35, maxOutputTokens: 2048 };
-  if (supportsThinkingConfig(modelName)) {
-    config.thinkingConfig = { thinkingBudget: 512 };
-  }
-  return config;
+function buildGenerationConfig(modelName, thinkingBudget = appConfig.ai.coachThinkingBudget ?? 512) {
+  const budget = Number.isFinite(Number(thinkingBudget)) ? Math.max(0, Math.floor(Number(thinkingBudget))) : 512;
+  if (!supportsThinkingConfig(modelName)) return { temperature: 0.35, maxOutputTokens: 2048 };
+  return withThinkingBudget(modelName, { temperature: 0.35, maxOutputTokens: 2048 }, budget);
 }
 
 function getGeminiModel() {
@@ -54,7 +43,7 @@ function getGeminiModel() {
   }
   const genAI = new GoogleGenerativeAI(appConfig.ai.geminiApiKey);
   return genAI.getGenerativeModel(
-    { model: appConfig.ai.geminiModel },
+    { model: modelFor("coach") },
     { timeout: REQUEST_TIMEOUT_MS }
   );
 }
@@ -369,11 +358,18 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
     market,
   });
 
+  // Summary mode (off by default): last 4 turns + a running summary.
+  const summaryMode = coachSummaryService.isEnabled();
+  const window = summaryMode
+    ? coachSummaryService.selectWindow(history, conversation)
+    : { recent: history, summary: "" };
+
   const input = coachPromptService.buildModelInput({
     context,
     anchor: conversation.anchor,
-    history,
+    history: window.recent,
     nextUserMessage: userMessage.content,
+    conversationSummary: window.summary,
   });
 
   if (onMeta) {
@@ -389,7 +385,9 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
   }
 
   const model = getGeminiModel();
+  const coachModel = modelFor("coach");
   let fullText = "";
+  let attemptNo = 1;
   let geminiCalled = false;
 
   try {
@@ -411,21 +409,35 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       request: {
         systemInstruction: input.systemInstruction,
         contents: input.contents,
-        generationConfig: buildGenerationConfig(appConfig.ai.geminiModel),
+        generationConfig: buildGenerationConfig(coachModel),
       },
       onComplete: (response) => {
         geminiCircuit.recordSuccess().catch(() => {});
         recordAiUsage({
           userId: user._id,
           feature: "coach",
-          model: appConfig.ai.geminiModel,
+          model: coachModel,
           response,
           ok: true,
+          attempt: attemptNo,
+          operationId: String(userMessage._id || ""),
           latencyMs: Date.now() - started,
         });
       },
       onChunk,
       onRetry: (error) => {
+        // The failed attempt is a request too: meter it before retrying.
+        recordAiUsage({
+          userId: user._id,
+          feature: "coach",
+          model: coachModel,
+          ok: false,
+          attempt: attemptNo,
+          operationId: String(userMessage._id || ""),
+          errorCode: describeFailure(error).errorCode,
+          latencyMs: Date.now() - started,
+        });
+        attemptNo += 1;
         logger.warn("COACH_STREAM_RETRY", {
           userId: String(user._id),
           conversationId: String(conversation._id),
@@ -447,13 +459,16 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       content: fullText.trim(),
       status: "complete",
       error: "",
-      model: appConfig.ai.geminiModel,
+      model: coachModel,
       latencyMs: Date.now() - started,
       streamed: true,
       contextDigest: digest,
     });
 
     await bumpConversation(conversation, fullText || userMessage.content);
+    if (summaryMode) {
+      coachSummaryService.refreshIfNeeded({ conversation, userId: user._id }).catch(() => {});
+    }
 
     return { messageId: String(persisted._id), latencyMs: Date.now() - started };
   } catch (error) {
@@ -470,8 +485,10 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       recordAiUsage({
         userId: user._id,
         feature: "coach",
-        model: appConfig.ai.geminiModel,
+        model: coachModel,
         ok: false,
+        attempt: attemptNo,
+        operationId: String(userMessage._id || ""),
         errorCode: described.errorCode,
         latencyMs: Date.now() - started,
       });
@@ -488,7 +505,7 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       userId: String(user._id),
       conversationId: String(conversation._id),
       market,
-      model: appConfig.ai.geminiModel,
+      model: coachModel,
       errorCode: described.errorCode,
       status: statusOf(error),
       error: error?.message,
@@ -502,7 +519,7 @@ async function streamCompletion({ conversation, user, history, userMessage, onCh
       content: fullText.trim() || described.message,
       status: "error",
       error: `${described.errorCode}: ${error?.message || "unknown"}`,
-      model: appConfig.ai.geminiModel,
+      model: coachModel,
       latencyMs: Date.now() - started,
       streamed: true,
       contextDigest: digest,

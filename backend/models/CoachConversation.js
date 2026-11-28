@@ -43,6 +43,12 @@ const coachConversationSchema = new mongoose.Schema(
     lastMessageAt: { type: Date, default: null },
     lastMessagePreview: { type: String, default: "", maxlength: 280 },
 
+    // COACH_HISTORY_MODE=summary only: running summary of turns older than
+    // the recent window, and the createdAt of the last message it covers.
+    summary: { type: String, default: "", maxlength: 4000 },
+    summarizedThroughAt: { type: Date, default: null },
+    summaryModel: { type: String, default: "" },
+
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

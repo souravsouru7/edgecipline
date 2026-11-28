@@ -326,6 +326,39 @@ const appConfig = {
     // request after hedgeAfterMs; give up on both at extractionTimeoutMs.
     hedgeAfterMs: readNumber("GEMINI_HEDGE_AFTER_MS", 8_000),
     extractionTimeoutMs: readNumber("GEMINI_EXTRACTION_TIMEOUT_MS", 25_000),
+    // Per-feature model override (GEMINI_MODEL_<FEATURE>, e.g.
+    // GEMINI_MODEL_REFLECTION). Unset = today's model. Read through
+    // utils/geminiConfig#modelFor.
+    featureModels: {
+      coach: process.env.GEMINI_MODEL_COACH || "",
+      coach_summary: process.env.GEMINI_MODEL_COACH_SUMMARY || "",
+      trade_vision: process.env.GEMINI_MODEL_TRADE_VISION || "",
+      trade_text: process.env.GEMINI_MODEL_TRADE_TEXT || "",
+      weekly_report: process.env.GEMINI_MODEL_WEEKLY_REPORT || "",
+      trading_dna: process.env.GEMINI_MODEL_TRADING_DNA || "",
+      reflection: process.env.GEMINI_MODEL_REFLECTION || "",
+      mind_progress: process.env.GEMINI_MODEL_MIND_PROGRESS || "",
+    },
+    // Thinking cap for the long JSON generations ("" = model default).
+    featureThinkingBudget: {
+      // 1024 by default: uncapped, thinking used 3.4-3.9k of the 4,096-token
+      // limit, the JSON was cut off and every report fell back to the template
+      // (runInsightEval, 2026-11-28). Capped: real AI report at half the cost.
+      weekly_report: process.env.GEMINI_THINKING_BUDGET_WEEKLY_REPORT ?? "1024",
+      trading_dna: process.env.GEMINI_THINKING_BUDGET_TRADING_DNA ?? "",
+    },
+    // Spend alerts (Sentry, throttled). Alert only: nothing is blocked.
+    // 0 = off.
+    spendAlerts: {
+      dailyUsd: readNumber("AI_DAILY_SPEND_ALERT_USD", 0),
+      userDailyUsd: readNumber("AI_USER_DAILY_SPEND_ALERT_USD", 0),
+    },
+    // Coach history: "full" = last 10 turns (today). "summary" = last 4 turns
+    // plus a rolling summary of older turns. Off until the eval passes.
+    coachHistoryMode: process.env.COACH_HISTORY_MODE === "summary" ? "summary" : "full",
+    // Coach thinking cap (tokens). 512 = today. Thinking was ~60% of a reply's
+    // cost in the 2026-11-28 eval; lower only after runCoachEval passes.
+    coachThinkingBudget: readNumber("COACH_THINKING_BUDGET", 512),
     circuit: {
       failureThreshold: readNumber("GEMINI_CIRCUIT_FAILURE_THRESHOLD", 5),
       windowMs: readNumber("GEMINI_CIRCUIT_WINDOW_MS", 60_000),

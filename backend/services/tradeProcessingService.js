@@ -28,6 +28,9 @@ const { logger } = require("../utils/logger");
 const { withTimeout } = require("../utils/withTimeout");
 const { captureOperationalError } = require("../config/sentry");
 const { appConfig } = require("../config");
+const extractionCache = require("../utils/extractionCache");
+const { recordAiUsage } = require("../utils/aiUsage");
+const { modelFor } = require("../utils/geminiConfig");
 const { evaluateSmartNotifications } = require("./smartNotificationEvaluator");
 const {
   analyzeImageQuality,
@@ -41,6 +44,9 @@ const PROCESSING_TIMEOUT_MS = appConfig.timeouts.processingTimeoutMs;
 const OCR_TIMEOUT_MS = appConfig.timeouts.ocrTimeout;
 const AI_TIMEOUT_MS = appConfig.timeouts.aiTimeout;
 const GEMINI_VISION_ATTEMPTS = 1;
+// runAiWithRetry's second attempt only starts with at least this much of the
+// shared AI budget left.
+const MIN_SECOND_AI_ATTEMPT_MS = 10_000;
 const CONFIDENCE_ZONES = {
   rejectMax: 9,
   reviewMax: 59,
@@ -340,7 +346,7 @@ async function downloadImageBuffer(imageUrl) {
 
 // Returns { text, buffer, mimeType, ocrFailed } — always returns the image buffer so
 // Gemini Vision can reuse it without a second download, even when OCR itself fails.
-async function runOcrWithRetry(imagePath, preloadedImage = null) {
+async function runOcrWithRetry(imagePath, preloadedImage = null, meter = {}) {
   // Download the image once upfront — separate from OCR so the buffer is always
   // available to the caller even if Tesseract/Vision times out.
   let imageBuffer, imageMimeType;
@@ -357,11 +363,23 @@ async function runOcrWithRetry(imagePath, preloadedImage = null) {
   if (isVisionAvailable()) {
     try {
       logger.info("OCR: trying Google Cloud Vision (primary)");
+      const visionStarted = Date.now();
       const result = await withTimeout(
         extractTextWithVision(imageBuffer),
         "Google Vision OCR timeout",
         OCR_TIMEOUT_MS
       );
+      if (result && result.units) {
+        recordAiUsage({
+          userId: meter.userId,
+          feature: "ocr_vision",
+          model: "cloud-vision",
+          operationId: meter.operationId,
+          units: result.units,
+          ok: true,
+          latencyMs: Date.now() - visionStarted,
+        });
+      }
       if (result?.text && result.text.trim().length > 20) {
         logger.info("OCR: Google Cloud Vision succeeded", { textLength: result.text.length });
         return { text: result.text, buffer: imageBuffer, mimeType: imageMimeType };
@@ -395,11 +413,26 @@ async function runOcrWithRetry(imagePath, preloadedImage = null) {
   return { text: "", buffer: imageBuffer, mimeType: imageMimeType, ocrFailed: true };
 }
 
-async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, includeRawResponse = true, brokerHint = "", expectedMultiple = false, userId = null }) {
+// One shared budget (AI_TIMEOUT_MS) for both attempts. It used to be 45s per
+// attempt around an inner chain that could itself run 50s, so the outer
+// timeout fired while requests were still in flight and they kept running
+// (and billing) unobserved. Now the deadline and abort signal reach every
+// request, and the second attempt only runs if there is time for it.
+async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, includeRawResponse = true, brokerHint = "", expectedMultiple = false, userId = null, operationId = null }) {
   const isEquity = marketType === "Indian_Market" && tradeSubType === "EQUITY";
   let lastError = null;
+  const deadlineAt = Date.now() + AI_TIMEOUT_MS;
+  const controller = new AbortController();
+  const budgetTimer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  const budget = { userId, operationId, deadlineAt, signal: controller.signal };
 
+  try {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const remainingMs = deadlineAt - Date.now();
+    if (attempt > 1 && remainingMs < MIN_SECOND_AI_ATTEMPT_MS) {
+      logger.warn(`AI attempt ${attempt} skipped: ${remainingMs}ms of budget left | marketType=${marketType}`);
+      break;
+    }
     try {
       logger.info(`AI attempt ${attempt} started | marketType=${marketType}`, {
         attempt,
@@ -407,22 +440,22 @@ async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, inclu
       });
       const result = await withTimeout(
         isEquity
-          ? extractEquityIntradayWithAI(text, { includeRawResponse, brokerHint, userId })
+          ? extractEquityIntradayWithAI(text, { includeRawResponse, brokerHint, ...budget })
           : marketType === "Indian_Market"
           ? extractIndianTradeWithAI(text, {
               includeRawResponse,
               improvedPrompt: attempt === 2,
               brokerHint,
               expectedMultiple,
-              userId,
+              ...budget,
             })
           : extractTradeWithAI(text, {
               marketType,
               includeRawResponse,
-              userId,
+              ...budget,
             }),
         "AI extraction timeout",
-        AI_TIMEOUT_MS
+        Math.max(1, remainingMs)
       );
 
       // If AI returned nothing or couldn't be parsed, we treat it as non-fatal.
@@ -446,6 +479,11 @@ async function runAiWithRetry({ marketType, tradeSubType = "OPTION", text, inclu
         stack: error.stack,
       });
     }
+  }
+  } finally {
+    clearTimeout(budgetTimer);
+    // Cancel anything still in flight; nothing may outlive this call.
+    controller.abort();
   }
 
   // Non-fatal: let the caller continue with OCR-only values.
@@ -814,6 +852,7 @@ async function processTradeUpload({
     let ocrImageBuffer = null;
     let ocrImageMimeType = "image/jpeg";
     let imageQuality = null;
+    let imageHash = "";
 
     await runCancellationCheck(checkCancellation, "before-ocr");
     try {
@@ -829,7 +868,18 @@ async function processTradeUpload({
         throw qualityError;
       }
 
-      const ocrResult = await runOcrWithRetry(sourceImage, downloadedImage);
+      imageHash = extractionCache.imageHash(downloadedImage.buffer);
+      const cachedOcr = await extractionCache.get(processingId, imageHash, "ocr");
+      let ocrResult;
+      if (cachedOcr && typeof cachedOcr.text === "string") {
+        logger.info(`OCR: reusing cached text from an earlier attempt | tradeId=${processingId}`, { tradeId: processingId });
+        ocrResult = { text: cachedOcr.text, buffer: downloadedImage.buffer, mimeType: downloadedImage.mimeType };
+      } else {
+        ocrResult = await runOcrWithRetry(sourceImage, downloadedImage, { userId: trade.user, operationId: processingId });
+        if (!ocrResult.ocrFailed && ocrResult.text) {
+          await extractionCache.set(processingId, imageHash, "ocr", { text: ocrResult.text });
+        }
+      }
       await runCancellationCheck(checkCancellation, "after-ocr");
       extractedText = ocrResult.text;
       ocrImageBuffer = ocrResult.buffer;
@@ -965,18 +1015,26 @@ async function processTradeUpload({
       for (let vAttempt = 1; vAttempt <= GEMINI_VISION_ATTEMPTS; vAttempt++) {
         await runCancellationCheck(checkCancellation, "before-gemini-vision");
         try {
-          visionData = await withTimeout(
-            extractTradeWithGeminiVision(sourceImage, {
-              marketType,
-              tradeSubType,
-              imageBuffer: ocrImageBuffer,
-              imageMimeType: ocrImageMimeType,
-              brokerHint: broker,
-              userId: trade.user,
-            }),
-            "Gemini Vision timeout",
-            AI_TIMEOUT_MS
-          );
+          const visionStage = `vision:${modelFor("trade_vision")}:${marketType}:${tradeSubType}:${broker || ""}`;
+          visionData = await extractionCache.get(processingId, imageHash, visionStage);
+          if (visionData) {
+            logger.info(`Gemini Vision: reusing cached result from an earlier attempt | tradeId=${tradeId}`, { tradeId });
+          } else {
+            visionData = await withTimeout(
+              extractTradeWithGeminiVision(sourceImage, {
+                marketType,
+                tradeSubType,
+                imageBuffer: ocrImageBuffer,
+                imageMimeType: ocrImageMimeType,
+                brokerHint: broker,
+                userId: trade.user,
+                operationId: processingId,
+              }),
+              "Gemini Vision timeout",
+              AI_TIMEOUT_MS
+            );
+            if (visionData) await extractionCache.set(processingId, imageHash, visionStage, visionData);
+          }
           await runCancellationCheck(checkCancellation, "after-gemini-vision");
           if (visionData) break;
           logger.warn(`Gemini Vision returned null | tradeId=${tradeId} | attempt=${vAttempt}`, { tradeId, vAttempt });
@@ -1201,15 +1259,23 @@ async function processTradeUpload({
     if (shouldUseTextAi) {
       try {
         await runCancellationCheck(checkCancellation, "before-text-ai");
-        aiData = await runAiWithRetry({
+        const textStage = `text:${modelFor("trade_text")}:${marketType}:${tradeSubType}:${extractionCache.imageHash(Buffer.from(cleanedText))}`;
+        aiData = await extractionCache.get(processingId, imageHash, textStage);
+        if (aiData) {
+          logger.info(`Text AI: reusing cached result from an earlier attempt | tradeId=${tradeId}`, { tradeId });
+        } else {
+          aiData = await runAiWithRetry({
           marketType,
           tradeSubType,
           text: cleanedText,
           includeRawResponse: true,
           brokerHint: broker,
           userId: trade.user,
+          operationId: processingId,
           expectedMultiple: marketType === "Indian_Market" && (isEquityIntraday ? /INTRADAY|POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText) : ((parsedTrades && parsedTrades.length > 1) || /POSITIONS|HOLDINGS|CLOSED/i.test(cleanedText))),
-        });
+          });
+          if (aiData) await extractionCache.set(processingId, imageHash, textStage, aiData);
+        }
         await runCancellationCheck(checkCancellation, "after-text-ai");
         aiRawResponse = aiData?.rawResponse || "";
 

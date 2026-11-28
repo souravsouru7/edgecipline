@@ -43,6 +43,7 @@ const FEATURE_CARDS = [
     actions: [
       { label: "View User Trades", href: "/admin/trades" },
       { label: "OCR Failure Logs", href: "/admin/monitoring" },
+      { label: "AI Cost Analytics", href: "/admin/ai-costs" },
     ],
   },
   {

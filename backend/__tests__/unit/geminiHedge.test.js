@@ -81,3 +81,45 @@ describe("hedgedGenerate", () => {
     expect(model.generateContent).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("hedgedGenerate metering and caller abort", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("reports every request it sent: the winner and the aborted loser", async () => {
+    const { model } = scriptedModel(["hang", "ok:backup"]);
+    let reported;
+    const promise = hedgedGenerate(model, {}, { ...opts, onAttempts: (list) => { reported = list; } });
+    await jest.advanceTimersByTimeAsync(8_000);
+    await promise;
+    expect(reported.map((a) => [a.attempt, a.outcome])).toEqual([[1, "aborted"], [2, "won"]]);
+  });
+
+  it("reports a single attempt when the first call answers", async () => {
+    const { model } = scriptedModel(["ok:first"]);
+    let reported;
+    await hedgedGenerate(model, {}, { ...opts, onAttempts: (list) => { reported = list; } });
+    expect(reported).toEqual([expect.objectContaining({ attempt: 1, outcome: "won" })]);
+  });
+
+  it("stops everything when the caller aborts, and sends no backup afterwards", async () => {
+    const { model, calls } = scriptedModel(["hang", "ok:backup"]);
+    const controller = new AbortController();
+    const promise = hedgedGenerate(model, {}, { ...opts, signal: controller.signal });
+    const assertion = expect(promise).rejects.toMatchObject({ name: "TimeoutError", aborted: true });
+    await jest.advanceTimersByTimeAsync(1_000);
+    controller.abort();
+    await assertion;
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(model.generateContent).toHaveBeenCalledTimes(1);
+    expect(calls[0].aborted).toBe(true);
+  });
+
+  it("does not start at all when the signal is already aborted", async () => {
+    const { model } = scriptedModel(["ok:first"]);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(hedgedGenerate(model, {}, { ...opts, signal: controller.signal })).rejects.toMatchObject({ aborted: true });
+    expect(model.generateContent).not.toHaveBeenCalled();
+  });
+});

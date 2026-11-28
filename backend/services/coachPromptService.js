@@ -66,7 +66,7 @@ function getQuickPrompts(anchorKind = "freeform") {
 // Builds the full prompt sent to Gemini. We use a system-style preamble (Gemini
 // uses the `systemInstruction` field), then format the user/assistant history
 // into Gemini's `contents` shape.
-function buildModelInput({ systemPrompt = SYSTEM_PROMPT, context, anchor, history, nextUserMessage }) {
+function buildModelInput({ systemPrompt = SYSTEM_PROMPT, context, anchor, history, nextUserMessage, conversationSummary = "" }) {
   const contextBlock = `Trader Context (JSON):
 ${JSON.stringify(context)}
 
@@ -81,6 +81,19 @@ ${JSON.stringify(anchor || { kind: "freeform" })}`;
     role: "model",
     parts: [{ text: "Got it. I have your latest trades, reflections, streaks, and weekly report. I will only coach from this data." }],
   });
+
+  // Summary mode: the older part of this thread, condensed. Placed after the
+  // context so the system + context prefix stays identical across turns.
+  if (conversationSummary) {
+    contents.push({
+      role: "user",
+      parts: [{ text: `Summary of our earlier conversation in this thread (older messages are not repeated below):\n${conversationSummary}` }],
+    });
+    contents.push({
+      role: "model",
+      parts: [{ text: "Noted. I'll keep those earlier rules, mistakes, decisions and feelings in mind." }],
+    });
+  }
 
   for (const msg of history || []) {
     if (msg.role !== "user" && msg.role !== "assistant") continue;

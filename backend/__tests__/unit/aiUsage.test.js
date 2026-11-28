@@ -75,3 +75,70 @@ describe("aiUsage", () => {
     });
   });
 });
+
+describe("aiUsage cost rows", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("prices a call from provider usage and records the served model and cached tokens", () => {
+    const row = aiUsage.buildRow({
+      userId: "u1",
+      feature: "coach",
+      model: "gemini-3.5-flash",
+      response: {
+        modelVersion: "gemini-3.6-flash",
+        usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 100, thoughtsTokenCount: 50, cachedContentTokenCount: 400, totalTokenCount: 1150 },
+      },
+    });
+    expect(row).toMatchObject({
+      model: "gemini-3.5-flash",
+      servedModel: "gemini-3.6-flash",
+      inputTokens: 1000,
+      cachedTokens: 400,
+      costSource: "metered",
+    });
+    expect(row.costUsd).toBeGreaterThan(0);
+    expect(row.pricingVersion).toBeTruthy();
+  });
+
+  it("labels a call without provider usage as estimated", () => {
+    const row = aiUsage.buildRow({
+      feature: "trade_vision",
+      model: "gemini-3.6-flash",
+      ok: false,
+      aborted: true,
+      estimatedTokens: { inputTokens: 2000 },
+    });
+    expect(row).toMatchObject({ costSource: "estimated", aborted: true, inputTokens: 2000, ok: false });
+    expect(row.costUsd).toBeGreaterThan(0);
+  });
+
+  it("prices Cloud Vision by unit", () => {
+    const row = aiUsage.buildRow({ feature: "ocr_vision", model: "cloud-vision", units: 2 });
+    expect(row).toMatchObject({ costSource: "unit", totalTokens: 0 });
+    expect(row.costUsd).toBeCloseTo(0.003, 8);
+  });
+
+  it("reads OpenAI usage", () => {
+    expect(aiUsage.readOpenAiUsage({ usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }))
+      .toMatchObject({ inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedTokens: 0 });
+  });
+
+  it("raises a spend alert past the daily threshold but never throws", async () => {
+    const { alertOnce } = require("../../utils/geminiCircuit");
+    const original = appConfig.ai.spendAlerts;
+    appConfig.ai.spendAlerts = { dailyUsd: 1, userDailyUsd: 0 };
+    try {
+      AiUsage.create.mockResolvedValue({});
+      redis.incrby.mockResolvedValueOnce(100).mockResolvedValueOnce(2_000_000).mockResolvedValueOnce(5);
+      await aiUsage.recordAiUsage({
+        userId: "u1",
+        feature: "coach",
+        model: "gemini-3.6-flash",
+        response: { usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 50, totalTokenCount: 100 } },
+      });
+      expect(alertOnce).toHaveBeenCalledWith("ai_daily_spend", "AI_DAILY_SPEND_ALERT", expect.any(Object));
+    } finally {
+      appConfig.ai.spendAlerts = original;
+    }
+  });
+});

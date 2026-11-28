@@ -3,6 +3,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { appConfig } = require("../config");
 const { logger } = require("../utils/logger");
 const { guardedCall } = require("../utils/geminiCircuit");
+const { applyFeatureThinking, modelFor } = require("../utils/geminiConfig");
 
 const DEFAULT_MAX_SNAPSHOT_BYTES = 200_000;
 const configuredMaxSnapshotBytes = Number(process.env.GEMINI_MAX_SNAPSHOT_BYTES);
@@ -261,7 +262,7 @@ async function generateWeeklyFeedback({ snapshot, weekLabel, userId = null }) {
 
   const genAI = getGeminiClient();
   // Use a stable default Gemini model name; can be overridden via GEMINI_MODEL.
-  const modelName = appConfig.ai.geminiModel;
+  const modelName = modelFor("weekly_report");
   const model = genAI.getGenerativeModel({ model: modelName });
 
   const totalTrades = snapshot?.counts?.totalTrades ?? 0;
@@ -333,11 +334,11 @@ ${snapshotJson}
       model: modelName,
       call: () => model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
+        generationConfig: applyFeatureThinking("weekly_report", modelName, {
           temperature: 0.2,
           maxOutputTokens: 4096,
           responseMimeType: "application/json",
-        },
+        }),
       }),
     });
 

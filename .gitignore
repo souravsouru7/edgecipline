@@ -111,3 +111,6 @@ backend/config/*.json
 
 # Local Remotion promo workspace (bundles its own node_modules)
 /promo/
+
+# AI benchmark data (production screenshots, never commit)
+backend/bench-data/

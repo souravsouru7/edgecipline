@@ -230,27 +230,75 @@ async function noteUserFacingFailure(code) {
  * Throws GeminiCircuitOpenError without calling when the circuit is open, so
  * every caller's existing catch → fallback path handles it.
  */
-async function guardedCall({ feature, userId, model, call }) {
+function errorCodeOf(error) {
+  return error?.name === "TimeoutError" ? "TIMEOUT" : String(error?.status || error?.code || "ERROR");
+}
+
+// One metering row per request a hedged call actually sent. The winner carries
+// the provider's usage numbers; an aborted loser sent the same prompt, so its
+// input tokens are estimated from the winner's (labelled "estimated").
+function recordHedgedAttempts(recordAiUsage, base, attempts, { response, error }) {
+  const winnerInput = Number(response?.usageMetadata?.promptTokenCount) || 0;
+  for (const a of attempts) {
+    if (a.outcome === "won") {
+      recordAiUsage({ ...base, response, ok: true, attempt: a.attempt, hedged: attempts.length > 1, latencyMs: a.latencyMs });
+    } else if (a.outcome === "aborted") {
+      recordAiUsage({
+        ...base,
+        ok: false,
+        errorCode: error ? errorCodeOf(error) : "HEDGE_ABORTED",
+        attempt: a.attempt,
+        hedged: attempts.length > 1,
+        aborted: true,
+        estimatedTokens: { inputTokens: winnerInput },
+        latencyMs: a.latencyMs,
+      });
+    } else {
+      recordAiUsage({
+        ...base,
+        ok: false,
+        errorCode: errorCodeOf(a.error),
+        attempt: a.attempt,
+        hedged: attempts.length > 1,
+        latencyMs: a.latencyMs,
+      });
+    }
+  }
+}
+
+/**
+ * Run one Gemini call behind the circuit and meter it.
+ *   guardedCall({ feature, userId, model, operationId, call: (meter) => model.generateContent(...) })
+ * A hedged call passes `meter.onAttempts` to hedgedGenerate so each request it
+ * sent is metered separately.
+ * Throws GeminiCircuitOpenError without calling when the circuit is open, so
+ * every caller's existing catch → fallback path handles it.
+ */
+async function guardedCall({ feature, userId, model, operationId, call }) {
   // Lazy require: aiUsage pulls in mongoose models, which unit tests of the
   // circuit alone don't need.
   const { recordAiUsage } = require("./aiUsage");
   if (await isOpen()) throw new GeminiCircuitOpenError();
   const started = Date.now();
+  let attempts = null;
+  const meter = { onAttempts: (list) => { attempts = list; } };
+  const base = { userId, feature, model, operationId };
   try {
-    const result = await call();
+    const result = await call(meter);
     recordSuccess().catch(() => {});
-    recordAiUsage({ userId, feature, model, response: result?.response, ok: true, latencyMs: Date.now() - started });
+    if (attempts && attempts.length > 0) {
+      recordHedgedAttempts(recordAiUsage, base, attempts, { response: result?.response });
+    } else {
+      recordAiUsage({ ...base, response: result?.response, ok: true, latencyMs: Date.now() - started });
+    }
     return result;
   } catch (error) {
     recordFailure(error).catch(() => {});
-    recordAiUsage({
-      userId,
-      feature,
-      model,
-      ok: false,
-      errorCode: error?.name === "TimeoutError" ? "TIMEOUT" : String(error?.status || error?.code || "ERROR"),
-      latencyMs: Date.now() - started,
-    });
+    if (attempts && attempts.length > 0) {
+      recordHedgedAttempts(recordAiUsage, base, attempts, { error });
+    } else {
+      recordAiUsage({ ...base, ok: false, errorCode: errorCodeOf(error), latencyMs: Date.now() - started });
+    }
     throw error;
   }
 }
